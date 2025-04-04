@@ -211,7 +211,7 @@ function HomePage({userParam}) {
                         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
                         cursor: "pointer"
                     }}
-                    onClick={() => window.open("https://www.alamatint.com/?_branch_match_id=1365400824153887888&utm_source=linktree&utm_campaign=Bahrain&utm_medium=Share%20Restaurant&_branch_referrer=H4sIAAAAAAAAA8soKSkottLXz0rMSK3Sy8nMy9b3zC1ILC7Jd04syku1rytKTUstKsrMS49PKsovL04tsnXOKMrPTQUA6y%2FTKDkAAAA%3D", "_blank")}
+                    onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
                 >
                     <Box
                         sx={{
