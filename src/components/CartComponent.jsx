@@ -29,7 +29,7 @@ function CartPopup({
                            onRemoveItem,
                            onCheckout
                        }) {
-    const totalPrice = items.reduce((acc, i) => acc + i.amount * i.quantity, 0).toFixed(2);
+    const totalPrice = items.reduce((acc, i) => acc + i.pricePerItem * i.quantity, 0).toFixed(2);
     const [tel, setTel] = useState(null);
     const [phoneError, setPhoneError] = useState(false);
 
@@ -98,32 +98,6 @@ function CartPopup({
                     </Box>
                 </Box>
 
-
-                {/*/!* Если user===null, показываем поле телефона *!/*/}
-                {/*{!user && (*/}
-                {/*    <Box sx={{ p: 2, borderBottom: "1px solid #ddd" }}>*/}
-                {/*        <TextField*/}
-                {/*            label="Phone number"*/}
-                {/*            variant="outlined"*/}
-                {/*            fullWidth*/}
-                {/*            value={tel}*/}
-                {/*            onChange={(e) => {*/}
-                {/*                setTel(e.target.value);*/}
-                {/*                setPhoneError(false);*/}
-                {/*            }}*/}
-                {/*            error={phoneError}*/}
-                {/*            helperText={phoneError ? "Phone number is required" : ""}*/}
-                {/*            sx={{*/}
-                {/*                "& .MuiOutlinedInput-root": {*/}
-                {/*                    "&.Mui-error fieldset": {*/}
-                {/*                        borderColor: brandRed*/}
-                {/*                    }*/}
-                {/*                }*/}
-                {/*            }}*/}
-                {/*        />*/}
-                {/*    </Box>*/}
-                {/*)}*/}
-
                 <Box
                     sx={{
                         flex: 1,
@@ -152,7 +126,6 @@ function CartPopup({
                         px: 2
                     }}
                 >
-                    {/* Цена */}
                     <Typography variant="h6" fontWeight="bold" sx={{ color: "#000", ml: 1.5 }}>
                         {totalPrice}
                     </Typography>

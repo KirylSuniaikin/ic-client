@@ -35,7 +35,7 @@ function CartItemHorizontal({
         title += ` (${item.size})`;
     }
 
-    const itemTotal = (item.amount * item.quantity).toFixed(2);
+    const itemTotal = (item.pricePerItem  * item.quantity).toFixed(2);
     return (
         <Box
             sx={{

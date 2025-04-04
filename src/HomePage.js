@@ -43,9 +43,9 @@ function HomePage({userParam}) {
             try {
                 setLoading(true);
                 const menu = await fetchMenu();
-                const extraIngr = await fetchExtraIngredients();
+                // const extraIngr = await fetchExtraIngredients();
                 setMenuData(menu);
-                setExtraIngredients(extraIngr);
+                setExtraIngredients([]);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -308,6 +308,22 @@ function HomePage({userParam}) {
                 </Box>
             )}
 
+            {/* SAUCES */}
+            {sauces.length > 0 && (
+                <Box sx={{mb: 2}}>
+                    <Typography fontWeight="bold" variant="h6">
+                        Sauces
+                    </Typography>
+                    {sauces.map(item => (
+                        <MenuItemCardHorizontal
+                            key={item.item_id}
+                            item={item}
+                            onSelect={handleOpenPopup}
+                        />
+                    ))}
+                </Box>
+            )}
+
             {/* BEVERAGES */}
             {beverages.length > 0 && (
                 <Box sx={{mb: 2}}>
@@ -324,21 +340,6 @@ function HomePage({userParam}) {
                 </Box>
             )}
 
-            {/* SAUCES */}
-            {sauces.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Sauces
-                    </Typography>
-                    {sauces.map(item => (
-                        <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
 
             <PizzaPopup
                 open={pizzaPopupOpen}

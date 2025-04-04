@@ -38,7 +38,6 @@ function PizzaPopup({
         }
     }, [open, item]);
 
-    // Если выбран размер "Small", принудительно устанавливаем тесто в "Traditional"
     useEffect(() => {
         if (selectedSize === "Small") {
             setSelectedDough("Traditional");
@@ -50,16 +49,14 @@ function PizzaPopup({
     const matched = sameItems ? sameItems.find(it => it.size === selectedSize) : null;
     const basePrice = matched ? matched.price : (item.sizes?.[selectedSize] || item.price || 0);
 
-    // Фильтруем ингредиенты под выбранный размер
     const ingrsForSize = extraIngredients.filter(ing => ing.size === selectedSize);
 
-    // Сумма дополнительных ингредиентов
     const extraCost = selectedIngr.reduce((sum, ingrName) => {
         const found = ingrsForSize.find(i => i.name === ingrName);
         return found ? sum + found.price : sum;
     }, 0);
 
-    const finalPrice = (basePrice + extraCost) * quantity;
+    const finalPricePerItem = (basePrice + extraCost);
 
     // Тогл ингредиента
     function handleToggleIngr(name) {
@@ -102,10 +99,10 @@ function PizzaPopup({
             isGarlicCrust: isGarlicCrustVal,
             quantity,
             description: getDesc(),
-            amount: finalPrice
+            pricePerItem: finalPricePerItem
         };
         console.log("basePrice", basePrice);
-        console.log("finalPrice", finalPrice);
+        console.log("pricePerItem", finalPricePerItem);
         onAddToCart?.(product);
         onClose?.();
     }
@@ -272,7 +269,7 @@ function PizzaPopup({
                         }}
                         onClick={handleAdd}
                     >
-                        Add to cart · {finalPrice.toFixed(2)}
+                        Add to cart · {(finalPricePerItem * quantity).toFixed(2)}
                     </Button>
                 </Box>
             </Box>
