@@ -43,9 +43,9 @@ function HomePage({userParam}) {
             try {
                 setLoading(true);
                 const menu = await fetchMenu();
-                // const extraIngr = await fetchExtraIngredients();
+                const extraIngr = await fetchExtraIngredients();
                 setMenuData(menu);
-                setExtraIngredients([]);
+                setExtraIngredients(extraIngr);
             } catch (err) {
                 setError(err.message);
             } finally {
