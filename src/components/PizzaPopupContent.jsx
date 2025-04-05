@@ -99,7 +99,7 @@ function PizzaPopup({
             isGarlicCrust: isGarlicCrustVal,
             quantity,
             description: getDesc(),
-            pricePerItem: finalPricePerItem
+            amount: finalPricePerItem
         };
         console.log("basePrice", basePrice);
         console.log("pricePerItem", finalPricePerItem);

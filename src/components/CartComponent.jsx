@@ -29,7 +29,7 @@ function CartPopup({
                            onRemoveItem,
                            onCheckout
                        }) {
-    const totalPrice = items.reduce((acc, i) => acc + i.pricePerItem * i.quantity, 0).toFixed(2);
+    const totalPrice = items.reduce((acc, i) => acc + i.amount * i.quantity, 0).toFixed(2);
     const [tel, setTel] = useState(null);
     const [phoneError, setPhoneError] = useState(false);
 

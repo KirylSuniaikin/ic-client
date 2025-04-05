@@ -144,7 +144,7 @@ function HomePage({userParam}) {
                 tel: tel,
                 user_id: user,
                 items: cartItems,
-                amount_paid: cartItems.reduce((acc, item) => acc + item.amount * item.quantity, 0)
+                amount_paid: cartItems.reduce((acc, item) => acc + (item.amount * item.quantity)* item.quantity, 0)
             };
 
             try {

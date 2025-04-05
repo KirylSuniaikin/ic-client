@@ -31,7 +31,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
             size: item.size,
             category: item.category,
             quantity: quantity,
-            pricePerItem: finalPricePerItem
+            amount: finalPricePerItem
         };
         onAddToCart?.(product);
         onClose?.();
