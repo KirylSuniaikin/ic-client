@@ -22,7 +22,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
 
     if (!item) return null;
 
-    const finalPrice = (item.price * quantity);
+    const finalPricePerItem = item.price;
 
     function handleAdd() {
         const product = {
@@ -31,7 +31,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
             size: item.size,
             category: item.category,
             quantity: quantity,
-            amount: finalPrice
+            pricePerItem: finalPricePerItem
         };
         onAddToCart?.(product);
         onClose?.();
@@ -190,7 +190,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                         }}
                         onClick={handleAdd}
                     >
-                        Add to cart · {finalPrice.toFixed(2)}
+                        Add to cart · {(finalPricePerItem * quantity).toFixed(2)}
                     </Button>
                 </Box>
             </Box>
