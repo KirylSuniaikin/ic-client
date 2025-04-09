@@ -2,7 +2,6 @@ import React, {useState} from "react";
 import {Modal, Box, Typography, IconButton, Button, TextField} from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import {createOrder} from "../api/api";
 
 const brandRed = "#E44B4C";
 const brandColor2 = "#FCF4DD";

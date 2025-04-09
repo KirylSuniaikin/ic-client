@@ -1,6 +1,13 @@
+
+export var PROD_BASE_HOST = "https://icpizza.pythonanywhere.com/api";
+export var DEV_BASE_HOST = "https://leopard-climbing-rooster.ngrok-free.app/api" ;
+
 export async function fetchMenu() {
-    const response = await fetch("https://icpizza.pythonanywhere.com/api/getAllMenuItems", {
+    const response = await fetch(PROD_BASE_HOST + "/getAllMenuItems", {
         method: "GET",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
     });
 
     if (!response.ok) {
@@ -15,23 +22,29 @@ export async function fetchMenu() {
 }
 
 export async function fetchExtraIngredients() {
-    const response = await fetch("https://icpizza.pythonanywhere.com/api/getAllExtraIngr", {
+    const response = await fetch(PROD_BASE_HOST + "/getAllExtraIngr", {
         method: "GET",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
     });
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
     }
-
-    const data = await response.json();
-    return data;
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+    return JSON.parse(text);
 }
 
 export async function createOrder(order) {
     console.log(order);
-    const response = await fetch("https://icpizza.pythonanywhere.com/api/createOrder", {
+    const response = await fetch(PROD_BASE_HOST + "/createOrder", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            // "ngrok-skip-browser-warning": "69420"
         },
         body: JSON.stringify(order)
     });
@@ -39,6 +52,23 @@ export async function createOrder(order) {
 
     if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+export async function markOrderReady(orderId) {
+    const url = `${PROD_BASE_HOST}/readyAction?orderId=${orderId}`;
+
+    const response = await fetch(url, {
+        method: "POST",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error marking order ready: ${response.status}`);
     }
 
     return await response.json();
