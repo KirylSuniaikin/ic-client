@@ -1,8 +1,10 @@
 import {useEffect, useState} from "react";
 import {markOrderReady} from "./api/api";
+import {useNavigate} from "react-router-dom";
 
 function ReadyPage({order}) {
     const [orderId, setOrderId] = useState(null);
+    const navigate = useNavigate();
 
 
     useEffect(() => {
@@ -18,7 +20,7 @@ function ReadyPage({order}) {
             {orderId ? (
                 <>
                     <p>Order ID: <strong>{orderId}</strong></p>
-                    <button onClick={() => markOrderReady(orderId)}>
+                    <button onClick={() => markOrderReady(orderId).then(navigate("/menu"))}>
                         ✅ Mark as Ready
                     </button>
                 </>
