@@ -3,6 +3,7 @@ import {Badge, Box, CardMedia, Fab, Typography} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import jahezLogo from "./assets/jahez-logo.png";
 import talabatLogo from "./assets/talabat-logo.png";
+import { useSearchParams } from 'react-router-dom';
 
 
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
@@ -32,6 +33,9 @@ function HomePage({userParam}) {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const [searchParams] = useSearchParams();
+    const isAdmin = searchParams.get('isAdmin') === 'true';
 
     useEffect(() => {
         if (userParam) {
@@ -158,7 +162,15 @@ function HomePage({userParam}) {
     }
 
     return (
-        <Box sx={{p: 2}}>
+            <Box sx={{p: 2}}>
+                {isAdmin && (
+                    <Box sx={{mb: 2}}>
+                        <Typography variant="h6" color="primary">
+                            Welcome, Admin
+                        </Typography>
+                    </Box>
+                )}
+                {!isAdmin && (
             <Box sx={{display: "flex", flexDirection: "column", gap: 1, mb: 3}}>
                 <Box
                     sx={{
@@ -241,7 +253,7 @@ function HomePage({userParam}) {
                     </Typography>
                 </Box>
             </Box>
-
+                )}
 
             {/* BESTSELLERS */}
             {bestsellers.length > 0 && (
@@ -379,7 +391,7 @@ function HomePage({userParam}) {
                 isPhonePopupOpen={phonePopupOpen}
                 onClose={handleClosePhonePopup}
                 onSave={(tel) => {
-                    handleCheckout(cartItems, tel);
+                    handleCheckout(cartItems, tel, isAdmin);
                 }}
             />
 

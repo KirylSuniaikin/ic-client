@@ -33,7 +33,7 @@ export async function fetchExtraIngredients() {
     }
     const text = await response.text();
     if (text.trim().startsWith("<!DOCTYPE html>")) {
-        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер");
     }
     return JSON.parse(text);
 }
