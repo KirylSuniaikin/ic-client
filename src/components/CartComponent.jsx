@@ -138,13 +138,13 @@ function CartPopup({
                             textTransform: "none",
                             fontWeight: "bold",
                             borderRadius: 4,
-                            width: 180,
+                            width: 210,
                             "&:hover": {
                                 backgroundColor: brandRed
                             }
                         }}
                     >
-                        Checkout
+                        Checkout (Pick Up Only)
                     </Button>
                 </Box>
             </Box>
