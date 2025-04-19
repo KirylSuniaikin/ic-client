@@ -5,37 +5,30 @@ import {
     IconButton,
     Button,
     Divider,
-    CardMedia
+    CardMedia, Select, MenuItem, FormControl, InputLabel
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
 const brandGray = "#f3f3f3";
 
-/**
- * CartItemHorizontalDodo
- *
- * - Фото (80×80) слева
- * - Справа: название (с учётом item.size в скобках) и описание
- * - Крестик (X) в правом верхнем углу (absolute)
- * - Горизонтальная линия
- * - Нижняя часть: цена (за всё кол-во) + отступ; счётчик (–/число/+) справа
- *
- * Props:
- *  - item: { name, size?, description?, photo, quantity, price }
- *  - onChangeQuantity(item, newQty)
- *  - onRemoveItem(item)
- */
+
 function CartItemHorizontal({
                                     item,
                                     onChangeQuantity,
-                                    onRemoveItem
-                                }) {
+                                    onRemoveItem,
+                                    isAdmin,
+                                    handleDiscountChange,
+                            }) {
     let title = item.name;
     if (item.size) {
         title += ` (${item.size})`;
     }
 
-    const itemTotal = (item.amount  * item.quantity).toFixed(2);
+    const discount = item.discount || 0; // от 0 до 100
+    const discountedPrice = item.amount * (1 - discount / 100);
+    const itemTotal = (discountedPrice * item.quantity).toFixed(2);
+
+
     return (
         <Box
             sx={{
@@ -48,8 +41,11 @@ function CartItemHorizontal({
             }}
         >
             <IconButton
-                onClick={() => onRemoveItem?.(item)}
-                sx={{
+                onClick={() => {
+                    onRemoveItem?.(item)
+                }}
+
+                    sx={{
                     position: "absolute",
                     top: 8,
                     right: 8,
@@ -89,6 +85,44 @@ function CartItemHorizontal({
 
             {/* Разделитель */}
             <Divider sx={{ my: 1.5 }} />
+
+            <Box>
+                {isAdmin && (
+                    <Box sx={{ mt: 1 }}>
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel id={`discount-label-${item.name}`}>Discount</InputLabel>
+                            <Select
+                                size="small"
+                                labelId={`discount-label-${item.name}`}
+                                value={item.discount ?? 0}
+                                label="Discount"
+                                onChange={(e) =>
+                                    handleDiscountChange?.(item, parseInt(e.target.value))
+                                }
+                                sx={{
+                                    backgroundColor: "#FAFAFA",
+                                    borderRadius: 2,
+                                    "& .MuiOutlinedInput-notchedOutline": {
+                                        borderColor: "#ccc"
+                                    },
+                                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                                        borderColor: "#E44B4C"
+                                    },
+                                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                                        borderColor: "#E44B4C"
+                                    }
+                                }}
+                            >
+                                {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => (
+                                    <MenuItem key={percent} value={percent}>
+                                        {percent}%
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Box>
+                )}
+            </Box>
 
             <Box
                 sx={{

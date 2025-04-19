@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import {BrowserRouter, Routes, Route, useSearchParams, Navigate} from 'react-router-dom';
 import HomePage from './HomePage';
 import ReadyPage from "./ReadyPage";
-import OrdersPage from "./OrdersPage";
+import AdminHomePage from "./AdminHomePage";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 function MenuRoute() {
@@ -19,10 +19,6 @@ function ReadyRoute() {
     return <ReadyPage order={orderId} />;
 }
 
-function OrdersRoute() {
-    return <OrdersPage />
-}
-
 root.render(
     <React.StrictMode>
         <BrowserRouter>
@@ -30,7 +26,7 @@ root.render(
                 <Route path="/" element={<Navigate to="/menu" />} />
                 <Route path="/menu" element={<MenuRoute />} />
                 <Route path="/ready" element={<ReadyRoute />} />
-                <Route path="/admin/" element={<OrdersPage />} />
+                <Route path="/admin/" element={<AdminHomePage />} />
             </Routes>
         </BrowserRouter>
     </React.StrictMode>
