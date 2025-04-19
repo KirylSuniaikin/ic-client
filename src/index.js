@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import {BrowserRouter, Routes, Route, useSearchParams, Navigate} from 'react-router-dom';
 import HomePage from './HomePage';
 import ReadyPage from "./ReadyPage";
+import AdminHomePage from "./AdminHomePage";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 function MenuRoute() {
@@ -25,6 +26,7 @@ root.render(
                 <Route path="/" element={<Navigate to="/menu" />} />
                 <Route path="/menu" element={<MenuRoute />} />
                 <Route path="/ready" element={<ReadyRoute />} />
+                <Route path="/admin/" element={<AdminHomePage />} />
             </Routes>
         </BrowserRouter>
     </React.StrictMode>
