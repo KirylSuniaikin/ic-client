@@ -4,7 +4,7 @@ import {
     Box,
     Typography,
     Fab,
-    Button
+    Button, Checkbox, FormControlLabel
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -13,11 +13,21 @@ const brandGray = "#f3f3f3";
 
 function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
     const [quantity, setQuantity] = useState(1);
+    const [description, setDescription] = useState("");
+    const [selectedToppings, setSelectedToppings] = useState([""]);
 
     useEffect(() => {
         if (open && item) {
             setQuantity(1);
+            if (item.name === "Pizza Rolls") {
+                setSelectedToppings(["Pepperoni"]);
+                setDescription("Pepperoni");
+            } else {
+                setSelectedToppings([]);
+                setDescription("");
+            }
         }
+
     }, [open, item]);
 
     if (!item) return null;
@@ -31,7 +41,8 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
             size: item.size,
             category: item.category,
             quantity: quantity,
-            amount: finalPricePerItem
+            amount: finalPricePerItem,
+            description: description
         };
         onAddToCart?.(product);
         onClose?.();
@@ -54,7 +65,6 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                     flexDirection: "column"
                 }}
             >
-                {/* Кнопка закрытия */}
                 <Fab
                     size="small"
                     onClick={onClose}
@@ -102,8 +112,61 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                         >
                             {item.description}
                         </Typography>
+                        {item.name === "Pizza Rolls" && (
+                            <>
+                                <FormControlLabel
+                                    label={
+                                        <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                                            Pepperoni
+                                        </Typography>
+                                    }
+                                    control={
+                                        <Checkbox
+                                            checked={selectedToppings.includes("Pepperoni")}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedToppings(["Pepperoni"]);
+                                                    setDescription("Pepperoni");
+                                                } else {
+                                                    setSelectedToppings([]);
+                                                    setDescription("");
+                                                }
+                                            }}
+                                            sx={{
+                                                color: brandRed,
+                                                "&.Mui-checked": { color: brandRed },
+                                            }}
+                                        />
+                                    }
+                                />
+                                <FormControlLabel
+                                    label={
+                                        <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                                            Smoked Turkey
+                                        </Typography>
+                                    }
+                                    control={
+                                        <Checkbox
+                                            checked={selectedToppings.includes("Smoked Turkey")}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedToppings(["Smoked Turkey"]);
+                                                    setDescription("Smoked Turkey");
+                                                } else {
+                                                    setSelectedToppings([]);
+                                                    setDescription("");
+                                                }
+                                            }}
+                                            sx={{
+                                                color: brandRed,
+                                                "&.Mui-checked": { color: brandRed },
+                                            }}
+                                        />
+                                    }
+                                />
+                            </>
+                        )}
 
-                        {/* Счётчик */}
                         <Box
                             sx={{
                                 backgroundColor: brandGray,

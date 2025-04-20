@@ -1,19 +1,25 @@
-import {useEffect, useState} from "react";
-import {Badge, Box, CardMedia, Fab, Typography} from "@mui/material";
+import {useEffect, useRef, useState} from "react";
+import {Badge, Box, CardMedia, Fab, IconButton, Typography} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import jahezLogo from "./assets/jahez-logo.png";
 import talabatLogo from "./assets/talabat-logo.png";
+import { useSearchParams } from 'react-router-dom';
+import {useNavigate} from "react-router-dom";
 
 
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
 
-import {createOrder, fetchExtraIngredients, fetchMenu} from "./api/api";
+import {createOrder, editOrder, fetchExtraIngredients, fetchMenu} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
-import PhonePopup from "./components/PhonePopup";
+import ClientInfoPopup from "./components/ClientInfoPopup";
+import AdminOrderDetailsPopUp from "./adminComponents/AdminOrderDetailsPopUp";
 import GenericItemPopupContent from "./components/GenericItemPopupContent";
+import CloseIcon from "@mui/icons-material/Close";
+import OrderConfirmed from "./components/OrderConfirmed";
+import PizzaLoader from "./components/PizzaLoader";
 
 const brandRed = "#E44B4C";
 
@@ -29,11 +35,49 @@ function HomePage({userParam}) {
     const [genericPopupOpen, setGenericPopupOpen] = useState(false);
     const [popupItem, setPopupItem] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
+    const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const [searchParams] = useSearchParams();
+    const isAdmin = searchParams.get('isAdmin') === 'true';
+    const isEditMode = searchParams.get('isEditMode') === 'true';
+    const isAdminConfirmedRef = useRef(false);
+    const navigate = useNavigate();
+    const [showOrderConfirmed, setShowOrderConfirmed] = useState(false);
+
+    const handleDiscountChange = (item, newDiscount) => {
+        const updatedItems = cartItems.map((i) =>
+            i === item ? { ...i, discount: newDiscount } : i
+        );
+        setCartItems(updatedItems);
+    };
+    const PIXEL_ID = '1717861405707714';
+
     useEffect(() => {
+        if (!window.fbq) {
+            (function (f, b, e, v, n, t, s) {
+                if (f.fbq) return;
+                n = f.fbq = function () {
+                    n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+                };
+                if (!f._fbq) f._fbq = n;
+                n.push = n;
+                n.loaded = !0;
+                n.version = '2.0';
+                n.queue = [];
+                t = b.createElement(e);
+                t.async = !0;
+                t.src = v;
+                s = b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t, s);
+            })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        }
+
+        window.fbq('init', PIXEL_ID);
+        window.fbq('track', 'HomePage');
+
         if (userParam) {
             setUser(userParam);
             console.log("User:", userParam);
@@ -54,9 +98,45 @@ function HomePage({userParam}) {
         }
 
         loadMenu();
+
+        if (isEditMode) {
+            const rawOrder = localStorage.getItem("orderToEdit");
+            if (rawOrder) {
+                try {
+                    const parsed = JSON.parse(rawOrder);
+                    if (Array.isArray(parsed.items)) {
+                        const normalized = parsed.items.map(item => {
+                            const discount = item.discount_amount && item.quantity
+                                ? Math.round((item.discount_amount / (item.amount + item.discount_amount) * 100))
+                                : 0;
+
+                            const originalAmount = item.amount + (item.discount_amount || 0);
+
+                            return {
+                                ...item,
+                                quantity: item.quantity || 1,
+                                discount,
+                                amount: originalAmount,
+                            };
+                        });
+                        setCartItems(normalized);
+                    }
+                } catch (e) {
+                    console.error("Error:", e);
+                }
+            }
+        }
+
     }, []);
 
-    if (loading) return <div>Loading...</div>;
+    useEffect(() => {
+        if (cartItems.length === 0) {
+            setCartOpen(false);
+        }
+    }, [cartItems]);
+
+
+    if (loading) return <PizzaLoader />;
     if (error) return <div>Error: {error}</div>;
 
     const uniqueItems = getUniqueItems(menuData);
@@ -134,31 +214,182 @@ function HomePage({userParam}) {
         );
     }
 
-    async function handleCheckout(items, tel) {
-        if (user === null && tel===null) {
-            setPhonePopupOpen(true);
+    const handleCloseAdminOrderDetailsPopup = () => {
+        setAdminOrderDetailsPopUpOpen(false);
+    }
+
+
+    const buildOrderTO = (
+        tel,
+        customer_name,
+        delivery_method,
+        payment_type,
+        items
+    ) => {
+        console.info("Items:" + items)
+        return {
+            tel,
+            user_id: user,
+            customer_name: customer_name,
+            delivery_method: delivery_method,
+            payment_type: payment_type,
+            items: items.map(item => {
+                const discount = typeof item.discount === "number" ? item.discount : 0;
+                const discountAmount = item.amount * (discount / 100) * item.quantity;
+
+                return {
+                    name: item.name,
+                    quantity: item.quantity,
+                    amount: item.amount,
+                    size: item.size || "",
+                    category: item.category,
+                    description: item.description || "",
+                    isGarlicCrust: item.isGarlicCrust || false,
+                    isThinDough: item.isThinDough || false,
+                    discount_amount: parseFloat(discountAmount.toFixed(3))
+                };
+            }),
+            amount_paid: parseFloat(
+                items.reduce((acc, item) => {
+                    const discount = typeof item.discount === "number" ? item.discount : 0;
+                    const discountedPrice = item.amount * (1 - discount / 100);
+                    return acc + discountedPrice * item.quantity;
+                }, 0).toFixed(3)
+            )
+        }
+    };
+
+    async function handleCheckout(
+        items,
+        tel,
+        customerName = null,
+        deliveryMethod = null,
+        paymentMethod = null
+    )
+    {
+        console.log("isAdmin", isAdmin);
+        if (user === null && tel===null && !isAdmin) {
             setCartOpen(false);
-        } else {
+            if(isAdmin) {
+            }
+
+                setPhonePopupOpen(true);
+        }
+        else if(isAdmin && isEditMode) {
+            setLoading(true);
+            try {
+                const order = buildOrderTO(tel, customerName, deliveryMethod, paymentMethod, items);
+                await editOrder(order, JSON.parse(localStorage.getItem("orderToEdit")).orderId);
+                setCartOpen(false);
+                localStorage.removeItem("orderToEdit");
+                navigate("/admin/");
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        else if(isAdmin && !isAdminConfirmedRef.current) {
             setCartOpen(false);
+            setAdminOrderDetailsPopUpOpen(true);
+            isAdminConfirmedRef.current = true;
+        }
+        else
+        {
             const order = {
-                tel: tel,
+                tel,
                 user_id: user,
-                items: cartItems,
-                amount_paid: cartItems.reduce((acc, item) => acc + (item.amount * item.quantity)* item.quantity, 0)
+                customer_name: customerName,
+                delivery_method: deliveryMethod,
+                payment_type: paymentMethod,
+                items: items.map(item => {
+                    const discount = typeof item.discount === "number" ? item.discount : 0;
+                    const discountAmount = item.amount * (discount / 100) * item.quantity;
+                    const discountedAmount = item.amount * (1 - discount / 100);
+
+                    return {
+                        name: item.name,
+                        quantity: item.quantity,
+                        amount: parseFloat(discountedAmount.toFixed(3)),
+                        size: item.size || "",
+                        category: item.category,
+                        description: item.description || "",
+                        isGarlicCrust: item.isGarlicCrust || false,
+                        isThinDough: item.isThinDough || false,
+                        discount_amount: parseFloat(discountAmount.toFixed(3)) // 💥 Скидка в BHD
+                    };
+                }),
+                amount_paid: parseFloat(
+                    items.reduce((acc, item) => {
+                        const discount = typeof item.discount === "number" ? item.discount : 0;
+                        const discountedPrice = item.amount * (1 - discount / 100);
+                        return acc + discountedPrice * item.quantity;
+                    }, 0).toFixed(3)
+                ),
             };
+            setCartItems([]);
+            setShowOrderConfirmed(true);
 
             try {
-                setCartItems([]);
-                const response = await createOrder(order);
+                let response;
+
+                if (isAdmin) {
+                    setLoading(true);
+                    setCartItems([]);
+                    isAdminConfirmedRef.current = false;
+                    response = await createOrder(order)
+                    setLoading(false)
+                    navigate("/admin/")
+                } else {
+                    response = await createOrder(order);
+                }
                 console.log("Order placed successfully:", response);
+                setCartItems([]);
             } catch (error) {
                 console.error("Error placing order:", error);
+            } finally {
+                setCartOpen(false);
             }
         }
     }
 
     return (
-        <Box sx={{p: 2}}>
+            <Box sx={{p: 2}}>
+                {
+                    !pizzaPopupOpen &&
+                    !comboPopupOpen &&
+                    !genericPopupOpen &&
+                    !cartOpen &&
+                    !phonePopupOpen &&
+                    !adminOrderDetailsPopUp &&
+                    isAdmin && (
+                    <Box sx={{
+                        position: 'fixed',
+                        top: 16,
+                        right: 16,
+                        zIndex: 10000
+                    }}
+                    >
+                        <IconButton
+                            onClick={() => {
+                                setCartItems([]);
+                                navigate('/admin/');
+                            }}
+                            sx={{
+                                backgroundColor: "#ffffff",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                                "&:hover": {
+                                    backgroundColor: "#f5f5f5"
+                                }
+                            }}
+                        >
+                            <CloseIcon sx={{ fontSize: 28, color: "#E44B4C" }} />
+                        </IconButton>
+                    </Box>
+
+
+                )}
+                {!isAdmin && (
             <Box sx={{display: "flex", flexDirection: "column", gap: 1, mb: 3}}>
                 <Box
                     sx={{
@@ -241,7 +472,7 @@ function HomePage({userParam}) {
                     </Typography>
                 </Box>
             </Box>
-
+                )}
 
             {/* BESTSELLERS */}
             {bestsellers.length > 0 && (
@@ -373,17 +604,34 @@ function HomePage({userParam}) {
                 onChangeQuantity={handleChangeQuantity}
                 onRemoveItem={handleRemoveItemFromCart}
                 onCheckout={handleCheckout}
+                isAdmin={isAdmin}
+                handleDiscountChange={handleDiscountChange}
             />
 
-            <PhonePopup
+            <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
                 onClose={handleClosePhonePopup}
-                onSave={(tel) => {
-                    handleCheckout(cartItems, tel);
+                onSave={(tel, paymentMethod) => {
+                    handleCheckout(cartItems, tel, null,"Pick Up", paymentMethod);
                 }}
             />
 
-            {!cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+                <AdminOrderDetailsPopUp
+                    isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
+                    onClose={handleCloseAdminOrderDetailsPopup}
+                    onSave={({ phone, customerName, deliveryMethod, paymentMethod }) =>
+                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod)
+                    }
+                    cartItems={cartItems}
+                    setCartItems={setCartItems}
+                />
+
+                {   !isAdmin &&
+                    showOrderConfirmed && (
+                    <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)} />
+                )}
+
+            {!adminOrderDetailsPopUp && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
                 <Fab
                     onClick={handleOpenCart}
                     sx={{

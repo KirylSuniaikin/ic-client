@@ -33,7 +33,7 @@ export async function fetchExtraIngredients() {
     }
     const text = await response.text();
     if (text.trim().startsWith("<!DOCTYPE html>")) {
-        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер");
     }
     return JSON.parse(text);
 }
@@ -72,4 +72,42 @@ export async function markOrderReady(orderId) {
     }
 
     return await response.json();
+}
+
+export async function editOrder(order, orderId) {
+    const url = `${PROD_BASE_HOST}/editOrder?orderId=${orderId}`;
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            // "ngrok-skip-browser-warning": "69420"
+        },
+        body: JSON.stringify(order)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Error editing order: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+export async function getAllActiveOrders() {
+    const response = await fetch(PROD_BASE_HOST + "/getAllActiveOrders", {
+        method: "GET",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text);
 }
