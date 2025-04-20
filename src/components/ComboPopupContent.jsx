@@ -223,7 +223,6 @@ function ComboPopup({
                         <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
                             Pick 2 Pizzas
                         </Typography>
-                        {/* Список пицц (уникальных) для выбора */}
                         {uniquePizzas.map((pizza) => {
                             const idx = selectedPizzas.findIndex(
                                 (sp) => sp.name === pizza.name

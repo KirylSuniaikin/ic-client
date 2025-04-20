@@ -8,10 +8,13 @@ const countries = [
     { name: "Saudi Arabia", code: "966", digits: 9 }
 ];
 
-function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
+const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
+
+function ClientInfoPopup({ isPhonePopupOpen, onClose, onSave }) {
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState("");
     const [phoneError, setPhoneError] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("");
 
     const countryObj = countries.find((c) => c.name === selectedCountry);
 
@@ -27,7 +30,10 @@ function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
         }
         setPhoneError("");
         const fullPhone = countryObj.code + phoneDigits;
-        onSave?.(fullPhone);
+        onSave?.(
+            fullPhone,
+            paymentMethod
+        );
         onClose?.();
     }
 
@@ -47,11 +53,10 @@ function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
                     outline: "none"
                 }}
             >
-                {/* Заголовок */}
                 <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
                     Enter your phone number to complete your order
                 </Typography>
-                {/* Дропдаун для выбора страны */}
+                {/* Country Select */}
                 <TextField
                     select
                     label="Country"
@@ -66,14 +71,13 @@ function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
                         </MenuItem>
                     ))}
                 </TextField>
-                {/* Поле для ввода номера (без кода страны) */}
+                {/* Phone input */}
                 <TextField
                     label="Phone number"
                     variant="outlined"
                     fullWidth
                     value={phoneDigits}
                     onChange={(e) => {
-                        // Разрешаем только цифры
                         const val = e.target.value;
                         if (/^\d*$/.test(val)) {
                             setPhoneDigits(val);
@@ -91,7 +95,22 @@ function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
                         }
                     }}
                 />
-                {/* Кнопка Checkout */}
+                {/* Payment Method */}
+                <TextField
+                    select
+                    label="Payment Method"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    fullWidth
+                    sx={{ mb: 3 }}
+                >
+                    {paymentOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
+                {/* Checkout Button */}
                 <Button
                     variant="contained"
                     fullWidth
@@ -105,11 +124,11 @@ function PhonePopup({ isPhonePopupOpen, onClose, onSave }) {
                         }
                     }}
                 >
-                    Checkout
+                    Checkout (Pick Up)
                 </Button>
             </Box>
         </Modal>
     );
 }
 
-export default PhonePopup;
+export default ClientInfoPopup;
