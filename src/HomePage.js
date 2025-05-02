@@ -3,7 +3,7 @@ import {Badge, Box, CardMedia, Fab, IconButton, Typography} from "@mui/material"
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import jahezLogo from "./assets/jahez-logo.png";
 import talabatLogo from "./assets/talabat-logo.png";
-import { useSearchParams } from 'react-router-dom';
+import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 
 
@@ -11,7 +11,7 @@ import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
 
-import {createOrder, editOrder, fetchExtraIngredients, fetchMenu} from "./api/api";
+import {createOrder, editOrder, fetchExtraIngredients, fetchMenu, fetchUserInfo} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
 import ClientInfoPopup from "./components/ClientInfoPopup";
@@ -29,6 +29,8 @@ function HomePage({userParam}) {
     const [cartItems, setCartItems] = useState([]);
     const [cartOpen, setCartOpen] = useState(false);
     const [user, setUser] = useState(null);
+    const [username, setUsername] = useState("");
+    const [phone, setPhone] = useState("");
 
     const [pizzaPopupOpen, setPizzaPopupOpen] = useState(false);
     const [comboPopupOpen, setComboPopupOpen] = useState(false);
@@ -49,7 +51,7 @@ function HomePage({userParam}) {
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
-            i === item ? { ...i, discount: newDiscount } : i
+            i === item ? {...i, discount: newDiscount} : i
         );
         setCartItems(updatedItems);
     };
@@ -78,18 +80,26 @@ function HomePage({userParam}) {
         window.fbq('init', PIXEL_ID);
         window.fbq('track', 'HomePage');
 
-        if (userParam) {
-            setUser(userParam);
-            console.log("User:", userParam);
-        }
 
-        async function loadMenu() {
+        async function load() {
             try {
                 setLoading(true);
                 const menu = await fetchMenu();
                 const extraIngr = await fetchExtraIngredients();
                 setMenuData(menu);
                 setExtraIngredients(extraIngr);
+                if (userParam) {
+                    setUser(userParam);
+                    const userInfo = await fetchUserInfo(userParam)
+                    if (userInfo.name) {
+                        console.log("User name:", userInfo.name);
+                        setUsername(userInfo.name);
+                    }
+                    if (userInfo.phone) {
+                        console.log("User phone:", userInfo.phone);
+                        setPhone(userInfo.phone);
+                    }
+                }
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -97,7 +107,7 @@ function HomePage({userParam}) {
             }
         }
 
-        loadMenu();
+        load();
 
         if (isEditMode) {
             const rawOrder = localStorage.getItem("orderToEdit");
@@ -136,11 +146,11 @@ function HomePage({userParam}) {
     }, [cartItems]);
 
 
-    if (loading) return <PizzaLoader />;
+    if (loading) return <PizzaLoader/>;
     if (error) return <div>Error: {error}</div>;
 
     const uniqueItems = getUniqueItems(menuData);
-    const {bestsellers, combos, pizzas, sides, beverages, sauces} = groupItemsByCategory(uniqueItems);
+    const {bestsellers, brickPizzas, combos, pizzas, sides, beverages, sauces} = groupItemsByCategory(uniqueItems);
 
     function getUniqueItems(data) {
         const map = new Map();
@@ -162,7 +172,9 @@ function HomePage({userParam}) {
         return sameItems;
     }
 
-    const handleOpenCart = () => setCartOpen(true);
+    const handleOpenCart = () => {
+        setCartOpen(true)
+    };
     const handleCloseCart = () => setCartOpen(false);
 
     const handleOpenPopup = (item) => {
@@ -224,15 +236,16 @@ function HomePage({userParam}) {
         customer_name,
         delivery_method,
         payment_type,
-        items
+        items,
+        notes
     ) => {
-        console.info("Items:" + items)
         return {
             tel,
             user_id: user,
             customer_name: customer_name,
             delivery_method: delivery_method,
             payment_type: payment_type,
+            notes: notes,
             items: items.map(item => {
                 const discount = typeof item.discount === "number" ? item.discount : 0;
                 const discountAmount = item.amount * (discount / 100) * item.quantity;
@@ -264,21 +277,19 @@ function HomePage({userParam}) {
         tel,
         customerName = null,
         deliveryMethod = null,
-        paymentMethod = null
-    )
-    {
-        console.log("isAdmin", isAdmin);
-        if (user === null && tel===null && !isAdmin) {
+        paymentMethod = null,
+        notes
+    ) {
+        if (paymentMethod === null) {
             setCartOpen(false);
-            if(isAdmin) {
-            }
-
-                setPhonePopupOpen(true);
-        }
-        else if(isAdmin && isEditMode) {
+            if(isAdmin){
+                setAdminOrderDetailsPopUpOpen(true);
+            } else setPhonePopupOpen(true);
+        } else if (isAdmin && isEditMode) {
+            console.log(notes);
             setLoading(true);
             try {
-                const order = buildOrderTO(tel, customerName, deliveryMethod, paymentMethod, items);
+                const order = buildOrderTO(tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 await editOrder(order, JSON.parse(localStorage.getItem("orderToEdit")).orderId);
                 setCartOpen(false);
                 localStorage.removeItem("orderToEdit");
@@ -288,20 +299,18 @@ function HomePage({userParam}) {
             } finally {
                 setLoading(false);
             }
-        }
-        else if(isAdmin && !isAdminConfirmedRef.current) {
+        } else if (isAdmin && !isAdminConfirmedRef.current) {
             setCartOpen(false);
             setAdminOrderDetailsPopUpOpen(true);
             isAdminConfirmedRef.current = true;
-        }
-        else
-        {
+        } else {
             const order = {
                 tel,
                 user_id: user,
                 customer_name: customerName,
-                delivery_method: deliveryMethod,
+                delivery_method: "Pick Up",
                 payment_type: paymentMethod,
+                notes: notes,
                 items: items.map(item => {
                     const discount = typeof item.discount === "number" ? item.discount : 0;
                     const discountAmount = item.amount * (discount / 100) * item.quantity;
@@ -316,7 +325,7 @@ function HomePage({userParam}) {
                         description: item.description || "",
                         isGarlicCrust: item.isGarlicCrust || false,
                         isThinDough: item.isThinDough || false,
-                        discount_amount: parseFloat(discountAmount.toFixed(3)) // 💥 Скидка в BHD
+                        discount_amount: parseFloat(discountAmount.toFixed(3))
                     };
                 }),
                 amount_paid: parseFloat(
@@ -354,15 +363,15 @@ function HomePage({userParam}) {
     }
 
     return (
-            <Box sx={{p: 2}}>
-                {
-                    !pizzaPopupOpen &&
-                    !comboPopupOpen &&
-                    !genericPopupOpen &&
-                    !cartOpen &&
-                    !phonePopupOpen &&
-                    !adminOrderDetailsPopUp &&
-                    isAdmin && (
+        <Box sx={{p: 2}}>
+            {
+                !pizzaPopupOpen &&
+                !comboPopupOpen &&
+                !genericPopupOpen &&
+                !cartOpen &&
+                !phonePopupOpen &&
+                !adminOrderDetailsPopUp &&
+                isAdmin && (
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -383,96 +392,96 @@ function HomePage({userParam}) {
                                 }
                             }}
                         >
-                            <CloseIcon sx={{ fontSize: 28, color: "#E44B4C" }} />
+                            <CloseIcon sx={{fontSize: 28, color: "#E44B4C"}}/>
                         </IconButton>
                     </Box>
 
 
                 )}
-                {!isAdmin && (
-            <Box sx={{display: "flex", flexDirection: "column", gap: 1, mb: 3}}>
-                <Box
-                    sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        p: 2,
-                        borderRadius: 2,
-                        backgroundColor: "#fff",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                        cursor: "pointer"
-                    }}
-                    onClick={() => window.open("https://www.talabat.com/bahrain/ic-pizza", "_blank")}
-                >
+            {!isAdmin && (
+                <Box sx={{display: "flex", flexDirection: "column", gap: 1, mb: 3}}>
                     <Box
                         sx={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            p: 2,
+                            borderRadius: 2,
                             backgroundColor: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            mr: 2
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                            cursor: "pointer"
                         }}
+                        onClick={() => window.open("https://www.talabat.com/bahrain/ic-pizza", "_blank")}
                     >
-                        <CardMedia
-                            component="img"
-                            image={talabatLogo}
-                            alt="Jahez"
-                            sx={{
-                                width: 30,
-                                height: 30,
-                                objectFit: "contain",
-                                borderRadius: "50%"
-                            }}
-                        />
-                    </Box>
-                    <Typography variant="body2" fontWeight="bold">
-                        Available on Talabat
-                    </Typography>
-                </Box>
-
-                <Box
-                    sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        p: 2,
-                        borderRadius: 2,
-                        backgroundColor: "#fff",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                        cursor: "pointer"
-                    }}
-                    onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
-                >
-                    <Box
-                        sx={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            mr: 2
-                        }}
-                    >
-                        <CardMedia
-                            component="img"
-                            image={jahezLogo}
-                            alt="Jahez"
+                        <Box
                             sx={{
                                 width: 40,
                                 height: 40,
-                                objectFit: "contain",
-                                borderRadius: "50%"
+                                borderRadius: "50%",
+                                backgroundColor: "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                mr: 2
                             }}
-                        />
+                        >
+                            <CardMedia
+                                component="img"
+                                image={talabatLogo}
+                                alt="Jahez"
+                                sx={{
+                                    width: 30,
+                                    height: 30,
+                                    objectFit: "contain",
+                                    borderRadius: "50%"
+                                }}
+                            />
+                        </Box>
+                        <Typography variant="body2" fontWeight="bold">
+                            Available on Talabat
+                        </Typography>
                     </Box>
-                    <Typography variant="body2" fontWeight="bold">
-                        Available on Jahez
-                    </Typography>
+
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            p: 2,
+                            borderRadius: 2,
+                            backgroundColor: "#fff",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                            cursor: "pointer"
+                        }}
+                        onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
+                    >
+                        <Box
+                            sx={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: "50%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                mr: 2
+                            }}
+                        >
+                            <CardMedia
+                                component="img"
+                                image={jahezLogo}
+                                alt="Jahez"
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    objectFit: "contain",
+                                    borderRadius: "50%"
+                                }}
+                            />
+                        </Box>
+                        <Typography variant="body2" fontWeight="bold">
+                            Available on Jahez
+                        </Typography>
+                    </Box>
                 </Box>
-            </Box>
-                )}
+            )}
 
             {/* BESTSELLERS */}
             {bestsellers.length > 0 && (
@@ -486,6 +495,22 @@ function HomePage({userParam}) {
                             item={item}
                             onSelect={handleOpenPopup}
                             isBestSellerBlock={true}
+                        />
+                    ))}
+                </Box>
+            )}
+
+            {/* BRICK PIZZAS */}
+            {brickPizzas.length > 0 && (
+                <Box sx={{mb: 2}}>
+                    <Typography fontWeight="bold" variant="h6">
+                        Detroit Brick Pizzas
+                    </Typography>
+                    {brickPizzas.map(item => (
+                        <MenuItemCardHorizontal
+                            key={item.item_id}
+                            item={item}
+                            onSelect={handleOpenPopup}
                         />
                     ))}
                 </Box>
@@ -597,7 +622,7 @@ function HomePage({userParam}) {
                 onAddToCart={handleAddToCart}
             />
 
-            <CartComponent
+            {cartOpen && <CartComponent
                 open={cartOpen}
                 items={cartItems}
                 onClose={handleCloseCart}
@@ -607,31 +632,35 @@ function HomePage({userParam}) {
                 isAdmin={isAdmin}
                 handleDiscountChange={handleDiscountChange}
             />
+            }
 
-            <ClientInfoPopup
+            {phonePopupOpen && <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
                 onClose={handleClosePhonePopup}
-                onSave={(tel, paymentMethod) => {
-                    handleCheckout(cartItems, tel, null,"Pick Up", paymentMethod);
+                onSave={(tel, paymentMethod, customerName, notes) => {
+                    handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes);
                 }}
+                phoneNumber={phone.toString()}
+                customerName={username}
             />
+            }
 
-                <AdminOrderDetailsPopUp
-                    isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
-                    onClose={handleCloseAdminOrderDetailsPopup}
-                    onSave={({ phone, customerName, deliveryMethod, paymentMethod }) =>
-                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod)
-                    }
-                    cartItems={cartItems}
-                    setCartItems={setCartItems}
-                />
+            {adminOrderDetailsPopUp && <AdminOrderDetailsPopUp
+                isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
+                onClose={handleCloseAdminOrderDetailsPopup}
+                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) =>
+                    handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes)
+                }
+                cartItems={cartItems}
+                setCartItems={setCartItems}
+            />}
 
-                {   !isAdmin &&
-                    showOrderConfirmed && (
-                    <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)} />
+            {!isAdmin &&
+                showOrderConfirmed && (
+                    <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
                 )}
 
-            {!adminOrderDetailsPopUp && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
                 <Fab
                     onClick={handleOpenCart}
                     sx={{
