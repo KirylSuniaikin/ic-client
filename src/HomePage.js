@@ -286,7 +286,6 @@ function HomePage({userParam}) {
                 setAdminOrderDetailsPopUpOpen(true);
             } else setPhonePopupOpen(true);
         } else if (isAdmin && isEditMode) {
-            console.log(notes);
             setLoading(true);
             try {
                 const order = buildOrderTO(tel, customerName, deliveryMethod, paymentMethod, items, notes);
@@ -299,10 +298,6 @@ function HomePage({userParam}) {
             } finally {
                 setLoading(false);
             }
-        } else if (isAdmin && !isAdminConfirmedRef.current) {
-            setCartOpen(false);
-            setAdminOrderDetailsPopUpOpen(true);
-            isAdminConfirmedRef.current = true;
         } else {
             const order = {
                 tel,
