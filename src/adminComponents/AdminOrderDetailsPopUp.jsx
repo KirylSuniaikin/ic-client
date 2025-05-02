@@ -1,13 +1,19 @@
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 import {Box, Button, FormControl, InputLabel, MenuItem, Modal, Select, TextField, Typography} from "@mui/material";
-import {useNavigate} from "react-router-dom";
 
 const countries = [
     { name: "Bahrain", code: "973", digits: 8 },
-    { name: "Saudi Arabia", code: "966", digits: 9 }
+    { name: "Saudi Arabia", code: "966", digits: 9 },
+    { name: "Egypt", code: "20", digits: 10 },
+    { name: "Italy", code: "39", digits: 10 },
+    { name: "United Kingdom", code: "44", digits: 10 },
+    { name: "United States", code: "1", digits: 10 },
+    { name: "France", code: "33", digits: 9 },
+    { name: "Poland", code: "48", digits: 9 }
 ];
+
 const deliveryOptions = ["Pick Up", "Talabat", "Delivery", "Jahez", "Ahlan"];
-const paymentOptions = ["Cash", "Card", "Benefit"];
+const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
 const brandRed = "#E44B4C";
 
@@ -21,10 +27,19 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
     const [deliveryMethod, setDeliveryMethod] = useState(deliveryOptions[0]);
     const [paymentMethod, setPaymentMethod] = useState(paymentOptions[0]);
     const [globalDiscount, setGlobalDiscount] = useState(0);
-    const navigate = useNavigate();
-
+    const [note, setNote] = useState("");
     const countryObj = countries.find((c) => c.name === selectedCountry);
 
+    useEffect(() => {
+        const order = JSON.parse(localStorage.getItem("orderToEdit"))
+        const matchedCountry = countries.find((c) => order.phone_number.toString().startsWith(c.code));
+        if (matchedCountry) {
+            setSelectedCountry(matchedCountry.name);
+            setPhoneDigits(order.phone_number.toString().slice(matchedCountry.code.length));
+            setCustomerName(order.customer_name);
+            setNote(order.notes);
+        }
+    },[])
     function handleSave() {
         const regex = /^\d+$/;
 
@@ -43,13 +58,14 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
         setPhoneError("");
 
         const fullPhone = phoneDigits ? countryObj.code + phoneDigits : null;
-
-        onSave?.({
-            phone: fullPhone,
+        console.log(note)
+        onSave?.(
+            fullPhone,
             customerName,
             deliveryMethod,
-            paymentMethod
-        });
+            paymentMethod,
+            note
+        );
 
         onClose?.();
     }
@@ -71,7 +87,6 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                     outline: "none"
                 }}
             >
-                {/* Заголовок */}
                 <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
                     User Data
                 </Typography>
@@ -97,7 +112,6 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                     fullWidth
                     value={phoneDigits}
                     onChange={(e) => {
-                        // Разрешаем только цифры
                         const val = e.target.value;
                         if (/^\d*$/.test(val)) {
                             setPhoneDigits(val);
@@ -190,6 +204,18 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                         ))}
                     </Select>
                 </FormControl>
+
+                {/* Notes */}
+                <TextField
+                    label="Add a note to your order (optional)"
+                    variant="outlined"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    sx={{ mb: 3 }}
+                />
 
                 {/* Checkout Button */}
                 <Button

@@ -1,6 +1,9 @@
 
-export var PROD_BASE_HOST = "https://icpizza.pythonanywhere.com/api";
+export var PROD_BASE_HOST = "https://ic-pizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "https://leopard-climbing-rooster.ngrok-free.app/api" ;
+export const PROD_SOCKET_URL = "https://ic-pizza-back.onrender.com";
+export const DEV_SOCKET_URL = "http://localhost8000";
+
 
 export async function fetchMenu() {
     const response = await fetch(PROD_BASE_HOST + "/getAllMenuItems", {
@@ -37,6 +40,25 @@ export async function fetchExtraIngredients() {
     }
     return JSON.parse(text);
 }
+
+export async function fetchUserInfo(userId) {
+    const url = `${PROD_BASE_HOST}/getUserInfo?userId=${userId}`;
+    const response = await fetch(url, {
+        method: "GET",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
+    });
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер");
+    }
+    return JSON.parse(text);
+}
+
 
 export async function createOrder(order) {
     console.log(order);
@@ -95,6 +117,25 @@ export async function editOrder(order, orderId) {
 
 export async function getAllActiveOrders() {
     const response = await fetch(PROD_BASE_HOST + "/getAllActiveOrders", {
+        method: "GET",
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text);
+}
+
+export async function getHistory() {
+    const response = await fetch(PROD_BASE_HOST + "/getHistory", {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"

@@ -78,7 +78,7 @@ function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({ order, handleRemoveItem }) {
+function OrderCard({ order, handleRemoveItem , isHistory = false}) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
 
@@ -101,7 +101,7 @@ function OrderCard({ order, handleRemoveItem }) {
                         variant="h6"
                         sx={{ fontSize: 14, color: "text.secondary" }}
                     >
-                        {order.order_type.toUpperCase()}
+                        {order?.order_type?.toUpperCase()}
                     </Typography>
                 </Box>
 
@@ -113,6 +113,9 @@ function OrderCard({ order, handleRemoveItem }) {
                     </Typography>
                     <Typography variant="body2">
                         <strong>Customer Info:</strong> {order.customer_name || "—"} ({order.phone_number})
+                    </Typography>
+                    <Typography variant="body2">
+                        <strong>Notes:</strong> {order.notes}
                     </Typography>
                 </Box>
 
@@ -159,7 +162,7 @@ function OrderCard({ order, handleRemoveItem }) {
                     BHD {order.amount_paid}
                 </Typography>
                 <Box>
-                    <Button
+                    {!isHistory && <Button
                         variant="contained"
                         size="small"
                         sx=
@@ -173,7 +176,7 @@ function OrderCard({ order, handleRemoveItem }) {
                         onClick={() => {markOrderReady(order.orderId).then(() => {handleRemoveItem?.(order.orderId)})}}>
 
                         READY
-                    </Button>
+                    </Button>}
                     <Button
                         variant="outlined"
                         size="small"

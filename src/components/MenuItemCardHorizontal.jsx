@@ -56,6 +56,30 @@ function MenuItemCardHorizontal({ item, onSelect, isBestSellerBlock }) {
                             objectFit: 'cover',
                         }}
                     />
+                    {category === 'Brick Pizzas' && (
+                        <Chip
+                            label="New"
+                            size="medium"
+                            sx={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 8,
+                                backgroundColor: colorRed,
+                                color: '#fff',
+                                fontWeight: 'bold',
+                                fontSize: '10px',
+                                py: 0.2,
+                                px: 0.5,
+                                borderRadius: 4,
+                                height: 18,
+                                width: 32,
+                                '.MuiChip-label': {
+                                    p: 0,
+                                    lineHeight: '24px'
+                                }
+                            }}
+                        />
+                    )}
                     {!isBestSellerBlock && isBestSeller && (
                         <Chip
                             label="BEST SELLER"

@@ -1,10 +1,9 @@
 import React, {useEffect, useState} from "react";
-import {Modal, Box, Typography, IconButton, Button, TextField} from "@mui/material";
+import {Modal, Box, Typography, IconButton, Button} from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 
 const brandRed = "#E44B4C";
-const brandColor2 = "#FCF4DD";
 
 
 function CartPopup({
@@ -151,13 +150,7 @@ function CartPopup({
                     <Button
                         variant="contained"
                         onClick={() => {
-                            const parsed = JSON.parse(localStorage.getItem("orderToEdit"))
-                            if (parsed == null) {
-                                onCheckout?.(items, tel, null, null, null)
-
-                            } else {
-                                onCheckout?.(items, tel, parsed.customer_name, parsed.order_type, parsed.payment_type)
-                            }
+                            onCheckout?.(items, tel, null, null, null)
                         }
                     }
                         sx={{

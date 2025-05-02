@@ -1,28 +1,72 @@
 import {useEffect, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
 import AddIcon from '@mui/icons-material/Add';
-import { Fab } from '@mui/material';
+import {Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
-import {getAllActiveOrders} from "./api/api";
+import {getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
 import PizzaLoader from "./components/PizzaLoader";
-
+import { io } from "socket.io-client";
+import alertSound from "./assets/alert.mp3";
+import CloseIcon from "@mui/icons-material/Close";
+import {History} from "@mui/icons-material";
+import HistoryComponent from "./adminComponents/HistoryComponent";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const navigate = useNavigate();
+    const [activeAlertOrder, setActiveAlertOrder] = useState(null);
+    const [audioRef] = useState(new Audio(alertSound));
+    const [audioAllowed, setAudioAllowed] = useState(false);
+
+    const colorRed = '#E44B4C';
+
 
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => prev.filter(order => order.orderId !== orderIdToRemove));
     }
 
     useEffect(() => {
-        async function loadActiveOrders() {
+        let socket;
+
+        async function initialize() {
             try {
                 setLoading(true);
                 const response = await getAllActiveOrders();
                 setOrders(response.orders);
+
+                socket = io(PROD_SOCKET_URL, { transports: ["websocket"] });
+
+                socket.on("connect", () => {
+                    console.log("🟢 WebSocket подключён");
+                });
+
+                socket.on("order_created", (newOrder) => {
+                    setOrders(prev => {
+                        const exists = prev.find(o => o.orderId === newOrder.orderId);
+                        return exists ? prev : [...prev, newOrder];
+                    });
+                    setActiveAlertOrder(newOrder);
+                    if (audioRef) {
+                        audioRef.loop = true;
+                        audioRef.play().catch((e) => console.warn("🎧 Не удалось воспроизвести звук:", e));
+                    }
+                });
+
+                socket.on("order_updated", (updatedOrder) => {
+                    console.log("♻️ Заказ обновлён:", updatedOrder);
+                    setOrders(prev =>
+                        prev.map(order =>
+                            order.orderId === updatedOrder.orderId ? updatedOrder : order
+                        )
+                    );
+                });
+
+                socket.on("disconnect", () => {
+                    console.log("🔴 WebSocket отключён");
+                });
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -31,7 +75,11 @@ function AdminHomePage() {
         }
         console.log("useEffect called");
 
-        loadActiveOrders();
+        initialize();
+
+        return () => {
+            if (socket) socket.disconnect();
+        };
     }, []);
 
     if (loading) {
@@ -49,13 +97,31 @@ function AdminHomePage() {
 
     return (
 
-        <div
-            className="p-4 max-w-4xl mx-auto">
-            {sortedOrders.map((order) => (
-                <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem}/>
+        <div className="p-4 max-w-4xl mx-auto">
+            {!isHistoryOpen && sortedOrders.map((order) => (
+                <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
 
-            <Fab
+            {!isHistoryOpen && <Fab
+                color="primary"
+                aria-label="history"
+                onClick={() => setIsHistoryOpen(true)}
+                sx={{
+                    position: 'fixed',
+                    bottom: 94,
+                    right: 24,
+                    backgroundColor: colorRed,
+                    color: "white",
+                    '&:hover': {
+                        backgroundColor: '#d23c3d',
+                    },
+                }}
+            >
+                <History/>
+            </Fab>
+            }
+
+            { !isHistoryOpen && <Fab
                 color="primary"
                 aria-label="add"
                 onClick={() => navigate('/menu?isAdmin=true')}
@@ -63,7 +129,7 @@ function AdminHomePage() {
                     position: 'fixed',
                     bottom: 24,
                     right: 24,
-                    backgroundColor: '#E44B4C',
+                    backgroundColor: colorRed,
                     color: 'white',
                     '&:hover': {
                         backgroundColor: '#d23c3d',
@@ -71,7 +137,112 @@ function AdminHomePage() {
                 }}
             >
                 <AddIcon/>
-            </Fab>
+            </Fab>}
+
+            {isHistoryOpen && (
+                <HistoryComponent
+                    isOpen={isHistoryOpen}
+                    onClose={() => setIsHistoryOpen(false)}
+                />
+            )}
+
+            <Snackbar
+                open={Boolean(activeAlertOrder)}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{ zIndex: 1300 }}
+            >
+                <Paper
+                    elevation={3}
+                    sx={{
+                        borderRadius: 3,
+                        p: 2,
+                        px: 3,
+                        backgroundColor: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                        width: "85vw",
+                        maxWidth: 600,
+                    }}
+                >
+                    <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            New Order: {activeAlertOrder?.orderId}
+                        </Typography>
+                        <Typography variant="body2">
+                            Total price: {activeAlertOrder?.amount_paid} BHD
+                        </Typography>
+                    </Box>
+                    <IconButton
+                        onClick={() => {
+                            if (audioRef) {
+                                audioRef.pause();
+                                audioRef.currentTime = 0;
+                            }
+                            setActiveAlertOrder(null);
+                        }}
+                        size="medium"
+                        sx={{ color: colorRed }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </Paper>
+            </Snackbar>
+
+            <Snackbar
+                open={!audioAllowed}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{ zIndex: 1400 }}
+            >
+                <Paper
+                    elevation={3}
+                    sx={{
+                        borderRadius: 3,
+                        p: 2,
+                        px: 3,
+                        backgroundColor: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                        width: "85vw",
+                        maxWidth: 600,
+                    }}
+                >
+                    <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                            Enable sound for order alerts
+                        </Typography>
+                    </Box>
+                    <Button
+                        onClick={() => {
+                            audioRef.play()
+                                .then(() => {
+                                    audioRef.pause();
+                                    audioRef.currentTime = 0;
+                                    setAudioAllowed(true);
+                                })
+                                .catch(err => {
+                                    console.warn("Audio permission denied:", err);
+                                });
+                        }}
+                        variant="outlined"
+                        sx={{
+                            textTransform: "uppercase",
+                            borderColor: colorRed,
+                            color: colorRed,
+                            fontWeight: 600,
+                            borderRadius: 3,
+                            px: 2.5,
+                            py: 0.5,
+                            minWidth: 80,
+                        }}
+                    >
+                        ENABLE
+                    </Button>
+                </Paper>
+            </Snackbar>
         </div>
     );
 
