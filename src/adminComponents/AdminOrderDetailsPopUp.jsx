@@ -60,7 +60,6 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
         setPhoneError("");
 
         const fullPhone = phoneDigits ? countryObj.code + phoneDigits : null;
-        console.log(note)
         onSave?.(
             fullPhone,
             customerName,
