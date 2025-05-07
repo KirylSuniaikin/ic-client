@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, {useEffect, useState} from "react";
 import {
     Modal,
     Box,
@@ -11,10 +11,19 @@ import CloseIcon from "@mui/icons-material/Close";
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
 
-function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
+function GenericItemPopupContent({
+                                     open,
+                                     onClose,
+                                     item,
+                                     extraIngredients = [],
+                                     onAddToCart,
+                                     crossSellItems
+}) {
     const [quantity, setQuantity] = useState(1);
     const [description, setDescription] = useState("");
     const [selectedToppings, setSelectedToppings] = useState([""]);
+    const [selectedIngr, setSelectedIngr] = useState([]);
+    const [crossSellMap, setSelectedCrossSellItems] = useState({});
 
     useEffect(() => {
         if (open && item) {
@@ -32,20 +41,78 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
 
     if (!item) return null;
 
-    const finalPricePerItem = item.price;
+    const ingrsForSize = extraIngredients.filter(ing => ing.size === "Small");
+
+    const extraCost = selectedIngr.reduce((sum, ingrName) => {
+        const found = ingrsForSize.find(i => i.name === ingrName);
+        return found ? sum + found.price : sum;
+    }, 0);
+
+    const finalPizzaPricePerItem = item.price;
+
+    function getFinalPriceOnPopup() {
+        let price = 0;
+        crossSellItems.forEach((item => {
+            const count = crossSellMap[item.name];
+            if (count) {
+                price += item.price * count;
+            }
+        }))
+        return (finalPizzaPricePerItem * quantity + price).toFixed(2);
+    }
+
+    function handleToggleIngr(name) {
+        if (selectedIngr.includes(name)) {
+            setSelectedIngr(prev => prev.filter(x => x !== name));
+        } else {
+            setSelectedIngr(prev => [...prev, name]);
+        }
+    }
 
     function handleAdd() {
-        const product = {
+        const products = [{
             ...item,
             name: item.name,
             size: item.size,
             category: item.category,
             quantity: quantity,
-            amount: finalPricePerItem,
+            amount: finalPizzaPricePerItem,
             description: description
-        };
-        onAddToCart?.(product);
+        }];
+        crossSellItems.forEach((item => {
+            const count = crossSellMap[item.name];
+            if (count) {
+                products.push({
+                    ...item,
+                    quantity: count,
+                    amount: item.price
+                });
+            }
+        }))
+        onAddToCart?.(products);
         onClose?.();
+    }
+
+    function increaseQuantityOnCrossSell(name) {
+        setSelectedCrossSellItems(prev => ({
+            ...prev,
+            [name]: (prev[name] || 0) + 1
+        }));
+    }
+
+    function decreaseQuantityOnCrossSell(name) {
+        setSelectedCrossSellItems(prev => {
+            const currentCount = prev[name] || 0;
+            if (currentCount <= 1) {
+                const {[name]: _, ...rest} = prev;
+                return rest;
+            } else {
+                return {
+                    ...prev,
+                    [name]: currentCount - 1
+                };
+            }
+        });
     }
 
     return (
@@ -53,13 +120,12 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
             <Box
                 sx={{
                     position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: { xs: "90%", md: 400 },
-                    maxHeight: "95vh",
+                    top: "3%",
+                    width: {xs: "100%", md: 400},
+                    maxHeight: "98vh",
                     bgcolor: "#fff",
-                    borderRadius: 4,
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
@@ -77,15 +143,15 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                         zIndex: 9999
                     }}
                 >
-                    <CloseIcon />
+                    <CloseIcon/>
                 </Fab>
 
-                <Box sx={{ flex: 1, overflowY: "auto" }}>
-                    <Box sx={{ width: "100%", height: 400, overflow: "hidden" }}>
+                <Box sx={{flex: 1, overflowY: "auto"}}>
+                    <Box sx={{width: "100%", height: 400, overflow: "hidden"}}>
                         <img
                             src={item.photo}
                             alt={item.name}
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            style={{width: "100%", height: "100%", objectFit: "cover"}}
                         />
                     </Box>
 
@@ -93,12 +159,12 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                         sx={{
                             flex: 1,
                             overflowY: "auto",
-                            px: { xs: 2, md: 3 },
+                            px: {xs: 2, md: 3},
                             pt: 2,
                             pb: 2
                         }}
                     >
-                        <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
+                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 1}}>
                             {item.name}
                         </Typography>
                         <Typography
@@ -116,7 +182,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                             <>
                                 <FormControlLabel
                                     label={
-                                        <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                                        <Typography variant="body1" sx={{fontWeight: "bold"}}>
                                             Pepperoni
                                         </Typography>
                                     }
@@ -134,14 +200,14 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                                             }}
                                             sx={{
                                                 color: brandRed,
-                                                "&.Mui-checked": { color: brandRed },
+                                                "&.Mui-checked": {color: brandRed},
                                             }}
                                         />
                                     }
                                 />
                                 <FormControlLabel
                                     label={
-                                        <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                                        <Typography variant="body1" sx={{fontWeight: "bold"}}>
                                             Smoked Turkey
                                         </Typography>
                                     }
@@ -159,7 +225,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                                             }}
                                             sx={{
                                                 color: brandRed,
-                                                "&.Mui-checked": { color: brandRed },
+                                                "&.Mui-checked": {color: brandRed},
                                             }}
                                         />
                                     }
@@ -229,9 +295,231 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                                 +
                             </Button>
                         </Box>
+                        {item.category === "Brick Pizzas" &&
+                            <Box>
+                                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
+                                    Better together
+                                </Typography>
+
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        overflowX: "auto",
+                                        gap: 1,
+                                        mb: 2,
+                                        py: 1,
+                                        px: 1,
+                                        pl: 1,
+                                        scrollSnapType: "x mandatory",
+                                        "& > *": {
+                                            flex: "0 0 auto",
+                                            scrollSnapAlign: "start"
+                                        },
+                                        scrollbarWidth: "none",
+                                        "&::-webkit-scrollbar": {
+                                            display: "none"
+                                        }
+                                    }}
+                                >
+                                    {crossSellItems.map((item) => {
+                                        const active = crossSellMap[item.name] != null;
+                                        return (
+                                            <Box
+                                                key={item.name}
+                                                onClick={() => {
+                                                    if (!active) {
+                                                        increaseQuantityOnCrossSell(item.name)
+                                                    }
+                                                }
+                                                }
+                                                sx={{
+                                                    p: 2,
+                                                    textAlign: "center",
+                                                    borderRadius: 4,
+                                                    cursor: "pointer",
+                                                    fontSize: "13px",
+                                                    color: "#000",
+                                                    boxShadow: active
+                                                        ? `0 0 0 2px ${brandRed}`
+                                                        : "0 1px 3px rgba(0,0,0,0.25)",
+                                                    border: "none",
+                                                    "&:hover": {
+                                                        boxShadow: active
+                                                            ? `0 0 0 2px ${brandRed}`
+                                                            : "0 2px 5px rgba(0,0,0,0.2)"
+                                                    }
+                                                }}
+                                            >
+                                                {item.photo ? (
+                                                    <img
+                                                        src={item.photo}
+                                                        alt={item.name}
+                                                        style={{width: "100%", height: 120, objectFit: "contain"}}
+                                                    />
+                                                ) : (
+                                                    <Box
+                                                        sx={{
+                                                            width: "100%",
+                                                            height: 60,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            backgroundColor: "#f9f9f9"
+                                                        }}
+                                                    />
+                                                )}
+                                                <Typography variant="body2" sx={{fontWeight: "bold", mt: 1}}>
+                                                    {item.name}
+                                                </Typography>
+                                                {!active &&
+                                                    <Typography variant="body2" sx={{mt: 1.2}}>
+                                                        +{item.price}
+                                                    </Typography>
+                                                }
+                                                {active &&
+                                                    <Box
+                                                        sx={{
+                                                            backgroundColor: brandGray,
+                                                            borderRadius: "9999px",
+                                                            p: "4px",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            gap: "4px",
+                                                            height: 30,
+                                                            mt: 1.1,
+                                                            maxWidth: "130px",
+                                                        }}
+                                                    >
+                                                        <Button
+                                                            onClick={() => decreaseQuantityOnCrossSell(item.name)}
+                                                            sx={{
+                                                                minWidth: 36,
+                                                                height: 26,
+                                                                backgroundColor: "transparent",
+                                                                color: "#666",
+                                                                fontSize: "16px",
+                                                                textTransform: "none",
+                                                                borderRadius: "9999px",
+                                                                p: 0,
+                                                                "&:hover": {
+                                                                    backgroundColor: "rgba(0,0,0,0.1)"
+                                                                }
+                                                            }}
+                                                        >
+                                                            –
+                                                        </Button>
+                                                        <Box sx={{
+                                                            minWidth: 22,
+                                                            textAlign: "center",
+                                                            fontSize: "15px",
+                                                            color: "#666"
+                                                        }}>
+                                                            {crossSellMap[item.name]}
+                                                        </Box>
+                                                        <Button
+                                                            onClick={() => increaseQuantityOnCrossSell(item.name)}
+                                                            sx={{
+                                                                minWidth: 36,
+                                                                height: 26,
+                                                                backgroundColor: "transparent",
+                                                                color: "#666",
+                                                                fontSize: "16px",
+                                                                textTransform: "none",
+                                                                borderRadius: "9999px",
+                                                                p: 0,
+                                                                "&:hover": {
+                                                                    backgroundColor: "rgba(0,0,0,0.1)"
+                                                                }
+                                                            }}
+                                                        >
+                                                            +
+                                                        </Button>
+                                                    </Box>
+                                                }
+                                            </Box>
+                                        )
+                                    })}
+                                </Box>
+                                {/*<Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>*/}
+                                {/*    Customize as you like it*/}
+                                {/*</Typography>*/}
+                                {/*<Box*/}
+                                {/*    sx={{*/}
+                                {/*        display: "flex",*/}
+                                {/*        overflowX: "auto",*/}
+                                {/*        gap: 1,*/}
+                                {/*        mb: 2,*/}
+                                {/*        py: 1,*/}
+                                {/*        px: 1,*/}
+                                {/*        scrollSnapType: "x mandatory",*/}
+                                {/*        "& > *": {*/}
+                                {/*            flex: "0 0 auto",*/}
+                                {/*            scrollSnapAlign: "start"*/}
+                                {/*        },*/}
+                                {/*        scrollbarWidth: "none",*/}
+                                {/*        "&::-webkit-scrollbar": {*/}
+                                {/*            display: "none"*/}
+                                {/*        }*/}
+                                {/*    }}*/}
+                                {/*>*/}
+                                {/*    {ingrsForSize.map((ing) => {*/}
+                                {/*        const active = selectedIngr.includes(ing.name);*/}
+                                {/*        return (*/}
+                                {/*            <Box*/}
+                                {/*                key={ing.name}*/}
+                                {/*                onClick={() => handleToggleIngr(ing.name)}*/}
+                                {/*                sx={{*/}
+                                {/*                    p: 2,*/}
+                                {/*                    textAlign: "center",*/}
+                                {/*                    borderRadius: 4,*/}
+                                {/*                    cursor: "pointer",*/}
+                                {/*                    fontSize: "13px",*/}
+                                {/*                    color: "#000",*/}
+                                {/*                    boxShadow: active*/}
+                                {/*                        ? `0 0 0 2px ${brandRed}`*/}
+                                {/*                        : "0 1px 3px rgba(0,0,0,0.25)",*/}
+                                {/*                    border: "none",*/}
+                                {/*                    "&:hover": {*/}
+                                {/*                        boxShadow: active*/}
+                                {/*                            ? `0 0 0 2px ${brandRed}`*/}
+                                {/*                            : "0 2px 5px rgba(0,0,0,0.2)"*/}
+                                {/*                    }*/}
+                                {/*                }}*/}
+                                {/*            >*/}
+                                {/*                {ing.photo ? (*/}
+                                {/*                    <img*/}
+                                {/*                        src={ing.photo}*/}
+                                {/*                        alt={ing.name}*/}
+                                {/*                        style={{width: "100%", height: 120, objectFit: "contain"}}*/}
+                                {/*                    />*/}
+                                {/*                ) : (*/}
+                                {/*                    <Box*/}
+                                {/*                        sx={{*/}
+                                {/*                            width: "100%",*/}
+                                {/*                            height: 120,*/}
+                                {/*                            display: "flex",*/}
+                                {/*                            alignItems: "center",*/}
+                                {/*                            justifyContent: "center",*/}
+                                {/*                            backgroundColor: "#f9f9f9"*/}
+                                {/*                        }}*/}
+                                {/*                    />*/}
+                                {/*                )}*/}
+                                {/*                <Typography variant="body2" sx={{fontWeight: "bold", mt: 1}}>*/}
+                                {/*                    {ing.name}*/}
+                                {/*                </Typography>*/}
+                                {/*                <Typography variant="body2" sx={{mt: 0.5}}>*/}
+                                {/*                    +{ing.price}*/}
+                                {/*                </Typography>*/}
+                                {/*            </Box>*/}
+                                {/*        );*/}
+                                {/*    })}*/}
+                                {/*</Box>*/}
+                            </Box>
+                        }
+
                     </Box>
                 </Box>
-                {/* Нижняя панель: кнопка "Add to cart" */}
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",
@@ -253,7 +541,7 @@ function GenericItemPopupContent({ open, onClose, item, onAddToCart }) {
                         }}
                         onClick={handleAdd}
                     >
-                        Add to cart · {(finalPricePerItem * quantity).toFixed(2)}
+                        Add · {getFinalPriceOnPopup()}
                     </Button>
                 </Box>
             </Box>

@@ -20,6 +20,7 @@ import GenericItemPopupContent from "./components/GenericItemPopupContent";
 import CloseIcon from "@mui/icons-material/Close";
 import OrderConfirmed from "./components/OrderConfirmed";
 import PizzaLoader from "./components/PizzaLoader";
+import CrossSellPopup from "./components/CrossSellPopup";
 
 const brandRed = "#E44B4C";
 
@@ -48,6 +49,10 @@ function HomePage({userParam}) {
     const isAdminConfirmedRef = useRef(false);
     const navigate = useNavigate();
     const [showOrderConfirmed, setShowOrderConfirmed] = useState(false);
+    const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
+    const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
+    const generalCrossSell = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"]
+    const finalCrossSell = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"]
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -79,7 +84,6 @@ function HomePage({userParam}) {
 
         window.fbq('init', PIXEL_ID);
         window.fbq('track', 'HomePage');
-
 
         async function load() {
             try {
@@ -162,6 +166,18 @@ function HomePage({userParam}) {
         return Array.from(map.values());
     }
 
+    function getGeneralCrossSellItems() {
+        return generalCrossSell
+            .map(name => menuData.find(item => item.name === name))
+            .filter(Boolean);
+    }
+
+    function getFinalCrossSell() {
+        return finalCrossSell
+            .map(name => menuData.find(item => item.name === name))
+            .filter(Boolean);
+    }
+
     function getSameItems(item_name) {
         const sameItems = [];
         menuData.forEach(item => {
@@ -209,10 +225,14 @@ function HomePage({userParam}) {
         setPhonePopupOpen(false);
     }
 
-    function handleAddToCart(product) {
-        setCartItems(prev => [...prev, product]);
+    function handleAddToCart(items) {
+        setCartItems(prev => [
+            ...prev,
+            ...(Array.isArray(items) ? items : [items])
+        ]);
+
         handleClosePizzaPopup();
-        handleCloseComboPopup()
+        handleCloseComboPopup();
     }
 
     function handleRemoveItemFromCart(item) {
@@ -278,8 +298,13 @@ function HomePage({userParam}) {
         customerName = null,
         deliveryMethod = null,
         paymentMethod = null,
-        notes
+        notes,
     ) {
+        if (!wasCrossSellShown) {
+            setIsCrossSellOpen(true);
+            setWasCrossSellShown(true);
+            return;
+        }
         if (paymentMethod === null) {
             setCartOpen(false);
             if(isAdmin){
@@ -591,17 +616,18 @@ function HomePage({userParam}) {
                 </Box>
             )}
 
-
-            <PizzaPopup
+            {pizzaPopupOpen && <PizzaPopup
                 open={pizzaPopupOpen}
                 item={popupItem}
                 extraIngredients={extraIngredients}
                 sameItems={popupItem && getSameItems(popupItem.name)}
                 onClose={handleClosePizzaPopup}
                 onAddToCart={handleAddToCart}
+                crossSellItems={getGeneralCrossSellItems()}
             />
+            }
 
-            <ComboPopup
+            {comboPopupOpen && <ComboPopup
                 open={comboPopupOpen}
                 item={popupItem}
                 uniquePizzas={pizzas}
@@ -609,13 +635,26 @@ function HomePage({userParam}) {
                 onClose={handleCloseComboPopup}
                 onAddToCart={handleAddToCart}
             />
+            }
 
-            <GenericItemPopupContent
+            {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
                 item={popupItem}
                 onClose={handleCloseGenericPopup}
                 onAddToCart={handleAddToCart}
+                crossSellItems={getGeneralCrossSellItems()}
+                extraIngredients={extraIngredients}
             />
+            }
+
+            {isCrossSellOpen && <CrossSellPopup
+                open={isCrossSellOpen}
+                crossSellItems={getFinalCrossSell()}
+                onClose={() => setIsCrossSellOpen(false)}
+                onAddToCart={handleAddToCart}
+                onCheckout={handleCheckout}
+            />
+            }
 
             {cartOpen && <CartComponent
                 open={cartOpen}
