@@ -1,22 +1,22 @@
 import React, {useEffect, useState} from "react";
-import { Box, Modal, TextField, Button, MenuItem, Typography } from "@mui/material";
+import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 
 const brandRed = "#E44B4C";
 
 const countries = [
-    { name: "Bahrain", code: "973", digits: 8 },
-    { name: "Saudi Arabia", code: "966", digits: 9 },
-    { name: "Egypt", code: "20", digits: 10 },
-    { name: "Italy", code: "39", digits: 10 },
-    { name: "United Kingdom", code: "44", digits: 10 },
-    { name: "United States", code: "1", digits: 10 },
-    { name: "France", code: "33", digits: 9 },
-    { name: "Poland", code: "48", digits: 9 }
+    {name: "Bahrain", code: "973", digits: 8},
+    {name: "Saudi Arabia", code: "966", digits: 9},
+    {name: "Egypt", code: "20", digits: 10},
+    {name: "Italy", code: "39", digits: 10},
+    {name: "United Kingdom", code: "44", digits: 10},
+    {name: "United States", code: "1", digits: 10},
+    {name: "France", code: "33", digits: 9},
+    {name: "Poland", code: "48", digits: 9}
 ];
 
 const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
-function ClientInfoPopup({ isPhonePopupOpen, onClose, onSave, phoneNumber, customerName }) {
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName}) {
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -73,113 +73,153 @@ function ClientInfoPopup({ isPhonePopupOpen, onClose, onSave, phoneNumber, custo
             <Box
                 sx={{
                     position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    backgroundColor: "#fff",
-                    p: 3,
-                    width: 300,
-                    borderRadius: 2,
-                    boxShadow: 24,
-                    outline: "none"
+                    top: "12%",
+                    width: {xs: "100%", md: 400},
+                    maxHeight: "88vh",
+                    bgcolor: "#fff",
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
                 }}
             >
-                <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
-                    Enter your phone number to complete your order
-                </Typography>
-                {/* Country Select */}
-                <TextField
-                    select
-                    label="Country"
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    fullWidth
-                    sx={{ mb: 2 }}
-                >
-                    {countries.map((option) => (
-                        <MenuItem key={option.name} value={option.name}>
-                            {option.name} ({option.code})
-                        </MenuItem>
-                    ))}
-                </TextField>
-
-                {/* Phone input */}
-                <TextField
-                    label="Phone number"
-                    variant="outlined"
-                    fullWidth
-                    value={phoneDigits}
-                    onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^\d*$/.test(val)) {
-                            setPhoneDigits(val);
-                            setPhoneError("");
-                        }
-                    }}
-                    error={Boolean(phoneError)}
-                    helperText={phoneError || ""}
+                <Box
                     sx={{
-                        mb: 2,
-                        "& .MuiOutlinedInput-root": {
-                            "&.Mui-error fieldset": {
-                                borderColor: brandRed
+                        pl: 2,
+                        pr: 2
+                    }}>
+                    <Typography variant="h6" sx={{mb: 2, mt: 2}}>
+                        Enter your phone number to complete your order
+                    </Typography>
+                    <TextField
+                        select
+                        label="Country"
+                        value={selectedCountry}
+                        onChange={(e) => setSelectedCountry(e.target.value)}
+                        fullWidth
+                        sx={{
+                            mb: 2,
+                            borderRadius: 4,
+                        }}
+                        InputProps={{
+                            sx: {
+                                borderRadius: 4
                             }
-                        }
-                    }}
-                />
-                {/* Name input */}
-                <TextField
-                    label="Name"
-                    variant="outlined"
-                    fullWidth
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    error={Boolean(nameError)}
-                    helperText={nameError || ""}
-                    sx={{ mb: 2 }}
-                />
-                {/* Payment Method */}
-                <TextField
-                    select
-                    label="Payment Method"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    fullWidth
-                    sx={{ mb: 3 }}
-                >
-                    {paymentOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                            {option}
-                        </MenuItem>
-                    ))}
-                </TextField>
-                {/* Notes */}
-                <TextField
-                    label="Add a note to your order (optional)"
-                    variant="outlined"
-                    fullWidth
-                    multiline
-                    rows={2}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    sx={{ mb: 3 }}
-                />
-                {/* Checkout Button */}
-                <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={handleSave}
+                        }}
+                    >
+                        {countries.map((option) => (
+                            <MenuItem key={option.name} value={option.name}>
+                                {option.name} ({option.code})
+                            </MenuItem>
+                        ))}
+                    </TextField>
+
+                    {/* Phone input */}
+                    <TextField
+                        label="Phone number"
+                        variant="outlined"
+                        fullWidth
+                        value={phoneDigits}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^\d*$/.test(val)) {
+                                setPhoneDigits(val);
+                                setPhoneError("");
+                            }
+                        }}
+                        error={Boolean(phoneError)}
+                        helperText={phoneError || ""}
+                        sx={{
+                            mb: 2,
+                            "& .MuiOutlinedInput-root": {
+                                "&.Mui-error fieldset": {
+                                    borderColor: brandRed
+                                }
+                            }
+                        }}
+                        InputProps={{
+                            sx: {
+                                borderRadius: 4
+                            }
+                        }}
+                    />
+                    {/* Name input */}
+                    <TextField
+                        label="Name"
+                        variant="outlined"
+                        fullWidth
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        error={Boolean(nameError)}
+                        helperText={nameError || ""}
+                        sx={{mb: 2}}
+                        InputProps={{
+                            sx: {
+                                borderRadius: 4
+                            }
+                        }}
+                    />
+                    {/* Payment Method */}
+                    <TextField
+                        select
+                        label="Payment Method"
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        fullWidth
+                        sx={{mb: 3}}
+                        InputProps={{
+                            sx: {
+                                borderRadius: 4
+                            }
+                        }}
+                    >
+                        {paymentOptions.map((option) => (
+                            <MenuItem key={option} value={option}>
+                                {option}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                    <TextField
+                        label="Add a note to your order (optional)"
+                        variant="outlined"
+                        fullWidth
+                        multiline
+                        rows={2}
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        sx={{mb: 3}}
+                        InputProps={{
+                            sx: {
+                                borderRadius: 4
+                            }
+                        }}
+                    />
+                </Box>
+                <Box
                     sx={{
-                        backgroundColor: brandRed,
-                        color: "#fff",
-                        textTransform: "none",
-                        "&:hover": {
-                            backgroundColor: "#d23f40"
-                        }
+                        borderTop: "1px solid #eee",
+                        p: 2
                     }}
                 >
-                    Checkout (Pick Up)
-                </Button>
+                    <Button
+                        variant="contained"
+                        fullWidth
+                        onClick={handleSave}
+                        sx={{
+                            backgroundColor: brandRed,
+                            color: "#fff",
+                            textTransform: "none",
+                            fontSize: "16px",
+                            borderRadius: 4,
+                            "&:hover": {
+                                backgroundColor: "#d23f40"
+                            }
+                        }}
+                    >
+                        Checkout (Pick Up)
+                    </Button>
+                </Box>
             </Box>
         </Modal>
     );
