@@ -337,13 +337,14 @@ function GenericItemPopupContent({
                                                 key={item.name}
                                                 onClick={() => {
                                                     if (!active) {
-                                                        increaseQuantityOnCrossSell(item.name)
+                                                        increaseQuantityOnCrossSell(item.name);
                                                     }
-                                                }
-                                                }
+                                                }}
                                                 sx={{
-                                                    p: 2,
+                                                    width: 140,
+                                                    flexShrink: 0,
                                                     textAlign: "center",
+                                                    p: 2,
                                                     borderRadius: 4,
                                                     cursor: "pointer",
                                                     fontSize: "13px",
@@ -363,7 +364,11 @@ function GenericItemPopupContent({
                                                     <img
                                                         src={item.photo}
                                                         alt={item.name}
-                                                        style={{width: "100%", height: 120, objectFit: "contain"}}
+                                                        style={{
+                                                            maxWidth: "100%",
+                                                            height: 120,
+                                                            objectFit: "contain"
+                                                        }}
                                                     />
                                                 ) : (
                                                     <Box
@@ -377,7 +382,17 @@ function GenericItemPopupContent({
                                                         }}
                                                     />
                                                 )}
-                                                <Typography variant="body2" sx={{fontWeight: "bold", mt: 1}}>
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontWeight: "bold",
+                                                        mt: 1,
+                                                        overflowWrap: "break-word",
+                                                        wordWrap: "break-word",
+                                                        whiteSpace: "normal",
+                                                        lineHeight: 1.2
+                                                    }}
+                                                >
                                                     {item.name}
                                                 </Typography>
                                                 {!active &&
