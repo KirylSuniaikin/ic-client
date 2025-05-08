@@ -177,8 +177,9 @@ function PizzaPopup({
                     sx={{
                         position: "absolute",
                         top: "3%",
+                        bottom: "0%",
                         width: {xs: "100%", md: 400},
-                        maxHeight: "98vh",
+                        maxHeight: "97vh",
                         bgcolor: "#fff",
                         borderTopLeftRadius: 16,
                         borderTopRightRadius: 16,
@@ -254,7 +255,7 @@ function PizzaPopup({
                                 setQuantity={setQuantity}
                             />
 
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
+                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
                                 Better together
                             </Typography>
 
@@ -265,13 +266,8 @@ function PizzaPopup({
                                     gap: 1,
                                     mb: 2,
                                     py: 1,
-                                    px: 1,
-                                    pl: 1,
+                                    px: 0.2,
                                     scrollSnapType: "x mandatory",
-                                    "& > *": {
-                                        flex: "0 0 auto",
-                                        scrollSnapAlign: "start"
-                                    },
                                     scrollbarWidth: "none",
                                     "&::-webkit-scrollbar": {
                                         display: "none"
@@ -285,13 +281,14 @@ function PizzaPopup({
                                             key={item.name}
                                             onClick={() => {
                                                 if (!active) {
-                                                    increaseQuantityOnCrossSell(item.name)
+                                                    increaseQuantityOnCrossSell(item.name);
                                                 }
-                                            }
-                                            }
+                                            }}
                                             sx={{
-                                                p: 2,
+                                                width: 140,
+                                                flexShrink: 0,
                                                 textAlign: "center",
+                                                p: 2,
                                                 borderRadius: 4,
                                                 cursor: "pointer",
                                                 fontSize: "13px",
@@ -311,7 +308,11 @@ function PizzaPopup({
                                                 <img
                                                     src={item.photo}
                                                     alt={item.name}
-                                                    style={{width: "100%", height: 120, objectFit: "contain"}}
+                                                    style={{
+                                                        maxWidth: "100%",
+                                                        height: 120,
+                                                        objectFit: "contain"
+                                                    }}
                                                 />
                                             ) : (
                                                 <Box
@@ -325,7 +326,17 @@ function PizzaPopup({
                                                     }}
                                                 />
                                             )}
-                                            <Typography variant="body2" sx={{fontWeight: "bold", mt: 1}}>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontWeight: "bold",
+                                                    mt: 1,
+                                                    overflowWrap: "break-word",
+                                                    wordWrap: "break-word",
+                                                    whiteSpace: "normal",
+                                                    lineHeight: 1.2
+                                                }}
+                                            >
                                                 {item.name}
                                             </Typography>
                                             {!active &&
@@ -394,11 +405,12 @@ function PizzaPopup({
                                                     </Button>
                                                 </Box>
                                             }
+
                                         </Box>
-                                    )
+                                    );
                                 })}
                             </Box>
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
+                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px:0.2}}>
                                 Customize as you like it
                             </Typography>
                             <Box
@@ -408,12 +420,8 @@ function PizzaPopup({
                                     gap: 1,
                                     mb: 2,
                                     py: 1,
-                                    px: 1,
+                                    px: 0.2,
                                     scrollSnapType: "x mandatory",
-                                    "& > *": {
-                                        flex: "0 0 auto",
-                                        scrollSnapAlign: "start"
-                                    },
                                     scrollbarWidth: "none",
                                     "&::-webkit-scrollbar": {
                                         display: "none"
@@ -427,8 +435,10 @@ function PizzaPopup({
                                             key={ing.name}
                                             onClick={() => handleToggleIngr(ing.name)}
                                             sx={{
-                                                p: 2,
+                                                width: 140, // фиксированная ширина для стабильного отображения
+                                                flexShrink: 0,
                                                 textAlign: "center",
+                                                p: 2,
                                                 borderRadius: 4,
                                                 cursor: "pointer",
                                                 fontSize: "13px",
@@ -448,7 +458,11 @@ function PizzaPopup({
                                                 <img
                                                     src={ing.photo}
                                                     alt={ing.name}
-                                                    style={{width: "100%", height: 120, objectFit: "contain"}}
+                                                    style={{
+                                                        maxWidth: "100%",
+                                                        height: 120,
+                                                        objectFit: "contain"
+                                                    }}
                                                 />
                                             ) : (
                                                 <Box
@@ -462,10 +476,20 @@ function PizzaPopup({
                                                     }}
                                                 />
                                             )}
-                                            <Typography variant="body2" sx={{fontWeight: "bold", mt: 1}}>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontWeight: "bold",
+                                                    mt: 1,
+                                                    overflowWrap: "break-word",
+                                                    wordWrap: "break-word",
+                                                    whiteSpace: "normal",
+                                                    lineHeight: 1.2
+                                                }}
+                                            >
                                                 {ing.name}
                                             </Typography>
-                                            <Typography variant="body2" sx={{mt: 0.5}}>
+                                            <Typography variant="body2" sx={{ mt: 0.5 }}>
                                                 +{ing.price}
                                             </Typography>
                                         </Box>
@@ -483,6 +507,7 @@ function PizzaPopup({
                         <Button
                             variant="contained"
                             fullWidth
+                            onClick={handleAdd}
                             sx={{
                                 backgroundColor: brandRed,
                                 color: "#fff",
@@ -493,7 +518,6 @@ function PizzaPopup({
                                     backgroundColor: "#d23f40"
                                 }
                             }}
-                            onClick={handleAdd}
                         >
                             Add · {getFinalPriceOnPopup()}
                         </Button>

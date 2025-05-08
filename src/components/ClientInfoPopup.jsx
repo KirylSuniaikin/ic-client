@@ -73,40 +73,31 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             <Box
                 sx={{
                     position: "absolute",
-                    top: "12%",
-                    width: {xs: "100%", md: 400},
-                    maxHeight: "88vh",
+                    bottom: 0,
+                    left: 0,
+                    width: "100%",
                     bgcolor: "#fff",
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    overflow: "hidden",
+                    maxHeight: "95vh",
+                    overflowY: "auto",
                     display: "flex",
                     flexDirection: "column",
                 }}
             >
-                <Box
-                    sx={{
-                        pl: 2,
-                        pr: 2
-                    }}>
-                    <Typography variant="h6" sx={{mb: 2, mt: 2}}>
+                <Box sx={{ p: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 3 }}>
                         Enter your phone number to complete your order
                     </Typography>
+
                     <TextField
                         select
                         label="Country"
                         value={selectedCountry}
                         onChange={(e) => setSelectedCountry(e.target.value)}
                         fullWidth
-                        sx={{
-                            mb: 2,
-                            borderRadius: 4,
-                        }}
-                        InputProps={{
-                            sx: {
-                                borderRadius: 4
-                            }
-                        }}
+                        sx={{ mb: 2 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
                     >
                         {countries.map((option) => (
                             <MenuItem key={option.name} value={option.name}>
@@ -115,10 +106,8 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         ))}
                     </TextField>
 
-                    {/* Phone input */}
                     <TextField
                         label="Phone number"
-                        variant="outlined"
                         fullWidth
                         value={phoneDigits}
                         onChange={(e) => {
@@ -130,49 +119,29 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         }}
                         error={Boolean(phoneError)}
                         helperText={phoneError || ""}
-                        sx={{
-                            mb: 2,
-                            "& .MuiOutlinedInput-root": {
-                                "&.Mui-error fieldset": {
-                                    borderColor: brandRed
-                                }
-                            }
-                        }}
-                        InputProps={{
-                            sx: {
-                                borderRadius: 4
-                            }
-                        }}
+                        sx={{ mb: 2 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
                     />
-                    {/* Name input */}
+
                     <TextField
                         label="Name"
-                        variant="outlined"
                         fullWidth
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         error={Boolean(nameError)}
                         helperText={nameError || ""}
-                        sx={{mb: 2}}
-                        InputProps={{
-                            sx: {
-                                borderRadius: 4
-                            }
-                        }}
+                        sx={{ mb: 2 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
                     />
-                    {/* Payment Method */}
+
                     <TextField
                         select
                         label="Payment Method"
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         fullWidth
-                        sx={{mb: 3}}
-                        InputProps={{
-                            sx: {
-                                borderRadius: 4
-                            }
-                        }}
+                        sx={{ mb: 2 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
                     >
                         {paymentOptions.map((option) => (
                             <MenuItem key={option} value={option}>
@@ -180,41 +149,31 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                             </MenuItem>
                         ))}
                     </TextField>
+
                     <TextField
                         label="Add a note to your order (optional)"
-                        variant="outlined"
                         fullWidth
                         multiline
                         rows={2}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        sx={{mb: 3}}
-                        InputProps={{
-                            sx: {
-                                borderRadius: 4
-                            }
-                        }}
+                        sx={{ mb: 3 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
                     />
                 </Box>
-                <Box
-                    sx={{
-                        borderTop: "1px solid #eee",
-                        p: 2
-                    }}
-                >
+
+                <Box sx={{ borderTop: "1px solid #eee", p: 2 }}>
                     <Button
-                        variant="contained"
                         fullWidth
+                        variant="contained"
                         onClick={handleSave}
                         sx={{
                             backgroundColor: brandRed,
                             color: "#fff",
                             textTransform: "none",
-                            fontSize: "16px",
+                            fontSize: "1rem",
                             borderRadius: 4,
-                            "&:hover": {
-                                backgroundColor: "#d23f40"
-                            }
+                            "&:hover": { backgroundColor: "#d23f40" },
                         }}
                     >
                         Checkout (Pick Up)
