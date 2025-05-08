@@ -121,6 +121,7 @@ function GenericItemPopupContent({
                 sx={{
                     position: "absolute",
                     top: "3%",
+                    bottom: 0,
                     width: {xs: "100%", md: 400},
                     maxHeight: "98vh",
                     bgcolor: "#fff",
@@ -146,7 +147,15 @@ function GenericItemPopupContent({
                     <CloseIcon/>
                 </Fab>
 
-                <Box sx={{flex: 1, overflowY: "auto"}}>
+                <Box sx={{
+                    flex: 1,
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
+                    boxSizing: "border-box",
+                    "&::-webkit-scrollbar": {
+                        display: "none"
+                    }
+                }}>
                     <Box sx={{width: "100%", height: 400, overflow: "hidden"}}>
                         <img
                             src={item.photo}

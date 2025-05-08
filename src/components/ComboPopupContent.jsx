@@ -108,51 +108,15 @@ function ComboPopup({
         onClose?.();
     }
 
-    const groupSx = {
-        backgroundColor: brandGray,
-        borderRadius: "9999px",
-        p: "4px",
-        mb: 2,
-        width: "100%",
-        "& .MuiToggleButtonGroup-grouped": {
-            border: 0,
-            flex: 1,
-            borderRadius: "9999px",
-            mr: "4px",
-            "&:not(:last-of-type)": {
-                borderRight: "none"
-            }
-        }
-    };
-
-    const toggleBtnSx = {
-        textTransform: "none",
-        fontSize: "14px",
-        justifyContent: "center",
-        color: "#666",
-        borderRadius: "9999px",
-        height: 34,
-        "&:hover": {
-            backgroundColor: "transparent"
-        },
-        "&.Mui-selected": {
-            backgroundColor: "#fff",
-            color: brandRed,
-            boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-            "&:hover": {
-                backgroundColor: "#fff"
-            }
-        }
-    };
-
     return (
         <Modal open={open} onClose={onClose}>
             <Box
                 sx={{
                     position: "absolute",
                     top: "3%",
+                    bottom: "0%",
                     width: {xs: "100%", md: 400},
-                    maxHeight: "98vh",
+                    maxHeight: "97vh",
                     bgcolor: "#fff",
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
