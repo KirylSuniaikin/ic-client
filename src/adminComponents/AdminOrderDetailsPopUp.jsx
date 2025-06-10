@@ -4,6 +4,9 @@ import {Box, Button, FormControl, InputLabel, MenuItem, Modal, Select, TextField
 const countries = [
     { name: "Bahrain", code: "973", digits: 8 },
     { name: "Saudi Arabia", code: "966", digits: 9 },
+    {name: "Oman", code: "968", "digits": 8 },
+    {name: "Kuwait", code: "965", digits: 8 },
+    {name: "United Arab Emirates", code: "971", digits: 9 },
     { name: "Egypt", code: "20", digits: 10 },
     { name: "Italy", code: "39", digits: 10 },
     { name: "United Kingdom", code: "44", digits: 10 },

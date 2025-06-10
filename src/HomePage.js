@@ -246,6 +246,15 @@ function HomePage({userParam}) {
         );
     }
 
+    function handleChangeSize(item, newSize){
+        const sameItems = getSameItems(item.name)
+        const matched = sameItems ? sameItems.find(it => it.size === newSize) : null;
+        const newBasePrice = matched ? matched.price : (item.sizes?.[newSize] || item.price || 0);
+        setCartItems(prev =>
+            prev.map(it => (it === item ? {...it, amount: newBasePrice, size: newSize} : it))
+        );
+    }
+
     const handleCloseAdminOrderDetailsPopup = () => {
         setAdminOrderDetailsPopUpOpen(false);
     }
@@ -661,6 +670,7 @@ function HomePage({userParam}) {
                 items={cartItems}
                 onClose={handleCloseCart}
                 onChangeQuantity={handleChangeQuantity}
+                onChangeSize={handleChangeSize}
                 onRemoveItem={handleRemoveItemFromCart}
                 onCheckout={handleCheckout}
                 isAdmin={isAdmin}

@@ -8,7 +8,7 @@ import {
     ToggleButton,
     ToggleButtonGroup,
     Checkbox,
-    FormControlLabel
+    FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -43,11 +43,22 @@ function ComboPopup({
             setSelectedPizzas(prev => [...prev, {
                 name: pizzaName,
                 dough: "Traditional",
-                crust: "Classic Crust"
+                crust: "Classic Crust",
+                note: ""
             }]);
         } else {
             setSelectedPizzas(prev => prev.filter(p => p.name !== pizzaName));
         }
+    }
+
+    function handleChangeNote(pizzaName, note){
+        setSelectedPizzas(prev =>
+            prev.map(pizza =>
+                pizza.name === pizzaName
+                    ? { ...pizza, note }
+                    : pizza
+            )
+        );
     }
 
     function updatePizzaConfig(pizzaName, index, key, value) {
@@ -90,6 +101,7 @@ function ComboPopup({
             const parts = [p.name];
             if (p.crust !== "Classic Crust") parts.push(`+${p.crust}`);
             if (p.dough !== "Traditional") parts.push(`+${p.dough}`);
+            if (p.note !== "") parts.push(`+${p.note}`);
             return parts.join(" ");
         }).join("; ");
     }
@@ -269,9 +281,20 @@ function ComboPopup({
 
                                             {configs.map((p, i) => (
                                                 <Box key={i} sx={{ mb: 2 }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                                                        Pizza #{i + 1}
-                                                    </Typography>
+                                                    {/*<Typography variant="body2" sx={{ fontWeight: "bold" }}>*/}
+                                                    {/*    Pizza #{i + 1}*/}
+                                                    {/*</Typography>*/}
+
+                                                    <TextField
+                                                        label="Add a note"
+                                                        fullWidth
+                                                        multiline
+                                                        rows={2}
+                                                        value={pizza.note}
+                                                        onChange={(e) => handleChangeNote(pizza.name, e.target.value)}
+                                                        sx={{ mb: 3 }}
+                                                        InputProps={{ sx: { borderRadius: 4 } }}
+                                                    />
 
                                                     {/* Dough */}
                                                     <Typography variant="body2" sx={{ mt: 1 }}>

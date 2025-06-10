@@ -5,29 +5,36 @@ import {
     IconButton,
     Button,
     Divider,
-    CardMedia, Select, MenuItem, FormControl, InputLabel
+    CardMedia, Select, MenuItem, FormControl, InputLabel, ToggleButton, ToggleButtonGroup
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
 const brandGray = "#f3f3f3";
-
+const brandRed = "#E44B4C";
 
 function CartItemHorizontal({
-                                    item,
-                                    onChangeQuantity,
-                                    onRemoveItem,
-                                    isAdmin,
-                                    handleDiscountChange,
+                                item,
+                                onChangeQuantity,
+                                onChangeSize,
+                                onRemoveItem,
+                                isAdmin,
+                                handleDiscountChange,
                             }) {
-    let title = item.name;
-    if (item.size) {
-        title += ` (${item.size})`;
-    }
-
-    const discount = item.discount || 0; // от 0 до 100
+    const discount = item.discount || 0;
     const discountedPrice = item.amount * (1 - discount / 100);
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
 
+    const getToggleValue = (size) => {
+        if (size === "Large") return "L"
+        if (size === "Medium") return "M"
+        if (size === "Small") return "S"
+    }
+
+    const getFullSize = (val) => {
+        if (val === "L") return "Large"
+        if (val === "M") return "Medium"
+        if (val === "S") return "Small"
+    }
 
     return (
         <Box
@@ -45,22 +52,22 @@ function CartItemHorizontal({
                     onRemoveItem?.(item)
                 }}
 
-                    sx={{
+                sx={{
                     position: "absolute",
                     top: 8,
                     right: 8,
                     color: "#555",
                 }}
             >
-                <CloseIcon />
+                <CloseIcon/>
             </IconButton>
 
-            <Box sx={{ display: "flex", alignItems: "flex-start" }}>
-                <Box sx={{ width: 80, height: 80, flexShrink: 0, mr: 2 }}>
+            <Box sx={{display: "flex", alignItems: "flex-start"}}>
+                <Box sx={{width: 80, height: 80, flexShrink: 0, mr: 2}}>
                     <CardMedia
                         component="img"
                         image={item.photo}
-                        alt={title}
+                        alt={item.name}
                         sx={{
                             width: 80,
                             height: 80,
@@ -70,26 +77,24 @@ function CartItemHorizontal({
                     />
                 </Box>
 
-                {/* Текст: заголовок + описание. Добавляем pr:40, чтобы не пересекалось с крестиком */}
-                <Box sx={{ flex: 1, minWidth: 0, pr: "40px" }}>
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ color: "#000" }}>
-                        {title}
+                <Box sx={{flex: 1, minWidth: 0, pr: "40px"}}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{color: "#000"}}>
+                        {item.name}
                     </Typography>
                     {item.description && (
-                        <Typography variant="body2" sx={{ color: "#555", mt: 0.5 }}>
+                        <Typography variant="body2" sx={{color: "#555", mt: 0.5}}>
                             {item.description}
                         </Typography>
                     )}
                 </Box>
             </Box>
 
-            {/* Разделитель */}
-            <Divider sx={{ my: 1.5 }} />
+            <Divider sx={{my: 1.5}}/>
 
             <Box>
                 {isAdmin && (
-                    <Box sx={{ mt: 1 }}>
-                        <FormControl fullWidth sx={{ mb: 2 }}>
+                    <Box sx={{mt: 1}}>
+                        <FormControl fullWidth sx={{mb: 2}}>
                             <InputLabel id={`discount-label-${item.name}`}>Discount</InputLabel>
                             <Select
                                 size="small"
@@ -128,23 +133,68 @@ function CartItemHorizontal({
                 sx={{
                     display: "flex",
                     alignItems: "center",
-                    py: 0.1
+                    py: 0.1,
+                    gap: 1.5
                 }}
             >
-                {/* Цена с небольшим правым отступом */}
                 <Typography
                     variant="body1"
                     fontWeight="bold"
                     sx={{
                         color: "#333",
                         mr: "auto",
-                        ml: 2// пусть цена занимает левую часть, а счётчик уедет вправо
+                        ml: 2,
                     }}
                 >
                     {itemTotal}
                 </Typography>
 
-                {/* Счётчик (– / число / +) */}
+                {item.category === "Pizzas" && <ToggleButtonGroup
+                    exclusive
+                    value={getToggleValue(item.size)}
+                    onChange={(e, val) => val && onChangeSize(item, getFullSize(val))}
+                    sx={{
+                        backgroundColor: brandGray,
+                        borderRadius: 8,
+                        p: "0.5px",
+                        flex: 1,
+                        "& .MuiToggleButtonGroup-grouped": {
+                            border: 0,
+                            flex: 1,
+                            borderRadius: 8,
+                            mr: "4px",
+                            "&:not(:last-of-type)": {
+                                borderRight: "none"
+                            }
+                        }
+                    }}
+                    fullWidth
+                >
+                    {["S", "M", "L"].map((label) => (
+                        <ToggleButton key={label} value={label} sx={{
+                            textTransform: "none",
+                            fontSize: "16px",
+                            justifyContent: "center",
+                            color: "#666",
+                            borderRadius: 8,
+                            height: "100%",
+                            "&:hover": {
+                                backgroundColor: "transparent"
+                            },
+                            "&.Mui-selected": {
+                                backgroundColor: "#fff",
+                                color: brandRed,
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                "&:hover": {
+                                    backgroundColor: "#fff"
+                                }
+                            }
+                        }}>
+                            {label}
+                        </ToggleButton>
+                    ))}
+                </ToggleButtonGroup>
+                }
                 <Box
                     sx={{
                         backgroundColor: brandGray,
@@ -155,7 +205,6 @@ function CartItemHorizontal({
                         gap: "4px"
                     }}
                 >
-                    {/* Минус */}
                     <Button
                         onClick={() =>
                             item.quantity > 1 &&
@@ -164,7 +213,7 @@ function CartItemHorizontal({
                         disabled={item.quantity <= 1}
                         sx={{
                             minWidth: 32,
-                            height: 28,
+                            height: 40,
                             backgroundColor: "transparent",
                             color: "#666",
                             fontSize: "16px",
@@ -183,14 +232,13 @@ function CartItemHorizontal({
                         sx={{
                             minWidth: 20,
                             textAlign: "center",
-                            fontSize: "15px",
+                            fontSize: "20px",
                             color: "#666"
                         }}
                     >
                         {item.quantity}
                     </Box>
 
-                    {/* Плюс */}
                     <Button
                         onClick={() => onChangeQuantity?.(item, item.quantity + 1)}
                         sx={{

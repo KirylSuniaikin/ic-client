@@ -8,7 +8,7 @@ import PizzaLoader from "./components/PizzaLoader";
 import { io } from "socket.io-client";
 import alertSound from "./assets/alert.mp3";
 import CloseIcon from "@mui/icons-material/Close";
-import {History} from "@mui/icons-material";
+import {ExpandLess, History, Menu} from "@mui/icons-material";
 import HistoryComponent from "./adminComponents/HistoryComponent";
 
 function AdminHomePage() {
@@ -16,6 +16,7 @@ function AdminHomePage() {
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const navigate = useNavigate();
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
     const [audioRef] = useState(new Audio(alertSound));
@@ -101,14 +102,51 @@ function AdminHomePage() {
             {!isHistoryOpen && sortedOrders.map((order) => (
                 <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
+            {!isSettingsOpen &&
+                <Fab
+                color="primary"
+                aria-label="history"
+                onClick={() => setIsSettingsOpen(true)}
+                sx={{
+                position: 'fixed',
+                top: 34,
+                right: 24,
+                backgroundColor: colorRed,
+                color: "white",
+                '&:hover': {
+                backgroundColor: '#d23c3d',
+            },
+            }}
+                >
+                <Menu/>
+                </Fab>
+            }
+            {isSettingsOpen && !isHistoryOpen && <Fab
+                color="primary"
+                aria-label="history"
+                onClick={() => setIsSettingsOpen(false)}
+                sx={{
+                    position: 'fixed',
+                    top: 34,
+                    right: 24,
+                    backgroundColor: colorRed,
+                    color: "white",
+                    '&:hover': {
+                        backgroundColor: '#d23c3d',
+                    },
+                }}
+            >
+                <ExpandLess/>
+            </Fab>
+            }
 
-            {!isHistoryOpen && <Fab
+            {isSettingsOpen && !isHistoryOpen && <Fab
                 color="primary"
                 aria-label="history"
                 onClick={() => setIsHistoryOpen(true)}
                 sx={{
                     position: 'fixed',
-                    bottom: 94,
+                    top: 164,
                     right: 24,
                     backgroundColor: colorRed,
                     color: "white",
@@ -121,13 +159,13 @@ function AdminHomePage() {
             </Fab>
             }
 
-            { !isHistoryOpen && <Fab
+            {isSettingsOpen && !isHistoryOpen && <Fab
                 color="primary"
                 aria-label="add"
                 onClick={() => navigate('/menu?isAdmin=true')}
                 sx={{
                     position: 'fixed',
-                    bottom: 24,
+                    top: 99,
                     right: 24,
                     backgroundColor: colorRed,
                     color: 'white',

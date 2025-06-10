@@ -1,5 +1,4 @@
 import {useEffect, useState} from "react";
-import {useNavigate} from "react-router-dom";
 import {getHistory} from "../api/api";
 import PizzaLoader from "../components/PizzaLoader";
 import OrderCard from "./OrderCard";
@@ -11,7 +10,6 @@ function HistoryComponent({isOpen, onClose}) {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
-    const navigate = useNavigate();
     const colorRed = '#E44B4C';
 
     const handleRemoveItem = (orderIdToRemove) => {

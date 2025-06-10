@@ -7,15 +7,16 @@ const brandRed = "#E44B4C";
 
 
 function CartPopup({
-                           open,
-                           onClose,
-                           items = [],
-                           onChangeQuantity,
-                           onRemoveItem,
-                           onCheckout,
-                           isAdmin,
-                           handleDiscountChange
-                       }) {
+                       open,
+                       onClose,
+                       items = [],
+                       onChangeQuantity,
+                       onChangeSize,
+                       onRemoveItem,
+                       onCheckout,
+                       isAdmin,
+                       handleDiscountChange
+                   }) {
     const totalPrice = items.reduce((acc, i) => {
         const discount = i.discount || 0;
         const discountedPrice = i.amount * (1 - discount / 100);
@@ -125,6 +126,7 @@ function CartPopup({
                             key={idx}
                             item={item}
                             onChangeQuantity={onChangeQuantity}
+                            onChangeSize={onChangeSize}
                             onRemoveItem={onRemoveItem}
                             isAdmin={isAdmin}
                             handleDiscountChange={handleDiscountChange}
