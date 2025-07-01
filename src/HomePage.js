@@ -19,7 +19,7 @@ import AdminOrderDetailsPopUp from "./adminComponents/AdminOrderDetailsPopUp";
 import GenericItemPopupContent from "./components/GenericItemPopupContent";
 import CloseIcon from "@mui/icons-material/Close";
 import OrderConfirmed from "./components/OrderConfirmed";
-import PizzaLoader from "./components/PizzaLoader";
+import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import CrossSellPopup from "./components/CrossSellPopup";
 
 const brandRed = "#E44B4C";
@@ -39,9 +39,9 @@ function HomePage({userParam}) {
     const [popupItem, setPopupItem] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
-
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [editMode, setEditMode] = useState(false)
 
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -131,6 +131,8 @@ function HomePage({userParam}) {
                                 quantity: item.quantity || 1,
                                 discount,
                                 amount: originalAmount,
+                                note: parseItemNote(item.description),
+                                extraIngredients: parseExtraIngr(item.description)
                             };
                         });
                         setCartItems(normalized);
@@ -143,6 +145,44 @@ function HomePage({userParam}) {
 
     }, []);
 
+
+    function parseItemNote(desc) {
+        let note = "";
+
+        const hasParentheses = /\(.*?\)/.test(desc);
+        let restPart = desc;
+
+        if (hasParentheses) {
+            const lastParenIndex = desc.lastIndexOf(")");
+            restPart = desc.substring(lastParenIndex + 1);
+        }
+
+        const plusRegex = /\+([^\+]+)/g;
+        let match;
+        while ((match = plusRegex.exec(restPart)) !== null) {
+            let text = match[1].trim();
+            if (text !== "Thin") {
+                note += (note ? " " : "") + text;
+            }
+        }
+        console.log(note)
+        return note.trim();
+    }
+
+    function parseExtraIngr(desc) {
+        const extras = [];
+        const regex = /\((.*?)\)/g;
+        let match;
+        while ((match = regex.exec(desc)) !== null) {
+            const ingr = match[1]
+                .split("+")
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+            extras.push(...ingr);
+        }
+        console.log(extras)
+        return extras;
+    }
     useEffect(() => {
         if (cartItems.length === 0) {
             setCartOpen(false);
@@ -178,6 +218,12 @@ function HomePage({userParam}) {
             .filter(Boolean);
     }
 
+    function openPizzaEditPopUp(item) {
+        setPopupItem(item)
+        setEditMode(true)
+        setPizzaPopupOpen(true)
+    }
+
     function getSameItems(item_name) {
         const sameItems = [];
         menuData.forEach(item => {
@@ -207,8 +253,9 @@ function HomePage({userParam}) {
         }
     };
     const handleClosePizzaPopup = () => {
-        setPizzaPopupOpen(false);
-        setPopupItem(null);
+        setPizzaPopupOpen(false)
+        setPopupItem(null)
+        setEditMode(false)
     };
 
     const handleCloseComboPopup = () => {
@@ -233,6 +280,14 @@ function HomePage({userParam}) {
 
         handleClosePizzaPopup();
         handleCloseComboPopup();
+    }
+
+    function removeFromCart(name, amount, quantity) {
+        setCartItems(prev =>
+            prev.filter(item =>
+                !(item.name === name && item.amount === amount && item.quantity === quantity)
+            )
+        );
     }
 
     function handleRemoveItemFromCart(item) {
@@ -633,6 +688,8 @@ function HomePage({userParam}) {
                 onClose={handleClosePizzaPopup}
                 onAddToCart={handleAddToCart}
                 crossSellItems={getGeneralCrossSellItems()}
+                removeFromCart={removeFromCart}
+                isEditMode={editMode}
             />
             }
 
@@ -673,6 +730,7 @@ function HomePage({userParam}) {
                 onChangeSize={handleChangeSize}
                 onRemoveItem={handleRemoveItemFromCart}
                 onCheckout={handleCheckout}
+                openPizzaEditPopUp={openPizzaEditPopUp}
                 isAdmin={isAdmin}
                 handleDiscountChange={handleDiscountChange}
             />

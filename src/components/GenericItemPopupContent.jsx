@@ -4,7 +4,7 @@ import {
     Box,
     Typography,
     Fab,
-    Button, Checkbox, FormControlLabel
+    Button, Checkbox, FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -24,6 +24,7 @@ function GenericItemPopupContent({
     const [selectedToppings, setSelectedToppings] = useState([""]);
     const [selectedIngr, setSelectedIngr] = useState([]);
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
+    const [note, setNote] = useState( "");
 
     useEffect(() => {
         if (open && item) {
@@ -77,7 +78,7 @@ function GenericItemPopupContent({
             category: item.category,
             quantity: quantity,
             amount: finalPizzaPricePerItem,
-            description: description
+            description: item.category === "Brick Pizzas" ? note : description
         }];
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
@@ -306,6 +307,18 @@ function GenericItemPopupContent({
                         </Box>
                         {item.category === "Brick Pizzas" &&
                             <Box>
+
+                                <TextField
+                                    label="Add a note"
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    sx={{mb: 3}}
+                                    InputProps={{sx: {borderRadius: 4}}}
+                                />
+
                                 <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
                                     Better together
                                 </Typography>

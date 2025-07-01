@@ -8,6 +8,7 @@ import {
     CardMedia, Select, MenuItem, FormControl, InputLabel, ToggleButton, ToggleButtonGroup
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import {Edit} from "@mui/icons-material";
 
 const brandGray = "#f3f3f3";
 const brandRed = "#E44B4C";
@@ -17,6 +18,7 @@ function CartItemHorizontal({
                                 onChangeQuantity,
                                 onChangeSize,
                                 onRemoveItem,
+                                openPizzaEditPopUp,
                                 isAdmin,
                                 handleDiscountChange,
                             }) {
@@ -47,6 +49,22 @@ function CartItemHorizontal({
                 mb: 2
             }}
         >
+            {item.category === "Pizzas" && <IconButton
+                onClick={() => {
+                    openPizzaEditPopUp(item)
+                }}
+
+                sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 36,
+                    color: "#555",
+                }}
+            >
+                <Edit/>
+            </IconButton>
+            }
+
             <IconButton
                 onClick={() => {
                     onRemoveItem?.(item)

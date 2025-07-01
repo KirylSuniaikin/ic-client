@@ -6,11 +6,11 @@ import {
     Fab,
     Button,
     ToggleButton,
-    ToggleButtonGroup, InputAdornment, TextField,
+    ToggleButtonGroup,
+    TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
-import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined';
 
 
 const brandRed = "#E44B4C";
@@ -39,30 +39,43 @@ function PizzaPopup({
                         extraIngredients = [],
                         onAddToCart,
                         crossSellItems = [],
+                        removeFromCart,
+                        isEditMode
                     }) {
+
+    const getSize = () => {
+        if (item.size === "Large") return "L"
+        if (item.size === "Medium") return "M"
+        if (item.size === "Small") return "S"
+    }
+
+    const getDough = () => {
+        if (item.isThinDough)
+            return "Thin"
+        else return "Traditional"
+    }
+
     const [selectedSize, setSelectedSize] = useState("M");
     const [selectedDough, setSelectedDough] = useState("Traditional");
-    const [quantity, setQuantity] = useState(1);
-    const [selectedIngr, setSelectedIngr] = useState([]);
+    const [quantity, setQuantity] = useState(isEditMode ? () => item.quantity : 1);
+    const [selectedIngr, setSelectedIngr] = useState(isEditMode ? () => item.extraIngredients : []);
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
-    const [note, setNote] = useState("");
+    const [note, setNote] = useState(isEditMode ? () => item.note : "");
 
     useEffect(() => {
-        if (open && item) {
-            setSelectedSize("M");
-            setSelectedDough("Traditional");
-            setQuantity(1);
-            setSelectedIngr([]);
+        if (isEditMode) {
+            setSelectedSize(getSize)
+            setSelectedDough(getDough)
         }
-        console.log(item.name)
-    }, [open, item]);
+        console.log(isEditMode)
+        console.log(item)
+    }, [open, item, isEditMode]);
 
     useEffect(() => {
         if (selectedSize === "S") {
             setSelectedDough("Traditional");
         }
     }, [selectedSize]);
-
     if (!item) return null;
 
     const getSelectedSize = () => {
@@ -128,6 +141,8 @@ function PizzaPopup({
             category: item.category,
             isThinDough: isThinDoughVal,
             isGarlicCrust: isGarlicCrustVal,
+            extraIngredients: selectedIngr,
+            note: note,
             quantity,
             description: getDesc(),
             amount: finalPizzaPricePerItem
@@ -142,9 +157,11 @@ function PizzaPopup({
                 });
             }
         }))
+        removeFromCart(item.name, item.amount, item.quantity);
         onAddToCart?.(products);
         onClose?.();
     }
+
 
     function increaseQuantityOnCrossSell(name) {
         setSelectedCrossSellItems(prev => ({
@@ -170,520 +187,528 @@ function PizzaPopup({
 
     return (
         <Modal open={open} onClose={onClose}>
-                <Box
+            <Box
+                sx={{
+                    position: "absolute",
+                    top: "3%",
+                    bottom: "0%",
+                    width: {xs: "100%", md: 400},
+                    maxHeight: "97vh",
+                    bgcolor: "#fff",
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column"
+                }}
+            >
+                <Fab
+                    size="small"
+                    onClick={onClose}
                     sx={{
                         position: "absolute",
-                        top: "3%",
-                        bottom: "0%",
-                        width: {xs: "100%", md: 400},
-                        maxHeight: "97vh",
-                        bgcolor: "#fff",
-                        borderTopLeftRadius: 16,
-                        borderTopRightRadius: 16,
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column"
+                        top: 16,
+                        right: 16,
+                        color: brandRed,
+                        backgroundColor: "#fff",
+                        zIndex: 9999
                     }}
                 >
-                    <Fab
-                        size="small"
-                        onClick={onClose}
-                        sx={{
-                            position: "absolute",
-                            top: 16,
-                            right: 16,
-                            color: brandRed,
-                            backgroundColor: "#fff",
-                            zIndex: 9999
-                        }}
-                    >
-                        <CloseIcon/>
-                    </Fab>
+                    <CloseIcon/>
+                </Fab>
+
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflowY: "auto",
+                        scrollbarWidth: "none",
+                        boxSizing: "border-box",
+                        "&::-webkit-scrollbar": {
+                            display: "none"
+                        }
+                    }}>
+                    <Box sx={{width: "100%", height: 350, overflow: "hidden"}}>
+                        <img
+                            src={item.photo}
+                            alt={item.name}
+                            style={{width: "100%", height: "100%", objectFit: "cover"}}
+                        />
+                    </Box>
 
                     <Box
                         sx={{
-                            flex: 1,
-                            overflowY: "auto",
-                            scrollbarWidth: "none",
+                            px: {xs: 2, md: 3},
                             boxSizing: "border-box",
-                            "&::-webkit-scrollbar": {
-                                display: "none"
-                            }
-                        }}>
-                        <Box sx={{width: "100%", height: 350, overflow: "hidden"}}>
-                            <img
-                                src={item.photo}
-                                alt={item.name}
-                                style={{width: "100%", height: "100%", objectFit: "cover"}}
-                            />
-                        </Box>
+                            pt: 2,
+                            pb: 2
+                        }}
+                    >
+                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
+                            {item.name}
+                        </Typography>
+
+                        <TogglesWithQuantity
+                            selectedSize={selectedSize}
+                            selectedDough={selectedDough}
+                            setSelectedDough={setSelectedDough}
+                            quantity={quantity}
+                            setQuantity={setQuantity}
+                        />
+
+                        <TextField
+                            label="Add a note"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            sx={{mb: 3}}
+                            InputProps={{sx: {borderRadius: 4}}}
+                        />
+
+                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                            Better together
+                        </Typography>
 
                         <Box
                             sx={{
-                                px: {xs: 2, md: 3},
-                                boxSizing: "border-box",
-                                pt: 2,
-                                pb: 2
+                                display: "flex",
+                                overflowX: "auto",
+                                gap: 1,
+                                mb: 2,
+                                py: 1,
+                                px: 0.2,
+                                scrollSnapType: "x mandatory",
+                                scrollbarWidth: "none",
+                                "&::-webkit-scrollbar": {
+                                    display: "none"
+                                }
                             }}
                         >
-                            <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
-                                {item.name}
-                            </Typography>
-
-                            <TogglesWithQuantity
-                                selectedSize={selectedSize}
-                                selectedDough={selectedDough}
-                                setSelectedDough={setSelectedDough}
-                                quantity={quantity}
-                                setQuantity={setQuantity}
-                            />
-
-                            <TextField
-                                label="Add a note"
-                                fullWidth
-                                multiline
-                                rows={2}
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                sx={{ mb: 3 }}
-                                InputProps={{ sx: { borderRadius: 4 } }}
-                            />
-
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                Better together
-                            </Typography>
-
-                            <Box
-                                sx={{
-                                    display: "flex",
-                                    overflowX: "auto",
-                                    gap: 1,
-                                    mb: 2,
-                                    py: 1,
-                                    px: 0.2,
-                                    scrollSnapType: "x mandatory",
-                                    scrollbarWidth: "none",
-                                    "&::-webkit-scrollbar": {
-                                        display: "none"
-                                    }
-                                }}
-                            >
-                                {crossSellItems.map((item) => {
-                                    const active = crossSellMap[item.name] != null;
-                                    return (
-                                        <Box
-                                            key={item.name}
-                                            onClick={() => {
-                                                if (!active) {
-                                                    increaseQuantityOnCrossSell(item.name);
-                                                }
-                                            }}
-                                            sx={{
-                                                width: 140,
-                                                flexShrink: 0,
-                                                textAlign: "center",
-                                                p: 2,
-                                                borderRadius: 4,
-                                                cursor: "pointer",
-                                                fontSize: "13px",
-                                                color: "#000",
+                            {crossSellItems.map((item) => {
+                                const active = crossSellMap[item.name] != null;
+                                return (
+                                    <Box
+                                        key={item.name}
+                                        onClick={() => {
+                                            if (!active) {
+                                                increaseQuantityOnCrossSell(item.name);
+                                            }
+                                        }}
+                                        sx={{
+                                            width: 140,
+                                            flexShrink: 0,
+                                            textAlign: "center",
+                                            p: 2,
+                                            borderRadius: 4,
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                            color: "#000",
+                                            boxShadow: active
+                                                ? `0 0 0 2px ${brandRed}`
+                                                : "0 1px 3px rgba(0,0,0,0.25)",
+                                            border: "none",
+                                            "&:hover": {
                                                 boxShadow: active
                                                     ? `0 0 0 2px ${brandRed}`
-                                                    : "0 1px 3px rgba(0,0,0,0.25)",
-                                                border: "none",
-                                                "&:hover": {
-                                                    boxShadow: active
-                                                        ? `0 0 0 2px ${brandRed}`
-                                                        : "0 2px 5px rgba(0,0,0,0.2)"
-                                                }
+                                                    : "0 2px 5px rgba(0,0,0,0.2)"
+                                            }
+                                        }}
+                                    >
+                                        {item.photo ? (
+                                            <img
+                                                src={item.photo}
+                                                alt={item.name}
+                                                style={{
+                                                    maxWidth: "100%",
+                                                    height: 120,
+                                                    objectFit: "contain"
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box
+                                                sx={{
+                                                    width: "100%",
+                                                    height: 60,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    backgroundColor: "#f9f9f9"
+                                                }}
+                                            />
+                                        )}
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                fontWeight: "bold",
+                                                mt: 1,
+                                                overflowWrap: "break-word",
+                                                wordWrap: "break-word",
+                                                whiteSpace: "normal",
+                                                lineHeight: 1.2
                                             }}
                                         >
-                                            {item.photo ? (
-                                                <img
-                                                    src={item.photo}
-                                                    alt={item.name}
-                                                    style={{
-                                                        maxWidth: "100%",
-                                                        height: 120,
-                                                        objectFit: "contain"
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Box
-                                                    sx={{
-                                                        width: "100%",
-                                                        height: 60,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        backgroundColor: "#f9f9f9"
-                                                    }}
-                                                />
-                                            )}
-                                            <Typography
-                                                variant="body2"
+                                            {item.name}
+                                        </Typography>
+                                        {!active &&
+                                            <Typography variant="body2" sx={{mt: 1.2}}>
+                                                +{item.price}
+                                            </Typography>
+                                        }
+                                        {active &&
+                                            <Box
                                                 sx={{
-                                                    fontWeight: "bold",
-                                                    mt: 1,
-                                                    overflowWrap: "break-word",
-                                                    wordWrap: "break-word",
-                                                    whiteSpace: "normal",
-                                                    lineHeight: 1.2
+                                                    backgroundColor: brandGray,
+                                                    borderRadius: 8,
+                                                    p: "4px",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    gap: "4px",
+                                                    height: 30,
+                                                    mt: 1.1,
+                                                    maxWidth: "130px",
                                                 }}
                                             >
-                                                {item.name}
-                                            </Typography>
-                                            {!active &&
-                                                <Typography variant="body2" sx={{mt: 1.2}}>
-                                                    +{item.price}
-                                                </Typography>
-                                            }
-                                            {active &&
-                                                <Box
+                                                <Button
+                                                    onClick={() => decreaseQuantityOnCrossSell(item.name)}
                                                     sx={{
-                                                        backgroundColor: brandGray,
+                                                        minWidth: 36,
+                                                        height: 26,
+                                                        backgroundColor: "transparent",
+                                                        color: "#666",
+                                                        fontSize: "16px",
+                                                        textTransform: "none",
                                                         borderRadius: 8,
-                                                        p: "4px",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        gap: "4px",
-                                                        height: 30,
-                                                        mt: 1.1,
-                                                        maxWidth: "130px",
+                                                        p: 0,
+                                                        "&:hover": {
+                                                            backgroundColor: "rgba(0,0,0,0.1)"
+                                                        }
                                                     }}
                                                 >
-                                                    <Button
-                                                        onClick={() => decreaseQuantityOnCrossSell(item.name)}
-                                                        sx={{
-                                                            minWidth: 36,
-                                                            height: 26,
-                                                            backgroundColor: "transparent",
-                                                            color: "#666",
-                                                            fontSize: "16px",
-                                                            textTransform: "none",
-                                                            borderRadius: 8,
-                                                            p: 0,
-                                                            "&:hover": {
-                                                                backgroundColor: "rgba(0,0,0,0.1)"
-                                                            }
-                                                        }}
-                                                    >
-                                                        –
-                                                    </Button>
-                                                    <Box sx={{
-                                                        minWidth: 22,
-                                                        textAlign: "center",
-                                                        fontSize: "15px",
-                                                        color: "#666"
-                                                    }}>
-                                                        {crossSellMap[item.name]}
-                                                    </Box>
-                                                    <Button
-                                                        onClick={() => increaseQuantityOnCrossSell(item.name)}
-                                                        sx={{
-                                                            minWidth: 36,
-                                                            height: 26,
-                                                            backgroundColor: "transparent",
-                                                            color: "#666",
-                                                            fontSize: "16px",
-                                                            textTransform: "none",
-                                                            borderRadius: 8,
-                                                            p: 0,
-                                                            "&:hover": {
-                                                                backgroundColor: "rgba(0,0,0,0.1)"
-                                                            }
-                                                        }}
-                                                    >
-                                                        +
-                                                    </Button>
+                                                    –
+                                                </Button>
+                                                <Box sx={{
+                                                    minWidth: 22,
+                                                    textAlign: "center",
+                                                    fontSize: "15px",
+                                                    color: "#666"
+                                                }}>
+                                                    {crossSellMap[item.name]}
                                                 </Box>
-                                            }
+                                                <Button
+                                                    onClick={() => increaseQuantityOnCrossSell(item.name)}
+                                                    sx={{
+                                                        minWidth: 36,
+                                                        height: 26,
+                                                        backgroundColor: "transparent",
+                                                        color: "#666",
+                                                        fontSize: "16px",
+                                                        textTransform: "none",
+                                                        borderRadius: 8,
+                                                        p: 0,
+                                                        "&:hover": {
+                                                            backgroundColor: "rgba(0,0,0,0.1)"
+                                                        }
+                                                    }}
+                                                >
+                                                    +
+                                                </Button>
+                                            </Box>
+                                        }
 
-                                        </Box>
-                                    );
-                                })}
-                            </Box>
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                Customize as you like it
-                            </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                            Customize as you like it
+                        </Typography>
+                        <Box
+                            sx={{
+                                display: "flex",
+                                overflowX: "auto",
+                                gap: 1,
+                                mb: 2,
+                                py: 1,
+                                px: 0.2,
+                                scrollSnapType: "x mandatory",
+                                scrollbarWidth: "none",
+                                "&::-webkit-scrollbar": {
+                                    display: "none"
+                                }
+                            }}
+                        >
                             <Box
-                                sx={{
-                                    display: "flex",
-                                    overflowX: "auto",
-                                    gap: 1,
-                                    mb: 2,
-                                    py: 1,
-                                    px: 0.2,
-                                    scrollSnapType: "x mandatory",
-                                    scrollbarWidth: "none",
-                                    "&::-webkit-scrollbar": {
-                                        display: "none"
-                                    }
+                                key={"garlic crust"}
+                                onClick={() => {
+                                    handleToggleIngr("garlic crust");
                                 }}
-                            >
-                                <Box
-                                    key={"garlic crust"}
-                                    onClick={() => {handleToggleIngr("garlic crust");}}
-                                    sx={{
-                                        width: 140,
-                                        flexShrink: 0,
-                                        textAlign: "center",
-                                        p: 2,
-                                        borderRadius: 4,
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                        color: "#000",
+                                sx={{
+                                    width: 140,
+                                    flexShrink: 0,
+                                    textAlign: "center",
+                                    p: 2,
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    color: "#000",
+                                    boxShadow: selectedIngr.includes("garlic crust")
+                                        ? `0 0 0 2px ${brandRed}`
+                                        : "0 1px 3px rgba(0,0,0,0.25)",
+                                    border: "none",
+                                    "&:hover": {
                                         boxShadow: selectedIngr.includes("garlic crust")
                                             ? `0 0 0 2px ${brandRed}`
-                                            : "0 1px 3px rgba(0,0,0,0.25)",
-                                        border: "none",
-                                        "&:hover": {
-                                            boxShadow: selectedIngr.includes("garlic crust")
-                                                ? `0 0 0 2px ${brandRed}`
-                                                : "0 2px 5px rgba(0,0,0,0.2)"
-                                        }
-                                    }}
-                                >
-                                    <img
-                                        src="/crust.png"
-                                        alt="CRUST"
-                                        style={{
-                                            maxWidth: "100%",
-                                            height: 120,
-                                            objectFit: "contain"
-                                        }}
-                                    />
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: "bold",
-                                            mt: 1,
-                                            overflowWrap: "break-word",
-                                            wordWrap: "break-word",
-                                            whiteSpace: "normal",
-                                            lineHeight: 1.2
-                                        }}
-                                    >
-                                        Garlic Crust
-                                    </Typography>
-                                    <Typography variant="body2" sx={{mt: 1.2}}>
-                                        FREE
-                                    </Typography>
-                                </Box>
-                                {item.name === "Margherita" && <Box
-                                    key={"cherry"}
-                                    onClick={() => {handleToggleIngr("cherry");}}
-                                    sx={{
-                                        width: 140,
-                                        flexShrink: 0,
-                                        textAlign: "center",
-                                        p: 2,
-                                        borderRadius: 4,
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                        color: "#000",
-                                        boxShadow: selectedIngr.includes("cherry")
-                                            ? `0 0 0 2px ${brandRed}`
-                                            : "0 1px 3px rgba(0,0,0,0.25)",
-                                        border: "none",
-                                        "&:hover": {
-                                            boxShadow: selectedIngr.includes("cherry")
-                                                ? `0 0 0 2px ${brandRed}`
-                                                : "0 2px 5px rgba(0,0,0,0.2)"
-                                        }
-                                    }}
-                                >
-                                    <img
-                                        src="/cherry.png"
-                                        alt="CRUST"
-                                        style={{
-                                            maxWidth: "100%",
-                                            height: 120,
-                                            objectFit: "contain"
-                                        }}
-                                    />
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: "bold",
-                                            mt: 1,
-                                            overflowWrap: "break-word",
-                                            wordWrap: "break-word",
-                                            whiteSpace: "normal",
-                                            lineHeight: 1.2
-                                        }}
-                                    >
-                                        Cherry
-                                    </Typography>
-                                    <Typography variant="body2" sx={{mt: 1.2}}>
-                                        FREE
-                                    </Typography>
-                                </Box>
-                                }
-                                {ingrsForSize.map((ing) => {
-                                    const active = selectedIngr.includes(ing.name);
-                                    return (
-                                        <Box
-                                            key={ing.name}
-                                            onClick={() => handleToggleIngr(ing.name)}
-                                            sx={{
-                                                width: 140,
-                                                flexShrink: 0,
-                                                textAlign: "center",
-                                                p: 2,
-                                                borderRadius: 4,
-                                                cursor: "pointer",
-                                                fontSize: "13px",
-                                                color: "#000",
-                                                boxShadow: active
-                                                    ? `0 0 0 2px ${brandRed}`
-                                                    : "0 1px 3px rgba(0,0,0,0.25)",
-                                                border: "none",
-                                                "&:hover": {
-                                                    boxShadow: active
-                                                        ? `0 0 0 2px ${brandRed}`
-                                                        : "0 2px 5px rgba(0,0,0,0.2)"
-                                                }
-                                            }}
-                                        >
-                                            {ing.photo ? (
-                                                <img
-                                                    src={ing.photo}
-                                                    alt={ing.name}
-                                                    style={{
-                                                        maxWidth: "100%",
-                                                        height: 120,
-                                                        objectFit: "contain"
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Box
-                                                    sx={{
-                                                        width: "100%",
-                                                        height: 120,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        backgroundColor: "#f9f9f9"
-                                                    }}
-                                                />
-                                            )}
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontWeight: "bold",
-                                                    mt: 1,
-                                                    overflowWrap: "break-word",
-                                                    wordWrap: "break-word",
-                                                    whiteSpace: "normal",
-                                                    lineHeight: 1.2
-                                                }}
-                                            >
-                                                {ing.name}
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                                +{ing.price}
-                                            </Typography>
-                                        </Box>
-                                    );
-                                })}
-                            </Box>
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                About
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    mb: 2,
-                                    color: "#444",
-                                    lineHeight: 1.4,
-                                    fontSize: "14px"
+                                            : "0 2px 5px rgba(0,0,0,0.2)"
+                                    }
                                 }}
                             >
-                                {item.description}
-                            </Typography>
-                        </Box>
-                    </Box>
-
-                    <Box
-                        sx={{
-                            borderTop: "1px solid #eee",
-                            display: "flex",
-                            gap: 2,
-                            p: 2,
-                            alignItems: "stretch",
-                        }}
-                    >
-                        <ToggleButtonGroup
-                            exclusive
-                            value={selectedSize}
-                            onChange={(e, val) => val && setSelectedSize(val)}
-                            sx={{
-                                backgroundColor: brandGray,
-                                borderRadius: 8,
-                                p: "4px",
-                                flex: 1, // 50%
-                                "& .MuiToggleButtonGroup-grouped": {
-                                    border: 0,
-                                    flex: 1,
-                                    borderRadius: 8,
-                                    mr: "4px",
-                                    "&:not(:last-of-type)": {
-                                        borderRight: "none"
-                                    }
-                                }
-                            }}
-                            fullWidth
-                        >
-                            {["S", "M", "L"].map((label) => (
-                                <ToggleButton key={label} value={label} sx={{
-                                    textTransform: "none",
-                                    fontSize: "16px",
-                                    justifyContent: "center",
-                                    color: "#666",
-                                    borderRadius: 8,
-                                    height: "100%",
+                                <img
+                                    src="/crust.png"
+                                    alt="CRUST"
+                                    style={{
+                                        maxWidth: "100%",
+                                        height: 120,
+                                        objectFit: "contain"
+                                    }}
+                                />
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontWeight: "bold",
+                                        mt: 1,
+                                        overflowWrap: "break-word",
+                                        wordWrap: "break-word",
+                                        whiteSpace: "normal",
+                                        lineHeight: 1.2
+                                    }}
+                                >
+                                    Garlic Crust
+                                </Typography>
+                                <Typography variant="body2" sx={{mt: 1.2}}>
+                                    FREE
+                                </Typography>
+                            </Box>
+                            {item.name === "Margherita" && <Box
+                                key={"cherry"}
+                                onClick={() => {
+                                    handleToggleIngr("cherry");
+                                }}
+                                sx={{
+                                    width: 140,
+                                    flexShrink: 0,
+                                    textAlign: "center",
+                                    p: 2,
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    color: "#000",
+                                    boxShadow: selectedIngr.includes("cherry")
+                                        ? `0 0 0 2px ${brandRed}`
+                                        : "0 1px 3px rgba(0,0,0,0.25)",
+                                    border: "none",
                                     "&:hover": {
-                                        backgroundColor: "transparent"
-                                    },
-                                    "&.Mui-selected": {
-                                        backgroundColor: "#fff",
-                                        color: brandRed,
-                                        boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                        "&:hover": {
-                                            backgroundColor: "#fff"
-                                        }
+                                        boxShadow: selectedIngr.includes("cherry")
+                                            ? `0 0 0 2px ${brandRed}`
+                                            : "0 2px 5px rgba(0,0,0,0.2)"
                                     }
-                                }}>
-                                    {label}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
-
-                        <Button
-                            variant="contained"
-                            fullWidth
-                            onClick={handleAdd}
-                            sx={{
-                                backgroundColor: brandRed,
-                                color: "#fff",
-                                textTransform: "none",
-                                fontSize: "20px",
-                                borderRadius: 8,
-                                flex: 1,
-                                height: "100%",
-                                "&:hover": {
-                                    backgroundColor: "#d23f40"
-                                }
-                            }}
-                        >
-                            Add · {getFinalPriceOnPopup()}
-                        </Button>
+                                }}
+                            >
+                                <img
+                                    src="/cherry.png"
+                                    alt="CRUST"
+                                    style={{
+                                        maxWidth: "100%",
+                                        height: 120,
+                                        objectFit: "contain"
+                                    }}
+                                />
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontWeight: "bold",
+                                        mt: 1,
+                                        overflowWrap: "break-word",
+                                        wordWrap: "break-word",
+                                        whiteSpace: "normal",
+                                        lineHeight: 1.2
+                                    }}
+                                >
+                                    Cherry
+                                </Typography>
+                                <Typography variant="body2" sx={{mt: 1.2}}>
+                                    FREE
+                                </Typography>
+                            </Box>
+                            }
+                            {ingrsForSize.map((ing) => {
+                                const active = selectedIngr.includes(ing.name);
+                                return (
+                                    <Box
+                                        key={ing.name}
+                                        onClick={() => handleToggleIngr(ing.name)}
+                                        sx={{
+                                            width: 140,
+                                            flexShrink: 0,
+                                            textAlign: "center",
+                                            p: 2,
+                                            borderRadius: 4,
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                            color: "#000",
+                                            boxShadow: active
+                                                ? `0 0 0 2px ${brandRed}`
+                                                : "0 1px 3px rgba(0,0,0,0.25)",
+                                            border: "none",
+                                            "&:hover": {
+                                                boxShadow: active
+                                                    ? `0 0 0 2px ${brandRed}`
+                                                    : "0 2px 5px rgba(0,0,0,0.2)"
+                                            }
+                                        }}
+                                    >
+                                        {ing.photo ? (
+                                            <img
+                                                src={ing.photo}
+                                                alt={ing.name}
+                                                style={{
+                                                    maxWidth: "100%",
+                                                    height: 120,
+                                                    objectFit: "contain"
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box
+                                                sx={{
+                                                    width: "100%",
+                                                    height: 120,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    backgroundColor: "#f9f9f9"
+                                                }}
+                                            />
+                                        )}
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                fontWeight: "bold",
+                                                mt: 1,
+                                                overflowWrap: "break-word",
+                                                wordWrap: "break-word",
+                                                whiteSpace: "normal",
+                                                lineHeight: 1.2
+                                            }}
+                                        >
+                                            {ing.name}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{mt: 0.5}}>
+                                            +{ing.price}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                        {!isEditMode &&
+                            <Box>
+                                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                                    About
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        mb: 2,
+                                        color: "#444",
+                                        lineHeight: 1.4,
+                                        fontSize: "14px"
+                                    }}
+                                >
+                                    {item.description}
+                                </Typography>
+                            </Box>
+                        }
                     </Box>
                 </Box>
+
+                <Box
+                    sx={{
+                        borderTop: "1px solid #eee",
+                        display: "flex",
+                        gap: 2,
+                        p: 2,
+                        alignItems: "stretch",
+                    }}
+                >
+                    <ToggleButtonGroup
+                        exclusive
+                        value={selectedSize}
+                        onChange={(e, val) => val && setSelectedSize(val)}
+                        sx={{
+                            backgroundColor: brandGray,
+                            borderRadius: 8,
+                            p: "4px",
+                            flex: 1, // 50%
+                            "& .MuiToggleButtonGroup-grouped": {
+                                border: 0,
+                                flex: 1,
+                                borderRadius: 8,
+                                mr: "4px",
+                                "&:not(:last-of-type)": {
+                                    borderRight: "none"
+                                }
+                            }
+                        }}
+                        fullWidth
+                    >
+                        {["S", "M", "L"].map((label) => (
+                            <ToggleButton key={label} value={label} sx={{
+                                textTransform: "none",
+                                fontSize: "16px",
+                                justifyContent: "center",
+                                color: "#666",
+                                borderRadius: 8,
+                                height: "100%",
+                                "&:hover": {
+                                    backgroundColor: "transparent"
+                                },
+                                "&.Mui-selected": {
+                                    backgroundColor: "#fff",
+                                    color: brandRed,
+                                    boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                    "&:hover": {
+                                        backgroundColor: "#fff"
+                                    }
+                                }
+                            }}>
+                                {label}
+                            </ToggleButton>
+                        ))}
+                    </ToggleButtonGroup>
+
+                    <Button
+                        variant="contained"
+                        fullWidth
+                        onClick={handleAdd}
+                        sx={{
+                            backgroundColor: brandRed,
+                            color: "#fff",
+                            textTransform: "none",
+                            fontSize: "20px",
+                            borderRadius: 8,
+                            flex: 1,
+                            height: "100%",
+                            "&:hover": {
+                                backgroundColor: "#d23f40"
+                            }
+                        }}
+                    >
+                        Add · {getFinalPriceOnPopup()}
+                    </Button>
+                </Box>
+            </Box>
         </Modal>
-);
+    );
 }
 
 function TogglesWithQuantity({
@@ -774,7 +799,7 @@ function TogglesWithQuantity({
                 >
                     –
                 </Button>
-                <Box sx={{ minWidth: 30, textAlign: "center", fontSize: "15px", color: "#666" }}>
+                <Box sx={{minWidth: 30, textAlign: "center", fontSize: "15px", color: "#666"}}>
                     {quantity}
                 </Box>
                 <Button

@@ -4,7 +4,7 @@ import AddIcon from '@mui/icons-material/Add';
 import {Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
-import PizzaLoader from "./components/PizzaLoader";
+import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import { io } from "socket.io-client";
 import alertSound from "./assets/alert.mp3";
 import CloseIcon from "@mui/icons-material/Close";
@@ -37,6 +37,7 @@ function AdminHomePage() {
                 setLoading(true);
                 const response = await getAllActiveOrders();
                 setOrders(response.orders);
+                console.log(response.orders)
 
                 socket = io(PROD_SOCKET_URL, { transports: ["websocket"] });
 
