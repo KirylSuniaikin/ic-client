@@ -14,6 +14,7 @@ function CartPopup({
                        onChangeSize,
                        onRemoveItem,
                        onCheckout,
+                       openPizzaEditPopUp,
                        isAdmin,
                        handleDiscountChange
                    }) {
@@ -23,7 +24,6 @@ function CartPopup({
         return acc + discountedPrice * i.quantity;
     }, 0).toFixed(2);
     const [tel, setTel] = useState(null);
-    const [phoneError, setPhoneError] = useState(false);
     const PIXEL_ID = '1717861405707714';
 
     useEffect(() => {
@@ -128,6 +128,7 @@ function CartPopup({
                             onChangeQuantity={onChangeQuantity}
                             onChangeSize={onChangeSize}
                             onRemoveItem={onRemoveItem}
+                            openPizzaEditPopUp={openPizzaEditPopUp}
                             isAdmin={isAdmin}
                             handleDiscountChange={handleDiscountChange}
                         />

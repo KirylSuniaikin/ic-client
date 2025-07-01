@@ -1,6 +1,6 @@
 import React from "react";
 import Lottie from "lottie-react";
-import pizzaAnimation from "../loadingAnimations/pizza-loader.json"
+import pizzaAnimation from "./pizza-loader.json"
 import {Box} from "@mui/material";
 
 const PizzaLoader = () => {

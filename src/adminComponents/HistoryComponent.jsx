@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react";
 import {getHistory} from "../api/api";
-import PizzaLoader from "../components/PizzaLoader";
+import PizzaLoader from "../loadingAnimations/PizzaLoader";
 import OrderCard from "./OrderCard";
 import {Box, IconButton} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
