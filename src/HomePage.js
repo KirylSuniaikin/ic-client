@@ -11,7 +11,7 @@ import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
 
-import {createOrder, editOrder, fetchExtraIngredients, fetchMenu, fetchUserInfo} from "./api/api";
+import {createOrder, editOrder, fetchBaseAppInfo} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
 import ClientInfoPopup from "./components/ClientInfoPopup";
@@ -21,6 +21,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import OrderConfirmed from "./components/OrderConfirmed";
 import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import CrossSellPopup from "./components/CrossSellPopup";
+import {groupAvailableItemsByName} from "./utils/menu_service";
 
 const brandRed = "#E44B4C";
 
@@ -36,7 +37,8 @@ function HomePage({userParam}) {
     const [pizzaPopupOpen, setPizzaPopupOpen] = useState(false);
     const [comboPopupOpen, setComboPopupOpen] = useState(false);
     const [genericPopupOpen, setGenericPopupOpen] = useState(false);
-    const [popupItem, setPopupItem] = useState(false);
+    const [popupGroup, setPopupGroup] = useState(null);
+    const [editItem, setEditItem] = useState(null);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -88,21 +90,14 @@ function HomePage({userParam}) {
         async function load() {
             try {
                 setLoading(true);
-                const menu = await fetchMenu();
-                const extraIngr = await fetchExtraIngredients();
-                setMenuData(menu);
-                setExtraIngredients(extraIngr);
-                if (userParam) {
-                    setUser(userParam);
-                    const userInfo = await fetchUserInfo(userParam)
-                    if (userInfo.name) {
-                        console.log("User name:", userInfo.name);
-                        setUsername(userInfo.name);
-                    }
-                    if (userInfo.phone) {
-                        console.log("User phone:", userInfo.phone);
-                        setPhone(userInfo.phone);
-                    }
+                const baseInfo = await fetchBaseAppInfo(userParam);
+                setMenuData(baseInfo.menu);
+                setExtraIngredients(baseInfo.extraIngr)
+                if(baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user"){
+                    setUsername(baseInfo.userInfo.name)
+                }
+                if (baseInfo.userInfo && baseInfo.userInfo.phone) {
+                    setPhone(baseInfo.userInfo.phone);
                 }
             } catch (err) {
                 setError(err.message);
@@ -115,6 +110,7 @@ function HomePage({userParam}) {
 
         if (isEditMode) {
             const rawOrder = localStorage.getItem("orderToEdit");
+            console.log(rawOrder)
             if (rawOrder) {
                 try {
                     const parsed = JSON.parse(rawOrder);
@@ -193,18 +189,7 @@ function HomePage({userParam}) {
     if (loading) return <PizzaLoader/>;
     if (error) return <div>Error: {error}</div>;
 
-    const uniqueItems = getUniqueItems(menuData);
-    const {bestsellers, brickPizzas, combos, pizzas, sides, beverages, sauces} = groupItemsByCategory(uniqueItems);
-
-    function getUniqueItems(data) {
-        const map = new Map();
-        data.forEach(item => {
-            if (!map.has(item.name) || item.price < map.get(item.name).price) {
-                map.set(item.name, item);
-            }
-        });
-        return Array.from(map.values());
-    }
+    const {bestsellers, brickPizzas, combos, pizzas, sides, beverages, sauces} = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
     function getGeneralCrossSellItems() {
         return generalCrossSell
@@ -219,7 +204,7 @@ function HomePage({userParam}) {
     }
 
     function openPizzaEditPopUp(item) {
-        setPopupItem(item)
+        setEditItem(item)
         setEditMode(true)
         setPizzaPopupOpen(true)
     }
@@ -241,31 +226,31 @@ function HomePage({userParam}) {
 
     const handleOpenPopup = (item) => {
         if (item.category === "Pizzas") {
-            setPopupItem(item);
+            setPopupGroup(item);
             setPizzaPopupOpen(true);
         }
         if (item.category === "Combo Deals") {
-            setPopupItem(item);
+            setPopupGroup(item);
             setComboPopupOpen(true);
         } else if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
-            setPopupItem(item);
+            setPopupGroup(item);
             setGenericPopupOpen(true);
         }
     };
     const handleClosePizzaPopup = () => {
         setPizzaPopupOpen(false)
-        setPopupItem(null)
+        setPopupGroup(null)
         setEditMode(false)
     };
 
     const handleCloseComboPopup = () => {
         setComboPopupOpen(false);
-        setPopupItem(null);
+        setPopupGroup(null);
     };
 
     const handleCloseGenericPopup = () => {
         setGenericPopupOpen(false);
-        setPopupItem(null);
+        setPopupGroup(null);
     }
 
     const handleClosePhonePopup = () => {
@@ -316,6 +301,7 @@ function HomePage({userParam}) {
 
 
     const buildOrderTO = (
+        orderToEdit,
         tel,
         customer_name,
         delivery_method,
@@ -324,11 +310,14 @@ function HomePage({userParam}) {
         notes
     ) => {
         return {
+            id: orderToEdit.id,
+            order_no: orderToEdit.order_no,
             tel,
             user_id: user,
             customer_name: customer_name,
             delivery_method: delivery_method,
             payment_type: payment_type,
+            address: orderToEdit.address,
             notes: notes,
             items: items.map(item => {
                 const discount = typeof item.discount === "number" ? item.discount : 0;
@@ -377,10 +366,12 @@ function HomePage({userParam}) {
         } else if (isAdmin && isEditMode) {
             setLoading(true);
             try {
-                const order = buildOrderTO(tel, customerName, deliveryMethod, paymentMethod, items, notes);
-                await editOrder(order, JSON.parse(localStorage.getItem("orderToEdit")).orderId);
+                const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
+                const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
+                console.log(order)
+                await editOrder(order, orderToEdit.id);
+                await localStorage.removeItem("orderToEdit");
                 setCartOpen(false);
-                localStorage.removeItem("orderToEdit");
                 navigate("/admin/");
             } catch (error) {
                 console.error(error);
@@ -573,10 +564,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Bestsellers
                     </Typography>
-                    {bestsellers.map(item => (
+                    {bestsellers.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                             isBestSellerBlock={true}
                         />
@@ -590,10 +581,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Detroit Brick Pizzas
                     </Typography>
-                    {brickPizzas.map(item => (
+                    {brickPizzas.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -606,10 +597,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Combo Deals
                     </Typography>
-                    {combos.map(item => (
+                    {combos.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -622,10 +613,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Pizzas
                     </Typography>
-                    {pizzas.map(item => (
+                    {pizzas.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -638,10 +629,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Sides
                     </Typography>
-                    {sides.map(item => (
+                    {sides.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -654,10 +645,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Sauces
                     </Typography>
-                    {sauces.map(item => (
+                    {sauces.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -670,10 +661,10 @@ function HomePage({userParam}) {
                     <Typography fontWeight="bold" variant="h6">
                         Beverages
                     </Typography>
-                    {beverages.map(item => (
+                    {beverages.map(group => (
                         <MenuItemCardHorizontal
-                            key={item.item_id}
-                            item={item}
+                            key={group.name}
+                            group={group}
                             onSelect={handleOpenPopup}
                         />
                     ))}
@@ -682,9 +673,9 @@ function HomePage({userParam}) {
 
             {pizzaPopupOpen && <PizzaPopup
                 open={pizzaPopupOpen}
-                item={popupItem}
+                group={popupGroup}
                 extraIngredients={extraIngredients}
-                sameItems={popupItem && getSameItems(popupItem.name)}
+                editItem={editItem}
                 onClose={handleClosePizzaPopup}
                 onAddToCart={handleAddToCart}
                 crossSellItems={getGeneralCrossSellItems()}
@@ -695,9 +686,8 @@ function HomePage({userParam}) {
 
             {comboPopupOpen && <ComboPopup
                 open={comboPopupOpen}
-                item={popupItem}
+                group={popupGroup}
                 uniquePizzas={pizzas}
-                sameItems={popupItem && getSameItems(popupItem.name)}
                 onClose={handleCloseComboPopup}
                 onAddToCart={handleAddToCart}
             />
@@ -705,7 +695,7 @@ function HomePage({userParam}) {
 
             {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
-                item={popupItem}
+                group={popupGroup}
                 onClose={handleCloseGenericPopup}
                 onAddToCart={handleAddToCart}
                 crossSellItems={getGeneralCrossSellItems()}

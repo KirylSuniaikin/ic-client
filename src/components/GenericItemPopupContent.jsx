@@ -14,11 +14,12 @@ const brandGray = "#f3f3f3";
 function GenericItemPopupContent({
                                      open,
                                      onClose,
-                                     item,
+                                     group,
                                      extraIngredients = [],
                                      onAddToCart,
                                      crossSellItems
 }) {
+    const [item, setItem] = useState(group.items[0]);
     const [quantity, setQuantity] = useState(1);
     const [description, setDescription] = useState("");
     const [selectedToppings, setSelectedToppings] = useState([""]);

@@ -5,10 +5,11 @@ import {
     CardContent,
     CardActions,
     Button,
-    Divider
+    Divider, Select, MenuItem
 } from "@mui/material";
-import {markOrderReady} from "../api/api";
+import {handlePaymentTypeChange, markOrderReady, updatePaymentType} from "../api/api";
 import {useNavigate} from "react-router-dom";
+import {useState} from "react";
 
 
 
@@ -81,10 +82,20 @@ function renderItemDetails(item) {
 function OrderCard({ order, handleRemoveItem , isHistory = false}) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
+    const [paymentType, setPaymentType] = useState(order.payment_type);
 
     const colorRed = '#E44B4C';
     const colorBeige = '#FCF4DD';
+    const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
+    const handlePaymentTypeChange = async (orderId, newType) => {
+        try {
+            await updatePaymentType(orderId, newType);
+            setPaymentType(newType);
+        } catch (error) {
+            console.error("Failed to update payment type", error);
+        }
+    };
     return (
         <Card sx={{ mb: 2, borderRadius: 3, boxShadow: 3 }}>
             <CardContent>
@@ -96,7 +107,7 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                         mb: 1
                     }}
                 >
-                    <Typography variant="h6">Order: {order.orderId}</Typography>
+                    <Typography variant="h6">Order: {order.order_no}</Typography>
                     <Typography
                         variant="h6"
                         sx={{ fontSize: 14, color: "text.secondary" }}
@@ -116,6 +127,9 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                     </Typography>
                     <Typography variant="body2">
                         <strong>Notes:</strong> {order.notes}
+                    </Typography>
+                    <Typography variant="body2">
+                        <strong>Payment type:</strong> {paymentType}
                     </Typography>
                 </Box>
 
@@ -148,6 +162,25 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                         </Box>
                     ))}
                 </Box>
+                {isHistory && (
+                    <Box sx={{ mt: 2 }}>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                            <strong>Payment Type:</strong>
+                        </Typography>
+                        <Select
+                            value={paymentType}
+                            onChange={(e) => handlePaymentTypeChange(order.id, e.target.value)}
+                            fullWidth
+                            size="small"
+                        >
+                            {paymentOptions.map((option) => (
+                                <MenuItem key={option} value={option}>
+                                    {option}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </Box>
+                )}
             </CardContent>
 
             <CardActions
@@ -173,7 +206,7 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                             mr: 1,
                             borderRadius: 4
                         }}
-                        onClick={() => {markOrderReady(order.orderId).then(() => {handleRemoveItem?.(order.orderId)})}}>
+                        onClick={() => {markOrderReady(order.id).then(() => {handleRemoveItem?.(order.id)})}}>
 
                         READY
                     </Button>}
@@ -186,6 +219,7 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                             borderRadius: 4
                         }}
                         onClick={() => {
+                            console.log(order)
                             localStorage.setItem("orderToEdit", JSON.stringify(order));
                             navigate("/menu?isAdmin=true&isEditMode=true");
                         }}>

@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
+import PizzaLoader from "../loadingAnimations/PizzaLoader";
 
 
 const brandRed = "#E44B4C";
@@ -34,60 +35,57 @@ RoundedTextField.propTypes = {
 function PizzaPopup({
                         open,
                         onClose,
-                        sameItems,
-                        item,
+                        editItem,
+                        group,
                         extraIngredients = [],
                         onAddToCart,
                         crossSellItems = [],
                         removeFromCart,
                         isEditMode
                     }) {
-
-    const getSize = () => {
-        if (item.size === "Large") return "L"
-        if (item.size === "Medium") return "M"
-        if (item.size === "Small") return "S"
-    }
-
-    const getDough = () => {
-        if (item.isThinDough)
-            return "Thin"
-        else return "Traditional"
-    }
-
-    const [selectedSize, setSelectedSize] = useState("M");
+    const [loading, setLoading] = useState(true);
+    const [item, setItem] = useState(null);
+    const [selectedSize, setSelectedSize] = useState(null);
     const [selectedDough, setSelectedDough] = useState("Traditional");
-    const [quantity, setQuantity] = useState(isEditMode ? () => item.quantity : 1);
-    const [selectedIngr, setSelectedIngr] = useState(isEditMode ? () => item.extraIngredients : []);
+    const [quantity, setQuantity] = useState(1);
+    const [selectedIngr, setSelectedIngr] = useState([]);
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
-    const [note, setNote] = useState(isEditMode ? () => item.note : "");
+    const [note, setNote] = useState("");
+    const [availableSizes, setAvailableSizes] = useState([])
 
     useEffect(() => {
-        if (isEditMode) {
-            setSelectedSize(getSize)
-            setSelectedDough(getDough)
+        setLoading(true);
+        if (isEditMode && editItem) {
+            setItem(editItem);
+            setSelectedSize(editItem.size);
+            setSelectedDough(editItem.isThinDough ? "Thin" : "Traditional");
+            setQuantity(editItem.quantity)
+            setSelectedIngr(editItem.extraIngredients)
+            setNote(editItem.note)
+        } else if (group) {
+            const defaultItem = group.items.find(i => i.size === "M") || group.items[0];
+            setItem(defaultItem);
+            setSelectedSize(defaultItem.size);
+            setSelectedDough("Traditional");
+
+            const sizes = Array.from(new Set(group.items.map(i => i.size)));
+            const order = ["S", "M", "L"];
+            const sortedSizes = order.filter(size => sizes.includes(size));
+            setAvailableSizes(sortedSizes);
         }
-        console.log(isEditMode)
-        console.log(item)
-    }, [open, item, isEditMode]);
+        setLoading(false);
+    }, [open, group, isEditMode]);
 
     useEffect(() => {
         if (selectedSize === "S") {
             setSelectedDough("Traditional");
         }
     }, [selectedSize]);
-    if (!item) return null;
 
-    const getSelectedSize = () => {
-        if (selectedSize === "L") return "Large"
-        if (selectedSize === "M") return "Medium"
-        if (selectedSize === "S") return "Small"
-    }
+    const matchedItem = group.items.find(it => it.size === selectedSize);
+    const basePrice = matchedItem ? matchedItem.price : 0;
 
-    const matched = sameItems ? sameItems.find(it => it.size === getSelectedSize()) : null;
-    const basePrice = matched ? matched.price : (item.sizes?.[getSelectedSize()] || item.price || 0);
-
-    const ingrsForSize = extraIngredients.filter(ing => ing.size === getSelectedSize());
+    const ingrsForSize = extraIngredients.filter(ing => ing.size === selectedSize);
 
     const extraCost = selectedIngr.reduce((sum, ingrName) => {
         const found = ingrsForSize.find(i => i.name === ingrName);
@@ -137,7 +135,7 @@ function PizzaPopup({
         const products = [{
             ...item,
             name: item.name,
-            size: getSelectedSize(),
+            size: item.size,
             category: item.category,
             isThinDough: isThinDoughVal,
             isGarlicCrust: isGarlicCrustVal,
@@ -162,7 +160,6 @@ function PizzaPopup({
         onClose?.();
     }
 
-
     function increaseQuantityOnCrossSell(name) {
         setSelectedCrossSellItems(prev => ({
             ...prev,
@@ -184,7 +181,7 @@ function PizzaPopup({
             }
         });
     }
-
+    if (loading) return <PizzaLoader/>;
     return (
         <Modal open={open} onClose={onClose}>
             <Box
@@ -661,7 +658,7 @@ function PizzaPopup({
                         }}
                         fullWidth
                     >
-                        {["S", "M", "L"].map((label) => (
+                        {availableSizes.map((label) => (
                             <ToggleButton key={label} value={label} sx={{
                                 textTransform: "none",
                                 fontSize: "16px",

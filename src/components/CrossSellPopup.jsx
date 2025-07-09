@@ -14,10 +14,6 @@ function CrossSellPopup({
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
 
 
-    useEffect( () => {
-        console.log(crossSellItems)
-    },[])
-
     function increaseQuantityOnCrossSell(name) {
         setSelectedCrossSellItems(prev => ({
             ...prev,
