@@ -207,6 +207,9 @@ function HomePage({userParam}) {
         setEditItem(item)
         setEditMode(true)
         setPizzaPopupOpen(true)
+        setPopupGroup(pizzas.find(group =>
+            group.items.some(i => i.name === item.name)
+        ))
     }
 
     function getSameItems(item_name) {

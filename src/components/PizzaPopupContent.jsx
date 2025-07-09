@@ -67,12 +67,11 @@ function PizzaPopup({
             setItem(defaultItem);
             setSelectedSize(defaultItem.size);
             setSelectedDough("Traditional");
-
-            const sizes = Array.from(new Set(group.items.map(i => i.size)));
-            const order = ["S", "M", "L"];
-            const sortedSizes = order.filter(size => sizes.includes(size));
-            setAvailableSizes(sortedSizes);
         }
+        const sizes = Array.from(new Set(group.items.map(i => i.size)));
+        const order = ["S", "M", "L"];
+        const sortedSizes = order.filter(size => sizes.includes(size));
+        setAvailableSizes(sortedSizes);
         setLoading(false);
     }, [open, group, isEditMode]);
 
@@ -103,6 +102,21 @@ function PizzaPopup({
             }
         }))
         return (finalPizzaPricePerItem * quantity + price).toFixed(2);
+    }
+
+    function getSameItems(item_name) {
+        const groupsJson = localStorage.getItem("availableMenuGroups");
+        if (!groupsJson) return [];
+
+        const groups = JSON.parse(groupsJson);
+
+        const sameItems = [];
+        groups.forEach(group => {
+            if (group.name === item_name) {
+                sameItems.push(...group.items);
+            }
+        });
+        return sameItems;
     }
 
     function handleToggleIngr(name) {
