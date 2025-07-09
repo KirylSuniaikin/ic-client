@@ -13,7 +13,7 @@ function HistoryComponent({isOpen, onClose}) {
     const colorRed = '#E44B4C';
 
     const handleRemoveItem = (orderIdToRemove) => {
-        setOrders(prev => prev.filter(order => order.orderId !== orderIdToRemove));
+        setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
     }
 
     useEffect(() => {
@@ -22,7 +22,6 @@ function HistoryComponent({isOpen, onClose}) {
                 setLoading(true);
                 const response = await getHistory();
                 setOrders(response.orders);
-                console.log(response.orders, "history orders")
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -50,7 +49,6 @@ function HistoryComponent({isOpen, onClose}) {
                         position: 'fixed',
                         top: 16,
                         right: 16,
-                        zIndex: 10000
                     }}
                     >
                         <IconButton
@@ -63,14 +61,14 @@ function HistoryComponent({isOpen, onClose}) {
                                 }
                             }}
                         >
-                            <CloseIcon sx={{fontSize: 28, color: "white"}}/>
+                            <CloseIcon sx={{fontSize: 30, color: "white"}}/>
                         </IconButton>
                     </Box>
 
 
                 )}
             {sortedOrders.map((order) => (
-                <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem} isHistory={true}/>
+                <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true}/>
             ))}
 
         </div>

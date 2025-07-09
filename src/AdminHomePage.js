@@ -9,13 +9,19 @@ import { io } from "socket.io-client";
 import alertSound from "./assets/alert.mp3";
 import CloseIcon from "@mui/icons-material/Close";
 import {ExpandLess, History, Menu} from "@mui/icons-material";
+import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
+import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import HistoryComponent from "./adminComponents/HistoryComponent";
+import ConfigComponent from "./adminComponents/ConfigComponent";
+import StatisticsComponent from "./adminComponents/StatisticsComponent";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const navigate = useNavigate();
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
@@ -26,7 +32,7 @@ function AdminHomePage() {
 
 
     const handleRemoveItem = (orderIdToRemove) => {
-        setOrders(prev => prev.filter(order => order.orderId !== orderIdToRemove));
+        setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
     }
 
     useEffect(() => {
@@ -37,7 +43,6 @@ function AdminHomePage() {
                 setLoading(true);
                 const response = await getAllActiveOrders();
                 setOrders(response.orders);
-                console.log(response.orders)
 
                 socket = io(PROD_SOCKET_URL, { transports: ["websocket"] });
 
@@ -75,8 +80,6 @@ function AdminHomePage() {
                 setLoading(false);
             }
         }
-        console.log("useEffect called");
-
         initialize();
 
         return () => {
@@ -89,7 +92,6 @@ function AdminHomePage() {
     }
 
 
-
     if (error) return <div>Error: {error}</div>;
 
 
@@ -100,18 +102,18 @@ function AdminHomePage() {
     return (
 
         <div className="p-4 max-w-4xl mx-auto">
-            {!isHistoryOpen && sortedOrders.map((order) => (
+            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
                 <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
             {!isSettingsOpen &&
                 <Fab
                 color="primary"
-                aria-label="history"
+                aria-label="menu"
                 onClick={() => setIsSettingsOpen(true)}
                 sx={{
                 position: 'fixed',
-                top: 34,
-                right: 24,
+                top: 16,
+                right: 16,
                 backgroundColor: colorRed,
                 color: "white",
                 '&:hover': {
@@ -119,17 +121,17 @@ function AdminHomePage() {
             },
             }}
                 >
-                <Menu/>
+                <Menu sx={{ fontSize: 30 }}/>
                 </Fab>
             }
             {isSettingsOpen && !isHistoryOpen && <Fab
                 color="primary"
-                aria-label="history"
+                aria-label="ExpandLess"
                 onClick={() => setIsSettingsOpen(false)}
                 sx={{
                     position: 'fixed',
-                    top: 34,
-                    right: 24,
+                    top: 16,
+                    right: 16,
                     backgroundColor: colorRed,
                     color: "white",
                     '&:hover': {
@@ -137,18 +139,18 @@ function AdminHomePage() {
                     },
                 }}
             >
-                <ExpandLess/>
+                <ExpandLess sx={{ fontSize: 30 }}/>
             </Fab>
             }
 
-            {isSettingsOpen && !isHistoryOpen && <Fab
+            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
                 color="primary"
                 aria-label="history"
                 onClick={() => setIsHistoryOpen(true)}
                 sx={{
                     position: 'fixed',
-                    top: 164,
-                    right: 24,
+                    top: 146,
+                    right: 16,
                     backgroundColor: colorRed,
                     color: "white",
                     '&:hover': {
@@ -156,18 +158,18 @@ function AdminHomePage() {
                     },
                 }}
             >
-                <History/>
+                <History sx={{ fontSize: 30 }}/>
             </Fab>
             }
 
-            {isSettingsOpen && !isHistoryOpen && <Fab
+            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
                 color="primary"
                 aria-label="add"
                 onClick={() => navigate('/menu?isAdmin=true')}
                 sx={{
                     position: 'fixed',
-                    top: 99,
-                    right: 24,
+                    top: 81,
+                    right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
                     '&:hover': {
@@ -175,13 +177,66 @@ function AdminHomePage() {
                     },
                 }}
             >
-                <AddIcon/>
+                <AddIcon sx={{ fontSize: 30 }}/>
+            </Fab>}
+
+            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
+                color="primary"
+                aria-label="ToggleOn"
+                onClick={() => setIsConfigOpen(true)}
+                sx={{
+                    position: 'fixed',
+                    top: 276,
+                    right: 16,
+                    backgroundColor: colorRed,
+                    color: 'white',
+                    '&:hover': {
+                        backgroundColor: '#d23c3d',
+                    },
+                }}
+            >
+                <ToggleOnIcon sx={{ fontSize: 30 }}/>
+            </Fab>}
+
+            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
+                color="primary"
+                aria-label="add"
+                onClick={() =>
+                    // setIsStatisticsOpen(true)
+                    console.log("hello")
+            }
+                sx={{
+                    position: 'fixed',
+                    top: 211,
+                    right: 16,
+                    backgroundColor: colorRed,
+                    color: 'white',
+                    '&:hover': {
+                        backgroundColor: '#d23c3d',
+                    },
+                }}
+            >
+                <StackedLineChartIcon sx={{ fontSize: 30 }} />
             </Fab>}
 
             {isHistoryOpen && (
                 <HistoryComponent
                     isOpen={isHistoryOpen}
                     onClose={() => setIsHistoryOpen(false)}
+                />
+            )}
+
+            {isConfigOpen && (
+                <ConfigComponent
+                    isOpen={isConfigOpen}
+                    onClose={() => setIsConfigOpen(false)}
+                />
+            )}
+
+            {isStatisticsOpen && (
+                <StatisticsComponent
+                    isOpen={isStatisticsOpen}
+                    onClose={() => setIsStatisticsOpen(false)}
                 />
             )}
 

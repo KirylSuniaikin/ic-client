@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
     Box,
     Card,
@@ -9,8 +9,14 @@ import {
     Chip,
 } from '@mui/material';
 
-function MenuItemCardHorizontal({ item, onSelect, isBestSellerBlock }) {
-    const { category, name, description, price, photo, isBestSeller } = item;
+function MenuItemCardHorizontal({ group, onSelect, isBestSellerBlock }) {
+    if (!group || !group.items || group.items.length === 0) {
+        console.error("Invalid group passed to MenuItemCardHorizontal:", group);
+        return null;
+    }
+
+    const defaultItem = group.items[0];
+    const { category, name, description, price, photo, isBestSeller } = defaultItem;
     const displayPrice = ["Pizzas", "Combo Deals"].includes(category)
         ? `from ${price}`
         : `${price}`;
@@ -21,7 +27,7 @@ function MenuItemCardHorizontal({ item, onSelect, isBestSellerBlock }) {
 
     const handleClick = () => {
         if (onSelect) {
-            onSelect(item);
+            onSelect(group);
         }
     };
 

@@ -36,13 +36,15 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
     useEffect(() => {
         const order = JSON.parse(localStorage.getItem("orderToEdit"))
         if(order){
-            const matchedCountry = countries.find((c) => order.phone_number.toString().startsWith(c.code));
-            if (matchedCountry) {
-                setSelectedCountry(matchedCountry.name);
-                setPhoneDigits(order.phone_number.toString().slice(matchedCountry.code.length));
-                setCustomerName(order.customer_name);
-                setNote(order.notes);
+            if (order.phone_number != null) {
+                const matchedCountry = countries.find((c) => order.phone_number.toString().startsWith(c.code));
+                if(matchedCountry){
+                    setSelectedCountry(matchedCountry.name);
+                    setPhoneDigits(order.phone_number.toString().slice(matchedCountry.code.length));
+                    setCustomerName(order.customer_name);
+                }
             }
+            setNote(order.notes);
         }
     },[])
     function handleSave() {

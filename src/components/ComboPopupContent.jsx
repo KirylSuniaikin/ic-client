@@ -11,6 +11,7 @@ import {
     FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import PizzaLoader from "../loadingAnimations/PizzaLoader";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -18,23 +19,45 @@ const brandGray = "#f3f3f3";
 function ComboPopup({
                         open,
                         onClose,
-                        item,
-                        sameItems,
+                        group,
                         uniquePizzas = [],
                         onAddToCart
                     }) {
-    const [selectedSize, setSelectedSize] = useState("Medium");
+    const [loading, setLoading] = useState(true);
+    const [item, setItem] = useState(null);
+    const [selectedSize, setSelectedSize] = useState("M");
     const [selectedPizzas, setSelectedPizzas] = useState([]);
+    const [availableSizes, setAvailableSizes] = useState([])
+    // const [groupedPizzas, setGroupedPizzas] = useState([])
 
     useEffect(() => {
-        if (open && item) {
-            setSelectedSize("Medium");
-            setSelectedPizzas([]);
-        }
-    }, [open, item]);
+        setLoading(true);
 
-    const matched = sameItems?.find((it) => it.size === selectedSize);
-    const basePrice = matched?.price || item?.sizes?.[selectedSize] || item?.price || 0;
+        const defaultItem = group.items.find(i => i.size === "M") || group.items[0];
+        console.log(defaultItem)
+        setItem(defaultItem);
+        setSelectedSize(defaultItem.size);
+
+        const availableSizes = ["M", "L"].filter(size =>
+            uniquePizzas.some(group =>
+                group.items.some(item => item.size === size && item.available)
+            )
+        );
+        setAvailableSizes(availableSizes);
+        setLoading(false);
+    }, [group.items, uniquePizzas]);
+
+    // useEffect(() => {
+    //     const pizzas = uniquePizzas.map(group => {
+    //         const pizza = group.items.find(item => item.size === selectedSize && item.available);
+    //         const configs = selectedPizzas.filter(p => p.name === pizza.name);
+    //         return {pizza, configs};
+    //     });
+    //     setGroupedPizzas(pizzas)
+    // },[selectedSize])
+
+    const matched = group.items.find((it) => it.size === selectedSize);
+    const basePrice = matched? matched.price : 0
 
     function handleTogglePizza(pizzaName, checked) {
         const exists = selectedPizzas.filter(p => p.name === pizzaName);
@@ -89,9 +112,11 @@ function ComboPopup({
         });
     }
 
-    const groupedPizzas = uniquePizzas.map(pizza => {
-        const configs = selectedPizzas.filter(p => p.name === pizza.name);
-        return {pizza, configs};
+    const groupedPizzas = uniquePizzas.map(group => {
+        const pizza = group.items.find(item => item.size === selectedSize && item.available);
+        const configs = pizza ? selectedPizzas.filter(p => p.name === pizza.name) : [];
+
+        return { pizza, configs };
     });
 
     const canAdd = selectedPizzas.length === 2;
@@ -119,7 +144,7 @@ function ComboPopup({
         });
         onClose?.();
     }
-
+    if (loading) return <PizzaLoader/>;
     return (
         <Modal open={open} onClose={onClose}>
             <Box
@@ -182,55 +207,55 @@ function ComboPopup({
                             {item.name}
                         </Typography>
 
-                        <ToggleButtonGroup
-                            exclusive
-                            value={selectedSize}
-                            onChange={(e, val) => val && setSelectedSize(val)}
-                            sx={{
-                                backgroundColor: brandGray,
-                                borderRadius: "9999px",
-                                p: "4px",
-                                mb: 2,
-                                "& .MuiToggleButtonGroup-grouped": {
-                                    border: 0,
-                                    flex: 1,
-                                    borderRadius: "9999px",
-                                    mr: "4px",
-                                    "&:not(:last-of-type)": {
-                                        borderRight: "none",
-                                    },
-                                },
-                            }}
-                            fullWidth
-                        >
-                            {["Medium", "Large"].map((val) => (
-                                <ToggleButton
-                                    key={val}
-                                    value={val}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontSize: "14px",
-                                        justifyContent: "center",
-                                        color: "#666",
-                                        borderRadius: "9999px",
-                                        height: 34,
-                                        "&:hover": {
-                                            backgroundColor: "transparent",
-                                        },
-                                        "&.Mui-selected": {
-                                            backgroundColor: "#fff",
-                                            color: brandRed,
-                                            boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                            "&:hover": {
-                                                backgroundColor: "#fff",
-                                            },
-                                        },
-                                    }}
-                                >
-                                    {val}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
+                        {/*<ToggleButtonGroup*/}
+                        {/*    exclusive*/}
+                        {/*    value={selectedSize}*/}
+                        {/*    onChange={(e, val) => val && setSelectedSize(val)}*/}
+                        {/*    sx={{*/}
+                        {/*        backgroundColor: brandGray,*/}
+                        {/*        borderRadius: "9999px",*/}
+                        {/*        p: "4px",*/}
+                        {/*        mb: 2,*/}
+                        {/*        "& .MuiToggleButtonGroup-grouped": {*/}
+                        {/*            border: 0,*/}
+                        {/*            flex: 1,*/}
+                        {/*            borderRadius: "9999px",*/}
+                        {/*            mr: "4px",*/}
+                        {/*            "&:not(:last-of-type)": {*/}
+                        {/*                borderRight: "none",*/}
+                        {/*            },*/}
+                        {/*        },*/}
+                        {/*    }}*/}
+                        {/*    fullWidth*/}
+                        {/*>*/}
+                        {/*    {["Medium", "Large"].map((val) => (*/}
+                        {/*        <ToggleButton*/}
+                        {/*            key={val}*/}
+                        {/*            value={val}*/}
+                        {/*            sx={{*/}
+                        {/*                textTransform: "none",*/}
+                        {/*                fontSize: "14px",*/}
+                        {/*                justifyContent: "center",*/}
+                        {/*                color: "#666",*/}
+                        {/*                borderRadius: "9999px",*/}
+                        {/*                height: 34,*/}
+                        {/*                "&:hover": {*/}
+                        {/*                    backgroundColor: "transparent",*/}
+                        {/*                },*/}
+                        {/*                "&.Mui-selected": {*/}
+                        {/*                    backgroundColor: "#fff",*/}
+                        {/*                    color: brandRed,*/}
+                        {/*                    boxShadow: "0 2px 4px rgba(0,0,0,0.25)",*/}
+                        {/*                    "&:hover": {*/}
+                        {/*                        backgroundColor: "#fff",*/}
+                        {/*                    },*/}
+                        {/*                },*/}
+                        {/*            }}*/}
+                        {/*        >*/}
+                        {/*            {val}*/}
+                        {/*        </ToggleButton>*/}
+                        {/*    ))}*/}
+                        {/*</ToggleButtonGroup>*/}
 
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
                             Pick 2 Pizzas
@@ -409,19 +434,95 @@ function ComboPopup({
                     </Box>
                 </Box>
 
-                <Box sx={{borderTop: "1px solid #eee", p: 2}}>
+                {/*<Box sx={{borderTop: "1px solid #eee", p: 2}}>*/}
+                {/*    <Button*/}
+                {/*        variant="contained"*/}
+                {/*        fullWidth*/}
+                {/*        disabled={!canAdd}*/}
+                {/*        sx={{*/}
+                {/*            backgroundColor: canAdd ? brandRed : "#ccc",*/}
+                {/*            color: "#fff",*/}
+                {/*            textTransform: "none",*/}
+                {/*            fontSize: "16px",*/}
+                {/*            borderRadius: 4*/}
+                {/*        }}*/}
+                {/*        onClick={handleAdd}*/}
+                {/*    >*/}
+                {/*        Add · {basePrice.toFixed(2)}*/}
+                {/*    </Button>*/}
+                {/*</Box>*/}
+                <Box
+                    sx={{
+                        borderTop: "1px solid #eee",
+                        display: "flex",
+                        gap: 2,
+                        p: 2,
+                        alignItems: "stretch",
+                    }}
+                >
+                    <ToggleButtonGroup
+                        exclusive
+                        value={selectedSize}
+                        onChange={(e, val) => val && setSelectedSize(val)}
+                        sx={{
+                            backgroundColor: brandGray,
+                            borderRadius: 8,
+                            p: "4px",
+                            flex: 1, // 50%
+                            "& .MuiToggleButtonGroup-grouped": {
+                                border: 0,
+                                flex: 1,
+                                borderRadius: 8,
+                                mr: "4px",
+                                "&:not(:last-of-type)": {
+                                    borderRight: "none"
+                                }
+                            }
+                        }}
+                        fullWidth
+                    >
+                        {availableSizes.map((label) => (
+                            <ToggleButton key={label} value={label} sx={{
+                                textTransform: "none",
+                                fontSize: "16px",
+                                justifyContent: "center",
+                                color: "#666",
+                                borderRadius: 8,
+                                height: "100%",
+                                "&:hover": {
+                                    backgroundColor: "transparent"
+                                },
+                                "&.Mui-selected": {
+                                    backgroundColor: "#fff",
+                                    color: brandRed,
+                                    boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                    "&:hover": {
+                                        backgroundColor: "#fff"
+                                    }
+                                }
+                            }}>
+                                {label}
+                            </ToggleButton>
+                        ))}
+                    </ToggleButtonGroup>
+
                     <Button
                         variant="contained"
                         fullWidth
+                        onClick={handleAdd}
                         disabled={!canAdd}
                         sx={{
                             backgroundColor: canAdd ? brandRed : "#ccc",
                             color: "#fff",
                             textTransform: "none",
-                            fontSize: "16px",
-                            borderRadius: 4
+                            fontSize: "20px",
+                            borderRadius: 8,
+                            flex: 1,
+                            height: "100%",
+                            "&:hover": {
+                                backgroundColor: "#d23f40"
+                            }
                         }}
-                        onClick={handleAdd}
                     >
                         Add · {basePrice.toFixed(2)}
                     </Button>
