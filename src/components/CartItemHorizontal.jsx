@@ -26,17 +26,17 @@ function CartItemHorizontal({
     const discountedPrice = item.amount * (1 - discount / 100);
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
 
-    const getToggleValue = (size) => {
-        if (size === "Large") return "L"
-        if (size === "Medium") return "M"
-        if (size === "Small") return "S"
-    }
-
-    const getFullSize = (val) => {
-        if (val === "L") return "Large"
-        if (val === "M") return "Medium"
-        if (val === "S") return "Small"
-    }
+    // const getToggleValue = (size) => {
+    //     if (size === "Large") return "L"
+    //     if (size === "Medium") return "M"
+    //     if (size === "Small") return "S"
+    // }
+    //
+    // const getFullSize = (val) => {
+    //     if (val === "L") return "Large"
+    //     if (val === "M") return "Medium"
+    //     if (val === "S") return "Small"
+    // }
 
     return (
         <Box
@@ -169,8 +169,8 @@ function CartItemHorizontal({
 
                 {item.category === "Pizzas" && <ToggleButtonGroup
                     exclusive
-                    value={getToggleValue(item.size)}
-                    onChange={(e, val) => val && onChangeSize(item, getFullSize(val))}
+                    value={item.size}
+                    onChange={(e, val) => val && onChangeSize(item, val)}
                     sx={{
                         backgroundColor: brandGray,
                         borderRadius: 8,
