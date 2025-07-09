@@ -12,9 +12,9 @@ export async function fetchBaseAppInfo(userId) {
     }
     const response = await fetch(url, {
         method: "GET",
-        headers: {
-            "ngrok-skip-browser-warning": "69420"
-        }
+        // headers: {
+        //     "ngrok-skip-browser-warning": "69420"
+        // }
     });
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
