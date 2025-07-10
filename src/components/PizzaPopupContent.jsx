@@ -104,20 +104,20 @@ function PizzaPopup({
         return (finalPizzaPricePerItem * quantity + price).toFixed(2);
     }
 
-    function getSameItems(item_name) {
-        const groupsJson = localStorage.getItem("availableMenuGroups");
-        if (!groupsJson) return [];
-
-        const groups = JSON.parse(groupsJson);
-
-        const sameItems = [];
-        groups.forEach(group => {
-            if (group.name === item_name) {
-                sameItems.push(...group.items);
-            }
-        });
-        return sameItems;
-    }
+    // function getSameItems(item_name) {
+    //     const groupsJson = localStorage.getItem("availableMenuGroups");
+    //     if (!groupsJson) return [];
+    //
+    //     const groups = JSON.parse(groupsJson);
+    //
+    //     const sameItems = [];
+    //     groups.forEach(group => {
+    //         if (group.name === item_name) {
+    //             sameItems.push(...group.items);
+    //         }
+    //     });
+    //     return sameItems;
+    // }
 
     function handleToggleIngr(name) {
         if (selectedIngr.includes(name)) {
@@ -149,7 +149,7 @@ function PizzaPopup({
         const products = [{
             ...item,
             name: item.name,
-            size: item.size,
+            size: selectedSize,
             category: item.category,
             isThinDough: isThinDoughVal,
             isGarlicCrust: isGarlicCrustVal,
