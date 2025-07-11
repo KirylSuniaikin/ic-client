@@ -15,7 +15,7 @@ function MenuItemCardHorizontal({ group, onSelect, isBestSellerBlock }) {
         return null;
     }
 
-    const defaultItem = group.items[0];
+    const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
     const { category, name, description, price, photo, isBestSeller } = defaultItem;
     const displayPrice = ["Pizzas", "Combo Deals"].includes(category)
         ? `from ${price}`
