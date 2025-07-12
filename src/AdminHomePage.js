@@ -3,7 +3,7 @@ import OrderCard from "./adminComponents/OrderCard";
 import AddIcon from '@mui/icons-material/Add';
 import {Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
-import {getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
+import {DEV_SOCKET_URL, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
 import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import { io } from "socket.io-client";
 import alertSound from "./assets/alert.mp3";
@@ -44,13 +44,10 @@ function AdminHomePage() {
                 const response = await getAllActiveOrders();
                 setOrders(response.orders);
 
-                socket = io(PROD_SOCKET_URL, { transports: ["websocket"] });
+                socket = io(DEV_SOCKET_URL, {transports: ["websocket"]});
 
-                socket.on("connect", () => {
-                    console.log("🟢 WebSocket подключён");
-                });
-
-                socket.on("order_created", (newOrder) => {
+                socket.on("order_created", (newOrder, callback) => {
+                    console.log("✅ New order received", newOrder);
                     setOrders(prev => {
                         const exists = prev.find(o => o.orderId === newOrder.orderId);
                         return exists ? prev : [...prev, newOrder];
@@ -60,6 +57,14 @@ function AdminHomePage() {
                         audioRef.loop = true;
                         audioRef.play().catch((e) => console.warn("🎧 Не удалось воспроизвести звук:", e));
                     }
+                    if (callback) {
+                        callback("OK!");
+                        console.log("🔔 Sent ACK to server");
+                    }
+                });
+
+                socket.on("test_push", (data) => {
+                    console.log("💙 Heartbeat from server:", data);
                 });
 
                 socket.on("order_updated", (updatedOrder) => {
@@ -70,6 +75,11 @@ function AdminHomePage() {
                         )
                     );
                 });
+                socket.on("connect", () => {
+                    console.log("🟢 WebSocket подключён");
+                    socket.emit("join_room", "orders_room");
+                });
+
 
                 socket.on("disconnect", () => {
                     console.log("🔴 WebSocket отключён");
