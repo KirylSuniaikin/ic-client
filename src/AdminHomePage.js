@@ -44,7 +44,7 @@ function AdminHomePage() {
                 const response = await getAllActiveOrders();
                 setOrders(response.orders);
 
-                socket = io(DEV_SOCKET_URL, {transports: ["websocket"]});
+                socket = io(PROD_SOCKET_URL, {transports: ["websocket"]});
 
                 socket.on("order_created", (newOrder, callback) => {
                     console.log("✅ New order received", newOrder);
