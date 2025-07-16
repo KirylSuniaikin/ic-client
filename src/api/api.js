@@ -160,3 +160,21 @@ export async function getHistory() {
 
     return JSON.parse(text);
 }
+
+export async function fetchStatistics(startDate, finishDate) {
+    const url = `${PROD_BASE_HOST}/get_statistics?start_date=${startDate}&finish_date=${finishDate}`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            // "ngrok-skip-browser-warning": "69420"
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch statistics: ${response.status}`);
+    }
+
+    return await response.json();
+}
