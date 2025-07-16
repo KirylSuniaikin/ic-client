@@ -212,8 +212,7 @@ function AdminHomePage() {
                 color="primary"
                 aria-label="add"
                 onClick={() =>
-                    // setIsStatisticsOpen(true)
-                    console.log("hello")
+                    setIsStatisticsOpen(true)
             }
                 sx={{
                     position: 'fixed',
