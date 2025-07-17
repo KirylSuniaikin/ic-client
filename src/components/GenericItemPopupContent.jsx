@@ -28,6 +28,41 @@ function GenericItemPopupContent({
     const [note, setNote] = useState( "");
 
     useEffect(() => {
+        const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
+
+        if (!window.ttq) {
+            (function (w, d, t) {
+                w.TiktokAnalyticsObject = t;
+                const ttq = w[t] = w[t] || [];
+                ttq.methods = [
+                    "page", "track", "identify", "instances", "debug", "on", "off",
+                    "once", "ready", "alias", "group", "enableCookie", "disableCookie",
+                    "holdConsent", "revokeConsent", "grantConsent"
+                ];
+                ttq.setAndDefer = function (t, e) {
+                    t[e] = function () {
+                        t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+                    };
+                };
+                for (let i = 0; i < ttq.methods.length; i++) {
+                    ttq.setAndDefer(ttq, ttq.methods[i]);
+
+                }
+
+                ttq.load = function (e, n) {
+                    const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
+                    const script = d.createElement("script");
+                    script.type = "text/javascript";
+                    script.async = true;
+                    script.src = `${r}?sdkid=${e}&lib=${t}`;
+                    const f = d.getElementsByTagName("script")[0];
+                    f.parentNode.insertBefore(script, f);
+                };
+
+                ttq.load(TT_PIXEL_ID);
+                ttq.page();
+            })(window, document, 'ttq')
+        }
         if (open && item) {
             setQuantity(1);
             if (item.name === "Pizza Rolls") {
@@ -37,6 +72,13 @@ function GenericItemPopupContent({
                 setSelectedToppings([]);
                 setDescription("");
             }
+            window.ttq.track('ViewContent', {
+                content_id: item.name,
+                content_type: 'product',
+                content_name: item.name,
+                currency: 'BHD',
+                value: item.price
+            });
         }
 
     }, [open, item]);

@@ -54,6 +54,41 @@ function PizzaPopup({
     const [availableSizes, setAvailableSizes] = useState([])
 
     useEffect(() => {
+        const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
+
+        if (!window.ttq) {
+            (function (w, d, t) {
+                w.TiktokAnalyticsObject = t;
+                const ttq = w[t] = w[t] || [];
+                ttq.methods = [
+                    "page", "track", "identify", "instances", "debug", "on", "off",
+                    "once", "ready", "alias", "group", "enableCookie", "disableCookie",
+                    "holdConsent", "revokeConsent", "grantConsent"
+                ];
+                ttq.setAndDefer = function (t, e) {
+                    t[e] = function () {
+                        t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+                    };
+                };
+                for (let i = 0; i < ttq.methods.length; i++) {
+                    ttq.setAndDefer(ttq, ttq.methods[i]);
+
+                }
+
+                ttq.load = function (e, n) {
+                    const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
+                    const script = d.createElement("script");
+                    script.type = "text/javascript";
+                    script.async = true;
+                    script.src = `${r}?sdkid=${e}&lib=${t}`;
+                    const f = d.getElementsByTagName("script")[0];
+                    f.parentNode.insertBefore(script, f);
+                };
+
+                ttq.load(TT_PIXEL_ID);
+                ttq.page();
+            })(window, document, 'ttq')
+        }
         setLoading(true);
         if (isEditMode && editItem) {
             setItem(editItem);
@@ -67,6 +102,13 @@ function PizzaPopup({
             setItem(defaultItem);
             setSelectedSize(defaultItem.size);
             setSelectedDough("Traditional");
+            window.ttq.track('ViewContent', {
+                content_id: defaultItem.name,
+                content_type: 'product',
+                content_name: defaultItem.name,
+                currency: 'BHD',
+                value: defaultItem.price
+            });
         }
         const sizes = Array.from(new Set(group.items.map(i => i.size)));
         const order = ["S", "M", "L"];
