@@ -38,23 +38,58 @@ function ComboPopup({
         setItem(defaultItem);
         setSelectedSize(defaultItem.size);
 
+
         const availableSizes = ["M", "L"].filter(size =>
             uniquePizzas.some(group =>
                 group.items.some(item => item.size === size && item.available)
             )
         );
+        const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
+
+        if (!window.ttq) {
+            (function (w, d, t) {
+                w.TiktokAnalyticsObject = t;
+                const ttq = w[t] = w[t] || [];
+                ttq.methods = [
+                    "page", "track", "identify", "instances", "debug", "on", "off",
+                    "once", "ready", "alias", "group", "enableCookie", "disableCookie",
+                    "holdConsent", "revokeConsent", "grantConsent"
+                ];
+                ttq.setAndDefer = function (t, e) {
+                    t[e] = function () {
+                        t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+                    };
+                };
+                for (let i = 0; i < ttq.methods.length; i++) {
+                    ttq.setAndDefer(ttq, ttq.methods[i]);
+
+                }
+
+                ttq.load = function (e, n) {
+                    const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
+                    const script = d.createElement("script");
+                    script.type = "text/javascript";
+                    script.async = true;
+                    script.src = `${r}?sdkid=${e}&lib=${t}`;
+                    const f = d.getElementsByTagName("script")[0];
+                    f.parentNode.insertBefore(script, f);
+                };
+
+                ttq.load(TT_PIXEL_ID);
+                ttq.page();
+            })(window, document, 'ttq')
+        }
+
         setAvailableSizes(availableSizes);
+        window.ttq.track('ViewContent', {
+            content_id: defaultItem.name,
+            content_type: 'product',
+            content_name: defaultItem.name,
+            currency: 'BHD',
+            value: defaultItem.price
+        });
         setLoading(false);
     }, [group.items, uniquePizzas]);
-
-    // useEffect(() => {
-    //     const pizzas = uniquePizzas.map(group => {
-    //         const pizza = group.items.find(item => item.size === selectedSize && item.available);
-    //         const configs = selectedPizzas.filter(p => p.name === pizza.name);
-    //         return {pizza, configs};
-    //     });
-    //     setGroupedPizzas(pizzas)
-    // },[selectedSize])
 
     const matched = group.items.find((it) => it.size === selectedSize);
     const basePrice = matched? matched.price : 0
@@ -141,6 +176,15 @@ function ComboPopup({
             quantity: 1,
             description: getDescription(),
             amount: basePrice
+        });
+        window.ttq.track('AddToCart', {
+            content_id: 'id',
+            content_type: 'product',
+            content_name: item.name,
+            quantity: item.quantity,
+            price: basePrice,
+            currency: 'BHD',
+            value: item.quantity*basePrice
         });
         onClose?.();
     }
