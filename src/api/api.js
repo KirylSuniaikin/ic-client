@@ -161,8 +161,8 @@ export async function getHistory() {
     return JSON.parse(text);
 }
 
-export async function fetchStatistics(startDate, finishDate) {
-    const url = `${PROD_BASE_HOST}/get_statistics?start_date=${startDate}&finish_date=${finishDate}`;
+export async function fetchStatistics(startDate, finishDate, certainDate) {
+    const url = `${PROD_BASE_HOST}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}`;
 
     const response = await fetch(url, {
         method: "GET",

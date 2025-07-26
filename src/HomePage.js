@@ -228,13 +228,13 @@ function HomePage({userParam}) {
 
     function getGeneralCrossSellItems() {
         return generalCrossSell
-            .map(name => menuData.find(item => item.name === name))
+            .map(name => menuData.find(item => item.name === name && item.available))
             .filter(Boolean);
     }
 
     function getFinalCrossSell() {
         return finalCrossSell
-            .map(name => menuData.find(item => item.name === name))
+            .map(name => menuData.find(item => item.name === name && item.available))
             .filter(Boolean);
     }
 
