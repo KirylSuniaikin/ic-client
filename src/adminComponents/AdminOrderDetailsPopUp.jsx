@@ -16,7 +16,7 @@ const countries = [
 ];
 
 const deliveryOptions = ["Pick Up", "Talabat", "Delivery", "Jahez", "Ahlan"];
-const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
+const paymentOptions = ["Card (Through card machine)", "Cash", "Benefit"];
 
 const brandRed = "#E44B4C";
 
@@ -45,6 +45,7 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                 }
             }
             setNote(order.notes);
+            setPaymentMethod(order.payment_type)
         }
     },[])
     function handleSave() {

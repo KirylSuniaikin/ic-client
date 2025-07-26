@@ -113,7 +113,7 @@ function CrossSellPopup({
                                             if (!active) increaseQuantityOnCrossSell(item.name);
                                         }}
                                         sx={{
-                                            width: 140, // фиксированная ширина
+                                            width: 140,
                                             flexShrink: 0,
                                             textAlign: "center",
                                             p: 2,
