@@ -1,14 +1,14 @@
 
 export var PROD_BASE_HOST = "https://ic-pizza-back.onrender.com/api";
 // export var DEV_BASE_HOST = "https://leopard-climbing-rooster.ngrok-free.app/api" ;
-export var DEV_BASE_HOST = "http://localhost:8000/api"
+// export var DEV_BASE_HOST = "http://localhost:8000/api"
 export const PROD_SOCKET_URL = "https://ic-pizza-back.onrender.com";
 export const DEV_SOCKET_URL = "http://localhost:8000";
 
 
 
 export async function fetchBaseAppInfo(userId) {
-    let url = DEV_BASE_HOST + "/getBaseAppInfo";
+    let url = PROD_BASE_HOST + "/getBaseAppInfo";
     if (userId) {
         url += `?userId=${encodeURIComponent(userId)}`;
     }
@@ -31,7 +31,7 @@ export async function fetchBaseAppInfo(userId) {
 
 export async function createOrder(order) {
     console.log(order);
-    const response = await fetch(DEV_BASE_HOST + "/createOrder", {
+    const response = await fetch(PROD_BASE_HOST + "/createOrder", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -51,7 +51,7 @@ export async function createOrder(order) {
 export async function updateAvailability(changes) {
     console.log("Changes to update:", changes);
 
-    const response = await fetch(DEV_BASE_HOST + "/updateAvailability", {
+    const response = await fetch(PROD_BASE_HOST + "/updateAvailability", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -68,7 +68,7 @@ export async function updateAvailability(changes) {
 }
 
 export async function markOrderReady(orderId) {
-    const url = `${DEV_BASE_HOST}/readyAction?id=${orderId}`;
+    const url = `${PROD_BASE_HOST}/readyAction?id=${orderId}`;
 
     const response = await fetch(url, {
         method: "POST",
@@ -183,7 +183,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
     try {
-        const response = await fetch(DEV_BASE_HOST + "/sendShiftEvent", {
+        const response = await fetch(PROD_BASE_HOST + "/sendShiftEvent", {
 
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -210,7 +210,7 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 }
 
 export async function fetchLastStage(branchId) {
-    const url = `${DEV_BASE_HOST}/getLastStage?branchId=${encodeURIComponent(branchId)}`;
+    const url = `${PROD_BASE_HOST}/getLastStage?branchId=${encodeURIComponent(branchId)}`;
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
