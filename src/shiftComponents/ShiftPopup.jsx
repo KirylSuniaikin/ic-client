@@ -193,8 +193,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                             Submit
                         </Button>
                     </Box>
-
-
                 </>
             ) : (
                 <>
@@ -239,7 +237,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                     </FormGroup>
                 </Box>
 
-
                 <Box
                     sx={{
                         position: "fixed",
@@ -271,7 +268,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                         Submit
                     </Button>
                 </Box>
-
                 </>
             )}
         </Drawer>
