@@ -1,9 +1,9 @@
 import {useEffect, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
 import AddIcon from '@mui/icons-material/Add';
-import {Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
+import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
-import {DEV_SOCKET_URL, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
+import {DEV_SOCKET_URL, fetchLastStage, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
 import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import { io } from "socket.io-client";
 import alertSound from "./assets/alert.mp3";
@@ -14,6 +14,8 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import HistoryComponent from "./adminComponents/HistoryComponent";
 import ConfigComponent from "./adminComponents/ConfigComponent";
 import StatisticsComponent from "./adminComponents/StatisticsComponent";
+import ShiftTopbar from "./shiftComponents/ShiftTopbar";
+import ShiftPopup from "./shiftComponents/ShiftPopup";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -27,6 +29,18 @@ function AdminHomePage() {
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
     const [audioRef] = useState(new Audio(alertSound));
     const [audioAllowed, setAudioAllowed] = useState(false);
+    const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
+    const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
+    const [cashWarning, setCashWarning] = useState(null);
+
+
+    const branchId = "1";
+    const STAGE_FLOW = {
+        OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
+        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
+        CLOSE_SHIFT_CASH_CHECK: "CLOSE_SHIFT_EVENT",
+        CLOSE_SHIFT_EVENT: "OPEN_SHIFT_CASH_CHECK"
+    };
 
     const colorRed = '#E44B4C';
 
@@ -90,6 +104,24 @@ function AdminHomePage() {
                 setLoading(false);
             }
         }
+        async function loadStage(branchId) {
+            try {
+                const stage = await fetchLastStage(branchId);
+                if (!stage) {
+                    setShiftStage("OPEN_SHIFT_CASH_CHECK");
+                }
+                else {
+                    const nextStage = STAGE_FLOW[stage] || stage;
+
+                    setShiftStage(nextStage);
+                }
+                console.log("Last stage: ", stage, ", updated stage to: ");
+            } catch (err) {
+                console.error("Ошибка загрузки stage:", err);
+            }
+        }
+
+        loadStage(branchId);
         initialize();
 
         return () => {
@@ -112,17 +144,72 @@ function AdminHomePage() {
     return (
 
         <div className="p-4 max-w-4xl mx-auto">
+            {cashWarning && (
+                <Box
+                    sx={{
+                        position: 'fixed',
+                        top: 16,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 2000,
+                        width: '90%',
+                        maxWidth: 480,
+                    }}
+                >
+                    <Alert
+                        severity="warning"
+                        variant="filled"
+                        onClose={() => setCashWarning(null)}
+                        sx={{
+                            backgroundColor: "#fff3f3",
+                            color: "#B00020",
+                            fontWeight: 500,
+                            fontSize: "1rem",
+                        }}
+                    >
+                        Cash mismatch! <br />
+                        <strong>Expected: </strong>
+                        <span style={{ color: "#E44B4C", fontWeight: 700 }}>
+                                {cashWarning.expected} BD
+                        </span>
+                    </Alert>
+                </Box>
+            )}
+            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && (
+                <ShiftTopbar stage={shiftStage} onClick={() => setShiftPopupOpen(true) } />
+            )}
+            <ShiftPopup
+                isOpen={shiftPopupOpen}
+                onClose={() => {
+                    setShiftPopupOpen(false);
+                }}
+                setStage={setShiftStage}
+                stage={shiftStage}
+                branchId={branchId}
+                onCashWarning={setCashWarning}
+            />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
                 <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
+            <Box
+                sx={{
+                    position: 'fixed',
+                    top: 64,
+                    right: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5,
+                    zIndex: 1200
+                }}
+            >
             {!isSettingsOpen &&
                 <Fab
                 color="primary"
                 aria-label="menu"
                 onClick={() => setIsSettingsOpen(true)}
                 sx={{
-                position: 'fixed',
-                top: 16,
+                // position: 'fixed',
+                // top: 64,
                 right: 16,
                 backgroundColor: colorRed,
                 color: "white",
@@ -139,8 +226,8 @@ function AdminHomePage() {
                 aria-label="ExpandLess"
                 onClick={() => setIsSettingsOpen(false)}
                 sx={{
-                    position: 'fixed',
-                    top: 16,
+                    // position: 'fixed',
+                    // top: 16,
                     right: 16,
                     backgroundColor: colorRed,
                     color: "white",
@@ -158,8 +245,8 @@ function AdminHomePage() {
                 aria-label="history"
                 onClick={() => setIsHistoryOpen(true)}
                 sx={{
-                    position: 'fixed',
-                    top: 146,
+                    // position: 'fixed',
+                    // top: 146,
                     right: 16,
                     backgroundColor: colorRed,
                     color: "white",
@@ -177,8 +264,8 @@ function AdminHomePage() {
                 aria-label="add"
                 onClick={() => navigate('/menu?isAdmin=true')}
                 sx={{
-                    position: 'fixed',
-                    top: 81,
+                    // position: 'fixed',
+                    // top: 81,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -195,8 +282,8 @@ function AdminHomePage() {
                 aria-label="ToggleOn"
                 onClick={() => setIsConfigOpen(true)}
                 sx={{
-                    position: 'fixed',
-                    top: 276,
+                    // position: 'fixed',
+                    // top: 276,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -208,6 +295,7 @@ function AdminHomePage() {
                 <ToggleOnIcon sx={{ fontSize: 30 }}/>
             </Fab>}
 
+
             {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
                 color="primary"
                 aria-label="add"
@@ -215,8 +303,8 @@ function AdminHomePage() {
                     setIsStatisticsOpen(true)
             }
                 sx={{
-                    position: 'fixed',
-                    top: 211,
+                    // position: 'fixed',
+                    // top: 211,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -227,6 +315,8 @@ function AdminHomePage() {
             >
                 <StackedLineChartIcon sx={{ fontSize: 30 }} />
             </Fab>}
+
+
 
             {isHistoryOpen && (
                 <HistoryComponent
@@ -248,6 +338,7 @@ function AdminHomePage() {
                     onClose={() => setIsStatisticsOpen(false)}
                 />
             )}
+            </Box>
 
             <Snackbar
                 open={Boolean(activeAlertOrder)}
