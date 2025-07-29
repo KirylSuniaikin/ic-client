@@ -191,25 +191,14 @@ function AdminHomePage() {
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
                 <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
-            <Box
-                sx={{
-                    position: 'fixed',
-                    top: 64,
-                    right: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5,
-                    zIndex: 1200
-                }}
-            >
             {!isSettingsOpen &&
                 <Fab
                 color="primary"
                 aria-label="menu"
                 onClick={() => setIsSettingsOpen(true)}
                 sx={{
-                // position: 'fixed',
-                // top: 64,
+                position: 'fixed',
+                top: 64,
                 right: 16,
                 backgroundColor: colorRed,
                 color: "white",
@@ -226,8 +215,8 @@ function AdminHomePage() {
                 aria-label="ExpandLess"
                 onClick={() => setIsSettingsOpen(false)}
                 sx={{
-                    // position: 'fixed',
-                    // top: 16,
+                    position: 'fixed',
+                    top: 16,
                     right: 16,
                     backgroundColor: colorRed,
                     color: "white",
@@ -245,8 +234,8 @@ function AdminHomePage() {
                 aria-label="history"
                 onClick={() => setIsHistoryOpen(true)}
                 sx={{
-                    // position: 'fixed',
-                    // top: 146,
+                    position: 'fixed',
+                    top: 146,
                     right: 16,
                     backgroundColor: colorRed,
                     color: "white",
@@ -264,8 +253,8 @@ function AdminHomePage() {
                 aria-label="add"
                 onClick={() => navigate('/menu?isAdmin=true')}
                 sx={{
-                    // position: 'fixed',
-                    // top: 81,
+                    position: 'fixed',
+                    top: 81,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -282,8 +271,8 @@ function AdminHomePage() {
                 aria-label="ToggleOn"
                 onClick={() => setIsConfigOpen(true)}
                 sx={{
-                    // position: 'fixed',
-                    // top: 276,
+                    position: 'fixed',
+                    top: 276,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -303,8 +292,8 @@ function AdminHomePage() {
                     setIsStatisticsOpen(true)
             }
                 sx={{
-                    // position: 'fixed',
-                    // top: 211,
+                    position: 'fixed',
+                    top: 211,
                     right: 16,
                     backgroundColor: colorRed,
                     color: 'white',
@@ -338,7 +327,6 @@ function AdminHomePage() {
                     onClose={() => setIsStatisticsOpen(false)}
                 />
             )}
-            </Box>
 
             <Snackbar
                 open={Boolean(activeAlertOrder)}
