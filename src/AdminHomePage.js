@@ -6,7 +6,7 @@ import {useNavigate} from "react-router-dom";
 import {DEV_SOCKET_URL, fetchLastStage, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
 import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import { io } from "socket.io-client";
-import alertSound from "./assets/alert.mp3";
+import alertSound from "./assets/alert2.mp3";
 import CloseIcon from "@mui/icons-material/Close";
 import {ExpandLess, History, Menu} from "@mui/icons-material";
 import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
