@@ -16,6 +16,7 @@ import ConfigComponent from "./adminComponents/ConfigComponent";
 import StatisticsComponent from "./adminComponents/StatisticsComponent";
 import ShiftTopbar from "./shiftComponents/ShiftTopbar";
 import ShiftPopup from "./shiftComponents/ShiftPopup";
+import useClosingAlarm from "./shiftComponents/hooks/useClosingAlarm";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -33,13 +34,15 @@ function AdminHomePage() {
     const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [cashWarning, setCashWarning] = useState(null);
 
+    useClosingAlarm(audioAllowed);
+
 
     const branchId = "1";
     const STAGE_FLOW = {
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
-        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
-        CLOSE_SHIFT_CASH_CHECK: "CLOSE_SHIFT_EVENT",
-        CLOSE_SHIFT_EVENT: "OPEN_SHIFT_CASH_CHECK"
+        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
+        CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
+        CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     };
 
     const colorRed = '#E44B4C';
@@ -394,7 +397,7 @@ function AdminHomePage() {
                 >
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            Enable sound for order alerts
+                            Enable sound for order and close shift alerts
                         </Typography>
                     </Box>
                     <Button

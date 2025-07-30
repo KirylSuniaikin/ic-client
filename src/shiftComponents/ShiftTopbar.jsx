@@ -5,8 +5,9 @@ export default function ShiftTopbar({ stage, onClick }) {
     const getStageData = (stage) => {
         switch (stage) {
             case "OPEN_SHIFT_CASH_CHECK":
+                return "Open Cash"
             case "CLOSE_SHIFT_CASH_CHECK":
-                return "Cash Check";
+                return "Close Cash";
             case "OPEN_SHIFT_EVENT":
                 return "Open Shift";
             case "CLOSE_SHIFT_EVENT":
