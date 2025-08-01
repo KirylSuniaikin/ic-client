@@ -1,65 +1,40 @@
-import { useEffect, useRef } from "react";
-import { addMinutes, format } from "date-fns";
-import { utcToZonedTime } from "date-fns-tz";
+import {useEffect, useRef, useState} from "react";
+import alertSound from "../../assets/close-shift-alert-blr.mp3";
+import dayjs from "dayjs";
+import {getClosingTime} from "../getClosingTime";
 
-const schedule = {
-    Tuesday: "22:19",
-    Wednesday: "18:03",
-    Thursday: "01:30",
-    Friday: "01:30",
-    Saturday: "00:00",
-    Sunday: "00:00",
-    Monday: null,
-};
-
-const getDayName = () => {
-    return format(new Date(), "EEEE", { timeZone: "Asia/Bahrain" }); // e.g. 'Tuesday'
-};
 
 const useClosingAlarm = (audioAllowed) => {
-    const playedTodayRef = useRef(false);
-    const audioRef = useRef(null);
+    const playedRef = useRef(false);
+    const [audioRef] = useState(new Audio(alertSound));
 
     useEffect(() => {
-        audioRef.current = new Audio("/assets/close-shift-alert.mp3");
-        console.log(audioRef.current);
+        if (!audioAllowed) return;
 
-        const checkAndPlay = () => {
-            const day = getDayName();
-            const closingTimeStr = schedule[day];
+        const interval = setInterval(() => {
+            const now = dayjs().tz("Asia/Bahrain");
+            const closingTime = getClosingTime(now);
+            if (!closingTime) return;
 
-            if (!closingTimeStr) return;
+            const alarmTime = closingTime.subtract(2, "hour");
 
-            const [closingHour, closingMinute] = closingTimeStr.split(":").map(Number);
+            const diff = Math.abs(now.diff(alarmTime, "minute"));
 
-            // const now = new Date();
-            // const nowBahrain = utcToZonedTime(now, "Asia/Bahrain");
-            const nowBahrain = utcToZonedTime(new Date("2025-07-29T20:19:00"), "Asia/Bahrain");
-
-
-            const closingDate = new Date(nowBahrain);
-            closingDate.setHours(closingHour, closingMinute, 0, 0);
-
-            const alarmTime = addMinutes(closingDate, -120);
-
-            const formattedNow = format(nowBahrain, "HH:mm");
-            const formattedAlarm = format(alarmTime, "HH:mm");
-
-            if (formattedNow === formattedAlarm && !playedTodayRef.current) {
-                playedTodayRef.current = true;
-                audioRef.current.play();
-                console.log('⏰ ALARM TRIGGERED');
+            if (diff < 1 && !playedRef.current) {
+                audioRef.loop = false;
+                audioRef.play().then(() => {
+                    playedRef.current = true;
+                    console.log("⏰ Alarm triggered");
+                }).catch(console.error);
             }
 
-            // Reset the flag at midnight Bahrain time
-            if (format(nowBahrain, "HH:mm") === "00:00") {
-                playedTodayRef.current = false;
+            if (now.hour() === 6 && now.minute() === 0) {
+                playedRef.current = false;
             }
-        };
-        console.log("sound")
 
-        const intervalId = setInterval(checkAndPlay, 30 * 1000); // check every 30s
-        return () => clearInterval(intervalId);
+        }, 30 * 1000);
+
+        return () => clearInterval(interval);
     }, [audioAllowed]);
 };
 

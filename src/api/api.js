@@ -1,7 +1,7 @@
 
 export var PROD_BASE_HOST = "https://ic-pizza-back.onrender.com/api";
 // export var DEV_BASE_HOST = "https://leopard-climbing-rooster.ngrok-free.app/api" ;
-export var DEV_BASE_HOST = "http://localhost:8000/api"
+// export var DEV_BASE_HOST = "http://localhost:8000/api"
 export const PROD_SOCKET_URL = "https://ic-pizza-back.onrender.com";
 // export const DEV_SOCKET_URL = "http://localhost:8000";
 
@@ -183,7 +183,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
     try {
-        const response = await fetch(DEV_BASE_HOST + "/sendShiftEvent", {
+        const response = await fetch(PROD_BASE_HOST + "/sendShiftEvent", {
 
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -210,7 +210,7 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 }
 
 export async function fetchLastStage(branchId) {
-    const url = `${DEV_BASE_HOST}/getLastStage?branchId=${encodeURIComponent(branchId)}`;
+    const url = `${PROD_BASE_HOST}/getLastStage?branchId=${encodeURIComponent(branchId)}`;
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
