@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
-import PizzaLoader from "../loadingAnimations/PizzaLoader";
+import PizzaLoader from "./loadingAnimations/PizzaLoader";
 
 
 const brandRed = "#E44B4C";

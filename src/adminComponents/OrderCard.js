@@ -7,7 +7,7 @@ import {
     Button,
     Divider, Select, MenuItem
 } from "@mui/material";
-import {handlePaymentTypeChange, markOrderReady, updatePaymentType} from "../api/api";
+import {markOrderReady, updatePaymentType} from "../api/api";
 import {useNavigate} from "react-router-dom";
 import {useState} from "react";
 
@@ -125,7 +125,7 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                     <Typography variant="body2">
                         <strong>Customer Info:</strong> {order.customer_name || "—"} ({order.phone_number})
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body2" color={colorRed}>
                         <strong>Notes:</strong> {order.notes}
                     </Typography>
                     <Typography variant="body2">

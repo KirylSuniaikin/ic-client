@@ -1,21 +1,18 @@
 import {useEffect, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
-import AddIcon from '@mui/icons-material/Add';
 import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {DEV_SOCKET_URL, fetchLastStage, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
-import PizzaLoader from "./loadingAnimations/PizzaLoader";
+import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import { io } from "socket.io-client";
 import alertSound from "./assets/alert2.mp3";
 import CloseIcon from "@mui/icons-material/Close";
-import {ExpandLess, History, Menu} from "@mui/icons-material";
-import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
-import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import HistoryComponent from "./adminComponents/HistoryComponent";
 import ConfigComponent from "./adminComponents/ConfigComponent";
 import StatisticsComponent from "./adminComponents/StatisticsComponent";
-import ShiftTopbar from "./shiftComponents/ShiftTopbar";
-import ShiftPopup from "./shiftComponents/ShiftPopup";
+import AdminTopbar from "./adminComponents/AdminTopbar";
+import ShiftPopup from "./components/shiftComponents/ShiftPopup";
+import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -33,17 +30,17 @@ function AdminHomePage() {
     const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [cashWarning, setCashWarning] = useState(null);
 
-
     const branchId = "1";
     const STAGE_FLOW = {
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
-        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
-        CLOSE_SHIFT_CASH_CHECK: "CLOSE_SHIFT_EVENT",
-        CLOSE_SHIFT_EVENT: "OPEN_SHIFT_CASH_CHECK"
+        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
+        CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
+        CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     };
 
     const colorRed = '#E44B4C';
 
+    useClosingAlarm(audioAllowed);
 
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
@@ -176,7 +173,14 @@ function AdminHomePage() {
                 </Box>
             )}
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && (
-                <ShiftTopbar stage={shiftStage} onClick={() => setShiftPopupOpen(true) } />
+                    <AdminTopbar
+                        stage={shiftStage}
+                        onClick={() => setShiftPopupOpen(true)}
+                        onOpenHistory={() => setIsHistoryOpen(true)}
+                        onOpenStatistics={() => setIsStatisticsOpen(true)}
+                        onOpenConfig={() => setIsConfigOpen(true)}
+                        onGoToMenu={() => navigate('/menu?isAdmin=true')}
+                    />
             )}
             <ShiftPopup
                 isOpen={shiftPopupOpen}
@@ -191,121 +195,6 @@ function AdminHomePage() {
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
                 <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
             ))}
-            {!isSettingsOpen &&
-                <Fab
-                color="primary"
-                aria-label="menu"
-                onClick={() => setIsSettingsOpen(true)}
-                sx={{
-                position: 'fixed',
-                top: 64,
-                right: 16,
-                backgroundColor: colorRed,
-                color: "white",
-                '&:hover': {
-                backgroundColor: '#d23c3d',
-            },
-            }}
-                >
-                <Menu sx={{ fontSize: 30 }}/>
-                </Fab>
-            }
-            {isSettingsOpen && !isHistoryOpen && <Fab
-                color="primary"
-                aria-label="ExpandLess"
-                onClick={() => setIsSettingsOpen(false)}
-                sx={{
-                    position: 'fixed',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: colorRed,
-                    color: "white",
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <ExpandLess sx={{ fontSize: 30 }}/>
-            </Fab>
-            }
-
-            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
-                color="primary"
-                aria-label="history"
-                onClick={() => setIsHistoryOpen(true)}
-                sx={{
-                    position: 'fixed',
-                    top: 146,
-                    right: 16,
-                    backgroundColor: colorRed,
-                    color: "white",
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <History sx={{ fontSize: 30 }}/>
-            </Fab>
-            }
-
-            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
-                color="primary"
-                aria-label="add"
-                onClick={() => navigate('/menu?isAdmin=true')}
-                sx={{
-                    position: 'fixed',
-                    top: 81,
-                    right: 16,
-                    backgroundColor: colorRed,
-                    color: 'white',
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <AddIcon sx={{ fontSize: 30 }}/>
-            </Fab>}
-
-            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
-                color="primary"
-                aria-label="ToggleOn"
-                onClick={() => setIsConfigOpen(true)}
-                sx={{
-                    position: 'fixed',
-                    top: 276,
-                    right: 16,
-                    backgroundColor: colorRed,
-                    color: 'white',
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <ToggleOnIcon sx={{ fontSize: 30 }}/>
-            </Fab>}
-
-
-            {isSettingsOpen && !isHistoryOpen && !isConfigOpen && !isStatisticsOpen && <Fab
-                color="primary"
-                aria-label="add"
-                onClick={() =>
-                    setIsStatisticsOpen(true)
-            }
-                sx={{
-                    position: 'fixed',
-                    top: 211,
-                    right: 16,
-                    backgroundColor: colorRed,
-                    color: 'white',
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <StackedLineChartIcon sx={{ fontSize: 30 }} />
-            </Fab>}
-
-
 
             {isHistoryOpen && (
                 <HistoryComponent
@@ -394,7 +283,7 @@ function AdminHomePage() {
                 >
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            Enable sound for order alerts
+                            Enable sound for order and close shift alerts
                         </Typography>
                     </Box>
                     <Button
