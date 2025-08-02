@@ -11,7 +11,7 @@ import {
     FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import PizzaLoader from "../loadingAnimations/PizzaLoader";
+import PizzaLoader from "./loadingAnimations/PizzaLoader";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";

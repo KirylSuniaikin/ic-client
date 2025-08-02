@@ -5,12 +5,9 @@ import jahezLogo from "./assets/jahez-logo.png";
 import talabatLogo from "./assets/talabat-logo.png";
 import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
-
-
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
-
 import {createOrder, editOrder, fetchBaseAppInfo} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
@@ -19,9 +16,11 @@ import AdminOrderDetailsPopUp from "./adminComponents/AdminOrderDetailsPopUp";
 import GenericItemPopupContent from "./components/GenericItemPopupContent";
 import CloseIcon from "@mui/icons-material/Close";
 import OrderConfirmed from "./components/OrderConfirmed";
-import PizzaLoader from "./loadingAnimations/PizzaLoader";
+import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import CrossSellPopup from "./components/CrossSellPopup";
 import {groupAvailableItemsByName} from "./utils/menu_service";
+import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWorkingHours";
+import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
 
 const brandRed = "#E44B4C";
 
@@ -44,6 +43,7 @@ function HomePage({userParam}) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [editMode, setEditMode] = useState(false)
+    const [closedPopup, setClosedPopupOpen] = useState(false);
 
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -258,7 +258,11 @@ function HomePage({userParam}) {
     }
 
     const handleOpenCart = () => {
-        setCartOpen(true)
+        if (!isWithinWorkingHours()) {
+            setClosedPopupOpen(true);
+        } else {
+            setCartOpen(true);
+        }
     };
     const handleCloseCart = () => setCartOpen(false);
 
@@ -784,6 +788,10 @@ function HomePage({userParam}) {
             />
             }
 
+            {closedPopup && (
+                <ClosedPopup open={closedPopup} onClose={() => setClosedPopupOpen(false)} />
+            )}
+
             {phonePopupOpen && <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
                 onClose={handleClosePhonePopup}
@@ -810,7 +818,7 @@ function HomePage({userParam}) {
                     <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
                 )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&
                 <Fab
                     onClick={handleOpenCart}
                     sx={{

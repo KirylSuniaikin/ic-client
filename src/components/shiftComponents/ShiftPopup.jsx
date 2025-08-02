@@ -3,27 +3,25 @@ import {
     TextField, Button,
     FormGroup, Checkbox, Typography, Card, Drawer, Box
 } from "@mui/material";
-import {sendShiftEvent} from "../api/api";
+import {sendShiftEvent} from "../../api/api";
 
 
 const CHECKLISTS = {
     OPENING: [
-        "Open the Entrance Door",
-        "Visually Inspect the entrance and customer area for dirty or damaged spots (If there are clean it up after step 4,5,6 are done)",
-        "Turn on the lower deck (380 degrees Celsius) wait 30 seconds to make sure gas is flowing",
-        "Turn On the Jahez Device, Talabat Device & Our POS (make sure menu items are on)",
-        "Change to work uniform",
-        "Make sure refrigerators temperature are in the safe zone (1-4 degrees) before opening",
-        "Start executing prep list"
+        "1. Visually Inspect the entrance and customer area for dirty or damaged spots (If there are clean it up after step 4,5,6 are done)",
+        "2. Turn on the lower deck (380 degrees Celsius) wait 30 seconds to make sure gas is flowing",
+        "3. Turn On the Jahez Device, Talabat Device & Our POS (make sure menu items are on)",
+        "4. Change to work uniform",
+        "5. Make sure refrigerators temperature are in the safe zone (1-4 degrees) before opening",
+        "6. Start executing prep list"
     ],
     CLOSING: [
-        "Shift Manager needs to start drafting prep list for the next shift 2 hours before closing (see the reference in SOP doc)",
-        "Update prep list for tomorrow & draft purchase list if needed, place water bottles outside",
-        "30 minutes before closing start cleaning processes:\n- Place the ingredients inside the refrigerator\n- Wash The dishes\n- Clean up the surfaces (tables, tiles, refrigerators, oven exterior, shelves, devices, door handles)\n***TURN OFF THE SIGBOARD ONCE CLOSED***",
-        "Sweep & mop the floor",
-        "Throw the trash out",
-        "Turn off the lights & hall AC",
-        "Close the entrance door"
+        "1. Shift Manager needs to start drafting prep list for the next shift 2 hours before closing (see the reference in SOP doc)",
+        "2. Update prep list for tomorrow & draft purchase list if needed, place water bottles outside",
+        "3. 30 minutes before closing start cleaning processes:\n- Place the ingredients inside the refrigerator\n- Wash The dishes\n- Clean up the surfaces (tables, tiles, refrigerators, oven exterior, shelves, devices, door handles)\n***TURN OFF THE SIGBOARD ONCE CLOSED***",
+        "4. Sweep & mop the floor",
+        "5. Throw the trash out",
+        "6. Turn off the lights & hall AC"
     ]
 };
 
@@ -73,13 +71,15 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                         setStage("OPEN_SHIFT_EVENT");
                         break;
                     case "OPEN_SHIFT_EVENT":
-                        setStage("CLOSE_SHIFT_CASH_CHECK");
-                        break;
-                    case "CLOSE_SHIFT_CASH_CHECK":
                         setStage("CLOSE_SHIFT_EVENT");
                         break;
                     case "CLOSE_SHIFT_EVENT":
+                        setStage("CLOSE_SHIFT_CASH_CHECK");
+                        break;
+                    case "CLOSE_SHIFT_CASH_CHECK":
                         setStage("OPEN_SHIFT_CASH_CHECK");
+                        break;
+                    default:
                         break;
                 }
 
@@ -103,13 +103,27 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
     const getStageTitle = (stage) => {
         switch (stage) {
             case "OPEN_SHIFT_CASH_CHECK":
-                return "Open Shift Cash Check";
+                return "Start Cash Balance";
             case "OPEN_SHIFT_EVENT":
-                return "Opening Checklist";
+                return (
+                    <>
+                        Opening Checklist
+                        <Typography variant="caption" sx={{ display: "block", fontSize: "0.875rem", fontWeight: "bold", mt: 0.5 }}>
+                            Responsible: Omar
+                        </Typography>
+                    </>
+                );
             case "CLOSE_SHIFT_CASH_CHECK":
-                return "Close Shift Cash Check";
+                return "End Cash Balance";
             case "CLOSE_SHIFT_EVENT":
-                return "Closing Checklist";
+                return (
+                    <>
+                        Closing Checklist
+                        <Typography variant="caption" sx={{ display: "block", fontSize: "0.875rem", fontWeight: "bold", mt: 0.5 }}>
+                            Responsible: Omar
+                        </Typography>
+                    </>
+                );
             default:
                 return "Shift Step";
         }
@@ -204,7 +218,7 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                                 variant="outlined"
                                 onClick={() => handleCheck(idx)}
                                 sx={{
-                                    borderRadius: 3, // ← важно
+                                    borderRadius: 3,
                                     display: "flex",
                                     alignItems: "center",
                                     cursor: "pointer",
@@ -212,12 +226,13 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                                     borderColor: item.done ? "#E44B4C" : "#ccc",
                                     boxShadow: "none",
                                     px: 2,
-                                    py: 1.5,
+                                    py: 2,
                                 }}
                             >
                                 <Checkbox
                                     checked={item.done}
-                                    onChange={() => handleCheck(idx)}
+                                    tabIndex={-1}
+                                    disableRipple
                                     sx={{
                                         color: "#E44B4C",
                                         "&.Mui-checked": { color: "#E44B4C" },
@@ -226,9 +241,11 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                                 />
                                 <Typography
                                     variant="body2"
-                                    sx={{
+                                    sx=
+                                        {{
                                         whiteSpace: "pre-line",
-                                    }}
+                                        lineHeight: 1.4,
+                                        }}
                                 >
                                     {item.text}
                                 </Typography>

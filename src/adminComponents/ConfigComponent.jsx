@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Switch, Button, Fab } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import PizzaLoader from "../loadingAnimations/PizzaLoader";
+import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
 import {groupItemsByName} from "../utils/menu_service";
 
