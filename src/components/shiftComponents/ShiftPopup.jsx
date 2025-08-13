@@ -13,15 +13,18 @@ const CHECKLISTS = {
         "3. Turn On the Jahez Device, Talabat Device & Our POS (make sure menu items are on)",
         "4. Change to work uniform",
         "5. Make sure refrigerators temperature are in the safe zone (1-4 degrees) before opening",
-        "6. Start executing prep list"
+        "6. Start executing prep list",
+        "7. Set AC to 16°C"
     ],
+
     CLOSING: [
         "1. Shift Manager needs to start drafting prep list for the next shift 2 hours before closing (see the reference in SOP doc)",
         "2. Update prep list for tomorrow & draft purchase list if needed, place water bottles outside",
         "3. 30 minutes before closing start cleaning processes:\n- Place the ingredients inside the refrigerator\n- Wash The dishes\n- Clean up the surfaces (tables, tiles, refrigerators, oven exterior, shelves, devices, door handles)\n***TURN OFF THE SIGBOARD ONCE CLOSED***",
         "4. Sweep & mop the floor",
         "5. Throw the trash out",
-        "6. Turn off the lights & hall AC"
+        "6. Turn off the lights & hall AC",
+        "7. Set AC to 23°C"
     ]
 };
 
