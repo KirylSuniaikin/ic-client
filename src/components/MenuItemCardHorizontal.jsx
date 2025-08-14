@@ -1,157 +1,170 @@
-import React, {useEffect} from 'react';
+import { useState, useEffect } from "react";
 import {
-    Box,
     Card,
-    CardActionArea,
-    CardMedia,
     CardContent,
-    Typography,
-    Chip,
-} from '@mui/material';
+    CardMedia,
+    Box,
+    IconButton
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
+import { TextTitle, TextSecondary } from "../utils/typography";
 
-function MenuItemCardHorizontal({ group, onSelect, isBestSellerBlock }) {
+const colorText = "#1A1A1A";
+const colorWhite = "#ffffff";
+const highlightColor = "#E44B4C";
+
+function MenuItemCardHorizontal({
+                                    group,
+                                    onSelect,
+                                    handleAddToCart,
+                                    handleRemoveItemFromCart,
+                                    handleChangeQuantity,
+                                    cartItems
+                                }) {
+    const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
+    const { name, price, photo } = defaultItem;
+    const displayPrice = `${price}`;
+    const [selected, setSelected] = useState(false);
+    const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
+    const cartItem = cartItems.find(i => i.name === name);
+
+    const handleClick = () => {
+        if (isSimpleGroup) {
+            if (!selected) {
+                handleAddToCart({
+                    ...defaultItem,
+                    amount: price,
+                    quantity: 1
+                });
+            }
+        } else {
+            if (onSelect) onSelect(group);
+        }
+    };
+
+    useEffect(() => {
+        if (cartItem && isSimpleGroup) setSelected(true);
+        if (!cartItem && isSimpleGroup) setSelected(false);
+    }, [cartItem, isSimpleGroup]);
+
     if (!group || !group.items || group.items.length === 0) {
         console.error("Invalid group passed to MenuItemCardHorizontal:", group);
         return null;
     }
 
-    const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
-    const { category, name, description, price, photo, isBestSeller } = defaultItem;
-    const displayPrice = ["Pizzas", "Combo Deals"].includes(category)
-        ? `from ${price}`
-        : `${price}`;
 
-    // Brand colors
-    const colorRed = '#E44B4C';
-    const colorBeige = '#FCF4DD';
-
-    const handleClick = () => {
-        if (onSelect) {
-            onSelect(group);
+    const handleQuantityChange = (delta) => {
+        const newQty = (cartItem?.quantity || 1) + delta;
+        if (newQty <= 0) {
+            handleRemoveItemFromCart(cartItem);
+        } else {
+            handleChangeQuantity(cartItem, newQty);
         }
     };
 
     return (
         <Card
-            elevation={0}
-            sx={{
-                display: 'flex',
-                alignItems: 'center',
-                borderRadius: 0,
-                borderBottom: '1px solid #ddd',
-                mb: 2,
-            }}
             onClick={handleClick}
+            sx={{
+                borderRadius: 3,
+                border: selected ? `2px solid ${highlightColor}` : "2px solid transparent",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                width: 160,
+                cursor: "pointer",
+                overflow: "hidden",
+                flexShrink: 0,
+                mx: 0.65,
+                transition: "border 0.2s ease-in-out"
+            }}
         >
-            <CardActionArea
+            <CardMedia
+                component="img"
+                image={photo}
+                alt={name}
                 sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    p: 2
+                    width: "100%",
+                    height: 180,
+                    objectFit: "contain",
+                    backgroundColor: "#fff",
                 }}
-            >
-                {/* Image container with 'BEST SELLER' chip */}
-                <Box sx={{ position: 'relative', width: 120, height: 120, mr: 2 }}>
-                    <CardMedia
-                        component="img"
-                        image={photo}
-                        alt={name}
-                        sx={{
-                            width: 120,
-                            height: 120,
-                            objectFit: 'cover',
-                        }}
-                    />
-                    {category === 'Brick Pizzas' && (
-                        <Chip
-                            label="New"
-                            size="medium"
+            />
+
+            <CardContent sx={{ px: 1.5, py: 1 , '&:last-child': { pb: 0.2 }}}>
+                <TextTitle
+                    sx={{
+                        fontSize: "1rem",
+                        // fontWeight: 600,
+                        lineHeight: 1.3,
+                        mb: 1,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        minHeight: "2.6em",
+                    }}
+                >
+                    {name}
+                </TextTitle>
+
+                <Box
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontWeight: 600,
+                        color: colorText,
+                    }}
+                >
+                    < TextSecondary>{displayPrice}</TextSecondary>
+
+                    {!isSimpleGroup ? (
+                        <Box
+                            component="span"
                             sx={{
-                                position: 'absolute',
-                                top: 4,
-                                right: 8,
-                                backgroundColor: colorRed,
-                                color: '#fff',
-                                fontWeight: 'bold',
-                                fontSize: '10px',
-                                py: 0.2,
-                                px: 0.5,
-                                borderRadius: 4,
-                                height: 18,
-                                width: 32,
-                                '.MuiChip-label': {
-                                    p: 0,
-                                    lineHeight: '24px'
-                                }
+                                display: "inline-block",
+                                width: 14,
+                                height: 14,
+                                borderRight: "2px solid #ccc",
+                                borderBottom: "2px solid #ccc",
+                                transform: "rotate(-45deg)",
+                                mt: "2px"
                             }}
                         />
-                    )}
-                    {!isBestSellerBlock && isBestSeller && (
-                        <Chip
-                            label="BEST SELLER"
-                            size="small"
-                            sx={{
-                                position: 'absolute',
-                                top: 4,
-                                right: 8,
-                                backgroundColor: colorRed,
-                                color: '#fff',
-                                fontWeight: 'bold',
-                                fontSize: '8px',
-                                py: 0.2,
-                                px: 0.5,
-                                borderRadius: 4,
-                                height: 18,
-                                '.MuiChip-label': {
-                                    p: 0,
-                                    lineHeight: '18px'
-                                }
-                            }}
-                        />
+                    ) : (
+                        cartItem ? (
+                            <Box
+                                onClick={e => e.stopPropagation()}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 0.5,
+                                    borderRadius: 99,
+                                }}
+                            >
+                                <IconButton
+                                    size="small"
+                                    onClick={() => handleQuantityChange(-1)}
+                                    sx={{ p: 0.5 }}
+                                >
+                                    <RemoveIcon fontSize="small" />
+                                </IconButton>
+                                <TextSecondary>{cartItem.quantity}</TextSecondary>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => handleQuantityChange(1)}
+                                    sx={{ p: 0.5 }}
+                                >
+                                    <AddIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        ) : (
+                            <AddIcon fontSize="small" />
+                        )
                     )}
                 </Box>
-
-                {/* Text content */}
-                <CardContent sx={{ p: 0, flex: 1 }}>
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
-                        {name}
-                    </Typography>
-
-                    {/* Limit description to 3 lines */}
-                    <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                            mb: 1,
-                            lineHeight: 1.4,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                            textOverflow: 'ellipsis',
-                        }}
-                    >
-                        {description}
-                    </Typography>
-
-                    {/* Price pill */}
-                    <Box
-                        sx={{
-                            display: 'inline-block',
-                            backgroundColor: colorBeige,
-                            color: colorRed,
-                            px: 2,
-                            py: 0.5,
-                            borderRadius: 4,
-                            fontWeight: 'bold',
-                            fontSize: '14px',
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-                        }}
-                    >
-                        {displayPrice}
-                    </Box>
-                </CardContent>
-            </CardActionArea>
+            </CardContent>
         </Card>
     );
 }
