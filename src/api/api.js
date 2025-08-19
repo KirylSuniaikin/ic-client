@@ -1,6 +1,6 @@
 
 export var PROD_BASE_HOST = "https://ic-pizza-back.onrender.com/api";
-export var DEV_BASE_HOST = "https://leopard-climbing-rooster.ngrok-free.app/api" ;
+export var DEV_BASE_HOST = "https://localhost:8000/api" ;
 export const PROD_SOCKET_URL = "https://ic-pizza-back.onrender.com";
 export const DEV_SOCKET_URL = "http://localhost:8000";
 
