@@ -176,7 +176,7 @@ function CartItemHorizontal({
                     }}
                     fullWidth
                 >
-                    {["S", "M", "L"].map((label) => (
+                    {allowedDough(item.isThinDough).map((label) => (
                         <ToggleButton key={label} value={label} sx={{
                             textTransform: "none",
                             fontSize: "16px",
@@ -267,6 +267,11 @@ function CartItemHorizontal({
             </Box>
         </Box>
     );
+}
+
+function allowedDough(isThinDough) {
+    if (isThinDough) return ['M','L']
+    else return ['S','M','L']
 }
 
 export default CartItemHorizontal;
