@@ -12,6 +12,8 @@ import {useNavigate} from "react-router-dom";
 import {useState} from "react";
 
 
+const colorRed = '#E44B4C';
+const colorBeige = '#FCF4DD';
 
 function formatTime(isoString) {
     const date = new Date(isoString);
@@ -36,7 +38,7 @@ function renderComboDescription(desc) {
                     <Typography
                         key={i}
                         variant="body2"
-                        sx={{ color: "text.secondary", ml: 1 }}
+                        sx={{ color: colorRed, ml: 1 }}
                     >
                         + {extra}
                     </Typography>
@@ -70,7 +72,7 @@ function renderItemDetails(item) {
                 <Typography
                     key={idx}
                     variant="body2"
-                    sx={{ color: "text.secondary" }}
+                    sx={{ color: colorRed }}
                 >
                     + {extra}
                 </Typography>
@@ -84,8 +86,6 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
 
-    const colorRed = '#E44B4C';
-    const colorBeige = '#FCF4DD';
     const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
     const handlePaymentTypeChange = async (orderId, newType) => {

@@ -1,8 +1,6 @@
 import {useEffect, useRef, useState} from "react";
-import {Badge, Box, CardMedia, Fab, IconButton, Typography} from "@mui/material";
+import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import jahezLogo from "./assets/jahez-logo.png";
-import talabatLogo from "./assets/talabat-logo.png";
 import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
@@ -21,8 +19,10 @@ import CrossSellPopup from "./components/CrossSellPopup";
 import {groupAvailableItemsByName} from "./utils/menu_service";
 import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWorkingHours";
 import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
+import {TextButton, TextGroup, TextTitle} from "./utils/typography";
 
 const brandRed = "#E44B4C";
+const colorBeige = '#FCF4DD';
 
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
@@ -128,7 +128,7 @@ function HomePage({userParam}) {
                 const baseInfo = await fetchBaseAppInfo(userParam);
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
-                if(baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user"){
+                if (baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user") {
                     setUsername(baseInfo.userInfo.name)
                 }
                 if (baseInfo.userInfo && baseInfo.userInfo.phone) {
@@ -214,6 +214,16 @@ function HomePage({userParam}) {
         console.log(extras)
         return extras;
     }
+
+    const totalPrice = cartItems
+        ? cartItems.reduce((acc, i) => {
+            const discount = i.discount || 0;
+            const discountedPrice = i.amount * (1 - discount / 100);
+            return acc + discountedPrice * i.quantity;
+        }, 0).toFixed(2)
+        : 0;
+
+
     useEffect(() => {
         if (cartItems.length === 0) {
             setCartOpen(false);
@@ -224,7 +234,15 @@ function HomePage({userParam}) {
     if (loading) return <PizzaLoader/>;
     if (error) return <div>Error: {error}</div>;
 
-    const {bestsellers, brickPizzas, combos, pizzas, sides, beverages, sauces} = groupItemsByCategory(groupAvailableItemsByName(menuData));
+    const {
+        bestsellers,
+        brickPizzas,
+        combos,
+        pizzas,
+        sides,
+        beverages,
+        sauces
+    } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
     function getGeneralCrossSellItems() {
         return generalCrossSell
@@ -307,7 +325,7 @@ function HomePage({userParam}) {
 
         handleClosePizzaPopup();
         handleCloseComboPopup();
-        if(items[0]){
+        if (items[0]) {
             window.ttq.track('AddToCart', {
                 content_id: items[0].name,
                 content_type: 'product',
@@ -336,7 +354,7 @@ function HomePage({userParam}) {
         );
     }
 
-    function handleChangeSize(item, newSize){
+    function handleChangeSize(item, newSize) {
         const sameItems = getSameItems(item.name)
         const matched = sameItems ? sameItems.find(it => it.size === newSize) : null;
         const newBasePrice = matched ? matched.price : (item.sizes?.[newSize] || item.price || 0);
@@ -410,7 +428,7 @@ function HomePage({userParam}) {
         }
         if (paymentMethod === null) {
             setCartOpen(false);
-            if(isAdmin){
+            if (isAdmin) {
                 setAdminOrderDetailsPopUpOpen(true);
             } else setPhonePopupOpen(true);
         } else if (isAdmin && isEditMode) {
@@ -500,9 +518,185 @@ function HomePage({userParam}) {
     }
 
     return (
-        <Box sx={{p: 2}}>
-            {
-                !pizzaPopupOpen &&
+        <Box sx={{backgroundColor: "#fbfaf6"}}>
+            {!isAdmin && (
+                <Box
+                    sx={{
+                        position: "relative",
+                        width: "100%",
+                        height: { xs: "45vh", sm: "55vh", md: "70vh" },
+                        overflow: "hidden",
+                        backgroundColor: "#fbfaf6",
+                        mb: 0,
+                    }}
+                >
+                    <Box
+                        component="video"
+                        src="/videos/header2.mp4"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        sx={{
+                            position: "absolute",
+                            display: "block",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            zIndex: 0
+                        }}
+                    />
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            bottom: 0,
+                            width: "100%",
+                            height: "40%",
+                            background: "#fbfaf6",
+                            maskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))",
+                            WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))",
+                            pointerEvents: "none",
+                            zIndex: 1
+                        }}
+                    />
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            bottom: 18,
+                            left: 0,
+                            width: "100%",
+                            zIndex: 2,
+                            display: "flex",
+                            justifyContent: "center",
+                            pointerEvents: "none",
+                        }}
+                    >
+                        <TextTitle>BETTER THAN YOU THINK</TextTitle>
+                    </Box>
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            top: 16,
+                            right: 16,
+                            zIndex: 2,
+                            display: "flex",
+                            gap: 1
+                        }}
+                    >
+                        <Fab
+                            size="medium"
+                            onClick={() => window.open("https://www.talabat.com/bahrain/ic-pizza", "_blank")}
+                            sx={{
+                                p: 0,
+                                minHeight: "unset",
+                                minWidth: "unset",
+                                width: 40,
+                                height: 40,
+                                borderRadius: "50%",
+                                backgroundColor: "transparent",
+                                boxShadow: "none",
+                                "&:hover": {
+                                    backgroundColor: "transparent",
+                                },
+                            }}
+                        >
+                            <Box
+                                component="img"
+                                src="/talabat-logo.png"
+                                alt="Talabat"
+                                sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    borderRadius: "50%",
+                                    display: "block",
+                                }}
+                            />
+                        </Fab>
+
+                        <Fab
+                            size="medium"
+                            onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
+                            sx={{
+                                p: 0,
+                                minHeight: "unset",
+                                minWidth: "unset",
+                                width: 40,
+                                height: 40,
+                                borderRadius: "50%",
+                                boxShadow: "none",
+
+                            }}
+                        >
+                            <Box
+                                component="img"
+                                src="/jahez-logo.png"
+                                alt="Jahez"
+                                sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "contain",
+                                    borderRadius: "50%",
+                                    display: "block",
+                                    padding: "3px"
+                                }}
+                            />
+                        </Fab>
+                    </Box>
+                </Box>
+            )}
+            <Box sx={{ pt: 1.3, pb: 12 }}>
+                {[
+                    { title: "Bestsellers", items: bestsellers, isBestSellerBlock: true },
+                    { title: "Detroit Brick Pizzas", items: brickPizzas },
+                    { title: "Combo Deals", items: combos },
+                    { title: "Pizzas", items: pizzas },
+                    { title: "Sides", items: sides },
+                    { title: "Sauces", items: sauces },
+                    { title: "Beverages", items: beverages },
+                ]
+                    .filter(({ items }) => items.length > 0)
+                    .map((section, idx, arr) => {
+                        const isLast = idx === arr.length - 1;
+
+                        return (
+                            <Box key={section.title} sx={{ pb: isLast ? 1 : 4 }}>
+                                <TextGroup sx={{ px: 1.5, pb: 1 }}>{section.title}</TextGroup>
+
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        overflowX: "auto",
+                                        px: 0.2,
+                                        scrollSnapType: "x mandatory",
+                                        "&::-webkit-scrollbar": { display: "none" },
+                                    }}
+                                >
+                                    {section.items.map(group => (
+                                        <Box
+                                            key={group.name}
+                                            sx={{ flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}
+                                        >
+                                            <MenuItemCardHorizontal
+                                                group={group}
+                                                onSelect={handleOpenPopup}
+                                                isBestSellerBlock={section.isBestSellerBlock}
+                                                handleRemoveItemFromCart={handleRemoveItemFromCart}
+                                                handleAddToCart={handleAddToCart}
+                                                handleChangeQuantity={handleChangeQuantity}
+                                                cartItems={cartItems}
+                                            />
+                                        </Box>
+                                    ))}
+                                </Box>
+                            </Box>
+                        );
+                    })}
+            </Box>
+
+            {!pizzaPopupOpen &&
                 !comboPopupOpen &&
                 !genericPopupOpen &&
                 !cartOpen &&
@@ -532,206 +726,7 @@ function HomePage({userParam}) {
                             <CloseIcon sx={{fontSize: 28, color: "#E44B4C"}}/>
                         </IconButton>
                     </Box>
-
-
                 )}
-            {!isAdmin && (
-                <Box sx={{display: "flex", flexDirection: "column", gap: 1, mb: 3}}>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            p: 2,
-                            borderRadius: 2,
-                            backgroundColor: "#fff",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                            cursor: "pointer"
-                        }}
-                        onClick={() => window.open("https://www.talabat.com/bahrain/ic-pizza", "_blank")}
-                    >
-                        <Box
-                            sx={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: "50%",
-                                backgroundColor: "#fff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                mr: 2
-                            }}
-                        >
-                            <CardMedia
-                                component="img"
-                                image={talabatLogo}
-                                alt="Jahez"
-                                sx={{
-                                    width: 30,
-                                    height: 30,
-                                    objectFit: "contain",
-                                    borderRadius: "50%"
-                                }}
-                            />
-                        </Box>
-                        <Typography variant="body2" fontWeight="bold">
-                            Available on Talabat
-                        </Typography>
-                    </Box>
-
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            p: 2,
-                            borderRadius: 2,
-                            backgroundColor: "#fff",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                            cursor: "pointer"
-                        }}
-                        onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
-                    >
-                        <Box
-                            sx={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: "50%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                mr: 2
-                            }}
-                        >
-                            <CardMedia
-                                component="img"
-                                image={jahezLogo}
-                                alt="Jahez"
-                                sx={{
-                                    width: 40,
-                                    height: 40,
-                                    objectFit: "contain",
-                                    borderRadius: "50%"
-                                }}
-                            />
-                        </Box>
-                        <Typography variant="body2" fontWeight="bold">
-                            Available on Jahez
-                        </Typography>
-                    </Box>
-                </Box>
-            )}
-
-            {/* BESTSELLERS */}
-            {bestsellers.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Bestsellers
-                    </Typography>
-                    {bestsellers.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                            isBestSellerBlock={true}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* BRICK PIZZAS */}
-            {brickPizzas.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Detroit Brick Pizzas
-                    </Typography>
-                    {brickPizzas.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* COMBO DEALS */}
-            {combos.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Combo Deals
-                    </Typography>
-                    {combos.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* PIZZAS */}
-            {pizzas.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Pizzas
-                    </Typography>
-                    {pizzas.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* SIDES */}
-            {sides.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Sides
-                    </Typography>
-                    {sides.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* SAUCES */}
-            {sauces.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Sauces
-                    </Typography>
-                    {sauces.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
-
-            {/* BEVERAGES */}
-            {beverages.length > 0 && (
-                <Box sx={{mb: 2}}>
-                    <Typography fontWeight="bold" variant="h6">
-                        Beverages
-                    </Typography>
-                    {beverages.map(group => (
-                        <MenuItemCardHorizontal
-                            key={group.name}
-                            group={group}
-                            onSelect={handleOpenPopup}
-                        />
-                    ))}
-                </Box>
-            )}
 
             {pizzaPopupOpen && <PizzaPopup
                 open={pizzaPopupOpen}
@@ -813,45 +808,99 @@ function HomePage({userParam}) {
                 setCartItems={setCartItems}
             />}
 
-            {!isAdmin &&
-                showOrderConfirmed && (
+            {!isAdmin && showOrderConfirmed && (
                     <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
                 )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&
-                <Fab
-                    onClick={handleOpenCart}
+            {/*{!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&*/}
+            {/*    <Fab*/}
+            {/*        onClick={handleOpenCart}*/}
+            {/*{!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&*/}
+            {/*    <Fab*/}
+            {/*        onClick={handleOpenCart}*/}
+            {/*        sx={{*/}
+            {/*            position: "fixed",*/}
+            {/*            backgroundColor: "#fff",*/}
+            {/*            bottom: 16,*/}
+            {/*            right: 16,*/}
+            {/*            zIndex: 9999,*/}
+            {/*            color: brandRed,*/}
+            {/*            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",*/}
+            {/*            "&:hover": {*/}
+            {/*                backgroundColor: "#F0F0F0",*/}
+            {/*            }*/}
+            {/*        }}*/}
+            {/*    >*/}
+            {/*        <Badge*/}
+            {/*            badgeContent={cartItems.length}*/}
+            {/*            color="error"*/}
+            {/*            sx={{*/}
+            {/*                "& .MuiBadge-badge": {*/}
+            {/*                    fontSize: "14px",*/}
+            {/*                    height: "25px",*/}
+            {/*                    minWidth: "25px",*/}
+            {/*                    backgroundColor: brandRed,*/}
+            {/*                    color: "white",*/}
+            {/*                    top: 0,*/}
+            {/*                    right: 0*/}
+            {/*                }*/}
+            {/*            }}*/}
+            {/*        >*/}
+            {/*            <ShoppingCartIcon fontSize="large"/>*/}
+            {/*        </Badge>*/}
+            {/*    </Fab>*/}
+            {/*}*/}
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+            <Box
+                onClick={handleOpenCart}
+                sx={{
+                    position: "fixed",
+                    bottom: 24,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: "70vw",
+                    maxWidth: 400,
+                    zIndex: 9999,
+                    px: 3,
+                    py: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderRadius: 999,
+                    backdropFilter: "blur(8px)",
+                    backgroundColor: "rgba(255, 255, 255, 0.7)",
+                    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                    cursor: "pointer",
+                    transition: "background-color 0.3s",
+                    "&:hover": {
+                        backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    },
+                }}
+            >
+                {totalPrice && totalPrice != 0 && <Box sx={{ flexGrow: 1, textAlign: "center" }}>
+                    <TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>
+                        {totalPrice} BHD
+                    </TextButton>
+                </Box>}
+
+                <Badge
+                    badgeContent={cartItems.length}
+                    color="error"
                     sx={{
-                        position: "fixed",
-                        backgroundColor: "#fff",
-                        bottom: 16,
-                        right: 16,
-                        zIndex: 9999,
-                        color: brandRed,
-                        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",
-                        "&:hover": {
-                            backgroundColor: "#F0F0F0",
-                        }
+                        "& .MuiBadge-badge": {
+                            fontSize: "12px",
+                            height: "22px",
+                            minWidth: "22px",
+                            backgroundColor: brandRed,
+                            color: "white",
+                            top: 2,
+                            right: 2,
+                        },
                     }}
                 >
-                    <Badge
-                        badgeContent={cartItems.length}
-                        color="error"
-                        sx={{
-                            "& .MuiBadge-badge": {
-                                fontSize: "14px",
-                                height: "25px",
-                                minWidth: "25px",
-                                backgroundColor: brandRed,
-                                color: "white",
-                                top: 0,
-                                right: 0
-                            }
-                        }}
-                    >
-                        <ShoppingCartIcon fontSize="large"/>
-                    </Badge>
-                </Fab>
+                    <ShoppingCartIcon sx={{ color: brandRed, fontSize: 32 }} />
+                </Badge>
+            </Box>
             }
         </Box>
     );
