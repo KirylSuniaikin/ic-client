@@ -276,7 +276,7 @@ function HomePage({userParam}) {
     }
 
     const handleOpenCart = () => {
-        if (!isWithinWorkingHours()) {
+        if (!isWithinWorkingHours() && !isAdmin) {
             setClosedPopupOpen(true);
         } else {
             setCartOpen(true);
@@ -850,7 +850,7 @@ function HomePage({userParam}) {
             {/*        </Badge>*/}
             {/*    </Fab>*/}
             {/*}*/}
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&
             <Box
                 onClick={handleOpenCart}
                 sx={{
