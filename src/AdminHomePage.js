@@ -60,7 +60,7 @@ function AdminHomePage() {
                 socket.on("order_created", (newOrder, callback) => {
                     console.log("✅ New order received", newOrder);
                     setOrders(prev => {
-                        const exists = prev.find(o => o.orderId === newOrder.orderId);
+                        const exists = prev.find(o => o.id === newOrder.id);
                         return exists ? prev : [...prev, newOrder];
                     });
                     setActiveAlertOrder(newOrder);
