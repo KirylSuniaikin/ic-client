@@ -1,10 +1,9 @@
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
 import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
-import {DEV_SOCKET_URL, fetchLastStage, getAllActiveOrders, PROD_SOCKET_URL,} from "./api/api";
+import {DEV_BASE_HOST, fetchLastStage, getAllActiveOrders, PROD_BASE_HOST} from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
-import { io } from "socket.io-client";
 import alertSound from "./assets/alert2.mp3";
 import CloseIcon from "@mui/icons-material/Close";
 import HistoryComponent from "./adminComponents/HistoryComponent";
@@ -13,6 +12,8 @@ import StatisticsComponent from "./adminComponents/StatisticsComponent";
 import AdminTopbar from "./adminComponents/AdminTopbar";
 import ShiftPopup from "./components/shiftComponents/ShiftPopup";
 import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -24,11 +25,14 @@ function AdminHomePage() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const navigate = useNavigate();
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
-    const [audioRef] = useState(new Audio(alertSound));
+    const [newlyAddedOrder, setNewlyAddedOrder] = useState(null);
     const [audioAllowed, setAudioAllowed] = useState(false);
     const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
     const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [cashWarning, setCashWarning] = useState(null);
+
+    const audioRef = useRef(null);
+
 
     const branchId = "1";
     const STAGE_FLOW = {
@@ -38,6 +42,7 @@ function AdminHomePage() {
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     };
 
+    const WS_URL = PROD_BASE_HOST.replace(/\/api$/, "") + "/ws";
     const colorRed = '#E44B4C';
 
     useClosingAlarm(audioAllowed);
@@ -46,57 +51,110 @@ function AdminHomePage() {
         setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
     }
 
-    useEffect(() => {
-        let socket;
+    const SUPPRESS_KEY = 'suppressSoundIds';
+    const normalizeId = (x) => String(x);
 
+    const suppressedSoundIdsRef = useRef(new Set());
+    const stompRef = useRef(null);
+
+    useEffect(() => {
+        audioRef.current = new Audio(alertSound);
+        audioRef.current.loop = true;
+    }, []);
+
+    useEffect(() => {
+        if (!newlyAddedOrder || !audioRef.current) return;
+
+        const id = normalizeId(newlyAddedOrder.id);
+        const suppressed = suppressedSoundIdsRef.current.has(id);
+
+        console.log(suppressedSoundIdsRef.current);
+        if (suppressed) {
+            suppressedSoundIdsRef.current.delete(id);
+            localStorage.setItem(SUPPRESS_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
+            console.log(`[SUPPRESS] ID ${id} was removed from localStorage.`);
+        } else {
+            console.log(`[AUDIO] Playing sound for new order ID: ${id}`);
+            setActiveAlertOrder(newlyAddedOrder);
+            audioRef.current.currentTime = 0;
+            audioRef.current.play()
+                .then(() => console.log('[AUDIO] playing'))
+                .catch(e => console.warn('[AUDIO] play() blocked/error:', e));
+        }
+
+        setNewlyAddedOrder(null);
+    }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
+
+    useEffect(() => {
         async function initialize() {
             try {
                 setLoading(true);
                 const response = await getAllActiveOrders();
+                try {
+                    const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
+                    suppressedSoundIdsRef.current = new Set(arr.map(String));
+                } catch {
+                    suppressedSoundIdsRef.current = new Set();
+                }
                 setOrders(response.orders);
+                console.log(response.orders);
 
-                socket = io(PROD_SOCKET_URL, {transports: ["websocket"]});
+                if (stompRef.current?.active) {
+                    stompRef.current.deactivate().catch(() => {});
+                }
 
-                socket.on("order_created", (newOrder, callback) => {
-                    console.log("✅ New order received", newOrder);
-                    setOrders(prev => {
-                        const exists = prev.find(o => o.id === newOrder.id);
-                        return exists ? prev : [...prev, newOrder];
+                const socket = new Client({
+                    webSocketFactory: () => new SockJS(WS_URL),
+                    reconnectDelay: 5000,
+                    heartbeatIncoming: 10000,
+                    heartbeatOutgoing: 10000,
+                    debug: (msg) => console.log('[STOMP]', msg),
+                });
+                stompRef.current = socket;
+
+                socket.onConnect = () => {
+                    console.log('🟢 STOMP connected');
+
+                    socket.subscribe('/topic/orders', (frame) => {
+                        const newOrder = JSON.parse(frame.body);
+                        const id = normalizeId(newOrder.id);
+
+                        try {
+                            const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
+                            suppressedSoundIdsRef.current = new Set(arr.map(String));
+                        } catch {
+                            suppressedSoundIdsRef.current = new Set();
+                        }
+
+                        const suppressed = suppressedSoundIdsRef.current.has(id);
+                        console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
+
+                        setOrders(prev => {
+                            const exists = prev.some(o => normalizeId(o.id) === id);
+                            if (exists) {
+                                return prev;
+                            }
+
+                            setNewlyAddedOrder(newOrder);
+
+                            return [...prev, newOrder];
+                        });
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: newOrder.id}),
+                        });
                     });
-                    setActiveAlertOrder(newOrder);
-                    if (audioRef) {
-                        audioRef.loop = true;
-                        audioRef.play().catch((e) => console.warn("🎧 Не удалось воспроизвести звук:", e));
-                    }
-                    if (callback) {
-                        callback("OK!");
-                        console.log("🔔 Sent ACK to server");
-                    }
-                });
 
-                socket.on("test_push", (data) => {
-                    console.log("💙 Heartbeat from server:", data);
-                });
+                    socket.subscribe('/topic/order-updates', (frame) => {
+                        const updatedOrder = JSON.parse(frame.body);
+                        console.log('♻️ Updated order', updatedOrder);
+                        setOrders(prev => prev.map(o => o.orderId === updatedOrder.orderId ? updatedOrder : o));
+                    });
+                };
 
-                socket.on("order_updated", (updatedOrder) => {
-                    console.log("♻️ Заказ обновлён:", updatedOrder);
-                    setOrders(prev =>
-                        prev.map(order =>
-                            order.orderId === updatedOrder.orderId ? updatedOrder : order
-                        )
-                    );
-                });
-                socket.on("connect", () => {
-                    console.log("🟢 WebSocket подключён");
-                    socket.emit("join_room", "orders_room");
-                });
-
-
-                socket.on("disconnect", () => {
-                    console.log("🔴 WebSocket отключён");
-                });
-            } catch (err) {
-                setError(err.message);
+                socket.onWebSocketClose = () => console.log('🔴 WS disconnected');
+                socket.activate();
             } finally {
                 setLoading(false);
             }
@@ -122,17 +180,17 @@ function AdminHomePage() {
         initialize();
 
         return () => {
-            if (socket) socket.disconnect();
+            const c = stompRef.current;
+            stompRef.current = null;
+            c?.deactivate?.().catch(() => {});
         };
-    }, []);
+    }, [getAllActiveOrders]);
 
     if (loading) {
         return <PizzaLoader/>;
     }
 
-
     if (error) return <div>Error: {error}</div>;
-
 
     const sortedOrders = orders.sort(
         (a, b) => new Date(b.order_created) - new Date(a.order_created)
@@ -247,9 +305,9 @@ function AdminHomePage() {
                     </Box>
                     <IconButton
                         onClick={() => {
-                            if (audioRef) {
-                                audioRef.pause();
-                                audioRef.currentTime = 0;
+                            if (audioRef.current) {
+                                audioRef.current.pause();
+                                audioRef.current.currentTime = 0;
                             }
                             setActiveAlertOrder(null);
                         }}
@@ -288,10 +346,10 @@ function AdminHomePage() {
                     </Box>
                     <Button
                         onClick={() => {
-                            audioRef.play()
+                            audioRef.current.play()
                                 .then(() => {
-                                    audioRef.pause();
-                                    audioRef.currentTime = 0;
+                                    audioRef.current.pause();
+                                    audioRef.current.currentTime = 0;
                                     setAudioAllowed(true);
                                 })
                                 .catch(err => {
