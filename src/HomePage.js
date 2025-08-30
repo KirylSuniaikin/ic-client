@@ -490,6 +490,18 @@ function HomePage({userParam}) {
                     setCartItems([]);
                     isAdminConfirmedRef.current = false;
                     response = await createOrder(order)
+                    const SUPPRESS_KEY = 'suppressSoundIds';
+                    const createdId = String(response.id);
+                    console.log("Received id " +createdId);
+                    if (createdId != null) {
+                        try {
+                            const list = [createdId];
+
+                            localStorage.setItem(SUPPRESS_KEY, JSON.stringify(list));
+                            console.log("LocalStorage updated with new suppressed ID: " + createdId);
+                        } catch (e) {
+                        }
+                    }
                     setLoading(false)
                     navigate("/admin/")
                     window.ttq.identify({
