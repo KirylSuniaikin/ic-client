@@ -123,7 +123,7 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                         <strong>Time:</strong> {formattedTime}
                     </Typography>
                     <Typography variant="body2">
-                        <strong>Customer Info:</strong> {order.customer_name || "—"} ({order.phone_number})
+                        <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                     </Typography>
                     <Typography variant="body2" color={colorRed}>
                         <strong>Notes:</strong> {order.notes}

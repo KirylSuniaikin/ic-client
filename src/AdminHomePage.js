@@ -2,7 +2,14 @@ import {useEffect, useRef, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
 import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
-import {DEV_BASE_HOST, fetchLastStage, getAllActiveOrders, PROD_BASE_HOST} from "./api/api";
+import {
+    DEV_BASE_HOST,
+    DEV_SOCKET_URL,
+    fetchLastStage,
+    getAllActiveOrders,
+    PROD_BASE_HOST,
+    PROD_SOCKET_URL
+} from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import alertSound from "./assets/alert2.mp3";
 import CloseIcon from "@mui/icons-material/Close";
@@ -42,7 +49,6 @@ function AdminHomePage() {
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     };
 
-    const WS_URL = PROD_BASE_HOST.replace(/\/api$/, "") + "/ws";
     const colorRed = '#E44B4C';
 
     useClosingAlarm(audioAllowed);
@@ -104,7 +110,20 @@ function AdminHomePage() {
                 }
 
                 const socket = new Client({
-                    webSocketFactory: () => new SockJS(WS_URL),
+                    webSocketFactory: () => {
+                        const s = new SockJS(PROD_SOCKET_URL);
+                        const origSend = s.send.bind(s);
+                        s.send = (d) => {
+                            if (d === '\n') console.log('♥ OUT heartbeat');
+                            return origSend(d);
+                        };
+                        const origOnMessage = s.onmessage;
+                        s.onmessage = (e) => {
+                            if (e?.data === '\n') console.log('♥ IN heartbeat');
+                            origOnMessage?.(e);
+                        };
+                        return s;
+                    },
                     reconnectDelay: 5000,
                     heartbeatIncoming: 10000,
                     heartbeatOutgoing: 10000,

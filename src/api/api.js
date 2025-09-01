@@ -1,8 +1,8 @@
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
-export var DEV_BASE_HOST = "http://localhost:8000/api" ;
-
-
+export var DEV_BASE_HOST = "http://localhost:8000/api";
+export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
+export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
 
 export async function fetchBaseAppInfo(userId) {
