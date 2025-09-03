@@ -5,12 +5,13 @@ import {
     CardContent,
     CardActions,
     Button,
-    Divider, Select, MenuItem
+    Divider, Select, MenuItem, IconButton
 } from "@mui/material";
 import {markOrderReady, updatePaymentType} from "../api/api";
 import {useNavigate} from "react-router-dom";
 import {useEffect, useState} from "react";
 
+import DeleteIcon from "@mui/icons-material/Delete";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -81,11 +82,10 @@ function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({ order, handleRemoveItem , isHistory = false}) {
+function OrderCard({ order, handleRemoveItem , isHistory = false, onDeleteClick, onPayClick = () => {}}) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
-
     const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
     const handlePaymentTypeChange = async (orderId, newType) => {
@@ -240,21 +240,42 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                     BHD {order.amount_paid}
                 </Typography>
                 <Box>
-                    {!isHistory && <Button
-                        variant="contained"
-                        size="small"
-                        sx=
-                            {{
-                            borderColor: colorBeige,
-                            color: colorRed,
+                    {!isHistory && order.status === "Paid" && (
+                        <Button
+                            variant="contained"
+                            size="small"
+                            sx=
+                                {{
+                                borderColor: colorBeige,
+                                color: colorRed,
                                 backgroundColor: "white",
-                            mr: 1,
-                            borderRadius: 4
-                        }}
-                        onClick={() => {markOrderReady(order.id).then(() => {handleRemoveItem?.(order.id)})}}>
-
-                        READY
-                    </Button>}
+                                mr: 1,
+                                borderRadius: 4
+                            }}
+                            onClick={() => {markOrderReady(order.id).then(() => {handleRemoveItem?.(order.id)})}}
+                        >
+                            READY
+                        </Button>
+                    )}
+                    {!isHistory && order.status === "Kitchen Phase" && (
+                        <Button
+                            variant="contained"
+                            size="small"
+                            sx=
+                                {{
+                                    borderColor: colorBeige,
+                                    color: colorRed,
+                                    backgroundColor: "white",
+                                    mr: 1,
+                                    borderRadius: 4
+                                }}
+                            onClick={() =>
+                                onPayClick(order)
+                            }
+                        >
+                            PAY
+                        </Button>
+                    )}
                     <Button
                         variant="outlined"
                         size="small"
@@ -270,6 +291,24 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                         }}>
                         EDIT
                     </Button>
+                    {isHistory && (
+                        <IconButton
+                            size="small"
+                            sx={{
+                                border: `1px solid ${colorRed}`,
+                                color: colorRed,
+                                borderRadius: 4,
+                                p: 0.5,
+                                ml: 0.5,
+                                "&:hover": {
+                                    backgroundColor: "rgba(228, 75, 76, 0.08)"
+                                }
+                            }}
+                            onClick={() => onDeleteClick(order)}
+                        >
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    )}
                 </Box>
             </CardActions>
         </Card>
