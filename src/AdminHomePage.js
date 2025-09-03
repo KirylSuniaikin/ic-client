@@ -21,6 +21,7 @@ import ShiftPopup from "./components/shiftComponents/ShiftPopup";
 import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import {Masonry} from "@mui/lab";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ function AdminHomePage() {
 
     const colorRed = '#E44B4C';
 
-    useClosingAlarm(audioAllowed);
+    useClosingAlarm(true);
 
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
@@ -269,9 +270,16 @@ function AdminHomePage() {
                 branchId={branchId}
                 onCashWarning={setCashWarning}
             />
-            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
-                <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem}/>
-            ))}
+
+            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
+                <Box sx={{ pt: 1, pl: 1 }}>
+                <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
+                    {sortedOrders.map((order) => (
+                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem}/>
+                    ))}
+                </Masonry>
+                </Box>
+            }
 
             {isHistoryOpen && (
                 <HistoryComponent
@@ -316,7 +324,7 @@ function AdminHomePage() {
                 >
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            New Order: {activeAlertOrder?.orderId}
+                            New Order: {activeAlertOrder?.id}
                         </Typography>
                         <Typography variant="body2">
                             Total price: {activeAlertOrder?.amount_paid} BHD
@@ -338,59 +346,59 @@ function AdminHomePage() {
                 </Paper>
             </Snackbar>
 
-            <Snackbar
-                open={!audioAllowed}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{ zIndex: 1400 }}
-            >
-                <Paper
-                    elevation={3}
-                    sx={{
-                        borderRadius: 3,
-                        p: 2,
-                        px: 3,
-                        backgroundColor: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                        width: "85vw",
-                        maxWidth: 600,
-                    }}
-                >
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            Enable sound for order and close shift alerts
-                        </Typography>
-                    </Box>
-                    <Button
-                        onClick={() => {
-                            audioRef.current.play()
-                                .then(() => {
-                                    audioRef.current.pause();
-                                    audioRef.current.currentTime = 0;
-                                    setAudioAllowed(true);
-                                })
-                                .catch(err => {
-                                    console.warn("Audio permission denied:", err);
-                                });
-                        }}
-                        variant="outlined"
-                        sx={{
-                            textTransform: "uppercase",
-                            borderColor: colorRed,
-                            color: colorRed,
-                            fontWeight: 600,
-                            borderRadius: 3,
-                            px: 2.5,
-                            py: 0.5,
-                            minWidth: 80,
-                        }}
-                    >
-                        ENABLE
-                    </Button>
-                </Paper>
-            </Snackbar>
+            {/*<Snackbar*/}
+            {/*    open={!audioAllowed}*/}
+            {/*    anchorOrigin={{ vertical: "top", horizontal: "center" }}*/}
+            {/*    sx={{ zIndex: 1400 }}*/}
+            {/*>*/}
+            {/*    <Paper*/}
+            {/*        elevation={3}*/}
+            {/*        sx={{*/}
+            {/*            borderRadius: 3,*/}
+            {/*            p: 2,*/}
+            {/*            px: 3,*/}
+            {/*            backgroundColor: "#fff",*/}
+            {/*            display: "flex",*/}
+            {/*            alignItems: "center",*/}
+            {/*            gap: 2,*/}
+            {/*            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",*/}
+            {/*            width: "85vw",*/}
+            {/*            maxWidth: 600,*/}
+            {/*        }}*/}
+            {/*    >*/}
+            {/*        <Box sx={{ flexGrow: 1 }}>*/}
+            {/*            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>*/}
+            {/*                Enable sound for order and close shift alerts*/}
+            {/*            </Typography>*/}
+            {/*        </Box>*/}
+            {/*        <Button*/}
+            {/*            onClick={() => {*/}
+            {/*                audioRef.current.play()*/}
+            {/*                    .then(() => {*/}
+            {/*                        audioRef.current.pause();*/}
+            {/*                        audioRef.current.currentTime = 0;*/}
+            {/*                        setAudioAllowed(true);*/}
+            {/*                    })*/}
+            {/*                    .catch(err => {*/}
+            {/*                        console.warn("Audio permission denied:", err);*/}
+            {/*                    });*/}
+            {/*            }}*/}
+            {/*            variant="outlined"*/}
+            {/*            sx={{*/}
+            {/*                textTransform: "uppercase",*/}
+            {/*                borderColor: colorRed,*/}
+            {/*                color: colorRed,*/}
+            {/*                fontWeight: 600,*/}
+            {/*                borderRadius: 3,*/}
+            {/*                px: 2.5,*/}
+            {/*                py: 0.5,*/}
+            {/*                minWidth: 80,*/}
+            {/*            }}*/}
+            {/*        >*/}
+            {/*            ENABLE*/}
+            {/*        </Button>*/}
+            {/*    </Paper>*/}
+            {/*</Snackbar>*/}
         </div>
     );
 

@@ -421,7 +421,7 @@ function HomePage({userParam}) {
         paymentMethod = null,
         notes,
     ) {
-        if (!wasCrossSellShown) {
+        if (!wasCrossSellShown && !isAdmin) {
             setIsCrossSellOpen(true);
             setWasCrossSellShown(true);
             return;
@@ -438,12 +438,13 @@ function HomePage({userParam}) {
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 console.log(order)
                 await editOrder(order, orderToEdit.id);
-                await localStorage.removeItem("orderToEdit");
+                // await localStorage.removeItem("orderToEdit");
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
                 console.error(error);
             } finally {
+                await localStorage.removeItem("orderToEdit")
                 setLoading(false);
             }
         } else {
@@ -524,6 +525,9 @@ function HomePage({userParam}) {
             } catch (error) {
                 console.error("Error placing order:", error);
             } finally {
+                await localStorage.removeItem("orderToEdit")
+                setPhone("")
+                setUsername("")
                 setCartOpen(false);
             }
         }
@@ -824,44 +828,41 @@ function HomePage({userParam}) {
                     <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
                 )}
 
-            {/*{!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&*/}
-            {/*    <Fab*/}
-            {/*        onClick={handleOpenCart}*/}
-            {/*{!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&*/}
-            {/*    <Fab*/}
-            {/*        onClick={handleOpenCart}*/}
-            {/*        sx={{*/}
-            {/*            position: "fixed",*/}
-            {/*            backgroundColor: "#fff",*/}
-            {/*            bottom: 16,*/}
-            {/*            right: 16,*/}
-            {/*            zIndex: 9999,*/}
-            {/*            color: brandRed,*/}
-            {/*            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",*/}
-            {/*            "&:hover": {*/}
-            {/*                backgroundColor: "#F0F0F0",*/}
-            {/*            }*/}
-            {/*        }}*/}
-            {/*    >*/}
-            {/*        <Badge*/}
-            {/*            badgeContent={cartItems.length}*/}
-            {/*            color="error"*/}
-            {/*            sx={{*/}
-            {/*                "& .MuiBadge-badge": {*/}
-            {/*                    fontSize: "14px",*/}
-            {/*                    height: "25px",*/}
-            {/*                    minWidth: "25px",*/}
-            {/*                    backgroundColor: brandRed,*/}
-            {/*                    color: "white",*/}
-            {/*                    top: 0,*/}
-            {/*                    right: 0*/}
-            {/*                }*/}
-            {/*            }}*/}
-            {/*        >*/}
-            {/*            <ShoppingCartIcon fontSize="large"/>*/}
-            {/*        </Badge>*/}
-            {/*    </Fab>*/}
-            {/*}*/}
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && cartItems.length > 0 &&
+                <Fab
+                    onClick={handleOpenCart}
+                    sx={{
+                        position: "fixed",
+                        backgroundColor: "#fff",
+                        bottom: 16,
+                        right: 16,
+                        zIndex: 9999,
+                        color: brandRed,
+                        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",
+                        "&:hover": {
+                            backgroundColor: "#F0F0F0",
+                        }
+                    }}
+                >
+                    <Badge
+                        badgeContent={cartItems.length}
+                        color="error"
+                        sx={{
+                            "& .MuiBadge-badge": {
+                                fontSize: "14px",
+                                height: "25px",
+                                minWidth: "25px",
+                                backgroundColor: brandRed,
+                                color: "white",
+                                top: 0,
+                                right: 0
+                            }
+                        }}
+                    >
+                        <ShoppingCartIcon fontSize="large"/>
+                    </Badge>
+                </Fab>
+            }
             {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&
             <Box
                 onClick={handleOpenCart}

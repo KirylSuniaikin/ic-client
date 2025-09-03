@@ -4,6 +4,7 @@ import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import OrderCard from "./OrderCard";
 import {Box, IconButton} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import {Masonry} from "@mui/lab";
 
 
 function HistoryComponent({isOpen, onClose}) {
@@ -67,10 +68,13 @@ function HistoryComponent({isOpen, onClose}) {
 
 
                 )}
-            {sortedOrders.map((order) => (
-                <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true}/>
-            ))}
-
+            <Box sx={{ pt: 1, pl: 1 }}>
+            <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
+                {sortedOrders.map((order) => (
+                    <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true}/>
+                ))}
+            </Masonry>
+            </Box>
         </div>
     )
 }

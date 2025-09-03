@@ -48,6 +48,7 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
             setPaymentMethod(order.payment_type)
         }
     },[])
+
     function handleSave() {
         const regex = /^\d+$/;
 
