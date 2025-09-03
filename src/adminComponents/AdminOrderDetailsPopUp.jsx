@@ -1,5 +1,17 @@
 import React, {useEffect, useState} from "react";
-import {Box, Button, FormControl, InputLabel, MenuItem, Modal, Select, TextField, Typography} from "@mui/material";
+import {
+    Box,
+    Button,
+    Divider,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Modal,
+    Select,
+    TextField,
+    Typography
+} from "@mui/material";
+import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 
 const countries = [
     { name: "Bahrain", code: "973", digits: 8 },
@@ -18,11 +30,14 @@ const countries = [
 const deliveryOptions = ["Pick Up", "Talabat", "Delivery", "Jahez", "Ahlan"];
 const paymentOptions = ["Card (Through card machine)", "Cash", "Benefit"];
 
-const brandRed = "#E44B4C";
+const brandRed   = "#E44B4C";
+const grayText   = "#3A3A3A";
+const grayBorder = "#E0E0E0";
+const focusBorder= "#B0B0B0";
+const focusBg    = "#F0F0F0";
 
 
-
-function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, cartItems, setCartItems}) {
+export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, cartItems, setCartItems}) {
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState("");
     const [phoneError, setPhoneError] = useState("");
@@ -78,34 +93,68 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
         onClose?.();
     }
 
+    const drawerPaperSx = {
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        maxHeight: "92vh",
+        pb: 2
+    };
+
+    const fieldSx = {
+        mb: 2,
+        "& .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
+        "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
+        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#B0B0B0" },
+        "&.Mui-focused": { backgroundColor: focusBg }
+    };
+
+    const captionSx = { fontWeight: 700, color: grayText, mb: 1 };
+
 
     return (
-        <Modal open={isAdminOrderDetailsPopUpOpen} onClose={onClose}>
-            <Box
-                sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    backgroundColor: "#fff",
-                    p: 3,
-                    width: 300,
-                    borderRadius: 2,
-                    boxShadow: 24,
-                    outline: "none"
-                }}
-            >
-                <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
+        <SwipeableDrawer
+            anchor="bottom"
+            open={isAdminOrderDetailsPopUpOpen}
+            onClose={onClose}
+            onOpen={() => {}}
+            disableDiscovery
+            keepMounted
+            PaperProps={{
+                sx: {
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    maxHeight: "92vh",
+                }
+            }}
+        >
+            {/* drag handle */}
+            <Box sx={{ display: "flex", justifyContent: "center", pt: 1, pb: 0.5 }}>
+                <Box sx={{ width: 36, height: 4, borderRadius: 999, bgcolor: "grey.400" }} />
+            </Box>
+
+            {/* header */}
+            <Box sx={{ px: 2, pt: 0.5, pb: 1 }}>
+                <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 900, color: grayText, textAlign: "Center" }}
+                >
                     User Data
                 </Typography>
-                {/* Country select */}
+            </Box>
+
+            <Divider sx={{ borderColor: grayBorder, mb: 2 }} />
+
+            {/* content */}
+            <Box sx={{ px: 2, pt: 2, pb: 12, overflowY: "auto" }}>
+                {/* Country */}
                 <TextField
                     select
                     label="Country"
                     value={selectedCountry}
                     onChange={(e) => setSelectedCountry(e.target.value)}
                     fullWidth
-                    sx={{ mb: 2 }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 >
                     {countries.map((option) => (
                         <MenuItem key={option.name} value={option.name}>
@@ -113,39 +162,33 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                         </MenuItem>
                     ))}
                 </TextField>
-                {/* Phone number input */}
+
+                {/* Phone (optional) */}
                 <TextField
-                    label="Phone Number (optional)"
-                    variant="outlined"
+                    label={`Phone number (optional)`}
                     fullWidth
                     value={phoneDigits}
                     onChange={(e) => {
                         const val = e.target.value;
-                        if (/^\d*$/.test(val)) {
+                        if (/^\d*$/.test(val) && val.length <= countryObj.digits) {
                             setPhoneDigits(val);
                             setPhoneError("");
                         }
                     }}
                     error={Boolean(phoneError)}
                     helperText={phoneError || ""}
-                    sx={{
-                        mb: 2,
-                        "& .MuiOutlinedInput-root": {
-                            "&.Mui-error fieldset": {
-                                borderColor: brandRed
-                            }
-                        }
-                    }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 />
 
-                {/* Customer Name (optional) */}
+                {/* Name (optional) */}
                 <TextField
                     label="Customer Name (optional)"
-                    variant="outlined"
                     fullWidth
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    sx={{ mb: 2 }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 />
 
                 {/* Delivery Method */}
@@ -155,7 +198,8 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                     value={deliveryMethod}
                     onChange={(e) => setDeliveryMethod(e.target.value)}
                     fullWidth
-                    sx={{ mb: 2 }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 >
                     {deliveryOptions.map((option) => (
                         <MenuItem key={option} value={option}>
@@ -171,7 +215,8 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     fullWidth
-                    sx={{ mb: 3 }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 >
                     {paymentOptions.map((option) => (
                         <MenuItem key={option} value={option}>
@@ -180,70 +225,82 @@ function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, onClose, onSave, 
                     ))}
                 </TextField>
 
+                {/* Admin: Order Discount */}
                 <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel id="order-discount-label">Order Discount</InputLabel>
                     <Select
                         labelId="order-discount-label"
-                        value={globalDiscount} // например, 50
                         label="Order Discount"
+                        value={globalDiscount}
                         onChange={(e) => {
-                            const discount = parseInt(e.target.value);
+                            const discount = parseInt(e.target.value, 10);
                             setGlobalDiscount(discount);
 
-
+                            // keep your discount logic intact
                             const updated = cartItems.map((item) => {
-                                const discountedAmount = item.amount / (1 - (item.discount || 0) / 100);
+                                const discountedAmount =
+                                    item.amount / (1 - (item.discount || 0) / 100);
                                 const newAmount = discountedAmount * (1 - discount / 100);
-
-                                return {
-                                    ...item,
-                                    discount,
-                                };
+                                return { ...item, discount };
                             });
-
                             setCartItems(updated);
                         }}
-
+                        sx={{
+                            "& .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
+                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: focusBorder },
+                            "&.Mui-focused": { backgroundColor: focusBg },
+                            borderRadius: 1
+                        }}
                     >
-                        {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => (
-                            <MenuItem key={percent} value={percent}>
-                                {percent}%
-                            </MenuItem>
+                        {[0,10,20,30,40,50,60,70,80,90,100].map((p) => (
+                            <MenuItem key={p} value={p}>{p}%</MenuItem>
                         ))}
                     </Select>
                 </FormControl>
 
                 {/* Notes */}
                 <TextField
-                    label="Add a note to your order (optional)"
-                    variant="outlined"
+                    label="Add a note to order (optional)"
                     fullWidth
                     multiline
                     rows={2}
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    sx={{ mb: 3 }}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
                 />
+            </Box>
 
-                {/* Checkout Button */}
+            {/* sticky CTA */}
+            <Box
+                sx={{
+                    position: "fixed",
+                    left: 0, right: 0, bottom: 0,
+                    p: 2,
+                    bgcolor: "#fff",
+                    borderTop: `1px solid ${grayBorder}`
+                }}
+            >
                 <Button
-                    variant="contained"
                     fullWidth
+                    variant="contained"
                     onClick={handleSave}
                     sx={{
                         backgroundColor: brandRed,
                         color: "#fff",
                         textTransform: "none",
-                        "&:hover": {
-                            backgroundColor: "#d23f40"
-                        }
+                        fontSize: "1rem",
+                        fontWeight: 800,
+                        borderRadius: 4,
+                        py: 1.2,
+                        "&:hover": { backgroundColor: "#d23f40" },
+                        boxShadow: "0 6px 16px rgba(228,75,76,0.35)"
                     }}
                 >
                     Checkout
                 </Button>
             </Box>
-        </Modal>
+        </SwipeableDrawer>
     );
 }
-
-export default AdminOrderDetailsPopUp;

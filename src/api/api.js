@@ -187,6 +187,7 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+
                 // "ngrok-skip-browser-warning": "69420"
             },
             body: JSON.stringify({
@@ -225,4 +226,47 @@ export async function fetchLastStage(branchId) {
 
     const data = await response.json();
     return data.type || null;
+}
+
+export async function deleteOrder(orderId) {
+    const url = `${PROD_BASE_HOST}/delete_order?orderId=${encodeURIComponent(orderId)}`;
+    const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+            // "ngrok-skip-browser-warning": "69420"
+        }
+    });
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+}
+
+export async function sendOrderPayment({orderId, amount, type, branchId}){
+    try {
+        const response = await fetch(PROD_BASE_HOST + "/order_payment", {
+
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // "ngrok-skip-browser-warning": "69420"
+            },
+            body: JSON.stringify({
+                orderId,
+                amount,
+                type,
+                branchId
+            })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            return { error: true, ...data };
+        }
+        console.log(data);
+        return data;
+    }
+    catch (error) {
+        console.error("Failed to sendOrderPayment", error);
+    }
+
 }
