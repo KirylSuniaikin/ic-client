@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import {markOrderReady, updatePaymentType} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 
 
 const colorRed = '#E44B4C';
@@ -96,8 +96,43 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
             console.error("Failed to update payment type", error);
         }
     };
+
+    useEffect(() => {
+        console.info(order)
+    }, [])
+
+    const [timeLeft, setTimeLeft] = useState(() => {
+        const createdAt = new Date(order.order_created).getTime();
+        const now = Date.now();
+
+        const BHTimezoneOffset = 60 * 60 * 1000;
+
+        return Math.floor(15 * 60 - ((now - (createdAt - BHTimezoneOffset)) / 1000));
+    });
+    const isCritical = timeLeft < 180;
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTimeLeft(prev => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const formatTime2 = (seconds) => {
+        const abs = Math.abs(seconds);
+        const mins = String(Math.floor(abs / 60)).padStart(2, "0");
+        const secs = String(abs % 60).padStart(2, "0");
+        return `${seconds < 0 ? "-" : ""}${mins}:${secs}`;
+    };
+
     return (
-        <Card sx={{ mb: 2, borderRadius: 3, boxShadow: 3 }}>
+        <Card sx={{ mb: 2,
+                    border: '2px solid',
+                    borderRadius: 3,
+                    borderColor: isCritical && !isHistory ? colorRed : 'transparent',
+                    boxShadow: 3
+        }}>
             <CardContent>
                 <Box
                     sx={{
@@ -107,13 +142,23 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                         mb: 1
                     }}
                 >
-                    <Typography variant="h6">Order: {order.order_no}</Typography>
-                    <Typography
-                        variant="h6"
-                        sx={{ fontSize: 14, color: "text.secondary" }}
-                    >
-                        {order?.order_type?.toUpperCase()}
+                    <Typography variant="h6">
+                        Order: {order.order_no}{" "}
+                        <Typography
+                            component="span"
+                            sx={{ fontSize: 14, color: "text.secondary" }}
+                        >
+                            ({order?.order_type?.toUpperCase()})
+                        </Typography>
                     </Typography>
+
+                    {!isHistory && <Typography variant="h6"
+                                sx={{
+                                    color: isCritical ? colorRed : "text.secondary",
+                                }}
+                    >
+                        {formatTime2(timeLeft)}
+                    </Typography>}
                 </Box>
 
                 <Divider sx={{ mb: 2 }} />
@@ -219,8 +264,8 @@ function OrderCard({ order, handleRemoveItem , isHistory = false}) {
                             borderRadius: 4
                         }}
                         onClick={() => {
-                            console.log(order)
-                            localStorage.setItem("orderToEdit", JSON.stringify(order));
+                            const safeCopy = JSON.parse(JSON.stringify(order));
+                            localStorage.setItem("orderToEdit", JSON.stringify(safeCopy));
                             navigate("/menu?isAdmin=true&isEditMode=true");
                         }}>
                         EDIT

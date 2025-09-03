@@ -17,13 +17,14 @@ const highlightColor = "#E44B4C";
 function MenuItemCardHorizontal({
                                     group,
                                     onSelect,
+                                    isBestSellerBlock,
                                     handleAddToCart,
                                     handleRemoveItemFromCart,
                                     handleChangeQuantity,
                                     cartItems
                                 }) {
     const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
-    const { name, price, photo } = defaultItem;
+    const { name, price, photo, is_best_seller } = defaultItem;
     const displayPrice = `${price}`;
     const [selected, setSelected] = useState(false);
     const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
@@ -78,23 +79,44 @@ function MenuItemCardHorizontal({
                 transition: "border 0.2s ease-in-out"
             }}
         >
-            <CardMedia
-                component="img"
-                image={photo}
-                alt={name}
-                sx={{
-                    width: "100%",
-                    height: 180,
-                    objectFit: "contain",
-                    backgroundColor: "#fff",
-                }}
-            />
+            <Box sx={{ position: "relative" }}>
+                {is_best_seller && (
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "#E44B4C",
+                            color: "#fff",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            px: 1.2,
+                            py: 0.3,
+                            borderRadius: "999px",
+                            zIndex: 2,
+                            letterSpacing: 0.5,
+                        }}
+                    >
+                        Bestseller
+                    </Box>
+                )}
 
+                <CardMedia
+                    component="img"
+                    image={photo}
+                    alt={name}
+                    sx={{
+                        width: "100%",
+                        height: 180,
+                        objectFit: "contain",
+                        backgroundColor: "#fff",
+                    }}
+                />
+            </Box>
             <CardContent sx={{ px: 1.5, py: 1 , '&:last-child': { pb: 0.2 }}}>
                 <TextTitle
                     sx={{
                         fontSize: "1rem",
-                        // fontWeight: 600,
                         lineHeight: 1.3,
                         mb: 1,
                         display: "-webkit-box",
