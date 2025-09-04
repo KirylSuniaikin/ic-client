@@ -44,7 +44,6 @@ function AdminHomePage() {
 
     const audioRef = useRef(null);
 
-
     const branchId = "1";
     const STAGE_FLOW = {
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
@@ -290,17 +289,14 @@ function AdminHomePage() {
                 <Box sx={{ pt: 1, pl: 1 }}>
                 <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                     {sortedOrders.map((order) => (
-                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem}/>
+                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} onPayClick={(order) => {
+                            setSelectedOrder(order);
+                            setPaymentDialogOpen(true);
+                        }}/>
                     ))}
                 </Masonry>
                 </Box>
             }
-            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && sortedOrders.map((order) => (
-                <OrderCard key={order.orderId} order={order} handleRemoveItem={handleRemoveItem} onPayClick={(order) => {
-                    setSelectedOrder(order);
-                    setPaymentDialogOpen(true);
-                }}/>
-            ))}
 
             {isHistoryOpen && (
                 <HistoryComponent

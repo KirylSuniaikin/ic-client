@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+const __PLAYED = new WeakSet();
+
 export default function useOscillatingAutoScroll(
     ref,
     {
@@ -9,7 +11,10 @@ export default function useOscillatingAutoScroll(
         cycles = 1,
         pauseOnHover = true,
         cancelOnInteract = true,
-        bestsellers
+        bestsellers,
+        runOnce = true,
+        onceKey = null,
+        onceTtlMs = null
     } = {}
 ) {
     useEffect(() => {
@@ -17,7 +22,21 @@ export default function useOscillatingAutoScroll(
         const el = ref.current;
         if (!el || !enabled) return;
 
-        // respect user accessibility setting
+        if (runOnce) {
+            if (__PLAYED.has(el)) return;
+
+            if (onceKey) {
+                try {
+                    const raw = sessionStorage.getItem(onceKey);
+                    if (raw) {
+                        if (!onceTtlMs) return;
+                        const { t } = JSON.parse(raw);
+                        if (typeof t === "number" && Date.now() - t < onceTtlMs) return;
+                    }
+                } catch {}
+            }
+        }
+
         const mql =
             typeof window !== "undefined"
                 ? window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -58,6 +77,18 @@ export default function useOscillatingAutoScroll(
 
         const start = () => {
             if (running) return;
+
+            if (runOnce) {
+                __PLAYED.add(el);
+                if (onceKey) {
+                    try {
+                        sessionStorage.setItem(
+                            onceKey,
+                            onceTtlMs ? JSON.stringify({ t: Date.now() }) : "1"
+                        );
+                    } catch {}
+                }
+            }
             disableSnap();
             running = true;
             last = performance.now();
@@ -67,7 +98,6 @@ export default function useOscillatingAutoScroll(
         const stop = () => {
             running = false;
             if (rafId) cancelAnimationFrame(rafId);
-            // ВОССТАНАВЛИВАЕМ snap
             restoreSnap();
         };
 
@@ -134,5 +164,5 @@ export default function useOscillatingAutoScroll(
                 el.removeEventListener("touchstart", cancel);
             }
         };
-    }, [ref, enabled, initialDelay, pxPerSecond, cycles, pauseOnHover, cancelOnInteract, bestsellers]);
+    }, [ref, enabled, initialDelay, pxPerSecond, cycles, pauseOnHover, cancelOnInteract, bestsellers, runOnce, onceKey, onceTtlMs]);
 }

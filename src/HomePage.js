@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useSearchParams} from 'react-router-dom';
+import {useLocation, useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -70,12 +70,17 @@ function HomePage({userParam}) {
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
+    const location = useLocation();
+
     useOscillatingAutoScroll(bestRef, {
+        bestsellers,
+        cycles: 2,
         enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
         initialDelay: 600,
+        onceKey: `autoScroll:${location.pathname}`,
         pxPerSecond: 260,
-        cycles: 2,
-        bestsellers
+        runOnce: true,
+        onceTtlMs: 30_000,
     });
 
     useEffect(() => {
