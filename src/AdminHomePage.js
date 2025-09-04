@@ -22,6 +22,7 @@ import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm"
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import {Masonry} from "@mui/lab";
+import PaymentPopup from "./adminComponents/PaymentPopup";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -38,9 +39,10 @@ function AdminHomePage() {
     const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
     const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [cashWarning, setCashWarning] = useState(null);
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
 
     const audioRef = useRef(null);
-
 
     const branchId = "1";
     const STAGE_FLOW = {
@@ -216,6 +218,13 @@ function AdminHomePage() {
         (a, b) => new Date(b.order_created) - new Date(a.order_created)
     );
 
+    const handlePaymentSuccess = (orderId) => {
+        setOrders(prev =>
+            prev.map(o => o.id === orderId ? { ...o, status: "Paid" } : o)
+        );
+        console.log(orders);
+    };
+
     return (
 
         <div className="p-4 max-w-4xl mx-auto">
@@ -250,6 +259,12 @@ function AdminHomePage() {
                     </Alert>
                 </Box>
             )}
+            <PaymentPopup
+                open={paymentDialogOpen}
+                onClose={() => setPaymentDialogOpen(false)}
+                order={selectedOrder}
+                onPaymentSuccess={handlePaymentSuccess}
+            />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && (
                     <AdminTopbar
                         stage={shiftStage}
@@ -270,12 +285,14 @@ function AdminHomePage() {
                 branchId={branchId}
                 onCashWarning={setCashWarning}
             />
-
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
                 <Box sx={{ pt: 1, pl: 1 }}>
                 <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                     {sortedOrders.map((order) => (
-                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem}/>
+                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} onPayClick={(order) => {
+                            setSelectedOrder(order);
+                            setPaymentDialogOpen(true);
+                        }}/>
                     ))}
                 </Masonry>
                 </Box>

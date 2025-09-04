@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useSearchParams} from 'react-router-dom';
+import {useLocation, useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -20,6 +20,8 @@ import {groupAvailableItemsByName} from "./utils/menu_service";
 import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWorkingHours";
 import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
 import {TextButton, TextGroup, TextTitle} from "./utils/typography";
+import useOscillatingAutoScroll from "./components/hooks/useOscillatingAutoScroll";
+
 
 const brandRed = "#E44B4C";
 const colorBeige = '#FCF4DD';
@@ -55,6 +57,37 @@ function HomePage({userParam}) {
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
     const generalCrossSell = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"]
     const finalCrossSell = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"]
+
+    const bestRef = useRef(null);
+
+    const {
+        bestsellers,
+        brickPizzas,
+        combos,
+        pizzas,
+        sides,
+        beverages,
+        sauces
+    } = groupItemsByCategory(groupAvailableItemsByName(menuData));
+
+    const location = useLocation();
+
+    useOscillatingAutoScroll(bestRef, {
+        bestsellers,
+        cycles: 2,
+        enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
+        initialDelay: 600,
+        onceKey: `autoScroll:${location.pathname}`,
+        pxPerSecond: 260,
+        runOnce: true,
+        onceTtlMs: 30_000,
+    });
+
+    useEffect(() => {
+        if (bestRef.current) {
+            const el = bestRef.current;
+        }
+    }, [bestRef.current, bestsellers]);
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -223,26 +256,14 @@ function HomePage({userParam}) {
         }, 0).toFixed(2)
         : 0;
 
-
     useEffect(() => {
         if (cartItems.length === 0) {
             setCartOpen(false);
         }
     }, [cartItems]);
 
-
     if (loading) return <PizzaLoader/>;
     if (error) return <div>Error: {error}</div>;
-
-    const {
-        bestsellers,
-        brickPizzas,
-        combos,
-        pizzas,
-        sides,
-        beverages,
-        sauces
-    } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
     function getGeneralCrossSellItems() {
         return generalCrossSell
@@ -452,7 +473,7 @@ function HomePage({userParam}) {
                 tel,
                 user_id: user,
                 customer_name: customerName,
-                delivery_method: "Pick Up",
+                type: "Pick Up",
                 payment_type: paymentMethod,
                 notes: notes,
                 items: items.map(item => {
@@ -676,25 +697,29 @@ function HomePage({userParam}) {
                     .filter(({ items }) => items.length > 0)
                     .map((section, idx, arr) => {
                         const isLast = idx === arr.length - 1;
+                        const isBest = section.title === "Bestsellers";
 
                         return (
                             <Box key={section.title} sx={{ pb: isLast ? 1 : 4 }}>
                                 <TextGroup sx={{ px: 1.5, pb: 1 }}>{section.title}</TextGroup>
 
                                 <Box
+                                    ref={isBest ? bestRef : null}
                                     sx={{
                                         display: "flex",
                                         overflowX: "auto",
-                                        px: 0.2,
+                                        px: 1,
+                                        // snap есть, но мы его временно отключаем в хуке
                                         scrollSnapType: "x mandatory",
+                                        scrollBehavior: "auto",
                                         "&::-webkit-scrollbar": { display: "none" },
+                                        WebkitOverflowScrolling: "touch",
                                     }}
                                 >
                                     {section.items.map(group => (
                                         <Box
                                             key={group.name}
-                                            sx={{ flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}
-                                        >
+                                            sx={{ flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}                                     >
                                             <MenuItemCardHorizontal
                                                 group={group}
                                                 onSelect={handleOpenPopup}
