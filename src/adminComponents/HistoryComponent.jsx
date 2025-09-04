@@ -6,8 +6,6 @@ import {Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButt
 import CloseIcon from "@mui/icons-material/Close";
 import {Masonry} from "@mui/lab";
 
-import PaymentPopup from "./PaymentPopup";
-
 
 
 function HistoryComponent({isOpen, onClose}) {
@@ -95,21 +93,11 @@ function HistoryComponent({isOpen, onClose}) {
             <Box sx={{ pt: 1, pl: 1 }}>
             <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                 {sortedOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true}/>
+                    <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true} onDeleteClick={() => {handleDeleteClick(order)}}/>
                 ))}
             </Masonry>
             </Box>
 
-
-
-            {sortedOrders.map((order) => (
-                <OrderCard key={order.id}
-                           order={order}
-                           handleRemoveItem={handleRemoveItem}
-                           isHistory={true}
-                           onDeleteClick={() => {handleDeleteClick(order)}}
-                />
-            ))}
             <Dialog
                 open={deleteDialogOpen}
                 onClose={() => setDeleteDialogOpen(false)}
