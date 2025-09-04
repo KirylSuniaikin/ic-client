@@ -161,7 +161,6 @@ function HistoryComponent({isOpen, onClose}) {
                     </Button>
                 </DialogActions>
             </Dialog>
->>>>>>> a7ee06b (Delete item + Payment popup)
         </div>
     )
 }
