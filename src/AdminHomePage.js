@@ -56,9 +56,25 @@ function AdminHomePage() {
 
     useClosingAlarm(true);
 
+    const canDelete = (o) => Boolean(o?.isPaid && o?.isReady);
+
     const handleRemoveItem = (orderIdToRemove) => {
-        setOrders(prev => prev.filter(order => order.id !== orderIdToRemove));
-    }
+        setOrders(prev => {
+            const target = prev.find(o => o.id === orderIdToRemove);
+            if (!target) return prev;
+            if (!canDelete(target)) return prev;
+            return prev.filter(o => o.id !== orderIdToRemove);
+        });    }
+
+
+
+    const handleMarkReady = (orderId) => {
+        setOrders((prev) =>
+            prev.map((o) =>
+                o.id === orderId ? { ...o, isReady: true } : o
+            )
+        );
+    };
 
     const SUPPRESS_KEY = 'suppressSoundIds';
     const normalizeId = (x) => String(x);
@@ -219,9 +235,12 @@ function AdminHomePage() {
     );
 
     const handlePaymentSuccess = (orderId) => {
-        setOrders(prev =>
-            prev.map(o => o.id === orderId ? { ...o, status: "Paid" } : o)
+        setOrders((prev) =>
+            prev.map((o) =>
+                o.id === orderId ? { ...o, isPaid: true } : o
+            )
         );
+        handleRemoveItem(orderId)
         console.log(orders);
     };
 
@@ -289,10 +308,18 @@ function AdminHomePage() {
                 <Box sx={{ pt: 1, pl: 1 }}>
                 <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                     {sortedOrders.map((order) => (
-                        <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} onPayClick={(order) => {
-                            setSelectedOrder(order);
-                            setPaymentDialogOpen(true);
-                        }}/>
+                        <OrderCard key={order.id} order={order}
+                                   onReadyClick={(order) => {
+                                        handleMarkReady(order.id)
+                                        handleRemoveItem(order.id)
+                                    }}
+
+                                   onPayClick={(order) => {
+                                        setSelectedOrder(order);
+                                        setPaymentDialogOpen(true);
+
+                                    }}
+                        />
                     ))}
                 </Masonry>
                 </Box>

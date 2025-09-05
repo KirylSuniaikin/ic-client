@@ -93,7 +93,7 @@ function HistoryComponent({isOpen, onClose}) {
             <Box sx={{ pt: 1, pl: 1 }}>
             <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                 {sortedOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} handleRemoveItem={handleRemoveItem} isHistory={true} onDeleteClick={() => {handleDeleteClick(order)}}/>
+                    <OrderCard key={order.id} order={order} onReadyClick={handleRemoveItem} isHistory={true} onDeleteClick={() => {handleDeleteClick(order)}}/>
                 ))}
             </Masonry>
             </Box>
