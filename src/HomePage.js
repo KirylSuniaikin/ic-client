@@ -460,6 +460,9 @@ function HomePage({userParam}) {
                 console.log(order)
                 await editOrder(order, orderToEdit.id);
                 // await localStorage.removeItem("orderToEdit");
+                const EDITED_ORDER_ID_KEY = 'editedOrderId';
+                const list = [order.id];
+                localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
@@ -880,7 +883,7 @@ function HomePage({userParam}) {
                     },
                 }}
             >
-                {totalPrice && totalPrice != 0 && <Box sx={{ flexGrow: 1, textAlign: "center" }}>
+                {totalPrice && totalPrice !== 0 && <Box sx={{ flexGrow: 1, textAlign: "center" }}>
                     <TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>
                         {totalPrice} BHD
                     </TextButton>

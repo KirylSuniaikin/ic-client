@@ -69,7 +69,7 @@ function AdminHomePage() {
             return prev.filter(o => o.id !== orderIdToRemove);
         });    }
 
-
+    const getId = (o) => String(o?.id ?? o?.orderId ?? o?.order_no ?? o ?? "");
 
     const handleMarkReady = (orderId) => {
         setOrders((prev) =>
@@ -84,6 +84,9 @@ function AdminHomePage() {
 
     const suppressedSoundIdsRef = useRef(new Set());
     const stompRef = useRef(null);
+
+    const editedOrderIdRef = useRef(new Set());
+    const EDITED_ORDER_ID_KEY = 'editedOrderId';
 
     useEffect(() => {
         audioRef.current = new Audio(alertSound);
@@ -113,14 +116,21 @@ function AdminHomePage() {
 
     useEffect(() => {
         if (!newlyUpdatedOrder || !audioRef.current) return;
+        const edited = editedOrderIdRef.current.has(newlyUpdatedOrder.id);
         const id = normalizeId(newlyUpdatedOrder.id);
+        if(edited) {
+            editedOrderIdRef.current.delete(id);
+            localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...editedOrderIdRef.current]));
+            console.log(`[EDITED_ORDERS] ID ${id} was removed from localStorage.`);
+        }
+        else {
             console.log(`[AUDIO] Playing sound for updated order ID: ${id}`);
             setActiveAlertOrderEdit(newlyUpdatedOrder);
             audioRef.current.currentTime = 0;
             audioRef.current.play()
                 .then(() => console.log('[AUDIO] playing'))
                 .catch(e => console.warn('[AUDIO] play() blocked/error:', e));
-
+        }
 
         setNewlyUpdatedOrder(null);
     }, [newlyUpdatedOrder, audioRef, setActiveAlertOrderEdit]);
@@ -211,6 +221,73 @@ function AdminHomePage() {
                             body: JSON.stringify({orderId: updatedOrder.id}),
                         });
                     });
+
+                    socket.subscribe("/topic/order-ready", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        const readyOrderId = getId(payload?.orderId ?? payload?.id ?? payload);
+
+                        console.log('✅ Ready orderId', readyOrderId);
+                        setOrders(prev => {
+                            let found = false;
+                            const next = [];
+
+                            for (const o of prev) {
+                                if (getId(o) !== readyOrderId) { next.push(o); continue; }
+
+                                found = true;
+                                const merged = {
+                                    ...o,
+                                    isPaid:  Boolean(o.isPaid),
+                                    isReady: true
+                                };
+
+                                if (merged.isPaid && merged.isReady) continue;
+
+                                next.push(merged);
+                            }
+
+                            if (!found) console.warn(`[ORDER_READY] ${readyOrderId} not in state`);
+                            return next;
+                        });
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: readyOrderId}),
+                        });
+                    })
+
+                    socket.subscribe("/topic/order-paid", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        const paidOrderId = getId(payload?.orderId ?? payload?.id ?? payload);
+
+                        console.log('️💸 Paid orderId', paidOrderId);
+                        setOrders(prev => {
+                            const next = [];
+                            let found = false;
+                            for (const o of prev) {
+                                if (getId(o) !== paidOrderId) { next.push(o); continue; }
+
+                                found = true;
+                                const merged = {
+                                    ...o,
+                                    isReady:  Boolean(o.isReady),
+                                    isPaid: true
+                                };
+
+                                if (merged.isPaid && merged.isReady) continue;
+
+                                next.push(merged);
+                            }
+
+                            if (!found) console.warn(`[ORDER_READY] ${paidOrderId} not in state`);
+                            return next;
+                        });
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: paidOrderId}),
+                        });
+                    })
                 };
 
                 socket.onWebSocketClose = () => console.log('🔴 WS disconnected');
