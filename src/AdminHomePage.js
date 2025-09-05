@@ -41,6 +41,9 @@ function AdminHomePage() {
     const [cashWarning, setCashWarning] = useState(null);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [newlyUpdatedOrder, setNewlyUpdatedOrder] = useState(null);
+    const [activeAlertOrderEdit, setActiveAlertOrderEdit] = useState(null);
+
 
     const audioRef = useRef(null);
 
@@ -89,10 +92,8 @@ function AdminHomePage() {
 
     useEffect(() => {
         if (!newlyAddedOrder || !audioRef.current) return;
-
         const id = normalizeId(newlyAddedOrder.id);
         const suppressed = suppressedSoundIdsRef.current.has(id);
-
         console.log(suppressedSoundIdsRef.current);
         if (suppressed) {
             suppressedSoundIdsRef.current.delete(id);
@@ -109,6 +110,20 @@ function AdminHomePage() {
 
         setNewlyAddedOrder(null);
     }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
+
+    useEffect(() => {
+        if (!newlyUpdatedOrder || !audioRef.current) return;
+        const id = normalizeId(newlyUpdatedOrder.id);
+            console.log(`[AUDIO] Playing sound for updated order ID: ${id}`);
+            setActiveAlertOrderEdit(newlyUpdatedOrder);
+            audioRef.current.currentTime = 0;
+            audioRef.current.play()
+                .then(() => console.log('[AUDIO] playing'))
+                .catch(e => console.warn('[AUDIO] play() blocked/error:', e));
+
+
+        setNewlyUpdatedOrder(null);
+    }, [newlyUpdatedOrder, audioRef, setActiveAlertOrderEdit]);
 
     useEffect(() => {
         async function initialize() {
@@ -187,7 +202,14 @@ function AdminHomePage() {
                     socket.subscribe('/topic/order-updates', (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
                         console.log('♻️ Updated order', updatedOrder);
-                        setOrders(prev => prev.map(o => o.orderId === updatedOrder.orderId ? updatedOrder : o));
+                        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+                        setNewlyUpdatedOrder(updatedOrder);
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: updatedOrder.id}),
+                        });
                     });
                 };
 
@@ -368,7 +390,7 @@ function AdminHomePage() {
                 >
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            New Order: {activeAlertOrder?.id}
+                            New Order: {activeAlertOrder?.order_no}
                         </Typography>
                         <Typography variant="body2">
                             Total price: {activeAlertOrder?.amount_paid} BHD
@@ -381,6 +403,47 @@ function AdminHomePage() {
                                 audioRef.current.currentTime = 0;
                             }
                             setActiveAlertOrder(null);
+                        }}
+                        size="medium"
+                        sx={{ color: colorRed }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </Paper>
+            </Snackbar>
+
+            <Snackbar
+                open={Boolean(activeAlertOrderEdit)}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{ zIndex: 1300 }}
+            >
+                <Paper
+                    elevation={3}
+                    sx={{
+                        borderRadius: 3,
+                        p: 2,
+                        px: 3,
+                        backgroundColor: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                        width: "85vw",
+                        maxWidth: 600,
+                    }}
+                >
+                    <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            Order {activeAlertOrderEdit?.order_no} was edited
+                        </Typography>
+                    </Box>
+                    <IconButton
+                        onClick={() => {
+                            if (audioRef.current) {
+                                audioRef.current.pause();
+                                audioRef.current.currentTime = 0;
+                            }
+                            setActiveAlertOrderEdit(null);
                         }}
                         size="medium"
                         sx={{ color: colorRed }}
