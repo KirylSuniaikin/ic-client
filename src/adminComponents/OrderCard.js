@@ -9,12 +9,15 @@ import {
 } from "@mui/material";
 import {markOrderReady, updatePaymentType} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
+const GRAY_BORDER = "#E0E0E0";
+const GRAY_TEXT = "#3A3A3A";
+const FOCUS_BG = "#F0F0F0";
 
 function formatTime(isoString) {
     const date = new Date(isoString);
@@ -22,6 +25,32 @@ function formatTime(isoString) {
     const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${hours}:${minutes}`;
 }
+
+function toEpochMsBahrain(s) {
+    if (!s) return Date.now();
+    const withT = s.replace(' ', 'T');
+
+    if (/[Zz]|[+\-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
+
+    return Date.parse(withT + '+03:00');
+}
+
+
+const getBtnStyle = (isActive) => ({
+    borderColor: isActive ? colorRed : GRAY_BORDER,
+    color: isActive ? colorRed : GRAY_TEXT,
+    borderRadius: 4,
+    fontWeight: 800,
+    justifyContent: "center",
+    px: 1.5,
+    py: 1.2,
+    fontSize: 15,
+    backgroundColor: isActive ? "white" : colorBeige,
+    "&:hover": {
+        backgroundColor: isActive ? FOCUS_BG : colorBeige,
+        borderColor: isActive ? colorRed : GRAY_BORDER,
+    },
+});
 
 function renderComboDescription(desc) {
     const comboParts = desc.split(";");
@@ -82,7 +111,7 @@ function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({ order, handleRemoveItem , isHistory = false, onDeleteClick, onPayClick = () => {}}) {
+function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDeleteClick, onPayClick = order => {}}) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
@@ -97,17 +126,14 @@ function OrderCard({ order, handleRemoveItem , isHistory = false, onDeleteClick,
         }
     };
 
+    const createdMs = useMemo(() => toEpochMsBahrain(order.order_created), [order.order_created]);
+
     useEffect(() => {
         console.info(order)
     }, [])
 
     const [timeLeft, setTimeLeft] = useState(() => {
-        const createdAt = new Date(order.order_created).getTime();
-        const now = Date.now();
-
-        const BHTimezoneOffset = 60 * 60 * 1000;
-
-        return Math.floor(15 * 60 - ((now - (createdAt - BHTimezoneOffset)) / 1000));
+        return Math.floor(15 * 60 - (Date.now() - createdMs) / 1000);
     });
     const isCritical = timeLeft < 180;
 
@@ -240,42 +266,46 @@ function OrderCard({ order, handleRemoveItem , isHistory = false, onDeleteClick,
                     BHD {order.amount_paid}
                 </Typography>
                 <Box>
-                    {!isHistory && order.status === "Paid" && (
+                    {!isHistory && (
+                        <>
                         <Button
                             variant="contained"
                             size="small"
+                            disabled={order.isReady}
                             sx=
                                 {{
                                 borderColor: colorBeige,
                                 color: colorRed,
                                 backgroundColor: "white",
-                                mr: 1,
+                                    mr: 1,
                                 borderRadius: 4
                             }}
-                            onClick={() => {markOrderReady(order.id).then(() => {handleRemoveItem?.(order.id)})}}
+                            onClick={() => {markOrderReady(order.id).then(() => {onReadyClick?.(order)})}}
                         >
                             READY
                         </Button>
-                    )}
-                    {!isHistory && order.status === "Kitchen Phase" && (
-                        <Button
-                            variant="contained"
-                            size="small"
-                            sx=
-                                {{
-                                    borderColor: colorBeige,
-                                    color: colorRed,
-                                    backgroundColor: "white",
-                                    mr: 1,
-                                    borderRadius: 4
-                                }}
-                            onClick={() =>
-                                onPayClick(order)
-                            }
+
+                            <Button
+                        variant="contained"
+                        size="small"
+                        disabled={order.isPaid}
+                        sx=
+                        {{
+                            borderColor: colorBeige,
+                            color: colorRed,
+                            backgroundColor: "white",
+                            mr: 1,
+                            borderRadius: 4
+                        }}
+                        onClick={() =>
+                            onPayClick(order)
+                        }
                         >
-                            PAY
+                        PAY
                         </Button>
+                        </>
                     )}
+
                     <Button
                         variant="outlined"
                         size="small"
