@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.app",
+  "appName": "ic-client",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://ic-pizza.com/admin/",
+    "cleartext": true
+  }
+}
