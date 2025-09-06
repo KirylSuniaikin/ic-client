@@ -62,7 +62,7 @@ export async function updateAvailability(changes) {
         throw new Error(`Error: ${response.status}`);
     }
 
-    return await response.json();
+    return await response.text();
 }
 
 export async function markOrderReady(orderId) {
