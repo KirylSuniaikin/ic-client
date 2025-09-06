@@ -24,7 +24,8 @@ const countries = [
     { name: "United Kingdom", code: "44", digits: 10 },
     { name: "United States", code: "1", digits: 10 },
     { name: "France", code: "33", digits: 9 },
-    { name: "Poland", code: "48", digits: 9 }
+    { name: "Poland", code: "48", digits: 9 },
+    { name: "Czech Republic", code: "420", digits: 9 }
 ];
 
 const deliveryOptions = ["Pick Up", "Talabat", "Delivery", "Jahez", "Ahlan"];
