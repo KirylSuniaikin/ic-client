@@ -44,6 +44,7 @@ export default function PaymentPopup({
 
     const [selectedType, setSelectedType] = useState(null);
     const [splitMode, setSplitMode] = useState(false);
+    const [cashMode, setCashMode] = useState(false)
     const [payers, setPayers] = useState([{ id: mkId(), type: "cash", amount: "" }]);
 
     useEffect(() => {
@@ -126,7 +127,7 @@ export default function PaymentPopup({
         pb: 2
     };
 
-    const confirmDisabled = (!splitMode && !selectedType) || (splitMode && !remainingZero);
+    const confirmDisabled = (!splitMode && !cashMode && !selectedType) || (splitMode && !remainingZero);
 
     return (
         <SwipeableDrawer
@@ -173,7 +174,7 @@ export default function PaymentPopup({
             <Divider sx={{ mb: 2, borderColor: GRAY_BORDER }} />
 
             <Box sx={{ px: 2, pb: 10, overflowY: "auto" }}>
-                {!splitMode ? (
+                {!splitMode && !cashMode && (
                     <Stack spacing={1.0}>
                         {["Split", "Card", "Benefit", "Cash"].map((t) => (
                             <Button
@@ -184,8 +185,11 @@ export default function PaymentPopup({
                                 onClick={() => {
                                     if (t === "Split") {
                                         setSplitMode(true);
-                                        setPayers([{ id: mkId(), type: "Cash", amount: "" }]);
+                                        setPayers([{id: mkId(), type: "Cash", amount: ""}]);
                                         setSelectedType(null);
+                                    } if( t === "Cash") {
+                                        setCashMode(true)
+                                        setSelectedType(t)
                                     } else {
                                         setSelectedType(t);
                                     }
@@ -195,7 +199,8 @@ export default function PaymentPopup({
                             </Button>
                         ))}
                     </Stack>
-                ) : (
+                )}
+                    {splitMode && !cashMode && (
                     <>
                         <Divider sx={{ my: 1.5, borderColor: GRAY_BORDER }} />
                         <Stack spacing={1.2}>
@@ -271,6 +276,44 @@ export default function PaymentPopup({
                             </Button>
                         </Stack>
                     </>
+                    )}
+                {cashMode && !splitMode && (
+                    <>
+                        <Stack spacing={1.5}>
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    px: 1,
+                                    py: 1,
+                                    border: `1px solid ${GRAY_BORDER}`,
+                                    borderRadius: 2,
+                                    "&:focus-within": { backgroundColor: FOCUS_BG }
+                                }}
+                            >
+                                <Typography sx={{ fontWeight: 700, fontSize: 15, mr: 1, color: GRAY_TEXT }}>
+                                    Received:
+                                </Typography>
+                                <InputBase
+                                    value={String(payers[0]?.amount ?? "")}
+                                    onChange={(e) => updatePayerAmount(0, e.target.value)}
+                                    onBlur={(e) => {
+                                        const n = toNumber(e.target.value);
+                                        updatePayerAmount(0, n ? n.toFixed(2) : "");
+                                    }}
+                                    placeholder="0.00"
+                                    inputMode="decimal"
+                                    sx={{
+                                        flex: 1,
+                                        fontSize: 16,
+                                        color: GRAY_TEXT,
+                                        px: 0.5,
+                                        height: 40
+                                    }}
+                                />
+                            </Box>
+                        </Stack>
+                    </>
                 )}
             </Box>
 
@@ -298,7 +341,9 @@ export default function PaymentPopup({
                         "&:hover": !confirmDisabled ? { backgroundColor: "#c73c3d" } : {}
                     }}
                 >
-                    Confirm Payment
+                    {cashMode
+                        ? `Give Change: ${Math.abs(remaining).toFixed(2)} BHD`
+                        : "Confirm Payment"}
                 </Button>
             </Box>
         </SwipeableDrawer>

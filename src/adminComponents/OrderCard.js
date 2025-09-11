@@ -115,16 +115,16 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
-    const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
+    // const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
-    const handlePaymentTypeChange = async (orderId, newType) => {
-        try {
-            await updatePaymentType(orderId, newType);
-            setPaymentType(newType);
-        } catch (error) {
-            console.error("Failed to update payment type", error);
-        }
-    };
+    // const handlePaymentTypeChange = async (orderId, newType) => {
+    //     try {
+    //         await updatePaymentType(orderId, newType);
+    //         setPaymentType(newType);
+    //     } catch (error) {
+    //         console.error("Failed to update payment type", error);
+    //     }
+    // };
 
     const createdMs = useMemo(() => toEpochMsBahrain(order.order_created), [order.order_created]);
 
@@ -199,9 +199,11 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     <Typography variant="body2" color={colorRed}>
                         <strong>Notes:</strong> {order.notes}
                     </Typography>
-                    <Typography variant="body2">
-                        <strong>Payment type:</strong> {paymentType}
-                    </Typography>
+                    {!isHistory && (
+                        <Typography variant="body2">
+                            <strong>Payment type:</strong> {paymentType}
+                        </Typography>
+                    )}
                 </Box>
 
                 <Divider sx={{ my: 2 }} />
@@ -233,25 +235,25 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         </Box>
                     ))}
                 </Box>
-                {isHistory && (
-                    <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                            <strong>Payment Type:</strong>
-                        </Typography>
-                        <Select
-                            value={paymentType}
-                            onChange={(e) => handlePaymentTypeChange(order.id, e.target.value)}
-                            fullWidth
-                            size="small"
-                        >
-                            {paymentOptions.map((option) => (
-                                <MenuItem key={option} value={option}>
-                                    {option}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </Box>
-                )}
+                {/*{isHistory && (*/}
+                {/*    <Box sx={{ mt: 2 }}>*/}
+                {/*        <Typography variant="body2" sx={{ mb: 1 }}>*/}
+                {/*            <strong>Payment Type:</strong>*/}
+                {/*        </Typography>*/}
+                {/*        <Select*/}
+                {/*            value={paymentType}*/}
+                {/*            onChange={(e) => handlePaymentTypeChange(order.id, e.target.value)}*/}
+                {/*            fullWidth*/}
+                {/*            size="small"*/}
+                {/*        >*/}
+                {/*            {paymentOptions.map((option) => (*/}
+                {/*                <MenuItem key={option} value={option}>*/}
+                {/*                    {option}*/}
+                {/*                </MenuItem>*/}
+                {/*            ))}*/}
+                {/*        </Select>*/}
+                {/*    </Box>*/}
+                {/*)}*/}
             </CardContent>
 
             <CardActions
