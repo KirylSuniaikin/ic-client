@@ -3,12 +3,10 @@ import OrderCard from "./adminComponents/OrderCard";
 import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {
-    DEV_BASE_HOST,
-    DEV_SOCKET_URL,
     fetchLastStage,
     getAllActiveOrders,
-    PROD_BASE_HOST,
-    PROD_SOCKET_URL
+    updateOrderStatus,
+    WS_URL
 } from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import alertSound from "./assets/alert2.mp3";
@@ -23,6 +21,7 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import {Masonry} from "@mui/lab";
 import PaymentPopup from "./adminComponents/PaymentPopup";
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -43,6 +42,7 @@ function AdminHomePage() {
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [newlyUpdatedOrder, setNewlyUpdatedOrder] = useState(null);
     const [activeAlertOrderEdit, setActiveAlertOrderEdit] = useState(null);
+    const [confirmingAccept, setConfirmingAccept] = useState(false);
 
 
     const audioRef = useRef(null);
@@ -59,17 +59,37 @@ function AdminHomePage() {
 
     useClosingAlarm(true);
 
-    const canDelete = (o) => Boolean(o?.isPaid && o?.isReady);
 
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => {
-            const target = prev.find(o => o.id === orderIdToRemove);
-            if (!target) return prev;
-            if (!canDelete(target)) return prev;
             return prev.filter(o => o.id !== orderIdToRemove);
         });    }
 
-    const getId = (o) => String(o?.id ?? o?.orderId ?? o?.order_no ?? o ?? "");
+    const toLongOrNull = (v) => {
+        if (v == null) return null;
+        if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : null;
+        if (typeof v === "string") {
+            if (!/^\d+$/.test(v)) return null;
+            const n = Number(v);
+            return Number.isSafeInteger(n) ? n : null;
+        }
+        return null;
+    };
+
+    const stopSound = () => {
+        if (!audioRef.current) return;
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+    };
+
+    const getId = (o) => {
+        toLongOrNull(
+            (o && (o.orderNo ?? o.id ?? o.orderId)) ?? null
+        );
+    }
+
+    const getStringId = (o) => String(o?.id ?? o?.orderId ?? o?.order_no ?? o ?? "");
+
 
     const handleMarkReady = (orderId) => {
         setOrders((prev) =>
@@ -87,6 +107,30 @@ function AdminHomePage() {
 
     const editedOrderIdRef = useRef(new Set());
     const EDITED_ORDER_ID_KEY = 'editedOrderId';
+
+    const getExtId = (o) =>
+        toLongOrNull(
+            (o && (o.jahezOrderId ?? o.jahez_id ?? o.externalId ?? o.external_id)) ?? null
+        );
+
+    async function confirmExternalOrder(order) {
+        console.log(order);
+        const extId = getExtId(order);
+        const orderId = normalizeId(order.id);
+        if (!extId) {
+            console.warn('[Confirm] externalId is missing, skip');
+            return;
+        }
+        setConfirmingAccept(true);
+        try {
+            await updateOrderStatus({ orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted" });
+            setActiveAlertOrder(null);
+        } catch (e) {
+            console.error("[Confirm] failed:", e?.message || e);
+        } finally {
+            setConfirmingAccept(false);
+        }
+    }
 
     useEffect(() => {
         audioRef.current = new Audio(alertSound);
@@ -155,7 +199,7 @@ function AdminHomePage() {
 
                 const socket = new Client({
                     webSocketFactory: () => {
-                        const s = new SockJS(PROD_SOCKET_URL);
+                        const s = new SockJS(WS_URL);
                         const origSend = s.send.bind(s);
                         s.send = (d) => {
                             if (d === '\n') console.log('♥ OUT heartbeat');
@@ -180,7 +224,7 @@ function AdminHomePage() {
 
                     socket.subscribe('/topic/orders', (frame) => {
                         const newOrder = JSON.parse(frame.body);
-                        const id = normalizeId(newOrder.id);
+                        const id = normalizeId(newOrder?.orderId ?? newOrder?.id ?? newOrder);
 
                         try {
                             const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
@@ -224,70 +268,70 @@ function AdminHomePage() {
 
                     socket.subscribe("/topic/order-ready", (frame) => {
                         const payload = JSON.parse(frame.body);
-                        const readyOrderId = getId(payload?.orderId ?? payload?.id ?? payload);
+                        const readyOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
 
                         console.log('✅ Ready orderId', readyOrderId);
-                        setOrders(prev => {
-                            let found = false;
-                            const next = [];
-
-                            for (const o of prev) {
-                                if (getId(o) !== readyOrderId) { next.push(o); continue; }
-
-                                found = true;
-                                const merged = {
-                                    ...o,
-                                    isPaid:  Boolean(o.isPaid),
-                                    isReady: true
-                                };
-
-                                if (merged.isPaid && merged.isReady) continue;
-
-                                next.push(merged);
-                            }
-
-                            if (!found) console.warn(`[ORDER_READY] ${readyOrderId} not in state`);
-                            return next;
-                        });
+                        setOrders(prev =>
+                            prev.map(o =>
+                                getStringId(o) === readyOrderId
+                                    ? { ...o, isReady: true}
+                                    : o
+                            )
+                        );
 
                         socket.publish({
                             destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: readyOrderId}),
+                            body: JSON.stringify({orderId: payload}),
                         });
                     })
 
                     socket.subscribe("/topic/order-paid", (frame) => {
                         const payload = JSON.parse(frame.body);
-                        const paidOrderId = getId(payload?.orderId ?? payload?.id ?? payload);
+                        const paidOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
 
                         console.log('️💸 Paid orderId', paidOrderId);
-                        setOrders(prev => {
-                            const next = [];
-                            let found = false;
-                            for (const o of prev) {
-                                if (getId(o) !== paidOrderId) { next.push(o); continue; }
-
-                                found = true;
-                                const merged = {
-                                    ...o,
-                                    isReady:  Boolean(o.isReady),
-                                    isPaid: true
-                                };
-
-                                if (merged.isPaid && merged.isReady) continue;
-
-                                next.push(merged);
-                            }
-
-                            if (!found) console.warn(`[ORDER_READY] ${paidOrderId} not in state`);
-                            return next;
-                        });
+                        setOrders(prev =>
+                            prev.map(o =>
+                                getStringId(o) === paidOrderId
+                                    ? { ...o, isPaid: true }
+                                    : o
+                            )
+                        );
 
                         socket.publish({
                             destination: '/app/orders/ack',
                             body: JSON.stringify({orderId: paidOrderId}),
                         });
                     })
+
+                    socket.subscribe("/topic/order-accepted", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        const acceptedOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
+                        console.log("[ORDER_ACCEPTED] ", acceptedOrderId);
+                        stopSound()
+                        setActiveAlertOrder(null);
+
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: acceptedOrderId}),
+                        });
+                    })
+
+                    socket.subscribe("/topic/order-picked-up", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        const pickedUpOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
+
+                        setOrders(prev => prev.filter(o => getStringId(o) !== pickedUpOrderId));
+                        console.log("📦 [ORDER_PICKED_UP]", payload, "→", pickedUpOrderId);
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: pickedUpOrderId}),
+                        });
+                    })
+
+
                 };
 
                 socket.onWebSocketClose = () => console.log('🔴 WS disconnected');
@@ -339,7 +383,6 @@ function AdminHomePage() {
                 o.id === orderId ? { ...o, isPaid: true } : o
             )
         );
-        handleRemoveItem(orderId)
         console.log(orders);
     };
 
@@ -410,7 +453,6 @@ function AdminHomePage() {
                         <OrderCard key={order.id} order={order}
                                    onReadyClick={(order) => {
                                         handleMarkReady(order.id)
-                                        handleRemoveItem(order.id)
                                     }}
 
                                    onPayClick={(order) => {
@@ -418,6 +460,9 @@ function AdminHomePage() {
                                         setPaymentDialogOpen(true);
 
                                     }}
+                                   onPickedUpClick={(order) => {
+                                       handleRemoveItem(order.id)
+                                   }}
                         />
                     ))}
                 </Masonry>
@@ -467,12 +512,33 @@ function AdminHomePage() {
                 >
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            New Order: {activeAlertOrder?.order_no}
+                            {getExtId(activeAlertOrder) ? 'Jahez Order' : 'New Order'}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
                         </Typography>
+
                         <Typography variant="body2">
                             Total price: {activeAlertOrder?.amount_paid} BHD
                         </Typography>
                     </Box>
+
+                    {getExtId(activeAlertOrder) ? (
+                        <Button
+                            variant="contained"
+                            color="success"
+                            startIcon={<CheckCircleIcon />}
+                            onClick={() => {
+                                confirmExternalOrder(activeAlertOrder)
+                                if (audioRef.current) {
+                                    audioRef.current.pause();
+                                    audioRef.current.currentTime = 0;
+                                }
+                            }}
+                            disabled={confirmingAccept}
+                            sx={{ borderRadius: 2, textTransform: 'none' }}
+                        >
+                            {confirmingAccept ? 'Confirming…' : 'Confirm'}
+                        </Button>
+                    ):(
+
                     <IconButton
                         onClick={() => {
                             if (audioRef.current) {
@@ -486,6 +552,7 @@ function AdminHomePage() {
                     >
                         <CloseIcon />
                     </IconButton>
+                    )}
                 </Paper>
             </Snackbar>
 

@@ -5,19 +5,17 @@ import {
     CardContent,
     CardActions,
     Button,
-    Divider, Select, MenuItem, IconButton
+    Divider, IconButton
 } from "@mui/material";
-import {markOrderReady, updatePaymentType} from "../api/api";
+import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 
 import DeleteIcon from "@mui/icons-material/Delete";
+import {CircularTimer} from "./CircularTimer";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
-const GRAY_BORDER = "#E0E0E0";
-const GRAY_TEXT = "#3A3A3A";
-const FOCUS_BG = "#F0F0F0";
 
 function formatTime(isoString) {
     const date = new Date(isoString);
@@ -35,22 +33,6 @@ function toEpochMsBahrain(s) {
     return Date.parse(withT + '+03:00');
 }
 
-
-const getBtnStyle = (isActive) => ({
-    borderColor: isActive ? colorRed : GRAY_BORDER,
-    color: isActive ? colorRed : GRAY_TEXT,
-    borderRadius: 4,
-    fontWeight: 800,
-    justifyContent: "center",
-    px: 1.5,
-    py: 1.2,
-    fontSize: 15,
-    backgroundColor: isActive ? "white" : colorBeige,
-    "&:hover": {
-        backgroundColor: isActive ? FOCUS_BG : colorBeige,
-        borderColor: isActive ? colorRed : GRAY_BORDER,
-    },
-});
 
 function renderComboDescription(desc) {
     const comboParts = desc.split(";");
@@ -111,12 +93,12 @@ function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDeleteClick, onPayClick = order => {}}) {
+function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDeleteClick, onPayClick = order => {}, onPickedUpClick = () => {} }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
     // const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
-
+    //
     // const handlePaymentTypeChange = async (orderId, newType) => {
     //     try {
     //         await updatePaymentType(orderId, newType);
@@ -126,37 +108,48 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
     //     }
     // };
 
-    const createdMs = useMemo(() => toEpochMsBahrain(order.order_created), [order.order_created]);
-
     useEffect(() => {
         console.info(order)
     }, [])
 
-    const [timeLeft, setTimeLeft] = useState(() => {
-        return Math.floor(15 * 60 - (Date.now() - createdMs) / 1000);
-    });
-    const isCritical = timeLeft < 180;
+    const createdMs = useMemo(
+        () => toEpochMsBahrain(order.order_created),
+        [order.order_created]
+    );
+    const TOTAL_SEC = 15 * 60;
+
+    const [extraSec, setExtraSec] = useState(0);
+
+    const computeLeft = useCallback(() => {
+        const elapsed = (Date.now() - createdMs) / 1000;
+        return Math.floor(TOTAL_SEC + extraSec - elapsed);
+    }, [createdMs, TOTAL_SEC, extraSec]);
+
+    const [timeLeft, setTimeLeft] = useState(() => computeLeft());
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setTimeLeft(prev => prev - 1);
-        }, 1000);
+        let timerId;
+        const tick = () => {
+            setTimeLeft(computeLeft());
+            const msToNextSecond = 1000 - (Date.now() % 1000);
+            timerId = window.setTimeout(tick, msToNextSecond);
+        };
+        tick();
+        return () => clearTimeout(timerId);
+    }, [computeLeft]);
 
-        return () => clearInterval(interval);
-    }, []);
+    const isCritical = timeLeft < 180;
 
-    const formatTime2 = (seconds) => {
-        const abs = Math.abs(seconds);
-        const mins = String(Math.floor(abs / 60)).padStart(2, "0");
-        const secs = String(abs % 60).padStart(2, "0");
-        return `${seconds < 0 ? "-" : ""}${mins}:${secs}`;
-    };
+
+    const cardBorderColor = !isHistory
+        ? (isCritical ? colorRed : 'transparent')
+        : 'transparent';
 
     return (
         <Card sx={{ mb: 2,
                     border: '2px solid',
                     borderRadius: 3,
-                    borderColor: isCritical && !isHistory ? colorRed : 'transparent',
+                    borderColor: cardBorderColor,
                     boxShadow: 3
         }}>
             <CardContent>
@@ -178,13 +171,9 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         </Typography>
                     </Typography>
 
-                    {!isHistory && <Typography variant="h6"
-                                sx={{
-                                    color: isCritical ? colorRed : "text.secondary",
-                                }}
-                    >
-                        {formatTime2(timeLeft)}
-                    </Typography>}
+                    {!isHistory &&
+                        <CircularTimer timeLeft={timeLeft} totalSec={TOTAL_SEC} />
+                    }
                 </Box>
 
                 <Divider sx={{ mb: 2 }} />
@@ -270,6 +259,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                 <Box>
                     {!isHistory && (
                         <>
+                            {!order.isReady && (
                         <Button
                             variant="contained"
                             size="small"
@@ -282,12 +272,35 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                                     mr: 1,
                                 borderRadius: 4
                             }}
-                            onClick={() => {markOrderReady(order.id).then(() => {onReadyClick?.(order)})}}
+                            onClick={() => {updateOrderStatus({orderId: order.id,
+                                jahezOrderId: null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
                         >
                             READY
                         </Button>
-
+                            )}
+                            {order.isReady && (
                             <Button
+                                variant="contained"
+                                size="small"
+                                sx=
+                                    {{
+                                        borderColor: colorBeige,
+                                        color: colorRed,
+                                        backgroundColor: "white",
+                                        mr: 1,
+                                        borderRadius: 4
+                                    }}
+                                onClick={() => {updateOrderStatus({orderId: order.id,
+                                                                                                            jahezOrderId: null,
+                                                                                                            orderStatus: "Picked Up",
+                                                                                                            reason: null})
+                                    .then(() => {onPickedUpClick?.(order)})}}
+                            >
+                                PICKED UP
+                            </Button>
+                            )}
+                            {order.order_type !== "Jahez" && (
+                              <Button
                         variant="contained"
                         size="small"
                         disabled={order.isPaid}
@@ -305,10 +318,12 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         >
                         PAY
                         </Button>
+                            )}
                         </>
                     )}
+                    {order.order_type !== "Jahez" && (
 
-                    <Button
+                        <Button
                         variant="outlined"
                         size="small"
                         sx={{
@@ -323,6 +338,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         }}>
                         EDIT
                     </Button>
+                    )}
                     {isHistory && (
                         <IconButton
                             size="small"
