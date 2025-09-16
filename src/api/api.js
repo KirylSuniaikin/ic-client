@@ -1,12 +1,14 @@
-
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
 export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
+export var URL = "https://icpizza-back.onrender.com/api";
+export var WS_URL = "https://icpizza-back.onrender.com/ws";
+
 
 export async function fetchBaseAppInfo(userId) {
-    let url = PROD_BASE_HOST + "/get_base_app_info";
+    let url = URL + "/get_base_app_info";
     if (userId) {
         url += `?userId=${encodeURIComponent(userId)}`;
     }
@@ -29,7 +31,7 @@ export async function fetchBaseAppInfo(userId) {
 
 export async function createOrder(order) {
     console.log(order);
-    const response = await fetch(PROD_BASE_HOST + "/create_order", {
+    const response = await fetch(URL + "/create_order", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -49,7 +51,7 @@ export async function createOrder(order) {
 export async function updateAvailability(changes) {
     console.log("Changes to update:", changes);
 
-    const response = await fetch(PROD_BASE_HOST + "/update_availability", {
+    const response = await fetch(URL + "/update_availability", {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -66,7 +68,7 @@ export async function updateAvailability(changes) {
 }
 
 export async function markOrderReady(orderId) {
-    const url = `${PROD_BASE_HOST}/ready_action`;
+    const url = `${URL}/ready_action`;
     console.log(orderId);
     const response = await fetch(url, {
         method: "PUT",
@@ -85,7 +87,7 @@ export async function markOrderReady(orderId) {
 }
 
 export async function editOrder(order, orderId) {
-    const url = `${PROD_BASE_HOST}/edit_order`;
+    const url = `${URL}/edit_order`;
 
     const response = await fetch(url, {
         method: "PUT",
@@ -105,7 +107,7 @@ export async function editOrder(order, orderId) {
 
 export async function updatePaymentType(orderId, newPaymentType) {
     try {
-        const res = await fetch(`${PROD_BASE_HOST}/update_payment_type`, {
+        const res = await fetch(`${URL}/update_payment_type`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
@@ -126,7 +128,7 @@ export async function updatePaymentType(orderId, newPaymentType) {
 }
 
 export async function getAllActiveOrders() {
-    const response = await fetch(PROD_BASE_HOST + "/get_all_active_orders", {
+    const response = await fetch(URL + "/get_all_active_orders", {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -144,7 +146,7 @@ export async function getAllActiveOrders() {
 }
 
 export async function getHistory() {
-    const response = await fetch(PROD_BASE_HOST + "/get_history", {
+    const response = await fetch(URL + "/get_history", {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -163,7 +165,7 @@ export async function getHistory() {
 }
 
 export async function fetchStatistics(startDate, finishDate, certainDate) {
-    const url = `${PROD_BASE_HOST}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}`;
+    const url = `${URL}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}`;
 
     const response = await fetch(url, {
         method: "GET",
@@ -182,7 +184,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
     try {
-        const response = await fetch(PROD_BASE_HOST + "/send_shift_event", {
+        const response = await fetch(URL + "/send_shift_event", {
 
             method: "POST",
             headers: {
@@ -213,7 +215,7 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 }
 
 export async function fetchLastStage(branchId) {
-    const url = `${PROD_BASE_HOST}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
+    const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
     const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -229,7 +231,7 @@ export async function fetchLastStage(branchId) {
 }
 
 export async function deleteOrder(orderId) {
-    const url = `${PROD_BASE_HOST}/delete_order?orderId=${encodeURIComponent(orderId)}`;
+    const url = `${URL}/delete_order?orderId=${encodeURIComponent(orderId)}`;
     const response = await fetch(url, {
         method: "DELETE",
         headers: {
@@ -243,7 +245,7 @@ export async function deleteOrder(orderId) {
 
 export async function sendOrderPayment({orderId, amount, type, branchId}){
     try {
-        const response = await fetch(PROD_BASE_HOST + "/order_payment", {
+        const response = await fetch(URL + "/order_payment", {
 
             method: "POST",
             headers: {
@@ -269,4 +271,34 @@ export async function sendOrderPayment({orderId, amount, type, branchId}){
         console.error("Failed to sendOrderPayment", error);
     }
 
+}
+
+export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, reason}) {
+    try{
+        console.log(jahezOrderId);
+        const response = await fetch(URL + "/status_update", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                orderId,
+                jahezOrderId,
+                orderStatus,
+                reason
+            })
+        });
+
+        if (response.ok) return;
+
+        let detail = "";
+        try {
+            const t = await response.text();
+            if (t) detail = ` – ${t}`;
+        } catch {}
+        throw new Error(`HTTP ${response.status}${detail}`);
+    }
+    catch (error) {
+        console.error("Failed to update status", error);
+    }
 }
