@@ -150,6 +150,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     border: '2px solid',
                     borderRadius: 3,
                     borderColor: cardBorderColor,
+                    backgroundColor: order.order_type==="Jahez" ? "#fff5f5": "#fff",
                     boxShadow: 3
         }}>
             <CardContent>
@@ -182,9 +183,11 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     <Typography variant="body2">
                         <strong>Time:</strong> {formattedTime}
                     </Typography>
+                    {order.order_type !=="Jahez" && (
                     <Typography variant="body2">
                         <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                     </Typography>
+                    )}
                     <Typography variant="body2" color={colorRed}>
                         <strong>Notes:</strong> {order.notes}
                     </Typography>
