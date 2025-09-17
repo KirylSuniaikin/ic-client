@@ -3,8 +3,8 @@ export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
 export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
-export var URL = "https://icpizza-back.onrender.com/api";
-export var WS_URL = "https://icpizza-back.onrender.com/ws";
+export var URL = PROD_BASE_HOST;
+export var WS_URL = PROD_SOCKET_URL;
 
 
 export async function fetchBaseAppInfo(userId) {
@@ -138,6 +138,7 @@ export async function getAllActiveOrders() {
         throw new Error(`Ошибка: ${response.status}`);
     }
     const text = await response.text();
+    console.log(text)
     if (text.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
