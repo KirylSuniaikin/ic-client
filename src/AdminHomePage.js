@@ -1,6 +1,17 @@
 import {useEffect, useRef, useState} from "react";
 import OrderCard from "./adminComponents/OrderCard";
-import {Alert, Box, Button, Fab, IconButton, Paper, Snackbar, Typography} from '@mui/material';
+import {
+    Alert,
+    Box,
+    Button, Dialog,
+    DialogActions,
+    DialogContent, DialogTitle,
+    Fab,
+    IconButton,
+    Paper,
+    Snackbar, TextField,
+    Typography
+} from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {
     fetchLastStage,
@@ -22,6 +33,8 @@ import SockJS from 'sockjs-client';
 import {Masonry} from "@mui/lab";
 import PaymentPopup from "./adminComponents/PaymentPopup";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from "@mui/icons-material/Cancel";
+import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -43,6 +56,9 @@ function AdminHomePage() {
     const [newlyUpdatedOrder, setNewlyUpdatedOrder] = useState(null);
     const [activeAlertOrderEdit, setActiveAlertOrderEdit] = useState(null);
     const [confirmingAccept, setConfirmingAccept] = useState(false);
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState("");
 
 
     const audioRef = useRef(null);
@@ -129,6 +145,81 @@ function AdminHomePage() {
             console.error("[Confirm] failed:", e?.message || e);
         } finally {
             setConfirmingAccept(false);
+        }
+    }
+
+    function renderComboDescription(desc) {
+        const comboParts = desc.split(";");
+
+
+        return comboParts.map((part, idx) => {
+            const lines = part.trim().split("+");
+            const main = lines[0].trim();
+            const extras = lines.slice(1).map(e => e.trim()).filter(Boolean);
+
+            return (
+                <Box key={idx} sx={{ mt: 1, ml: 1 }}>
+                    <Typography variant="body2" fontWeight="bold">{main}</Typography>
+                    {extras.map((extra, i) => (
+                        <Typography
+                            key={i}
+                            variant="body2"
+                            sx={{ color: colorRed, ml: 1 }}
+                        >
+                            + {extra}
+                        </Typography>
+                    ))}
+                </Box>
+            );
+        });
+    }
+
+    function renderItemDetails(item) {
+
+
+        if (item.category === "Combo Deals" && item.description?.includes(";")) {
+            return renderComboDescription(item.description);
+        }
+
+        const desc = item.description?.replace(";", "") || "";
+        const cleanDescription = desc
+            .replace(/[()]/g, "")
+            .replace(/^\+/, "")
+            .trim();
+
+        const extras = cleanDescription
+            .split("+")
+            .map(str => str.trim())
+            .filter(Boolean);
+
+        return extras.length > 0 ? (
+            <Box sx={{ mt: 1, ml: 1 }}>
+                {extras.map((extra, idx) => (
+                    <Typography
+                        key={idx}
+                        variant="body2"
+                        sx={{ color: colorRed }}
+                    >
+                        + {extra}
+                    </Typography>
+                ))}
+            </Box>
+        ) : null;
+    }
+
+    async function handleCancel(order) {
+        if (!cancelReason || !cancelReason.trim()) console.log("[Cancel] no cancel reason");
+        setConfirmingCancel(true);
+        try {
+            await updateOrderStatus({orderId: normalizeId(order.id), jahezOrderId: getExtId(order), orderStatus: "Cancelled", reason: cancelReason.trim()});
+            setCancelDialogOpen(false);
+            setActiveAlertOrder(null);
+            setOrders(prev => prev.filter(o => normalizeId(o.id) !== normalizeId(order.id)));
+            setCancelReason("");
+        } catch (e) {
+            console.error("[Cancel] failed:", e?.message || e);
+        } finally {
+            setConfirmingCancel(false);
         }
     }
 
@@ -318,6 +409,19 @@ function AdminHomePage() {
                         });
                     })
 
+                    socket.subscribe("/topic/order-cancelled", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        const cancelledOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
+                        console.log("[ORDER_CANCELLED] ", cancelledOrderId);
+                        stopSound()
+                        setActiveAlertOrder(null);
+                        setOrders(prev => prev.filter(o => getStringId(o) !== cancelledOrderId));
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({orderId: cancelledOrderId}),
+                        });
+                    })
+
                     socket.subscribe("/topic/order-picked-up", (frame) => {
                         const payload = JSON.parse(frame.body);
                         const pickedUpOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
@@ -502,14 +606,12 @@ function AdminHomePage() {
                         p: 2,
                         px: 3,
                         backgroundColor: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
                         boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                         width: "85vw",
                         maxWidth: 600,
                     }}
                 >
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                             {getExtId(activeAlertOrder) ? 'Jahez Order' : 'New Order'}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
@@ -521,9 +623,33 @@ function AdminHomePage() {
                     </Box>
 
                     {getExtId(activeAlertOrder) ? (
-                        <Button
-                            variant="contained"
-                            color="success"
+                        <>
+                            <Box>
+                                {activeAlertOrder?.items?.map((item, idx) => (
+                                    <Box
+                                        key={idx}
+                                        sx={{ mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0" }}
+                                    >
+                                        <Typography variant="body2">
+                                            {item.quantity}x <strong>{item.name}</strong>
+                                            {item.size && (
+                                                <Typography
+                                                    component="span"
+                                                    variant="body2"
+                                                    sx={{ ml: 1, fontStyle: "italic" }}
+                                                >
+                                                    ({item.size})
+                                                </Typography>
+                                            )}
+                                        </Typography>
+                                        {renderItemDetails(item)}
+                                    </Box>
+                                ))}
+                            </Box>
+                            <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+
+                            <Button
+                            variant="outlined"
                             startIcon={<CheckCircleIcon />}
                             onClick={() => {
                                 confirmExternalOrder(activeAlertOrder)
@@ -533,10 +659,21 @@ function AdminHomePage() {
                                 }
                             }}
                             disabled={confirmingAccept}
-                            sx={{ borderRadius: 2, textTransform: 'none' }}
+                            sx={{ borderRadius: 4, textTransform: 'none', flex: 1, backgroundColor: colorRed, color: "white", borderColor: "white" }}
                         >
                             {confirmingAccept ? 'Confirming…' : 'Confirm'}
                         </Button>
+
+                            <Button
+                                variant="outlined"
+                                startIcon={<CancelIcon />}
+                                onClick={() => setCancelDialogOpen(true)}
+                                sx={{ borderRadius: 4, textTransform: "none", flex: 1, borderColor: colorRed, color: colorRed }}
+                            >
+                                Cancel
+                            </Button>
+                            </Box>
+                        </>
                     ):(
 
                     <IconButton
@@ -553,6 +690,7 @@ function AdminHomePage() {
                         <CloseIcon />
                     </IconButton>
                     )}
+                    </Box>
                 </Paper>
             </Snackbar>
 
@@ -650,7 +788,67 @@ function AdminHomePage() {
         </Button>
     </Paper>
 </Snackbar>
+            <SwipeableDrawer
+                anchor="bottom"
+                open={cancelDialogOpen}
+                onClose={() => setCancelDialogOpen(false)}
+                onOpen={() => {}}
+                disableDiscovery
+                keepMounted
+                PaperProps={{
+                    sx: {
+                        borderTopLeftRadius: 16,
+                        borderTopRightRadius: 16,
+                        p: 2,
+                    },
+                }}
+            >
+                <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                    <Box sx={{ width: 36, height: 4, borderRadius: 999, bgcolor: "grey.400" }} />
+                </Box>
+
+                <Typography variant="h6" sx={{ textAlign: "center", fontWeight: 600, mb: 2 }}>
+                    Cancel Order
+                </Typography>
+
+                <TextField
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    placeholder="Type reason..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    sx={{
+                        mb: 3,
+                        "& .MuiOutlinedInput-root": {
+                            borderRadius: 2,
+                        },
+                    }}
+                />
+
+                <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={() => handleCancel(activeAlertOrder)}
+                    disabled={confirmingCancel || !cancelReason.trim()}
+                    sx={{
+                        backgroundColor: colorRed,
+                        color: "#fff",
+                        borderRadius: 2,
+                        py: 1.5,
+                        fontWeight: 600,
+                        textTransform: "none",
+                        fontSize: 16,
+                        "&:hover": {
+                            backgroundColor: "#c73c3d",
+                        },
+                    }}
+                >
+                    {confirmingCancel ? "Cancelling…" : "Confirm Cancel"}
+                </Button>
+            </SwipeableDrawer>
         </div>
+
     );
 
 }

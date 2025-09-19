@@ -18,6 +18,25 @@ export function TextTitle({ children, sx = {}, ...props }) {
     );
 }
 
+export function TextTitleWithoutVariant({ children, sx = {}, variant = "h6", ...props }) {
+    return (
+        <Typography
+            variant={variant}
+            sx={{
+                fontFamily: "'Baloo Bhaijaan 2', sans-serif",
+                ...(variant === "h6" && {
+                    fontSize: { xs: "1.5rem", sm: "1.5rem" },
+                    color: "#0D0D0D",
+                }),
+                ...sx,
+            }}
+            {...props}
+        >
+            {children}
+        </Typography>
+    );
+}
+
 export function TextGroup({ children, sx = {}, ...props }) {
     return (
         <Typography

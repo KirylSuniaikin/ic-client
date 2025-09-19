@@ -138,7 +138,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
         return () => clearTimeout(timerId);
     }, [computeLeft]);
 
-    const isCritical = timeLeft < 180;
+    const isCritical = timeLeft < 60;
 
 
     const cardBorderColor = !isHistory
@@ -163,7 +163,9 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     }}
                 >
                     <Typography variant="h6">
-                        Order: {order.order_no}{" "}
+                        Order: {order.order_type === "Jahez"
+                        ? order.external_id
+                        : order.order_no}{" "}
                         <Typography
                             component="span"
                             sx={{ fontSize: 14, color: "text.secondary" }}
@@ -276,7 +278,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                                 borderRadius: 4
                             }}
                             onClick={() => {updateOrderStatus({orderId: order.id,
-                                jahezOrderId: null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
+                                jahezOrderId: order.external_id? order.external_id : null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
                         >
                             READY
                         </Button>

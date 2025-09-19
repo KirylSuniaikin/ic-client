@@ -4,11 +4,11 @@ import {
     CardContent,
     CardMedia,
     Box,
-    IconButton
+    IconButton, Typography
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
-import { TextTitle, TextSecondary } from "../utils/typography";
+import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../utils/typography";
 
 const colorText = "#1A1A1A";
 const colorWhite = "#ffffff";
@@ -141,18 +141,27 @@ function MenuItemCardHorizontal({
                     < TextSecondary>{displayPrice}</TextSecondary>
 
                     {!isSimpleGroup ? (
-                        <Box
+                        <TextTitleWithoutVariant
                             component="span"
+                            variant="body2"
                             sx={{
-                                display: "inline-block",
-                                width: 14,
-                                height: 14,
-                                borderRight: "2px solid #ccc",
-                                borderBottom: "2px solid #ccc",
-                                transform: "rotate(-45deg)",
-                                mt: "2px"
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 14,
+                                fontWeight: 500,
+                                color: "text.secondary",
+                                border: "1.5px solid #e0e0e0",
+                                borderRadius: "20px",
+                                px: 1.5,
+                                py: 0.25,
+                                lineHeight: 1,
+                                height: 28,
+                                minWidth: 70,
                             }}
-                        />
+                        >
+                            SELECT
+                        </TextTitleWithoutVariant>
                     ) : (
                         cartItem ? (
                             <Box
