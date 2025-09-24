@@ -7,7 +7,7 @@ export default function useOscillatingAutoScroll(
     {
         enabled = true,
         initialDelay = 800,
-        pxPerSecond = 240,
+        pxPerSecond = 120,
         cycles = 1,
         pauseOnHover = true,
         cancelOnInteract = true,

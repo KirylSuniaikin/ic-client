@@ -59,10 +59,12 @@ export default function StatisticsComponent({isOpen, onClose}) {
             });
 
             setRangeStats({
-                totalRevenue: response.total_revenue,
-                totalOrders: response.total_order_count,
+                totalPickUpRevenue: response.pick_up_total_revenue,
+                totalPickUpOrders: response.pick_up_total_order_count,
                 newCustomers: response.new_customer_ordered_count,
                 oldCustomers: response.old_customer_ordered_count,
+                totalJahezRevenue: response.jahez_total_revenue,
+                totalJahezOrders: response.jahez_total_order_count,
             });
 
             setRetentionStats({
@@ -201,6 +203,10 @@ export default function StatisticsComponent({isOpen, onClose}) {
                     </Popover>
 
                     {rangeStats && (
+                        <>
+                        <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: "bold" }}>
+                            Pick Up
+                        </Typography>
                         <Grid container spacing={2} sx={{ mt: 2 }}>
                             <Grid item xs={6}>
                                 <Box textAlign="center">
@@ -208,7 +214,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                         Revenue
                                     </Typography>
                                     <Typography variant="h5" fontWeight="bold">
-                                        {rangeStats.totalRevenue} BD
+                                        {rangeStats.totalPickUpRevenue} BD
                                     </Typography>
                                 </Box>
                             </Grid>
@@ -218,7 +224,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                         Orders
                                     </Typography>
                                     <Typography variant="h5" fontWeight="bold">
-                                        {rangeStats.totalOrders}
+                                        {rangeStats.totalPickUpOrders}
                                     </Typography>
                                 </Box>
                             </Grid>
@@ -243,6 +249,29 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                 </Box>
                             </Grid>
                         </Grid>
+                            <Box sx={{ my: 2, borderBottom: "1px solid #e0e0e0" }} />
+                            <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: "bold" }}>
+                                Jahez
+                            </Typography>
+                            <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                    <Box textAlign="center">
+                                        <Typography variant="body2" color="text.secondary">Revenue</Typography>
+                                        <Typography variant="h5" fontWeight="bold">
+                                            {rangeStats.totalJahezRevenue} BD
+                                        </Typography>
+                                    </Box>
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <Box textAlign="center">
+                                        <Typography variant="body2" color="text.secondary">Orders</Typography>
+                                        <Typography variant="h5" fontWeight="bold">
+                                            {rangeStats.totalJahezOrders}
+                                        </Typography>
+                                    </Box>
+                                </Grid>
+                            </Grid>
+                        </>
                     )}
                 </CardContent>
             </Card>

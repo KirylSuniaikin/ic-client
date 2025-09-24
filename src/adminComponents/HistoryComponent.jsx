@@ -47,6 +47,7 @@ function HistoryComponent({isOpen, onClose}) {
                 setLoading(true);
                 const response = await getHistory();
                 setOrders(response.orders);
+                console.log(response);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -63,8 +64,8 @@ function HistoryComponent({isOpen, onClose}) {
     if (error) return <div>Error: {error}</div>;
 
 
-    const sortedOrders = orders.sort(
-        (a, b) => new Date(b.order_created) - new Date(a.order_created)
+    const sortedOrders = [...orders].sort(
+        (a, b) => new Date(a.order_created) - new Date(b.order_created)
     );
 
     return (

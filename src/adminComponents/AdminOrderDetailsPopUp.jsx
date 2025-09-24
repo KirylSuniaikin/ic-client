@@ -28,7 +28,7 @@ const countries = [
     { name: "Czech Republic", code: "420", digits: 9 }
 ];
 
-const deliveryOptions = ["Pick Up", "Talabat", "Delivery", "Jahez", "Ahlan"];
+const deliveryOptions = ["Take Out", "Talabat", "Delivery", "Jahez", "Ahlan"];
 const paymentOptions = ["Card (Through card machine)", "Cash", "Benefit"];
 
 const brandRed   = "#E44B4C";

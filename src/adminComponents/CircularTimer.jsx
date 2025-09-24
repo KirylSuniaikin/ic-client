@@ -52,7 +52,7 @@ export function CircularTimer({
     const dash = C * p;
     const gap = C - dash;
 
-    const color = left < 180 ? colorRed : left < 300 ? colorYellow : colorGreen;
+    const color = left < 60 ? colorRed : left < 300 ? colorYellow : colorGreen;
     const label = formatMmSs(rawLeft);
 
     return (

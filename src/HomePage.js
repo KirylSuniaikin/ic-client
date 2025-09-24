@@ -21,6 +21,9 @@ import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWork
 import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
 import {TextButton, TextGroup, TextTitle} from "./utils/typography";
 import useOscillatingAutoScroll from "./components/hooks/useOscillatingAutoScroll";
+import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
+import {DetroitComboPopup} from "./components/comboComponents/DetroitComboPopup";
+import {UpsellPopup} from "./components/UpSellPopup";
 
 
 const brandRed = "#E44B4C";
@@ -37,6 +40,8 @@ function HomePage({userParam}) {
 
     const [pizzaPopupOpen, setPizzaPopupOpen] = useState(false);
     const [comboPopupOpen, setComboPopupOpen] = useState(false);
+    const [pizzaComboPopupOpen, setPizzaComboPopupOpen] = useState(false);
+    const [detroitComboPopupOpen, setDetroitComboPopupOpen] = useState(false);
     const [genericPopupOpen, setGenericPopupOpen] = useState(false);
     const [popupGroup, setPopupGroup] = useState(null);
     const [editItem, setEditItem] = useState(null);
@@ -58,6 +63,11 @@ function HomePage({userParam}) {
     const generalCrossSell = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"]
     const finalCrossSell = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"]
 
+    const [upsellPopupOpen, setUpsellPopupOpen] = useState(false);
+    const [upsellItem, setUpsellItem] = useState(null);
+    const [upsellType, setUpsellType] = useState(null);
+    const [pendingItems, setPendingItems] = useState(null);
+
     const bestRef = useRef(null);
 
     const {
@@ -76,9 +86,9 @@ function HomePage({userParam}) {
         bestsellers,
         cycles: 2,
         enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
-        initialDelay: 600,
+        initialDelay: 300,
         onceKey: `autoScroll:${location.pathname}`,
-        pxPerSecond: 260,
+        pxPerSecond: 130,
         runOnce: true,
         onceTtlMs: 30_000,
     });
@@ -309,20 +319,38 @@ function HomePage({userParam}) {
         if (item.category === "Pizzas") {
             setPopupGroup(item);
             setPizzaPopupOpen(true);
-        }
-        if (item.category === "Combo Deals") {
-            setPopupGroup(item);
-            setComboPopupOpen(true);
-        } else if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
+        } else if (item.category === "Combo Deals") {
+            if (item.name === "Pizza Combo") {
+                const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+                setPopupGroup(comboVariants);
+                setPizzaComboPopupOpen(true);
+            } else if (item.name === "Detroit Combo") {
+
+                setPopupGroup(item);
+                setDetroitComboPopupOpen(true); // когда сделаем Detroit popup
+            }
+        } else {
             setPopupGroup(item);
             setGenericPopupOpen(true);
         }
     };
+
     const handleClosePizzaPopup = () => {
         setPizzaPopupOpen(false)
         setPopupGroup(null)
         setEditMode(false)
     };
+
+    const handleClosePizzaComboPopup = () => {
+        setPizzaComboPopupOpen(false)
+        setPopupGroup(null)
+    }
+
+    const handleCloseDetroitComboPopup = () => {
+        setDetroitComboPopupOpen(false)
+        setPopupGroup(null)
+        console.log(popupGroup)
+    }
 
     const handleCloseComboPopup = () => {
         setComboPopupOpen(false);
@@ -338,7 +366,34 @@ function HomePage({userParam}) {
         setPhonePopupOpen(false);
     }
 
-    function handleAddToCart(items) {
+    const handleUpsellPopupClose = () => {
+        setUpsellPopupOpen(false);
+        // setPendingItems(null);
+    }
+
+    function handleAddToCart(items, upsellDeclined) {
+        console.log(items);
+        const arr = Array.isArray(items) ? items : [items];
+
+        const pizzaItem = arr.find(it => it.category === "Pizzas");
+        const brickItem = arr.find(it => it.category === "Brick Pizzas");
+
+        if (pizzaItem && !upsellDeclined) {
+            setPendingItems(items)
+            setUpsellItem(pizzaItem);
+            setUpsellType("pizza");
+            setUpsellPopupOpen(true);
+            return;
+        }
+
+        if (brickItem && !upsellDeclined) {
+            setPendingItems(items)
+            setUpsellItem(brickItem);
+            setUpsellType("brick");
+            setUpsellPopupOpen(true);
+            return;
+        }
+
         setCartItems(prev => [
             ...prev,
             ...(Array.isArray(items) ? items : [items])
@@ -354,6 +409,8 @@ function HomePage({userParam}) {
                 currency: 'BHD'
             });
         }
+
+        setPendingItems(null);
     }
 
     function removeFromCart(name, amount, quantity) {
@@ -421,7 +478,18 @@ function HomePage({userParam}) {
                     description: item.description || "",
                     isGarlicCrust: item.isGarlicCrust || false,
                     isThinDough: item.isThinDough || false,
-                    discount_amount: parseFloat(discountAmount.toFixed(3))
+                    discount_amount: parseFloat(discountAmount.toFixed(3)),
+                    comboItems: item.comboItems
+                        ? item.comboItems.map(ci => ({
+                            name: ci.name,
+                            category: ci.category,
+                            size: ci.size || "",
+                            quantity: ci.quantity || 1,
+                            isGarlicCrust: ci.isGarlicCrust || false,
+                            isThinDough: ci.isThinDough || false,
+                            description: ci.description || ""
+                        }))
+                        : []
                 };
             }),
             amount_paid: parseFloat(
@@ -493,7 +561,18 @@ function HomePage({userParam}) {
                         description: item.description || "",
                         isGarlicCrust: item.isGarlicCrust || false,
                         isThinDough: item.isThinDough || false,
-                        discount_amount: parseFloat(discountAmount.toFixed(3))
+                        discount_amount: parseFloat(discountAmount.toFixed(3)),
+                        comboItems: item.comboItems
+                            ? item.comboItems.map(ci => ({
+                                name: ci.name,
+                                category: ci.category,
+                                size: ci.size || "",
+                                quantity: ci.quantity || 1,
+                                isGarlicCrust: ci.isGarlicCrust || false,
+                                isThinDough: ci.isThinDough || false,
+                                description: ci.description || ""
+                            }))
+                            : []
                     };
                 }),
                 amount_paid: parseFloat(
@@ -555,6 +634,34 @@ function HomePage({userParam}) {
                 setCartOpen(false);
             }
         }
+    }
+
+    function handleUpsellDecline() {
+        if (upsellItem) {
+            handleAddToCart(pendingItems, true);
+        }
+        setUpsellPopupOpen(false);
+        setUpsellItem(null);
+        setUpsellType(null);
+    }
+
+    function handleUpsellAccept(item, type) {
+        if (type === "pizza") {
+            const pizzaCombos = menuData.filter((m) => m.name === "Pizza Combo");
+            console.log(pizzaCombos);
+            if (pizzaCombos.length > 0) {
+                setPopupGroup(pizzaCombos);
+                setPizzaComboPopupOpen(true);
+            }
+        } else if (type === "brick") {
+            const detroitCombo = menuData.filter((m) => m.name === "Detroit Combo");
+            console.log(detroitCombo);
+            if (detroitCombo) {
+                setPopupGroup(detroitCombo);
+                setDetroitComboPopupOpen(true);
+            }
+        }
+        setUpsellPopupOpen(false);
     }
 
     return (
@@ -746,7 +853,10 @@ function HomePage({userParam}) {
                 !cartOpen &&
                 !phonePopupOpen &&
                 !adminOrderDetailsPopUp &&
-                isAdmin && (
+                isAdmin &&
+                !pizzaComboPopupOpen &&
+                !detroitComboPopupOpen &&
+                !upsellPopupOpen && (
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -793,6 +903,44 @@ function HomePage({userParam}) {
                 onAddToCart={handleAddToCart}
             />
             }
+
+            {pizzaComboPopupOpen && (
+                <PizzaComboPopup
+                    open={true}
+                    onClose={handleClosePizzaComboPopup}
+                    comboGroup={popupGroup}
+                    extraIngredients={extraIngredients}
+                    pizzas={pizzas}
+                    drinks={beverages}
+                    sauces={sauces}
+                    onAddToCart={handleAddToCart}
+                    selectedPizza={upsellItem}
+                />
+            )}
+
+            {detroitComboPopupOpen && (
+                <DetroitComboPopup
+                open={true}
+                onClose={handleCloseDetroitComboPopup}
+                combo={popupGroup}
+                bricks={brickPizzas}
+                drinks={beverages}
+                sauces={sauces}
+                onAddToCart={handleAddToCart}
+                selectedDetroitPizza={upsellItem}
+                >
+                </DetroitComboPopup>
+            )}
+
+            {upsellPopupOpen && (
+                <UpsellPopup
+                open={true}
+                upsellItem={upsellItem}
+                upsellType={upsellType}
+                onAccept={handleUpsellAccept}
+                onDecline={handleUpsellDecline}>
+                </UpsellPopup>
+            )}
 
             {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
@@ -856,7 +1004,7 @@ function HomePage({userParam}) {
                     <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
                 )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && cartItems.length > 0 &&
             <Box
                 onClick={handleOpenCart}
                 sx={{

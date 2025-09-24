@@ -33,38 +33,71 @@ function toEpochMsBahrain(s) {
     return Date.parse(withT + '+03:00');
 }
 
+const CATEGORY_ORDER = [
+    "Combo Deals",
+    "Pizzas",
+    "Brick Pizzas",
+    "Sides",
+    "Sauces",
+    "Beverages",
+];
 
-function renderComboDescription(desc) {
-    const comboParts = desc.split(";");
+export function sortItemsByCategory(items) {
+    if (!items || !items.length) return 0;
 
+    return [...items].sort((a, b) => {
+        const aIndex = CATEGORY_ORDER.indexOf(a.category);
+        const bIndex = CATEGORY_ORDER.indexOf(b.category);
 
-    return comboParts.map((part, idx) => {
-        const lines = part.trim().split("+");
-        const main = lines[0].trim();
-        const extras = lines.slice(1).map(e => e.trim()).filter(Boolean);
+        const safeA = aIndex === -1 ? CATEGORY_ORDER.length : aIndex;
+        const safeB = bIndex === -1 ? CATEGORY_ORDER.length : bIndex;
+
+        return safeA - safeB;
+    });
+}
+
+function renderComboDescription(comboItems) {
+    return comboItems.map((item, idx) => {
+        const extras = [];
+
+        if (item.isThinDough) extras.push("Thin Dough");
+        if (item.isGarlicCrust) extras.push("Garlic Crust");
+
+        if (item.description) {
+            item.description
+                .replace(/[()]/g, "")
+                .split("+")
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .forEach((s) => extras.push(s));
+        }
 
         return (
             <Box key={idx} sx={{ mt: 1, ml: 1 }}>
-                <Typography variant="body2" fontWeight="bold">{main}</Typography>
-                {extras.map((extra, i) => (
+                <Typography variant="body2" fontWeight="bold">
+                    {item.name} {item.size? "(" + item.size + ")" : ""}
+                </Typography>
+
+                {extras.length > 0 && (
                     <Typography
-                        key={i}
                         variant="body2"
                         sx={{ color: colorRed, ml: 1 }}
                     >
-                        + {extra}
+                        {extras.map((e, i) => (
+                            <span key={i}>+ {e} </span>
+                        ))}
                     </Typography>
-                ))}
+                )}
             </Box>
         );
     });
 }
 
-function renderItemDetails(item) {
+export function renderItemDetails(item) {
 
 
-    if (item.category === "Combo Deals" && item.description?.includes(";")) {
-        return renderComboDescription(item.description);
+    if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
+        return renderComboDescription(item.comboItemTO);
     }
 
     const desc = item.description?.replace(";", "") || "";
@@ -138,7 +171,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
         return () => clearTimeout(timerId);
     }, [computeLeft]);
 
-    const isCritical = timeLeft < 180;
+    const isCritical = timeLeft < 60;
 
 
     const cardBorderColor = !isHistory
@@ -163,7 +196,9 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     }}
                 >
                     <Typography variant="h6">
-                        Order: {order.order_no}{" "}
+                        Order: {order.order_type === "Jahez"
+                        ? order.external_id
+                        : order.order_no}{" "}
                         <Typography
                             component="span"
                             sx={{ fontSize: 14, color: "text.secondary" }}
@@ -201,7 +236,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                 <Divider sx={{ my: 2 }} />
 
                 <Box>
-                    {order.items.map((item, idx) => (
+                    {sortItemsByCategory(order.items).map((item, idx) => (
                         <Box
                             key={idx}
                             sx={{
@@ -276,7 +311,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                                 borderRadius: 4
                             }}
                             onClick={() => {updateOrderStatus({orderId: order.id,
-                                jahezOrderId: null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
+                                jahezOrderId: order.external_id? order.external_id : null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
                         >
                             READY
                         </Button>
