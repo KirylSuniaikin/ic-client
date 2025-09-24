@@ -179,7 +179,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                             "&:hover": { backgroundColor: "#d23f40" },
                         }}
                     >
-                        Checkout (Pick Up)
+                        Checkout (Take Out)
                     </Button>
                 </Box>
             </Box>

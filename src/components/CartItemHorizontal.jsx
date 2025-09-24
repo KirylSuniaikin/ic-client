@@ -26,6 +26,63 @@ function CartItemHorizontal({
     const discountedPrice = item.amount * (1 - discount / 100);
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
 
+    function renderItemDetails(item) {
+        // 1. Если это комбо
+        if (item.category === "Combo Deals" && Array.isArray(item.comboItems)) {
+            return (
+                <Box sx={{ mt: 1, ml: 1 }}>
+                    {item.comboItems.map((ci, idx) => {
+                        // собираем extras
+                        const extras = [];
+                        if (ci.isThinDough) extras.push("Thin Dough");
+                        if (ci.isGarlicCrust) extras.push("Garlic Crust");
+
+                        if (ci.description) {
+                            ci.description
+                                .split("+")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                                .forEach((s) => extras.push(s));
+                        }
+
+                        return (
+                            <Typography
+                                key={idx}
+                                variant="body2"
+                                sx={{ ml: 1 }}
+                            >
+                                • <strong>{ci.name}</strong>
+                                {ci.size && ` (${ci.size})`}
+                                {extras.length > 0 && " + " + extras.join(" + ")}
+                            </Typography>
+                        );
+                    })}
+                </Box>
+            );
+        }
+
+        const extras = [];
+        if (item.isThinDough) extras.push("Thin Dough");
+        if (item.isGarlicCrust) extras.push("Garlic Crust");
+
+        if (item.description) {
+            item.description
+                .split("+")
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .forEach((s) => extras.push(s));
+        }
+
+        return extras.length > 0 ? (
+            <Box sx={{ mt: 1, ml: 1 }}>
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                    + {extras.join(" + ")}
+                </Typography>
+            </Box>
+        ) : null;
+    }
+
+
     return (
         <Box
             sx={{
@@ -87,11 +144,13 @@ function CartItemHorizontal({
                     <Typography variant="subtitle1" fontWeight="bold" sx={{color: "#000"}}>
                         {item.name}
                     </Typography>
-                    {item.description && (
+                    {item.description && item.category !== "Combo Deals" ? (
                         <Typography variant="body2" sx={{color: "#555", mt: 0.5}}>
                             {item.description}
                         </Typography>
-                    )}
+                    ) : (
+                        renderItemDetails(item)
+                        )}
                 </Box>
             </Box>
 

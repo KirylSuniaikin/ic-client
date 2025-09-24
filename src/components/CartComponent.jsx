@@ -167,7 +167,7 @@ function CartPopup({
                             }
                         }}
                     >
-                        Checkout (Pick Up Only)
+                        Checkout (Take Out Only)
                     </Button>
                 </Box>
             </Box>

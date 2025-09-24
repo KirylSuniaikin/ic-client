@@ -1,12 +1,9 @@
 import {useEffect, useRef, useState} from "react";
-import OrderCard from "./adminComponents/OrderCard";
+import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
 import {
     Alert,
     Box,
-    Button, Dialog,
-    DialogActions,
-    DialogContent, DialogTitle,
-    Fab,
+    Button,
     IconButton,
     Paper,
     Snackbar, TextField,
@@ -148,64 +145,6 @@ function AdminHomePage() {
         }
     }
 
-    function renderComboDescription(desc) {
-        const comboParts = desc.split(";");
-
-
-        return comboParts.map((part, idx) => {
-            const lines = part.trim().split("+");
-            const main = lines[0].trim();
-            const extras = lines.slice(1).map(e => e.trim()).filter(Boolean);
-
-            return (
-                <Box key={idx} sx={{ mt: 1, ml: 1 }}>
-                    <Typography variant="body2" fontWeight="bold">{main}</Typography>
-                    {extras.map((extra, i) => (
-                        <Typography
-                            key={i}
-                            variant="body2"
-                            sx={{ color: colorRed, ml: 1 }}
-                        >
-                            + {extra}
-                        </Typography>
-                    ))}
-                </Box>
-            );
-        });
-    }
-
-    function renderItemDetails(item) {
-
-
-        if (item.category === "Combo Deals" && item.description?.includes(";")) {
-            return renderComboDescription(item.description);
-        }
-
-        const desc = item.description?.replace(";", "") || "";
-        const cleanDescription = desc
-            .replace(/[()]/g, "")
-            .replace(/^\+/, "")
-            .trim();
-
-        const extras = cleanDescription
-            .split("+")
-            .map(str => str.trim())
-            .filter(Boolean);
-
-        return extras.length > 0 ? (
-            <Box sx={{ mt: 1, ml: 1 }}>
-                {extras.map((extra, idx) => (
-                    <Typography
-                        key={idx}
-                        variant="body2"
-                        sx={{ color: colorRed }}
-                    >
-                        + {extra}
-                    </Typography>
-                ))}
-            </Box>
-        ) : null;
-    }
 
     async function handleCancel(order) {
         if (!cancelReason || !cancelReason.trim()) console.log("[Cancel] no cancel reason");
@@ -477,9 +416,10 @@ function AdminHomePage() {
 
     if (error) return <div>Error: {error}</div>;
 
-    const sortedOrders = orders.sort(
-        (a, b) => new Date(b.order_created) - new Date(a.order_created)
+    const sortedOrders = [...orders].sort(
+        (a, b) => new Date(a.order_created) - new Date(b.order_created)
     );
+
 
     const handlePaymentSuccess = (orderId) => {
         setOrders((prev) =>
@@ -625,7 +565,7 @@ function AdminHomePage() {
                     {getExtId(activeAlertOrder) ? (
                         <>
                             <Box>
-                                {activeAlertOrder?.items?.map((item, idx) => (
+                                {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
                                     <Box
                                         key={idx}
                                         sx={{ mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0" }}
