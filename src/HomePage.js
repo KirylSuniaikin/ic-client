@@ -67,6 +67,7 @@ function HomePage({userParam}) {
     const [upsellItem, setUpsellItem] = useState(null);
     const [upsellType, setUpsellType] = useState(null);
     const [pendingItems, setPendingItems] = useState(null);
+    const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
 
     const bestRef = useRef(null);
 
@@ -379,6 +380,7 @@ function HomePage({userParam}) {
         const brickItem = arr.find(it => it.category === "Brick Pizzas");
 
         if (pizzaItem && !upsellDeclined) {
+            setComboOfferPhoto(menuData.find(it => it.name === "Pizza Combo").photo)
             setPendingItems(items)
             setUpsellItem(pizzaItem);
             setUpsellType("pizza");
@@ -387,6 +389,7 @@ function HomePage({userParam}) {
         }
 
         if (brickItem && !upsellDeclined) {
+            setComboOfferPhoto(menuData.find(it => it.name === "Detroit Combo").photo)
             setPendingItems(items)
             setUpsellItem(brickItem);
             setUpsellType("brick");
@@ -641,6 +644,7 @@ function HomePage({userParam}) {
             handleAddToCart(pendingItems, true);
         }
         setUpsellPopupOpen(false);
+        setComboOfferPhoto(null)
         setUpsellItem(null);
         setUpsellType(null);
     }
@@ -661,6 +665,7 @@ function HomePage({userParam}) {
                 setDetroitComboPopupOpen(true);
             }
         }
+        setComboOfferPhoto(null)
         setUpsellPopupOpen(false);
     }
 
@@ -938,7 +943,8 @@ function HomePage({userParam}) {
                 upsellItem={upsellItem}
                 upsellType={upsellType}
                 onAccept={handleUpsellAccept}
-                onDecline={handleUpsellDecline}>
+                onDecline={handleUpsellDecline}
+                photo={comboOfferPhoto}>
                 </UpsellPopup>
             )}
 
