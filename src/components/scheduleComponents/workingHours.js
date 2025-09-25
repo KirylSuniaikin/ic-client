@@ -6,4 +6,4 @@ export const workingHours = {
     "Friday": ["14:00", "01:30"],
     "Saturday": ["14:00", "23:59"],
     "Sunday": ["14:00", "23:59"],
-};
+}
