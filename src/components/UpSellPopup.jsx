@@ -15,6 +15,7 @@ export function UpsellPopup({
                                         upsellType,
                                         onAccept,
                                         onDecline,
+                                        photo
                                     }) {
     if (!upsellItem) return null;
 
@@ -38,9 +39,9 @@ export function UpsellPopup({
                 }}
             >
                 {/* Фото пиццы / брика */}
-                {upsellItem.photo && (
+                {photo && (
                     <img
-                        src={upsellItem.photo}
+                        src={photo}
                         alt={upsellItem.name}
                         style={{
                             width: "100%",
@@ -54,7 +55,7 @@ export function UpsellPopup({
                 )}
 
                 <Typography variant="h6" fontWeight="bold" sx={{ mb: 1 }}>
-                    Would you like to upgrade to Detroit combo?
+                    Would you like to upgrade to {upsellType==="pizza"? " Pizza Combo" : " Detroit Combo"}?
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     Our new special offer{" "}
