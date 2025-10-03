@@ -59,9 +59,8 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                     display: "flex",
                     flexDirection: "column",
                 }}
-                onClick={(e) => e.stopPropagation()} // чтобы клик вне закрывал
+                onClick={(e) => e.stopPropagation()}
             >
-                {/* кнопка закрытия */}
                 <IconButton
                     onClick={onClose}
                     sx={{
@@ -74,7 +73,6 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                     <CloseIcon />
                 </IconButton>
 
-                {/* Сетка айтемов */}
                 <Box
                     sx={{
                         display: "grid",
@@ -88,7 +86,6 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                 >
                     {items.map((it) => {
                         const isSelected = selectedItem?.id === it.id;
-                        const isPizza = target === "pizza";
 
                         return (
                             <Box
@@ -119,108 +116,6 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                         );
                     })}
                 </Box>
-
-                {target === "pizza" && (
-                    <Box sx={{ mt: 1 }}>
-                        {size !== "S" && (
-                            <>
-                                <Typography variant="body2" sx={{ mt: 1 }}>
-                                    Dough
-                                </Typography>
-                                <ToggleButtonGroup
-                                    exclusive
-                                    value={dough}
-                                    onChange={(e, val) => val && setDough(val)}
-                                    sx={{
-                                        backgroundColor: brandGray,
-                                        borderRadius: "9999px",
-                                        p: "4px",
-                                        mb: 1,
-                                        "& .MuiToggleButtonGroup-grouped": {
-                                            border: 0,
-                                            flex: 1,
-                                            borderRadius: "9999px",
-                                            mr: "4px",
-                                            "&:not(:last-of-type)": { borderRight: "none" },
-                                        },
-                                    }}
-                                    fullWidth
-                                >
-                                    {["Traditional", "Thin"].map((d) => (
-                                        <ToggleButton
-                                            key={d}
-                                            value={d}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontSize: "13px",
-                                                justifyContent: "center",
-                                                color: "#666",
-                                                borderRadius: "9999px",
-                                                height: 30,
-                                                "&:hover": { backgroundColor: "transparent" },
-                                                "&.Mui-selected": {
-                                                    backgroundColor: "#fff",
-                                                    color: brandRed,
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                                    "&:hover": { backgroundColor: "#fff" },
-                                                },
-                                            }}
-                                        >
-                                            {d}
-                                        </ToggleButton>
-                                    ))}
-                                </ToggleButtonGroup>
-                            </>
-                        )}
-
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                            Crust
-                        </Typography>
-                        <ToggleButtonGroup
-                            exclusive
-                            value={crust}
-                            onChange={(e, val) => val && setCrust(val)}
-                            sx={{
-                                backgroundColor: brandGray,
-                                borderRadius: "9999px",
-                                p: "4px",
-                                mb: 1,
-                                "& .MuiToggleButtonGroup-grouped": {
-                                    border: 0,
-                                    flex: 1,
-                                    borderRadius: "9999px",
-                                    mr: "4px",
-                                    "&:not(:last-of-type)": { borderRight: "none" },
-                                },
-                            }}
-                            fullWidth
-                        >
-                            {["Classic Crust", "Garlic Crust"].map((c) => (
-                                <ToggleButton
-                                    key={c}
-                                    value={c}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontSize: "13px",
-                                        justifyContent: "center",
-                                        color: "#666",
-                                        borderRadius: "9999px",
-                                        height: 30,
-                                        "&:hover": { backgroundColor: "transparent" },
-                                        "&.Mui-selected": {
-                                            backgroundColor: "#fff",
-                                            color: brandRed,
-                                            boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                            "&:hover": { backgroundColor: "#fff" },
-                                        },
-                                    }}
-                                >
-                                    {c}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
-                    </Box>
-                )}
 
                 {/* Кнопка Add */}
                 <Button

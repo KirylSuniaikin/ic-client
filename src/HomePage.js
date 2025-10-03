@@ -68,6 +68,7 @@ function HomePage({userParam}) {
     const [upsellType, setUpsellType] = useState(null);
     const [pendingItems, setPendingItems] = useState(null);
     const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
+    const [comboPrice, setComboPrice] = useState(null);
 
     const bestRef = useRef(null);
 
@@ -367,11 +368,6 @@ function HomePage({userParam}) {
         setPhonePopupOpen(false);
     }
 
-    const handleUpsellPopupClose = () => {
-        setUpsellPopupOpen(false);
-        // setPendingItems(null);
-    }
-
     function handleAddToCart(items, upsellDeclined) {
         console.log(items);
         const arr = Array.isArray(items) ? items : [items];
@@ -380,7 +376,9 @@ function HomePage({userParam}) {
         const brickItem = arr.find(it => it.category === "Brick Pizzas");
 
         if (pizzaItem && !upsellDeclined) {
-            setComboOfferPhoto(menuData.find(it => it.name === "Pizza Combo").photo)
+            const combo = menuData.find(it => it.name === "Pizza Combo" && it.size===pizzaItem.size)
+            setComboOfferPhoto(combo.photo)
+            setComboPrice(combo.price)
             setPendingItems(items)
             setUpsellItem(pizzaItem);
             setUpsellType("pizza");
@@ -389,7 +387,9 @@ function HomePage({userParam}) {
         }
 
         if (brickItem && !upsellDeclined) {
-            setComboOfferPhoto(menuData.find(it => it.name === "Detroit Combo").photo)
+            const combo = menuData.find(it => it.name === "Detroit Combo")
+            setComboOfferPhoto(combo.photo)
+            setComboPrice(combo.price)
             setPendingItems(items)
             setUpsellItem(brickItem);
             setUpsellType("brick");
@@ -644,7 +644,8 @@ function HomePage({userParam}) {
             handleAddToCart(pendingItems, true);
         }
         setUpsellPopupOpen(false);
-        setComboOfferPhoto(null)
+        setComboOfferPhoto(null);
+        setComboPrice(null);
         setUpsellItem(null);
         setUpsellType(null);
     }
@@ -665,7 +666,8 @@ function HomePage({userParam}) {
                 setDetroitComboPopupOpen(true);
             }
         }
-        setComboOfferPhoto(null)
+        setComboOfferPhoto(null);
+        setComboPrice(null);
         setUpsellPopupOpen(false);
     }
 
@@ -944,7 +946,8 @@ function HomePage({userParam}) {
                 upsellType={upsellType}
                 onAccept={handleUpsellAccept}
                 onDecline={handleUpsellDecline}
-                photo={comboOfferPhoto}>
+                photo={comboOfferPhoto}
+                comboPrice={comboPrice}>
                 </UpsellPopup>
             )}
 

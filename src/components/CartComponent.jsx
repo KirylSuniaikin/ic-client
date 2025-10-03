@@ -161,7 +161,7 @@ function CartPopup({
                             textTransform: "none",
                             fontWeight: "bold",
                             borderRadius: 4,
-                            width: 210,
+                            width: 240,
                             "&:hover": {
                                 backgroundColor: brandRed
                             }

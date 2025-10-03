@@ -350,7 +350,7 @@ function AdminHomePage() {
 
                     socket.subscribe("/topic/order-cancelled", (frame) => {
                         const payload = JSON.parse(frame.body);
-                        const cancelledOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
+                        const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
                         console.log("[ORDER_CANCELLED] ", cancelledOrderId);
                         stopSound()
                         setActiveAlertOrder(null);

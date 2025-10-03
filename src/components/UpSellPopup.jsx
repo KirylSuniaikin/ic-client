@@ -2,9 +2,8 @@ import {
     Modal,
     Box,
     Typography,
-    Button, IconButton,
+    Button,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 
 const brandRed = "#E44B4C";
 
@@ -15,7 +14,8 @@ export function UpsellPopup({
                                         upsellType,
                                         onAccept,
                                         onDecline,
-                                        photo
+                                        photo,
+                                        comboPrice
                                     }) {
     if (!upsellItem) return null;
 
@@ -58,8 +58,7 @@ export function UpsellPopup({
                     Would you like to upgrade to {upsellType==="pizza"? " Pizza Combo" : " Detroit Combo"}?
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                    Our new special offer{" "}
-                    {upsellType === "pizza" ? "Pizza Combo" : "Detroit Combo"}.
+                    {upsellType === "pizza" ? "Pizza " : "Detroit Brick"} + sauce + drink just for {comboPrice}
                 </Typography>
 
                 {/* Кнопки */}
