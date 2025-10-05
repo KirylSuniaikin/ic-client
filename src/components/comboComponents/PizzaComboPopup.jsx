@@ -24,17 +24,19 @@ export function PizzaComboPopup({
                                     selectedPizza,
                                 }) {
     const [selectedSize, setSelectedSize] = useState(
-        selectedPizza?.size?.trim() || "M"
+        selectedPizza?.size?.trim() || "S"
     );
 
     const [pizza, setPizza] = useState(() => {
-        const targetSize = selectedPizza?.size?.trim() || "M";
+        const targetSize = selectedPizza?.size?.trim() || "S";
 
         const found =
             pizzas
                 .flatMap(p => p.items)
                 .find(i => i.name === selectedPizza?.name && i.size.trim() === targetSize) ||
             pizzas[0].items[0];
+
+        console.log("Found pizza " + found);
 
         return {
             item: found,
