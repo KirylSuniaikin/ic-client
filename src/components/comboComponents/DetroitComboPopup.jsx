@@ -3,14 +3,12 @@ import {
     Box,
     Typography,
     Button,
-    ToggleButtonGroup,
-    ToggleButton,
 } from "@mui/material";
 import React, { useState } from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
+import {ItemCard} from "./ItemCard";
 
 const brandRed = "#E44B4C";
-const brandGray = "#f3f3f3";
 
 export function DetroitComboPopup({
                                     open,
@@ -24,7 +22,7 @@ export function DetroitComboPopup({
                                 }) {
     const [brick, setBrick] = useState(() => {
         const found = bricks
-            .flatMap(b => b.items) // все айтемы в один массив
+            .flatMap(b => b.items)
             .find(i => i.name === selectedDetroitPizza?.name);
 
         return { item: found || bricks[0].items[0] };
@@ -102,100 +100,6 @@ export function DetroitComboPopup({
         onAddToCart?.(orderItem);
         onClose?.();
     }
-
-    const ItemCard = ({ item, onChange, fixed }) => {
-        if (!item) {
-            return (
-                <Box
-                    sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        p: 2.5,
-                        mb: 2,
-                        bgcolor: "#fff",
-                        borderRadius: 5,
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                        minHeight: 120,
-                    }}
-                >
-                    <Typography color="text.secondary">No item available</Typography>
-                </Box>
-            );
-        }
-        return(
-            <Box
-                sx={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    p: 2.5,
-                    mb: 2,
-                    bgcolor: "#fff",
-                    borderRadius: 5,
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                    minHeight: 120,
-                }}
-            >
-                <img
-                    src={item.photo}
-                    alt={item?.name}
-                    style={{
-                        width: 120,
-                        height: 120,
-                        objectFit: "cover",
-                        borderRadius: 12,
-                    }}
-                />
-                <Box sx={{
-                    ml: 2,
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    minHeight: 120,
-                }}>
-                    <Box>
-                        <Typography fontWeight="500" sx={{mb: 0.5}}>
-                            {item?.name}
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                                overflow: "hidden",
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                                textOverflow: "ellipsis",
-                            }}
-                        >
-                            {item.description ? item.description : " "}
-                        </Typography>
-                    </Box>
-                    {!fixed && (
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            sx={{
-                                color: brandRed,
-                                backgroundColor: "#ffe5e6",
-                                borderColor: "white",
-                                textTransform: "none",
-                                fontSize: "15px",
-                                borderRadius: 8,
-                                "&:hover": {backgroundColor: "#d23f40"},
-                                alignSelf: "flex-start",
-                            }}
-                            onClick={onChange}
-                        >
-                            Change
-                        </Button>
-                    )}
-                </Box>
-            </Box>
-        );
-    };
-
 
     return (
         <>

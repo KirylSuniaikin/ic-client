@@ -549,6 +549,7 @@ function HomePage({userParam}) {
                 customer_name: customerName,
                 type: "Pick Up",
                 payment_type: paymentMethod,
+                branchNumber: 1,
                 notes: notes,
                 items: items.map(item => {
                     const discount = typeof item.discount === "number" ? item.discount : 0;
