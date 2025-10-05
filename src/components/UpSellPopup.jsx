@@ -54,11 +54,8 @@ export function UpsellPopup({
                     />
                 )}
 
-                <Typography variant="h6" fontWeight="bold" sx={{ mb: 1 }}>
-                    Would you like to upgrade to {upsellType==="pizza"? " Pizza Combo" : " Detroit Combo"}?
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                    {upsellType === "pizza" ? "Pizza " : "Detroit Brick"} + sauce + drink just for {comboPrice}
+                <Typography variant="h6" color="bold" sx={{ mb: 3 }}>
+                    {upsellType === "pizza" ? "Pizza " : "Detroit Brick"} + Sauce + Drink just for {comboPrice}
                 </Typography>
 
                 {/* Кнопки */}
