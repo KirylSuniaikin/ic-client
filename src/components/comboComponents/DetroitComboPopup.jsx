@@ -130,15 +130,19 @@ export function DetroitComboPopup({
                     }}>
                         <Box sx={{ textAlign: "center", mb: 2 }}>
                             {comboGroup?.photo && (
-                                <img
+                                <Box
+                                    component="img"
                                     src={comboGroup.photo}
                                     alt={comboGroup.name}
-                                    style={{
+                                    sx={{
                                         width: "100%",
-                                        maxWidth: 320,
-                                        height: 320,
+                                        height: "auto",
+                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
+                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
                                         objectFit: "contain",
-                                        margin: "0 auto 12px",
+                                        display: "block",
+                                        mx: "auto",
+                                        mb: 2,
                                     }}
                                 />
                             )}

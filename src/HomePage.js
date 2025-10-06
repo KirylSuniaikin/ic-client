@@ -20,10 +20,10 @@ import {groupAvailableItemsByName} from "./utils/menu_service";
 import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWorkingHours";
 import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
 import {TextButton, TextGroup, TextTitle} from "./utils/typography";
-import useOscillatingAutoScroll from "./components/hooks/useOscillatingAutoScroll";
 import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
 import {DetroitComboPopup} from "./components/comboComponents/DetroitComboPopup";
 import {UpsellPopup} from "./components/UpSellPopup";
+
 
 
 const brandRed = "#E44B4C";
@@ -84,16 +84,16 @@ function HomePage({userParam}) {
 
     const location = useLocation();
 
-    useOscillatingAutoScroll(bestRef, {
-        bestsellers,
-        cycles: 2,
-        enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
-        initialDelay: 300,
-        onceKey: `autoScroll:${location.pathname}`,
-        pxPerSecond: 130,
-        runOnce: true,
-        onceTtlMs: 30_000,
-    });
+    // useOscillatingAutoScroll(bestRef, {
+    //     bestsellers,
+    //     cycles: 2,
+    //     enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
+    //     initialDelay: 300,
+    //     onceKey: `autoScroll:${location.pathname}`,
+    //     pxPerSecond: 130,
+    //     runOnce: true,
+    //     onceTtlMs: 30_000,
+    // });
 
     useEffect(() => {
         if (bestRef.current) {
@@ -679,7 +679,7 @@ function HomePage({userParam}) {
                     sx={{
                         position: "relative",
                         width: "100%",
-                        height: { xs: "45vh", sm: "55vh", md: "70vh" },
+                        height: { xs: "70vh", sm: "70vh", md: "70vh" },
                         overflow: "hidden",
                         backgroundColor: "#fbfaf6",
                         mb: 0,
@@ -687,7 +687,7 @@ function HomePage({userParam}) {
                 >
                     <Box
                         component="video"
-                        src="/videos/header2.mp4"
+                        src="/videos/header-vid.mp4"
                         autoPlay
                         muted
                         loop
@@ -817,6 +817,7 @@ function HomePage({userParam}) {
                         const isLast = idx === arr.length - 1;
                         const isBest = section.title === "Bestsellers";
 
+
                         return (
                             <Box key={section.title} sx={{ pb: isLast ? 1 : 4 }}>
                                 <TextGroup sx={{ px: 1.5, pb: 1 }}>{section.title}</TextGroup>
@@ -853,6 +854,21 @@ function HomePage({userParam}) {
                             </Box>
                         );
                     })}
+                {/*<MenuSections*/}
+                {/*    bestsellers={bestsellers}*/}
+                {/*    brickPizzas={brickPizzas}*/}
+                {/*    combos={combos}*/}
+                {/*    pizzas={pizzas}*/}
+                {/*    sides={sides}*/}
+                {/*    sauces={sauces}*/}
+                {/*    beverages={beverages}*/}
+                {/*    handleOpenPopup={handleOpenPopup}*/}
+                {/*    handleRemoveItemFromCart={handleRemoveItemFromCart}*/}
+                {/*    handleAddToCart={handleAddToCart}*/}
+                {/*    handleChangeQuantity={handleChangeQuantity}*/}
+                {/*    cartItems={cartItems}*/}
+                {/*    bestRef={bestRef}*/}
+                {/*></MenuSections>*/}
             </Box>
 
             {!pizzaPopupOpen &&
@@ -982,6 +998,7 @@ function HomePage({userParam}) {
                 openPizzaEditPopUp={openPizzaEditPopUp}
                 isAdmin={isAdmin}
                 handleDiscountChange={handleDiscountChange}
+                menuData={menuData}
             />
             }
 

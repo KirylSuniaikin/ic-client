@@ -21,6 +21,7 @@ function CartItemHorizontal({
                                 openPizzaEditPopUp,
                                 isAdmin,
                                 handleDiscountChange,
+                                menuData,
                             }) {
     const discount = item.discount || 0;
     const discountedPrice = item.amount * (1 - discount / 100);
@@ -235,7 +236,7 @@ function CartItemHorizontal({
                     }}
                     fullWidth
                 >
-                    {allowedDough(item.isThinDough).map((label) => (
+                    {allowedDough(item, menuData).map((label) => (
                         <ToggleButton key={label} value={label} sx={{
                             textTransform: "none",
                             fontSize: "16px",
@@ -328,9 +329,20 @@ function CartItemHorizontal({
     );
 }
 
-function allowedDough(isThinDough) {
-    if (isThinDough) return ['M','L']
-    else return ['S','M','L']
+function allowedDough(pizza, menuData) {
+    const allowedSizes = new Set();
+
+    for (const item of menuData) {
+        if (item.name === pizza.name && item.available===true) {
+            allowedSizes.add(item.size);
+        }
+    }
+
+    if (pizza.isThinDough) {
+        allowedSizes.delete("S");
+    }
+
+    return Array.from(allowedSizes);
 }
 
 export default CartItemHorizontal;

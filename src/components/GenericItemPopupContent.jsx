@@ -200,7 +200,15 @@ function GenericItemPopupContent({
                         display: "none"
                     }
                 }}>
-                    <Box sx={{width: "100%", height: 400, overflow: "hidden"}}>
+                    <Box sx={{width: "100%",
+                        aspectRatio: "5 / 3",
+                        maxHeight: {
+                            xs: 400,
+                            sm: 800,
+                            md: 1000,
+                            lg: 420
+                        },
+                        overflow: "hidden"}}>
                         <img
                             src={item.photo}
                             alt={item.name}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
     Box,
     Typography,
@@ -8,7 +8,6 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 
 const brandRed = "#E44B4C";
-const brandGray = "#fbfaf6";
 
 function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust }) {
     const [selectedItem, setSelectedItem] = useState(items[0]);
@@ -97,14 +96,19 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                     cursor: "pointer",
                                 }}
                             >
-                                <img
+                                <Box
+                                    component="img"
                                     src={it.photo}
                                     alt={it.name}
-                                    style={{
+                                    sx={{
                                         width: "100%",
-                                        borderRadius: 8,
-                                        objectFit: "cover",
-                                        maxHeight: 160,
+                                        height: "auto",
+                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
+                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
+                                        objectFit: "contain",
+                                        display: "block",
+                                        mx: "auto",
+                                        mb: 2,
                                     }}
                                 />
                                     <Typography sx={{ mt: 1, fontWeight: 500 }}>
