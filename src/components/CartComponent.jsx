@@ -16,7 +16,8 @@ function CartPopup({
                        onCheckout,
                        openPizzaEditPopUp,
                        isAdmin,
-                       handleDiscountChange
+                       handleDiscountChange,
+                        menuData
                    }) {
     const totalPrice = items.reduce((acc, i) => {
         const discount = i.discount || 0;
@@ -130,6 +131,7 @@ function CartPopup({
                             openPizzaEditPopUp={openPizzaEditPopUp}
                             isAdmin={isAdmin}
                             handleDiscountChange={handleDiscountChange}
+                            menuData={menuData}
                         />
                     ))}
                 </Box>

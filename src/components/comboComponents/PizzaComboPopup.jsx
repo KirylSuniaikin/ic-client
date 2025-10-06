@@ -171,19 +171,23 @@ export function PizzaComboPopup({
                         "&::-webkit-scrollbar": { display: "none" },
                     }}>
                         <Box sx={{ textAlign: "center", mb: 2 }}>
-                        {sizeItem?.photo && (
-                            <img
-                                src={sizeItem.photo}
-                                alt={sizeItem.name}
-                                style={{
-                                    width: "100%",
-                                    maxWidth: 320,
-                                    height: 320,
-                                    objectFit: "contain",
-                                    margin: "0 auto 12px",
-                                }}
-                            />
-                        )}
+                            {sizeItem?.photo && (
+                                <Box
+                                    component="img"
+                                    src={sizeItem.photo}
+                                    alt={sizeItem.name}
+                                    sx={{
+                                        width: "100%",
+                                        height: "auto",
+                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
+                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
+                                        objectFit: "contain",
+                                        display: "block",
+                                        mx: "auto",
+                                        mb: 2,
+                                    }}
+                                />
+                            )}
                         <Typography
                             variant="h6"
                             fontWeight="bold"

@@ -4,6 +4,7 @@ import {
     Typography,
     Button,
 } from "@mui/material";
+import React from "react";
 
 const brandRed = "#E44B4C";
 
@@ -38,18 +39,21 @@ export function UpsellPopup({
                     textAlign: "center",
                 }}
             >
-                {/* Фото пиццы / брика */}
+                {/* Photo */}
                 {photo && (
-                    <img
+                    <Box
+                        component="img"
                         src={photo}
                         alt={upsellItem.name}
-                        style={{
+                        sx={{
                             width: "100%",
-                            maxWidth: 260,
-                            height: 200,
+                            height: "auto",
+                            maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
+                            maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
                             objectFit: "contain",
-                            margin: "0 auto 16px",
-                            borderRadius: 12,
+                            display: "block",
+                            mx: "auto",
+                            mb: 2,
                         }}
                     />
                 )}
@@ -58,7 +62,7 @@ export function UpsellPopup({
                     {upsellType === "pizza" ? "Pizza " : "Detroit Brick"} + Sauce + Drink just for {comboPrice}
                 </Typography>
 
-                {/* Кнопки */}
+                {/* Buttons */}
                 <Box sx={{ display: "flex", gap: 2 }}>
                     <Button
                         variant="outlined"

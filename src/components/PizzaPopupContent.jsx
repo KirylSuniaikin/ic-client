@@ -280,7 +280,12 @@ function PizzaPopup({
                             display: "none"
                         }
                     }}>
-                    <Box sx={{width: "100%", height: 350, overflow: "hidden"}}>
+                    <Box sx={{width: "100%", height: {
+                            xs: 360,
+                            sm: 720,
+                            md: 700,
+                            lg: 420
+                        }, overflow: "hidden"}}>
                         <img
                             src={item.photo}
                             alt={item.name}
