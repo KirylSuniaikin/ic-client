@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ic-client</string>
+    <string name="title_activity_main">ic-client</string>
+    <string name="package_name">com.ic.app2</string>
+    <string name="custom_url_scheme">com.ic.app2</string>
+</resources>
