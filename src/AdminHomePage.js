@@ -113,7 +113,8 @@ function AdminHomePage() {
         );
     };
 
-    const printer = new BluetoothPrinterService();
+    let printer;
+    printer = new BluetoothPrinterService();
     const SUPPRESS_KEY = 'suppressSoundIds';
     const normalizeId = (x) => String(x);
 
@@ -275,20 +276,18 @@ function AdminHomePage() {
                         const suppressed = suppressedSoundIdsRef.current.has(id);
                         console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
 
-                        setOrders(async prev => {
+                        setOrders(prev => {
                             const exists = prev.some(o => normalizeId(o.id) === id);
-                            if (exists) {
-                                return prev;
-                            }
+                            if (exists) return prev;
+
+                            setTimeout(() => {
+                                printer
+                                    .printOrder(newOrder)
+                                    .then(() => console.log("🖨️ Auto print success"))
+                                    .catch(e => console.warn("⚠️ Auto print error:", e));
+                            }, 0);
 
                             setNewlyAddedOrder(newOrder);
-
-                            try {
-                                const printed = await printer.printOrder(newOrder);
-                                console.log('Auto print:', printed ? 'success' : 'failed');
-                            } catch (e) {
-                                console.warn('Auto print error:', e);
-                            }
                             return [...prev, newOrder];
                         });
 
