@@ -73,15 +73,15 @@ function renderComboDescription(comboItems) {
         }
 
         return (
-            <Box key={idx} sx={{ mt: 1, ml: 1 }}>
+            <Box key={idx} sx={{mt: 1, ml: 1}}>
                 <Typography variant="body2" fontWeight="bold">
-                    {item.name} {item.size? "(" + item.size + ")" : ""}
+                    {item.name} {item.size ? "(" + item.size + ")" : ""}
                 </Typography>
 
                 {extras.length > 0 && (
                     <Typography
                         variant="body2"
-                        sx={{ color: colorRed, ml: 1 }}
+                        sx={{color: colorRed, ml: 1}}
                     >
                         {extras.map((e, i) => (
                             <span key={i}>+ {e} </span>
@@ -112,12 +112,12 @@ export function renderItemDetails(item) {
         .filter(Boolean);
 
     return extras.length > 0 ? (
-        <Box sx={{ mt: 1, ml: 1 }}>
+        <Box sx={{mt: 1, ml: 1}}>
             {extras.map((extra, idx) => (
                 <Typography
                     key={idx}
                     variant="body2"
-                    sx={{ color: colorRed }}
+                    sx={{color: colorRed}}
                 >
                     + {extra}
                 </Typography>
@@ -126,7 +126,12 @@ export function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDeleteClick, onPayClick = order => {}, onPickedUpClick = () => {} }) {
+function OrderCard({
+                       order, onReadyClick = () => {
+    }, isHistory = false, onDeleteClick, onPayClick = order => {
+    }, onPickedUpClick = () => {
+    }
+                   }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
@@ -179,12 +184,13 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
         : 'transparent';
 
     return (
-        <Card sx={{ mb: 2,
-                    border: '2px solid',
-                    borderRadius: 3,
-                    borderColor: cardBorderColor,
-                    backgroundColor: order.order_type==="Jahez" ? "#fff5f5": "#fff",
-                    boxShadow: 3
+        <Card sx={{
+            mb: 2,
+            border: '2px solid',
+            borderRadius: 3,
+            borderColor: cardBorderColor,
+            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : "#fff",
+            boxShadow: 3
         }}>
             <CardContent>
                 <Box
@@ -201,27 +207,27 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         : order.order_no}{" "}
                         <Typography
                             component="span"
-                            sx={{ fontSize: 14, color: "text.secondary" }}
+                            sx={{fontSize: 14, color: "text.secondary"}}
                         >
                             ({order?.order_type?.toUpperCase()})
                         </Typography>
                     </Typography>
 
                     {!isHistory &&
-                        <CircularTimer timeLeft={timeLeft} totalSec={TOTAL_SEC} />
+                        <CircularTimer timeLeft={timeLeft} totalSec={TOTAL_SEC}/>
                     }
                 </Box>
 
-                <Divider sx={{ mb: 2 }} />
+                <Divider sx={{mb: 2}}/>
 
-                <Box sx={{ mb: 1 }}>
+                <Box sx={{mb: 1}}>
                     <Typography variant="body2">
                         <strong>Time:</strong> {formattedTime}
                     </Typography>
-                    {order.order_type !=="Jahez" && (
-                    <Typography variant="body2">
-                        <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
-                    </Typography>
+                    {order.order_type !== "Jahez" && (
+                        <Typography variant="body2">
+                            <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
+                        </Typography>
                     )}
                     <Typography variant="body2" color={colorRed}>
                         <strong>Notes:</strong> {order.notes}
@@ -233,7 +239,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     )}
                 </Box>
 
-                <Divider sx={{ my: 2 }} />
+                <Divider sx={{my: 2}}/>
 
                 <Box>
                     {sortItemsByCategory(order.items).map((item, idx) => (
@@ -251,7 +257,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                                     <Typography
                                         component="span"
                                         variant="body2"
-                                        sx={{ ml: 1, fontStyle: "italic" }}
+                                        sx={{ml: 1, fontStyle: "italic"}}
                                     >
                                         ({item.size})
                                     </Typography>
@@ -262,25 +268,6 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                         </Box>
                     ))}
                 </Box>
-                {/*{isHistory && (*/}
-                {/*    <Box sx={{ mt: 2 }}>*/}
-                {/*        <Typography variant="body2" sx={{ mb: 1 }}>*/}
-                {/*            <strong>Payment Type:</strong>*/}
-                {/*        </Typography>*/}
-                {/*        <Select*/}
-                {/*            value={paymentType}*/}
-                {/*            onChange={(e) => handlePaymentTypeChange(order.id, e.target.value)}*/}
-                {/*            fullWidth*/}
-                {/*            size="small"*/}
-                {/*        >*/}
-                {/*            {paymentOptions.map((option) => (*/}
-                {/*                <MenuItem key={option} value={option}>*/}
-                {/*                    {option}*/}
-                {/*                </MenuItem>*/}
-                {/*            ))}*/}
-                {/*        </Select>*/}
-                {/*    </Box>*/}
-                {/*)}*/}
             </CardContent>
 
             <CardActions
@@ -298,84 +285,98 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                     {!isHistory && (
                         <>
                             {!order.isReady && (
-                        <Button
-                            variant="contained"
-                            size="small"
-                            disabled={order.isReady}
-                            sx=
-                                {{
-                                borderColor: colorBeige,
-                                color: colorRed,
-                                backgroundColor: "white",
-                                    mr: 1,
-                                borderRadius: 4
-                            }}
-                            onClick={() => {updateOrderStatus({orderId: order.id,
-                                jahezOrderId: order.external_id? order.external_id : null, orderStatus: "Ready", reason: null}).then(() => {onReadyClick?.(order)})}}
-                        >
-                            READY
-                        </Button>
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    disabled={order.isReady}
+                                    sx=
+                                        {{
+                                            borderColor: colorBeige,
+                                            color: colorRed,
+                                            backgroundColor: "white",
+                                            mr: 1,
+                                            borderRadius: 4
+                                        }}
+                                    onClick={() => {
+                                        updateOrderStatus({
+                                            orderId: order.id,
+                                            jahezOrderId: order.external_id ? order.external_id : null,
+                                            orderStatus: "Ready",
+                                            reason: null
+                                        }).then(() => {
+                                            onReadyClick?.(order)
+                                        })
+                                    }}
+                                >
+                                    READY
+                                </Button>
                             )}
                             {order.isReady && (
-                            <Button
-                                variant="contained"
-                                size="small"
-                                sx=
-                                    {{
-                                        borderColor: colorBeige,
-                                        color: colorRed,
-                                        backgroundColor: "white",
-                                        mr: 1,
-                                        borderRadius: 4
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    sx=
+                                        {{
+                                            borderColor: colorBeige,
+                                            color: colorRed,
+                                            backgroundColor: "white",
+                                            mr: 1,
+                                            borderRadius: 4
+                                        }}
+                                    onClick={() => {
+                                        updateOrderStatus({
+                                            orderId: order.id,
+                                            jahezOrderId: null,
+                                            orderStatus: "Picked Up",
+                                            reason: null
+                                        })
+                                            .then(() => {
+                                                onPickedUpClick?.(order)
+                                            })
                                     }}
-                                onClick={() => {updateOrderStatus({orderId: order.id,
-                                                                                                            jahezOrderId: null,
-                                                                                                            orderStatus: "Picked Up",
-                                                                                                            reason: null})
-                                    .then(() => {onPickedUpClick?.(order)})}}
-                            >
-                                PICKED UP
-                            </Button>
+                                >
+                                    PICKED UP
+                                </Button>
                             )}
                             {order.order_type !== "Jahez" && (
-                              <Button
-                        variant="contained"
-                        size="small"
-                        disabled={order.isPaid}
-                        sx=
-                        {{
-                            borderColor: colorBeige,
-                            color: colorRed,
-                            backgroundColor: "white",
-                            mr: 1,
-                            borderRadius: 4
-                        }}
-                        onClick={() =>
-                            onPayClick(order)
-                        }
-                        >
-                        PAY
-                        </Button>
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    disabled={order.isPaid}
+                                    sx=
+                                        {{
+                                            borderColor: colorBeige,
+                                            color: colorRed,
+                                            backgroundColor: "white",
+                                            mr: 1,
+                                            borderRadius: 4
+                                        }}
+                                    onClick={() =>
+                                        onPayClick(order)
+                                    }
+                                >
+                                    PAY
+                                </Button>
                             )}
                         </>
                     )}
                     {order.order_type !== "Jahez" && (
 
                         <Button
-                        variant="outlined"
-                        size="small"
-                        sx={{
-                            borderColor: colorRed,
-                            color: colorRed,
-                            borderRadius: 4
-                        }}
-                        onClick={() => {
-                            const safeCopy = JSON.parse(JSON.stringify(order));
-                            localStorage.setItem("orderToEdit", JSON.stringify(safeCopy));
-                            navigate("/menu?isAdmin=true&isEditMode=true");
-                        }}>
-                        EDIT
-                    </Button>
+                            variant="outlined"
+                            size="small"
+                            sx={{
+                                borderColor: colorRed,
+                                color: colorRed,
+                                borderRadius: 4
+                            }}
+                            onClick={() => {
+                                const safeCopy = JSON.parse(JSON.stringify(order));
+                                localStorage.setItem("orderToEdit", JSON.stringify(safeCopy));
+                                navigate("/menu?isAdmin=true&isEditMode=true");
+                            }}>
+                            EDIT
+                        </Button>
                     )}
                     {isHistory && (
                         <IconButton
@@ -392,7 +393,7 @@ function OrderCard({ order, onReadyClick = () => {} , isHistory = false, onDelet
                             }}
                             onClick={() => onDeleteClick(order)}
                         >
-                            <DeleteIcon fontSize="small" />
+                            <DeleteIcon fontSize="small"/>
                         </IconButton>
                     )}
                 </Box>

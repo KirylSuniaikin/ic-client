@@ -63,7 +63,7 @@ class BluetoothPrinterService {
         const text = `
 Order #${order.id}
 --------------------------
-${order.items.map(i => `${i.name} x${i.quality}`).join("\n")}
+${order.items.map(i => `${i.name} x${i.quantity}`).join("\n")}
 --------------------------
 Total: ${order.total} BHD
 \n\n\n`;
