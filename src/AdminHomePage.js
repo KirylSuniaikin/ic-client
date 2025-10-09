@@ -32,6 +32,7 @@ import PaymentPopup from "./adminComponents/PaymentPopup";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from "@mui/icons-material/Cancel";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
+import BluetoothPrinterService from "./services/BluetoorhPrinterService";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -112,6 +113,7 @@ function AdminHomePage() {
         );
     };
 
+    const printer = new BluetoothPrinterService();
     const SUPPRESS_KEY = 'suppressSoundIds';
     const normalizeId = (x) => String(x);
 
@@ -161,6 +163,13 @@ function AdminHomePage() {
             setConfirmingCancel(false);
         }
     }
+
+    useEffect(() => {
+        (async () => {
+            await printer.init();
+            await printer.connect();
+        })();
+    }, [printer]);
 
     useEffect(() => {
         audioRef.current = new Audio(alertSound);
@@ -266,7 +275,7 @@ function AdminHomePage() {
                         const suppressed = suppressedSoundIdsRef.current.has(id);
                         console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
 
-                        setOrders(prev => {
+                        setOrders(async prev => {
                             const exists = prev.some(o => normalizeId(o.id) === id);
                             if (exists) {
                                 return prev;
@@ -274,6 +283,12 @@ function AdminHomePage() {
 
                             setNewlyAddedOrder(newOrder);
 
+                            try {
+                                const printed = await printer.printOrder(newOrder);
+                                console.log('Auto print:', printed ? 'success' : 'failed');
+                            } catch (e) {
+                                console.warn('Auto print error:', e);
+                            }
                             return [...prev, newOrder];
                         });
 
@@ -674,60 +689,59 @@ function AdminHomePage() {
                     </IconButton>
                 </Paper>
             </Snackbar>
-
-<Snackbar
-    open={!audioAllowed}
-    anchorOrigin={{ vertical: "top", horizontal: "center" }}
-    sx={{ zIndex: 1400 }}
->
-    <Paper
-        elevation={3}
-        sx={{
-            borderRadius: 3,
-            p: 2,
-            px: 3,
-            backgroundColor: "#fff",
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-            width: "85vw",
-            maxWidth: 600,
-        }}
-    >
-        <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                Enable sound for order and close shift alerts
-            </Typography>
-        </Box>
-        <Button
-            onClick={() => {
-                audioRef.current.play()
-                    .then(() => {
-                        audioRef.current.pause();
-                        audioRef.current.currentTime = 0;
-                        setAudioAllowed(true);
-                    })
-                    .catch(err => {
-                        console.warn("Audio permission denied:", err);
-                    });
-            }}
-            variant="outlined"
-            sx={{
-                textTransform: "uppercase",
-                borderColor: colorRed,
-                color: colorRed,
-                fontWeight: 600,
-                borderRadius: 3,
-                px: 2.5,
-                py: 0.5,
-                minWidth: 80,
-            }}
-        >
-            ENABLE
-        </Button>
-    </Paper>
-</Snackbar>
+{/*<Snackbar*/}
+{/*    open={!audioAllowed}*/}
+{/*    anchorOrigin={{ vertical: "top", horizontal: "center" }}*/}
+{/*    sx={{ zIndex: 1400 }}*/}
+{/*>*/}
+{/*    <Paper*/}
+{/*        elevation={3}*/}
+{/*        sx={{*/}
+{/*            borderRadius: 3,*/}
+{/*            p: 2,*/}
+{/*            px: 3,*/}
+{/*            backgroundColor: "#fff",*/}
+{/*            display: "flex",*/}
+{/*            alignItems: "center",*/}
+{/*            gap: 2,*/}
+{/*            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",*/}
+{/*            width: "85vw",*/}
+{/*            maxWidth: 600,*/}
+{/*        }}*/}
+{/*    >*/}
+{/*        <Box sx={{ flexGrow: 1 }}>*/}
+{/*            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>*/}
+{/*                Enable sound for order and close shift alerts*/}
+{/*            </Typography>*/}
+{/*        </Box>*/}
+{/*        <Button*/}
+{/*            onClick={() => {*/}
+{/*                audioRef.current.play()*/}
+{/*                    .then(() => {*/}
+{/*                        audioRef.current.pause();*/}
+{/*                        audioRef.current.currentTime = 0;*/}
+{/*                        setAudioAllowed(true);*/}
+{/*                    })*/}
+{/*                    .catch(err => {*/}
+{/*                        console.warn("Audio permission denied:", err);*/}
+{/*                    });*/}
+{/*            }}*/}
+{/*            variant="outlined"*/}
+{/*            sx={{*/}
+{/*                textTransform: "uppercase",*/}
+{/*                borderColor: colorRed,*/}
+{/*                color: colorRed,*/}
+{/*                fontWeight: 600,*/}
+{/*                borderRadius: 3,*/}
+{/*                px: 2.5,*/}
+{/*                py: 0.5,*/}
+{/*                minWidth: 80,*/}
+{/*            }}*/}
+{/*        >*/}
+{/*            ENABLE*/}
+{/*        </Button>*/}
+{/*    </Paper>*/}
+{/*</Snackbar>*/}
             <SwipeableDrawer
                 anchor="bottom"
                 open={cancelDialogOpen}
