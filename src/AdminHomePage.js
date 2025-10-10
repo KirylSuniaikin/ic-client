@@ -113,8 +113,13 @@ function AdminHomePage() {
         );
     };
 
-    let printer;
-    printer = new BluetoothPrinterService();
+    useEffect(() => {
+        (async () => {
+            await BluetoothPrinterService.init.init();
+            await BluetoothPrinterService.init.connect();
+        })();
+    }, []);
+
     const SUPPRESS_KEY = 'suppressSoundIds';
     const normalizeId = (x) => String(x);
 
@@ -164,13 +169,6 @@ function AdminHomePage() {
             setConfirmingCancel(false);
         }
     }
-
-    useEffect(() => {
-        (async () => {
-            await printer.init();
-            await printer.connect();
-        })();
-    }, [printer]);
 
     useEffect(() => {
         audioRef.current = new Audio(alertSound);
