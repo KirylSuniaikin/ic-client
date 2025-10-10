@@ -61,20 +61,28 @@ class BluetoothPrinterService {
             return false;
         }
 
-        const text = `
-Hello world..
+        const ESC = "\x1B";
+        const LF = "\x0A";
 
-....
-
-......
-\n\n\n`;
-
+        const text = [
+            ESC + "@",               
+            ESC + "!" + "\x38",      
+            "IC PIZZA\n",
+            ESC + "!" + "\x00",      
+            "Order #" + order.id + "\n",
+            "--------------------------\n",
+            order.items.map(i => `${i.name} x${i.quantity}\n`).join(""),
+            "--------------------------\n",
+            `Total: ${order.total} BHD\n`,
+            LF + LF + LF
+        ].join("");
+        
         try {
             await new Promise((resolve, reject) => {
                 BluetoothSerial.write(
                     text,
                     () => {
-                        console.log("🖨️ Printed successfully");
+                        console.log("🖨️ Printed successfully", text);
                         resolve();
                     },
                     (err) => {
