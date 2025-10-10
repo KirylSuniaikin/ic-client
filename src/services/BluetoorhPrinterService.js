@@ -111,5 +111,5 @@ Hello world..
         }
     }
 }
-
 export default new BluetoothPrinterService();
+
