@@ -115,8 +115,8 @@ function AdminHomePage() {
 
     useEffect(() => {
         (async () => {
-            await BluetoothPrinterService.init.init();
-            await BluetoothPrinterService.init.connect();
+            await BluetoothPrinterService.init();
+            await BluetoothPrinterService.connect();
         })();
     }, []);
 
@@ -279,7 +279,7 @@ function AdminHomePage() {
                             if (exists) return prev;
 
                             setTimeout(() => {
-                                printer
+                                BluetoothPrinterService
                                     .printOrder(newOrder)
                                     .then(() => console.log("🖨️ Auto print success"))
                                     .catch(e => console.warn("⚠️ Auto print error:", e));
