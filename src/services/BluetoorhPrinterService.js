@@ -1,12 +1,9 @@
-// import { Plugins } from '@capacitor/core';
-// const { BluetoothSerial } = Plugins;
-
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 
 class BluetoothPrinterService {
     constructor() {
-        // this.mac = "2C:12:09:96:A3:96";
-        this.mac = "DC:0D:30:EF:F9:55";
+        this.mac = "2C:12:09:96:A3:96";
+        // this.mac = "DC:0D:30:EF:F9:55";
         // this.mac = "AC:80:0A:7C:9D:94";
         this.isConnected = false;
     }
@@ -55,6 +52,62 @@ class BluetoothPrinterService {
         }
     }
 
+    formatOrderItems(items) {
+        let result = "";
+
+        for (const item of items) {
+            // 🔹 1. Заголовок позиции
+            result += `${item.quantity}x ${item.name}${item.size ? " (" + item.size + ")" : ""}\n`;
+
+            // 🔹 2. Если это Combo
+            if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
+                for (const comboItem of item.comboItemTO) {
+                    result += `   → ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
+
+                    const extras = [];
+
+                    if (comboItem.isThinDough) extras.push("Thin Dough");
+                    if (comboItem.isGarlicCrust) extras.push("Garlic Crust");
+
+                    if (comboItem.description) {
+                        comboItem.description
+                            .replace(/[()]/g, "")
+                            .split("+")
+                            .map(s => s.trim())
+                            .filter(Boolean)
+                            .forEach(s => extras.push(s));
+                    }
+
+                    for (const e of extras) {
+                        result += `      + ${e}\n`;
+                    }
+                }
+            }
+
+            // 🔹 3. Если это обычный товар с описанием
+            else {
+                const desc = item.description?.replace(";", "") || "";
+                const cleanDescription = desc
+                    .replace(/[()]/g, "")
+                    .replace(/^\+/, "")
+                    .trim();
+
+                const extras = cleanDescription
+                    .split("+")
+                    .map(str => str.trim())
+                    .filter(Boolean);
+
+                for (const e of extras) {
+                    result += `   + ${e}\n`;
+                }
+            }
+
+            result += "\n"; // отступ между позициями
+        }
+
+        return result;
+    }
+
     async printOrder(order) {
         if (!this.isConnected) {
             console.warn("⚠️ Printer not connected");
@@ -65,24 +118,36 @@ class BluetoothPrinterService {
         const LF = "\x0A";
 
         const text = [
-            ESC + "@",               
-            ESC + "!" + "\x38",      
+            ESC + "@",
+            ESC + "!" + "\x38",
             "IC PIZZA\n",
-            ESC + "!" + "\x00",      
-            "Order #" + order.id + "\n",
+            ESC + "!" + "\x24",
             "--------------------------\n",
-            order.items.map(i => `${i.name} x${i.quantity}\n`).join(""),
+            "Order Type: " + order.order_type + "\n",
+            `Order #${
+                order.order_type === "Jahez"
+                    ? order.external_id
+                    : order.order_no
+            }\n`,
+            ESC + "!" + "\x00",
+            order.order_type !== "Jahez"
+                ? `Customer Info: ${order.customer_name || "—"} (${order.phone_number})\n`
+                : "",
+            `Notes: ${order.notes || "—"}\n`,
+            `Payment type: ${order.payment_type || "N/A"}\n`,
             "--------------------------\n",
-            `Total: ${order.total} BHD\n`,
+            this.formatOrderItems(order.items),
+            "--------------------------\n",
+            `Total: ${order.amount_paid} BHD\n`,
             LF + LF + LF
         ].join("");
-        
+
         try {
             await new Promise((resolve, reject) => {
                 BluetoothSerial.write(
                     text,
                     () => {
-                        console.log("🖨️ Printed successfully", text);
+                        console.log("🖨️ Printed successfully: ", text);
                         resolve();
                     },
                     (err) => {
@@ -119,5 +184,5 @@ class BluetoothPrinterService {
         }
     }
 }
-export default new BluetoothPrinterService();
 
+export default new BluetoothPrinterService();
