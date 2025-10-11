@@ -105,16 +105,21 @@ class BluetoothPrinterService {
         return result;
     }
 
-    startKeepAlive(intervalMs = 60000) {
-        if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    startConnectionMonitor(intervalMs = 60000) {
+        if (this.monitorTimer) clearInterval(this.monitorTimer);
 
-        this.keepAliveTimer = setInterval(() => {
-            if (this.isConnected) {
-                BluetoothSerial.write("\x0A",
-                    () => console.log("📡 Keep-alive sent"),
-                    err => console.warn("⚠️ Keep-alive failed:", err)
-                );
-            }
+        this.monitorTimer = setInterval(() => {
+            BluetoothSerial.isConnected(
+                () => console.log("✅ Still connected"),
+                async () => {
+                    console.warn("🔴 Lost connection, reconnecting...");
+                    try {
+                        await this.connect();
+                    } catch (e) {
+                        console.error("❌ Reconnect failed:", e);
+                    }
+                }
+            );
         }, intervalMs);
     }
 

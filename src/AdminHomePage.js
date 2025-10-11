@@ -117,7 +117,7 @@ function AdminHomePage() {
         (async () => {
             await BluetoothPrinterService.init();
             await BluetoothPrinterService.connect();
-            BluetoothPrinterService.startKeepAlive();
+            BluetoothPrinterService.startConnectionMonitor();
         })();
     }, []);
 
@@ -261,7 +261,7 @@ function AdminHomePage() {
                 socket.onConnect = () => {
                     console.log('🟢 STOMP connected');
 
-                    socket.subscribe('/topic/orders', (frame) => {
+                    socket.subscribe('/topic/orders', async (frame) => {
                         const newOrder = JSON.parse(frame.body);
                         const id = normalizeId(newOrder?.orderId ?? newOrder?.id ?? newOrder);
 
@@ -274,13 +274,15 @@ function AdminHomePage() {
 
                         const suppressed = suppressedSoundIdsRef.current.has(id);
                         console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
+                        try {
+                            await BluetoothPrinterService.printOrder(newOrder);
+                            console.log("🖨️ Auto print success");
+                        } catch (e) {
+                            console.warn("⚠️ Auto print error:", e);
+                        }
 
                         setOrders(prev => {
                             const exists = prev.some(o => normalizeId(o.id) === id);
-                            BluetoothPrinterService
-                                .printOrder(newOrder)
-                                .then(() => console.log("🖨️ Auto print success"))
-                                .catch(e => console.warn("⚠️ Auto print error:", e));
                             if (exists) return prev;
 
                             setNewlyAddedOrder(newOrder);
@@ -293,15 +295,16 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe('/topic/order-updates', (frame) => {
+                    socket.subscribe('/topic/order-updates', async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
                         console.log('♻️ Updated order', updatedOrder);
                         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
-                        BluetoothPrinterService
-                            .printOrder(updatedOrder)
-                            .then(() => console.log("🖨️ Auto print success"))
-                            .catch(e => console.warn("⚠️ Auto print error:", e));
-
+                        try {
+                            await BluetoothPrinterService.printOrder(updatedOrder);
+                            console.log("🖨️ Auto print success");
+                        } catch (e) {
+                            console.warn("⚠️ Auto print error:", e);
+                        }
                         setNewlyUpdatedOrder(updatedOrder);
 
                         socket.publish({
