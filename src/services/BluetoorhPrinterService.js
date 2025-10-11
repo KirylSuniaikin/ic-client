@@ -2,9 +2,8 @@ import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 
 class BluetoothPrinterService {
     constructor() {
-        this.mac = "2C:12:09:96:A3:96";
-        // this.mac = "DC:0D:30:EF:F9:55";
-        // this.mac = "AC:80:0A:7C:9D:94";
+        // this.mac = "2C:12:09:96:A3:96";
+        this.mac = "DC:0D:30:EF:F9:55";
         this.isConnected = false;
     }
 
