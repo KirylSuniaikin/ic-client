@@ -10,28 +10,42 @@ import readyAnimation from "./components/loadingAnimations/ready-animation.json"
 export function OrderStatusPage({orderId}) {
     const [order, setOrder] = useState({});
     const [loading, setLoading] = useState(true);
-    const [remaining, setRemaining] = useState(0.1 * 60); // в секундах
+    const [remaining, setRemaining] = useState();
 
-    // order.estimationTime
 
     useEffect(() => {
         async function fetchStatus() {
             const data = await getOrderStatus(orderId);
             setOrder(data);
-            console.log(data);
             setLoading(false);
         }
         fetchStatus();
-        }, [orderId]);
+    }, [orderId]);
 
     useEffect(() => {
-        if (!remaining) return;
-        const interval = setInterval(() => {
-            setRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-        }, 1000);
+        if (!order?.orderCreated || !order?.estimationTime) return;
 
-        return () => clearInterval(interval);
-    }, [remaining]);
+        const createdTime = new Date(order.orderCreated).getTime();
+        const totalSec = order.estimationTime * 60;
+
+        function updateRemaining() {
+            const now = Date.now();
+            const elapsedSec = Math.floor((now - createdTime) / 1000);
+            const remainingSec = Math.max(totalSec - elapsedSec, 0);
+            setRemaining(remainingSec);
+        }
+
+        updateRemaining();
+        const intervalId = setInterval(updateRemaining, 1000);
+
+        return () => clearInterval(intervalId);
+    }, [order]);
+
+    const formatTime = (sec) => {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}:${s.toString().padStart(2, "0")}`;
+    };
 
 
     if (order?.error) {
@@ -137,7 +151,7 @@ export function OrderStatusPage({orderId}) {
                             mt: 2,
                         }}
                     >
-                        ✅ Your order should be ready now!
+                        😔 Sorry for the delay — your order will be ready soon!
                     </Typography>
                 )
             )}
