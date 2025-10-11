@@ -277,12 +277,10 @@ function AdminHomePage() {
 
                         setOrders(prev => {
                             const exists = prev.some(o => normalizeId(o.id) === id);
-                            setTimeout(() => {
-                                BluetoothPrinterService
-                                    .printOrder(newOrder)
-                                    .then(() => console.log("🖨️ Auto print success"))
-                                    .catch(e => console.warn("⚠️ Auto print error:", e));
-                            }, 0);
+                            BluetoothPrinterService
+                                .printOrder(newOrder)
+                                .then(() => console.log("🖨️ Auto print success"))
+                                .catch(e => console.warn("⚠️ Auto print error:", e));
                             if (exists) return prev;
 
                             setNewlyAddedOrder(newOrder);
@@ -299,13 +297,10 @@ function AdminHomePage() {
                         const updatedOrder = JSON.parse(frame.body);
                         console.log('♻️ Updated order', updatedOrder);
                         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
-
-                        setTimeout(() => {
-                            BluetoothPrinterService
-                                .printOrder(updatedOrder)
-                                .then(() => console.log("🖨️ Auto print success"))
-                                .catch(e => console.warn("⚠️ Auto print error:", e));
-                        }, 0);
+                        BluetoothPrinterService
+                            .printOrder(updatedOrder)
+                            .then(() => console.log("🖨️ Auto print success"))
+                            .catch(e => console.warn("⚠️ Auto print error:", e));
 
                         setNewlyUpdatedOrder(updatedOrder);
 

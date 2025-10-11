@@ -134,13 +134,14 @@ class BluetoothPrinterService {
             alignCenter,
             ESC + "!" + "\x38",
             "IC PIZZA\n",
+            LF,
             ESC + "!" + "\x24",
             `Order #${
                 order.order_type === "Jahez"
                     ? order.external_id
                     : order.order_no
             }\n`,
-            ESC + "!" + "\x20",
+            ESC + "!" + "\x08",
             alignLeft,
             "--------------------------\n",
             "Order Type: " + order.order_type + "\n",
