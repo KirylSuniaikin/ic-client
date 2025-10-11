@@ -117,6 +117,7 @@ function AdminHomePage() {
         (async () => {
             await BluetoothPrinterService.init();
             await BluetoothPrinterService.connect();
+            BluetoothPrinterService.startKeepAlive();
         })();
     }, []);
 
@@ -276,14 +277,13 @@ function AdminHomePage() {
 
                         setOrders(prev => {
                             const exists = prev.some(o => normalizeId(o.id) === id);
-                            if (exists) return prev;
-
                             setTimeout(() => {
                                 BluetoothPrinterService
                                     .printOrder(newOrder)
                                     .then(() => console.log("🖨️ Auto print success"))
                                     .catch(e => console.warn("⚠️ Auto print error:", e));
                             }, 0);
+                            if (exists) return prev;
 
                             setNewlyAddedOrder(newOrder);
                             return [...prev, newOrder];
@@ -299,6 +299,13 @@ function AdminHomePage() {
                         const updatedOrder = JSON.parse(frame.body);
                         console.log('♻️ Updated order', updatedOrder);
                         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+                        setTimeout(() => {
+                            BluetoothPrinterService
+                                .printOrder(updatedOrder)
+                                .then(() => console.log("🖨️ Auto print success"))
+                                .catch(e => console.warn("⚠️ Auto print error:", e));
+                        }, 0);
 
                         setNewlyUpdatedOrder(updatedOrder);
 
@@ -686,59 +693,59 @@ function AdminHomePage() {
                     </IconButton>
                 </Paper>
             </Snackbar>
-<Snackbar
-    open={!audioAllowed}
-    anchorOrigin={{ vertical: "top", horizontal: "center" }}
-    sx={{ zIndex: 1400 }}
->
-    <Paper
-        elevation={3}
-        sx={{
-            borderRadius: 3,
-            p: 2,
-            px: 3,
-            backgroundColor: "#fff",
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-            width: "85vw",
-            maxWidth: 600,
-        }}
-    >
-        <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                Enable sound for order and close shift alerts
-            </Typography>
-        </Box>
-        <Button
-            onClick={() => {
-                audioRef.current.play()
-                    .then(() => {
-                        audioRef.current.pause();
-                        audioRef.current.currentTime = 0;
-                        setAudioAllowed(true);
-                    })
-                    .catch(err => {
-                        console.warn("Audio permission denied:", err);
-                    });
-            }}
-            variant="outlined"
-            sx={{
-                textTransform: "uppercase",
-                borderColor: colorRed,
-                color: colorRed,
-                fontWeight: 600,
-                borderRadius: 3,
-                px: 2.5,
-                py: 0.5,
-                minWidth: 80,
-            }}
-        >
-            ENABLE
-        </Button>
-    </Paper>
-</Snackbar>
+{/*<Snackbar*/}
+{/*    open={!audioAllowed}*/}
+{/*    anchorOrigin={{ vertical: "top", horizontal: "center" }}*/}
+{/*    sx={{ zIndex: 1400 }}*/}
+{/*>*/}
+{/*    <Paper*/}
+{/*        elevation={3}*/}
+{/*        sx={{*/}
+{/*            borderRadius: 3,*/}
+{/*            p: 2,*/}
+{/*            px: 3,*/}
+{/*            backgroundColor: "#fff",*/}
+{/*            display: "flex",*/}
+{/*            alignItems: "center",*/}
+{/*            gap: 2,*/}
+{/*            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",*/}
+{/*            width: "85vw",*/}
+{/*            maxWidth: 600,*/}
+{/*        }}*/}
+{/*    >*/}
+{/*        <Box sx={{ flexGrow: 1 }}>*/}
+{/*            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>*/}
+{/*                Enable sound for order and close shift alerts*/}
+{/*            </Typography>*/}
+{/*        </Box>*/}
+{/*        <Button*/}
+{/*            onClick={() => {*/}
+{/*                audioRef.current.play()*/}
+{/*                    .then(() => {*/}
+{/*                        audioRef.current.pause();*/}
+{/*                        audioRef.current.currentTime = 0;*/}
+{/*                        setAudioAllowed(true);*/}
+{/*                    })*/}
+{/*                    .catch(err => {*/}
+{/*                        console.warn("Audio permission denied:", err);*/}
+{/*                    });*/}
+{/*            }}*/}
+{/*            variant="outlined"*/}
+{/*            sx={{*/}
+{/*                textTransform: "uppercase",*/}
+{/*                borderColor: colorRed,*/}
+{/*                color: colorRed,*/}
+{/*                fontWeight: 600,*/}
+{/*                borderRadius: 3,*/}
+{/*                px: 2.5,*/}
+{/*                py: 0.5,*/}
+{/*                minWidth: 80,*/}
+{/*            }}*/}
+{/*        >*/}
+{/*            ENABLE*/}
+{/*        </Button>*/}
+{/*    </Paper>*/}
+{/*</Snackbar>*/}
             <SwipeableDrawer
                 anchor="bottom"
                 open={cancelDialogOpen}

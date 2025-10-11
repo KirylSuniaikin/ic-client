@@ -55,13 +55,11 @@ class BluetoothPrinterService {
         let result = "";
 
         for (const item of items) {
-            // 🔹 1. Заголовок позиции
             result += `${item.quantity}x ${item.name}${item.size ? " (" + item.size + ")" : ""}\n`;
 
-            // 🔹 2. Если это Combo
             if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
                 for (const comboItem of item.comboItemTO) {
-                    result += `   → ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
+                    result += `    ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
 
                     const extras = [];
 
@@ -101,10 +99,23 @@ class BluetoothPrinterService {
                 }
             }
 
-            result += "\n"; // отступ между позициями
+            result += "\n";
         }
 
         return result;
+    }
+
+    startKeepAlive(intervalMs = 60000) {
+        if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+
+        this.keepAliveTimer = setInterval(() => {
+            if (this.isConnected) {
+                BluetoothSerial.write("\x0A",
+                    () => console.log("📡 Keep-alive sent"),
+                    err => console.warn("⚠️ Keep-alive failed:", err)
+                );
+            }
+        }, intervalMs);
     }
 
     async printOrder(order) {
@@ -115,20 +126,24 @@ class BluetoothPrinterService {
 
         const ESC = "\x1B";
         const LF = "\x0A";
+        const alignCenter = ESC + "a" + "\x01";
+        const alignLeft = ESC + "a" + "\x00";
 
         const text = [
             ESC + "@",
+            alignCenter,
             ESC + "!" + "\x38",
             "IC PIZZA\n",
             ESC + "!" + "\x24",
-            "--------------------------\n",
-            "Order Type: " + order.order_type + "\n",
             `Order #${
                 order.order_type === "Jahez"
                     ? order.external_id
                     : order.order_no
             }\n`,
-            ESC + "!" + "\x00",
+            ESC + "!" + "\x20",
+            alignLeft,
+            "--------------------------\n",
+            "Order Type: " + order.order_type + "\n",
             order.order_type !== "Jahez"
                 ? `Customer Info: ${order.customer_name || "—"} (${order.phone_number})\n`
                 : "",

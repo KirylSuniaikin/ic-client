@@ -10,9 +10,11 @@ import {
 import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import PrintIcon from "@mui/icons-material/Print";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 import {CircularTimer} from "./CircularTimer";
+import BluetoorhPrinterService from "../services/BluetoorhPrinterService";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -126,25 +128,15 @@ export function renderItemDetails(item) {
     ) : null;
 }
 
-function OrderCard({
-                       order, onReadyClick = () => {
-    }, isHistory = false, onDeleteClick, onPayClick = order => {
+function OrderCard({order,
+                       onReadyClick = () => {}, isHistory = false, onDeleteClick, onPayClick = order => {
     }, onPickedUpClick = () => {
     }
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
-    // const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
-    //
-    // const handlePaymentTypeChange = async (orderId, newType) => {
-    //     try {
-    //         await updatePaymentType(orderId, newType);
-    //         setPaymentType(newType);
-    //     } catch (error) {
-    //         console.error("Failed to update payment type", error);
-    //     }
-    // };
+    const [extraSec, setExtraSec] = useState(0);
 
     useEffect(() => {
         console.info(order)
@@ -156,7 +148,6 @@ function OrderCard({
     );
     const TOTAL_SEC = 15 * 60;
 
-    const [extraSec, setExtraSec] = useState(0);
 
     const computeLeft = useCallback(() => {
         const elapsed = (Date.now() - createdMs) / 1000;
@@ -201,17 +192,35 @@ function OrderCard({
                         mb: 1
                     }}
                 >
-                    <Typography variant="h6">
-                        Order: {order.order_type === "Jahez"
-                        ? order.external_id
-                        : order.order_no}{" "}
-                        <Typography
-                            component="span"
-                            sx={{fontSize: 14, color: "text.secondary"}}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                        <Box
+                            sx={{
+                                width: 36,
+                                height: 36,
+                                border: "1px solid #E44B4C",
+                                borderRadius: "50%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                mr: 0.8,
+                                cursor: "pointer"
+                            }}
+                            onClick={() => BluetoorhPrinterService.printOrder(order)}
                         >
-                            ({order?.order_type?.toUpperCase()})
+                            <PrintIcon sx={{ fontSize: 26, color: "#E44B4C" }} />
+                        </Box>
+
+                        <Typography variant="h6" component="div">
+                            Order:{" "}
+                            {order.order_type === "Jahez" ? order.external_id : order.order_no}{" "}
+                            <Typography
+                                component="span"
+                                sx={{ fontSize: 14, color: "text.secondary" }}
+                            >
+                                ({order?.order_type?.toUpperCase()})
+                            </Typography>
                         </Typography>
-                    </Typography>
+                    </Box>
 
                     {!isHistory &&
                         <CircularTimer timeLeft={timeLeft} totalSec={TOTAL_SEC}/>
