@@ -57,6 +57,7 @@ function AdminHomePage() {
     const [confirmingCancel, setConfirmingCancel] = useState(false);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
+    const [workloadLevel, setWorkloadLevel] = useState("IDLE");
 
 
     const audioRef = useRef(null);
@@ -78,6 +79,10 @@ function AdminHomePage() {
         setOrders(prev => {
             return prev.filter(o => o.id !== orderIdToRemove);
         });    }
+
+    const onWorkloadChange = (newLevel) => {
+        setWorkloadLevel(newLevel);
+    }
 
     const toLongOrNull = (v) => {
         if (v == null) return null;
@@ -153,7 +158,6 @@ function AdminHomePage() {
             setConfirmingAccept(false);
         }
     }
-
 
     async function handleCancel(order) {
         if (!cancelReason || !cancelReason.trim()) console.log("[Cancel] no cancel reason");
@@ -391,6 +395,15 @@ function AdminHomePage() {
                         });
                     })
 
+                    socket.subscribe("/topic/workload-level-change", (frame) => {
+                        const payload = JSON.parse(frame.body);
+                        console.log("[WORKLOAD_CHANGE] ", payload);
+                        if(String(payload.branchNumber)===branchId){
+                            console.log("[WORKLOAD_CHANGE] true");
+                            setWorkloadLevel(payload.level);
+                        }
+                    })
+
 
                 };
 
@@ -488,6 +501,7 @@ function AdminHomePage() {
                 onPaymentSuccess={handlePaymentSuccess}
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && (
+
                     <AdminTopbar
                         stage={shiftStage}
                         onClick={() => setShiftPopupOpen(true)}
@@ -495,6 +509,9 @@ function AdminHomePage() {
                         onOpenStatistics={() => setIsStatisticsOpen(true)}
                         onOpenConfig={() => setIsConfigOpen(true)}
                         onGoToMenu={() => navigate('/menu?isAdmin=true')}
+                        branchNumber={branchId}
+                        workloadLevel={workloadLevel}
+                        onWorkloadChange={onWorkloadChange}
                     />
             )}
             <ShiftPopup
@@ -760,7 +777,7 @@ function AdminHomePage() {
                 }}
             >
                 <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
-                    <Box sx={{ width: 36, height: 4, borderRadius: 999, bgcolor: "grey.400" }} />
+                    <Box sx={{ width: 36, height: 4, borderRadius: 999, abgcolor: "grey.400" }} />
                 </Box>
 
                 <Typography variant="h6" sx={{ textAlign: "center", fontWeight: 600, mb: 2 }}>

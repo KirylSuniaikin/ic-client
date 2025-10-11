@@ -146,7 +146,11 @@ function OrderCard({order,
         () => toEpochMsBahrain(order.order_created),
         [order.order_created]
     );
-    const TOTAL_SEC = 15 * 60;
+
+    const TOTAL_SEC = useMemo(
+        () => (order.estimation ? order.estimation * 60: 15 * 60),
+        [order.estimation]
+    );
 
 
     const computeLeft = useCallback(() => {
@@ -223,7 +227,7 @@ function OrderCard({order,
                     </Box>
 
                     {!isHistory &&
-                        <CircularTimer timeLeft={timeLeft} totalSec={TOTAL_SEC}/>
+                        <CircularTimer timeLeft={timeLeft} totalSec={order.estimation*60} />
                     }
                 </Box>
 

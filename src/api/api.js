@@ -1,3 +1,4 @@
+
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
@@ -65,25 +66,6 @@ export async function updateAvailability(changes) {
     }
 
     return await response.text();
-}
-
-export async function markOrderReady(orderId) {
-    const url = `${URL}/ready_action`;
-    console.log(orderId);
-    const response = await fetch(url, {
-        method: "PUT",
-        // headers: {
-        //     "ngrok-skip-browser-warning": "69420"
-        // }
-        headers: { 'Content-Type': 'application/json'},
-        body: JSON.stringify({ orderId })
-    });
-
-    if (!response.ok) {
-        throw new Error(`Error marking order ready: ${response.status}`);
-    }
-
-    return await response.json();
 }
 
 export async function editOrder(order, orderId) {
@@ -301,5 +283,59 @@ export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, rea
     }
     catch (error) {
         console.error("Failed to update status", error);
+    }
+}
+
+export async function getOrderStatus(orderId) {
+    try{
+        const response = await fetch(URL + "/order_status?order_id=" + orderId, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+        if (!response.ok) {
+            const data = await response.json();
+            return { error: true, message: data.message || "Order not found" };
+        }
+        return await response.json();
+    } catch (error) {
+        console.error("Failed to get order", error);
+        return { error: true, message: "Connection error" };
+    }
+}
+
+export async function fetchWorkload(branchNumber) {
+    try{
+        const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+
+        return await response.json();
+    }catch(error) {
+        console.error("Failed to fetch workload", error);
+        return { error: true, message: "Connection error" };
+    }
+}
+
+export async function updateWorkload({branchNumber, newLevel}) {
+    try{
+        console.log(newLevel + branchNumber);
+        const response = await fetch(URL + "/branch/update_workload_level", {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                branchNumber: Number(branchNumber),
+                level: newLevel
+            })
+        })
+
+    } catch (e){
+        console.error("Failed to update workload", e);
     }
 }
