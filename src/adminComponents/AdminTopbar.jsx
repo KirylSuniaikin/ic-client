@@ -1,10 +1,11 @@
-import {Box, Button, IconButton, Popover, Typography} from "@mui/material";
-import {useState} from "react";
+import {Box, Button, FormControl, IconButton, InputLabel, MenuItem, Popover, Select, Typography} from "@mui/material";
+import {useEffect, useState} from "react";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
+import {fetchWorkload, updateWorkload} from "../api/api";
 
 
 export default function AdminTopbar({   stage,
@@ -12,13 +13,19 @@ export default function AdminTopbar({   stage,
                                         onOpenHistory,
                                         onOpenStatistics,
                                         onOpenConfig,
-                                        onGoToMenu
+                                        onGoToMenu,
+                                        branchNumber,
+                                        workloadLevel,
+                                        onWorkloadChange,
                                         }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
 
     const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
     const handleMenuClose = () => setAnchorEl(null);
+
+    const colorRed = '#E44B4C';
+
 
     const getStageData = (stage) => {
         switch (stage) {
@@ -34,6 +41,41 @@ export default function AdminTopbar({   stage,
                 return "";
         }
     };
+
+    const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];
+
+    const getWorkloadData = (workload) => {
+        switch (workload) {
+            case "IDLE": return "Idle(+0 min)"
+            case "BUSY": return "Busy(+10 min)"
+            case "CROWDED": return "Crowded(+20 min)"
+            case "OVERLOADED": return "Overloaded(+30 min)"
+            default: return ""
+        }
+    }
+
+    useEffect(() => {
+        async function loadWorkload() {
+            try {
+                const data = await fetchWorkload(branchNumber);
+                onWorkloadChange?.(data);
+            } catch (err) {
+                console.error("Failed to fetch workload:", err);
+            }
+        }
+
+        loadWorkload();
+    }, [branchNumber]);
+
+    async function handleChangeWorkloadLevel(event) {
+        const newLevel = event.target.value;
+        onWorkloadChange?.(newLevel);
+        try {
+            await updateWorkload({branchNumber, newLevel});
+        } catch (err) {
+            console.error("Failed to update workload:", err);
+        }
+    }
 
     const label = getStageData(stage);
 
@@ -56,6 +98,27 @@ export default function AdminTopbar({   stage,
             <Box sx={{ flexGrow: 1 }} />
 
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <FormControl size="small" sx={{ minWidth: 160, borderColor: colorRed }}>
+                    <InputLabel>Workload</InputLabel>
+                    <Select
+                        value={workloadLevel ?? "IDLE"}
+                        onChange={handleChangeWorkloadLevel}
+                        label="Workload"
+                        sx={{
+                            borderRadius: "9999px",
+                            border: colorRed,
+                            fontWeight: 500,
+                            textTransform: "capitalize",
+                        }}
+                    >
+                        {levels.map((lvl) => (
+                            <MenuItem key={lvl} value={lvl}>
+                                {getWorkloadData(lvl)}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
                 <Button
                     onClick={onClick}
                     variant="outlined"
@@ -66,12 +129,13 @@ export default function AdminTopbar({   stage,
                         fontWeight: 500,
                         fontSize: "0.8rem",
                         px: 2,
+                        height: "40px",
                         py: 0.5,
-                        color: "#E44B4C",
-                        borderColor: "#E44B4C",
+                        color: colorRed,
+                        borderColor: colorRed,
                         '&:hover': {
                             backgroundColor: "#fff5f5",
-                            borderColor: "#c63b3c",
+                            borderColor: colorRed,
                         },
                     }}
                 >
@@ -85,14 +149,14 @@ export default function AdminTopbar({   stage,
                         border: "1px solid #E44B4C",
                         borderRadius: "999px",
                         padding: "4px 10px",
-                        color: "#E44B4C",
-                        height: "32px",
+                        color: colorRed,
+                        height: "40px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         '&:hover': {
                             backgroundColor: "#fff5f5",
-                            borderColor: "#c63b3c",
+                            borderColor: colorRed,
                         }
                     }}
                 >

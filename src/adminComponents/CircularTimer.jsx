@@ -35,7 +35,7 @@ const formatMmSs = (secondsLike) => {
 
 export function CircularTimer({
                                   timeLeft,
-                                  totalSec = 15 * 60,
+                                  totalSec,
                                   size = 64,
                                   stroke = 6,
                                   onClick,
