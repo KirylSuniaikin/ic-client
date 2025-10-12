@@ -125,9 +125,14 @@ class BluetoothPrinterService {
 
     async printOrder(order) {
         if (!this.isConnected) {
-            console.warn("⚠️ Printer not connected");
+        console.warn("⚠️ Printer not connected — trying to reconnect...");
+        try {
+            await this.connect();
+        } catch (e) {
+            console.error("❌ Reconnect before print failed", e);
             return false;
         }
+    }
 
         const ESC = "\x1B";
         const LF = "\x0A";
