@@ -129,9 +129,12 @@ export function renderItemDetails(item) {
 }
 
 function OrderCard({order,
-                       onReadyClick = () => {}, isHistory = false, onDeleteClick, onPayClick = order => {
-    }, onPickedUpClick = () => {
-    }
+                       onReadyClick = () => {},
+                       isHistory = false,
+                       onDeleteClick,
+                       onPayClick = order => {},
+                       onPickedUpClick = () => {},
+                        onOvenClick = () => {},
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
@@ -297,11 +300,38 @@ function OrderCard({order,
                 <Box>
                     {!isHistory && (
                         <>
-                            {!order.isReady && (
+                            {order.status==="Kitchen Phase" && (
                                 <Button
                                     variant="contained"
                                     size="small"
-                                    disabled={order.isReady}
+                                    disabled={order.status==="Ready" || order.status==="Picked Up"}
+                                    sx=
+                                        {{
+                                            borderColor: colorBeige,
+                                            color: colorRed,
+                                            backgroundColor: "white",
+                                            mr: 1,
+                                            borderRadius: 4
+                                        }}
+                                    onClick={() => {
+                                        updateOrderStatus({
+                                            orderId: order.id,
+                                            jahezOrderId: order.external_id ? order.external_id : null,
+                                            orderStatus: "Oven",
+                                            reason: null
+                                        }).then(() => {
+                                            onOvenClick?.(order)
+                                        })
+                                    }}
+                                >
+                                    OVEN
+                                </Button>
+                            )}
+                            {order.status==="Oven" && (
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    disabled={order.status==="Ready"}
                                     sx=
                                         {{
                                             borderColor: colorBeige,
@@ -324,7 +354,7 @@ function OrderCard({order,
                                     READY
                                 </Button>
                             )}
-                            {order.isReady && (
+                            {order.status==="Ready" && (
                                 <Button
                                     variant="contained"
                                     size="small"

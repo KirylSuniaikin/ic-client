@@ -25,14 +25,13 @@ import StatisticsComponent from "./adminComponents/StatisticsComponent";
 import AdminTopbar from "./adminComponents/AdminTopbar";
 import ShiftPopup from "./components/shiftComponents/ShiftPopup";
 import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import {Masonry} from "@mui/lab";
 import PaymentPopup from "./adminComponents/PaymentPopup";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from "@mui/icons-material/Cancel";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import BluetoothPrinterService from "./services/BluetoorhPrinterService";
+import {socket} from "./api/socket";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -59,7 +58,6 @@ function AdminHomePage() {
     const [cancelReason, setCancelReason] = useState("");
     const [workloadLevel, setWorkloadLevel] = useState("IDLE");
 
-
     const audioRef = useRef(null);
 
     const branchId = "1";
@@ -79,6 +77,14 @@ function AdminHomePage() {
         setOrders(prev => {
             return prev.filter(o => o.id !== orderIdToRemove);
         });    }
+
+    const handleMarkInOven = (orderId) => {
+        setOrders((prev) =>
+            prev.map((o) =>
+                o.id === orderId ? { ...o, status: "Oven" } : o
+            )
+        );
+    }
 
     const onWorkloadChange = (newLevel) => {
         setWorkloadLevel(newLevel);
@@ -113,7 +119,7 @@ function AdminHomePage() {
     const handleMarkReady = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? { ...o, isReady: true } : o
+                o.id === orderId ? { ...o, status: "Ready" } : o
             )
         );
     };
@@ -240,26 +246,6 @@ function AdminHomePage() {
                     stompRef.current.deactivate().catch(() => {});
                 }
 
-                const socket = new Client({
-                    webSocketFactory: () => {
-                        const s = new SockJS(WS_URL);
-                        const origSend = s.send.bind(s);
-                        s.send = (d) => {
-                            if (d === '\n') console.log('♥ OUT heartbeat');
-                            return origSend(d);
-                        };
-                        const origOnMessage = s.onmessage;
-                        s.onmessage = (e) => {
-                            if (e?.data === '\n') console.log('♥ IN heartbeat');
-                            origOnMessage?.(e);
-                        };
-                        return s;
-                    },
-                    reconnectDelay: 5000,
-                    heartbeatIncoming: 10000,
-                    heartbeatOutgoing: 10000,
-                    debug: (msg) => console.log('[STOMP]', msg),
-                });
                 stompRef.current = socket;
 
                 socket.onConnect = () => {
@@ -317,25 +303,6 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe("/topic/order-ready", (frame) => {
-                        const payload = JSON.parse(frame.body);
-                        const readyOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
-
-                        console.log('✅ Ready orderId', readyOrderId);
-                        setOrders(prev =>
-                            prev.map(o =>
-                                getStringId(o) === readyOrderId
-                                    ? { ...o, isReady: true}
-                                    : o
-                            )
-                        );
-
-                        socket.publish({
-                            destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: payload}),
-                        });
-                    })
-
                     socket.subscribe("/topic/order-paid", (frame) => {
                         const payload = JSON.parse(frame.body);
                         const paidOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
@@ -382,17 +349,26 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe("/topic/order-picked-up", (frame) => {
+                    socket.subscribe("/topic/order-status-updated", (frame) => {
+                        console.log("[ORDER_STATUS] ", frame);
                         const payload = JSON.parse(frame.body);
-                        const pickedUpOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
+                        const orderId = getStringId(payload?.orderId ?? payload?.id);
+                        const status = payload.status;
 
-                        setOrders(prev => prev.filter(o => getStringId(o) !== pickedUpOrderId));
-                        console.log("📦 [ORDER_PICKED_UP]", payload, "→", pickedUpOrderId);
-
-                        socket.publish({
-                            destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: pickedUpOrderId}),
-                        });
+                        if(status==="Picked Up"){
+                            console.log("[ORDER_STATUS] Order is picked up with id: ", orderId);
+                            setOrders(prev => prev.filter(o => getStringId(o) !== orderId));
+                        }
+                        else{
+                            console.log("[ORDER_STATUS] Updated order status ->", status);
+                            setOrders(prev =>
+                                    prev.map(o =>
+                                        getStringId(o) === orderId
+                                            ? { ...o, status: status}
+                                            : o
+                                    )
+                                );
+                        }
                     })
 
                     socket.subscribe("/topic/workload-level-change", (frame) => {
@@ -540,6 +516,9 @@ function AdminHomePage() {
                                     }}
                                    onPickedUpClick={(order) => {
                                        handleRemoveItem(order.id)
+                                   }}
+                                   onOvenClick={(order) => {
+                                       handleMarkInOven(order.id)
                                    }}
                         />
                     ))}
