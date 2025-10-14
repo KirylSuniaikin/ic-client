@@ -1,5 +1,5 @@
 import {Box, Typography} from "@mui/material";
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {getOrderStatus} from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import {TextTitleWithoutVariant} from "./utils/typography";
@@ -12,6 +12,11 @@ export function OrderStatusPage({orderId}) {
     const [order, setOrder] = useState({});
     const [loading, setLoading] = useState(true);
     const [remaining, setRemaining] = useState();
+
+    const currentIdRef = useRef(orderId);
+    useEffect(() => {
+        currentIdRef.current = String(orderId);
+    }, [orderId]);
 
     useEffect(() => {
         async function fetchStatus() {
@@ -45,20 +50,23 @@ export function OrderStatusPage({orderId}) {
         connectSocket(()=> {
             socket.subscribe("/topic/order-status-updated", (frame) => {
                 const payload = JSON.parse(frame.body);
+
+                const eventId   = Number(payload.id ?? payload.orderId ?? payload);
+                const currentId = Number(currentIdRef.current);
                 const status = payload.status;
-                console.log("[ORDER STATUS UPDATE] " + payload);
-                if(payload.id === order?.id){
+                console.log("[Order status updated]", status);
+                if(eventId === currentId){
                     console.log("[ORDER STATUS UPDATE] " + payload.id);
                     setOrder((prev) => ({ ...prev, orderStatus: status }));
                 }
 
                 socket.publish({
                     destination: '/app/orders/ack',
-                    body: JSON.stringify({orderId: payload}),
+                    body: JSON.stringify({orderId: Number(payload.id)}),
                 });
             })
         })
-    }, [orderId]);
+    }, []);
 
     if (order?.error) {
         return (
