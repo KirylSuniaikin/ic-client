@@ -1,4 +1,4 @@
-import {Box, Paper, Typography} from "@mui/material";
+import {Box, Typography} from "@mui/material";
 import {useEffect, useState} from "react";
 import {getOrderStatus} from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
@@ -6,12 +6,12 @@ import {TextTitleWithoutVariant} from "./utils/typography";
 import kitchenPhaseAnimation from "./components/loadingAnimations/kitchen_phase_animatiom.json";
 import Lottie from "lottie-react";
 import readyAnimation from "./components/loadingAnimations/ready-animation.json";
+import {connectSocket, socket} from "./api/socket";
 
 export function OrderStatusPage({orderId}) {
     const [order, setOrder] = useState({});
     const [loading, setLoading] = useState(true);
     const [remaining, setRemaining] = useState();
-
 
     useEffect(() => {
         async function fetchStatus() {
@@ -41,12 +41,24 @@ export function OrderStatusPage({orderId}) {
         return () => clearInterval(intervalId);
     }, [order]);
 
-    const formatTime = (sec) => {
-        const m = Math.floor(sec / 60);
-        const s = sec % 60;
-        return `${m}:${s.toString().padStart(2, "0")}`;
-    };
+    useEffect(() => {
+        connectSocket(()=> {
+            socket.subscribe("/topic/order-status-updated", (frame) => {
+                const payload = JSON.parse(frame.body);
+                const status = payload.status;
+                console.log("[ORDER STATUS UPDATE] " + payload);
+                if(payload.id === order?.id){
+                    console.log("[ORDER STATUS UPDATE] " + payload.id);
+                    setOrder((prev) => ({ ...prev, orderStatus: status }));
+                }
 
+                socket.publish({
+                    destination: '/app/orders/ack',
+                    body: JSON.stringify({orderId: payload}),
+                });
+            })
+        })
+    }, [orderId]);
 
     if (order?.error) {
         return (
@@ -61,8 +73,6 @@ export function OrderStatusPage({orderId}) {
 
     const minutes = Math.floor(remaining / 60);
     const seconds = remaining % 60;
-
-
 
     const formattedTime =
         remaining > 0
@@ -99,6 +109,13 @@ export function OrderStatusPage({orderId}) {
                     Your pizza is being prepared 🍕
                 </TextTitleWithoutVariant>
             )}
+
+            {order.orderStatus === "Oven" && (
+                <TextTitleWithoutVariant>
+                    Your pizzas are in the oven. Almost ready!
+                </TextTitleWithoutVariant>
+            )}
+
             {order.orderStatus === "Ready" && (
 
                 <TextTitleWithoutVariant>
@@ -128,10 +145,28 @@ export function OrderStatusPage({orderId}) {
                     />
                 </Box>
             )}
-            {order.orderStatus === "Kitchen Phase" && (
+            {order.orderStatus === "Oven" && (
+                <Box sx={{mt: 1}}>
+                    <Box
+                        component="video"
+                        src="/videos/oven-status.mp4"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        sx={{
+                        width: 260,
+                        height: 260,
+                        }}
+                    >
+                    </Box>
+                </Box>
+            )}
+
+            {order.orderStatus !== "Ready" && (
                 remaining > 0 ? (
-                    <Typography variant="body1" sx={{ mt: 1 }}>
-                        Estimated ready in{" "}
+                    <Typography variant="body1" sx={{mt: 1 }}>
+                        Will be ready in{" "}
                         <Typography
                             component="span"
                             sx={{
@@ -151,7 +186,7 @@ export function OrderStatusPage({orderId}) {
                             mt: 2,
                         }}
                     >
-                        😔 Sorry for the delay — your order will be ready soon!
+                        We’re working hard to get your order out as soon as possible 🙏🍕
                     </Typography>
                 )
             )}
