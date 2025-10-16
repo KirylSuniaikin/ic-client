@@ -194,13 +194,14 @@ function HomePage({userParam}) {
             if (rawOrder) {
                 try {
                     const parsed = JSON.parse(rawOrder);
+                    console.log(parsed);
                     if (Array.isArray(parsed.items)) {
                         const normalized = parsed.items.map(item => {
-                            const discount = item.discount_amount && item.quantity
-                                ? Math.round((item.discount_amount / (item.amount + item.discount_amount) * 100))
+                            const discount = item.discountAmount && item.quantity
+                                ? Math.round((item.discountAmount / (item.amount + item.discountAmount) * 100))
                                 : 0;
 
-                            const originalAmount = item.amount + (item.discount_amount || 0);
+                            const originalAmount = item.amount + (item.discountAmount || 0);
 
                             return {
                                 ...item,
@@ -208,7 +209,10 @@ function HomePage({userParam}) {
                                 discount,
                                 amount: originalAmount,
                                 note: parseItemNote(item.description),
-                                extraIngredients: parseExtraIngr(item.description)
+                                extraIngredients: parseExtraIngr(item.description),
+                                comboItems: Array.isArray(item.comboItemTO)
+                                    ? item.comboItemTO.map(normalizeComboItem)
+                                    : []
                             };
                         });
                         setCartItems(normalized);
@@ -422,6 +426,19 @@ function HomePage({userParam}) {
                 !(item.name === name && item.amount === amount && item.quantity === quantity)
             )
         );
+    }
+
+    function normalizeComboItem(ci) {
+        return {
+            name: ci?.name ?? "",
+            category: ci?.category ?? "",
+            size: ci?.size ?? "",
+            quantity: ci?.quantity ?? 1,
+            isGarlicCrust: !!ci?.isGarlicCrust,
+            isThinDough: !!ci?.isThinDough,
+            note: parseItemNote(ci?.description),
+            extraIngredients: parseExtraIngr(ci?.description)
+        };
     }
 
     function handleRemoveItemFromCart(item) {
