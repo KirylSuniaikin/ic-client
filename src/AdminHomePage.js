@@ -287,14 +287,14 @@ function AdminHomePage() {
 
                     socket.subscribe('/topic/order-updates', async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
-                        console.log('♻️ Updated order', updatedOrder);
-                        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
                         try {
                             await BluetoothPrinterService.printOrder(updatedOrder);
                             console.log("🖨️ Auto print success");
                         } catch (e) {
                             console.warn("⚠️ Auto print error:", e);
                         }
+                        console.log('♻️ Updated order', updatedOrder);
+                        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
                         setNewlyUpdatedOrder(updatedOrder);
 
                         socket.publish({
