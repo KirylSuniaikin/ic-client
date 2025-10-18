@@ -141,7 +141,7 @@ class BluetoothPrinterService {
 
         const text = [
             ESC + "@",
-            alignCenter,
+            alignLeft,
             ESC + "!" + "\x38",
             "IC PIZZA\n",
             LF,
