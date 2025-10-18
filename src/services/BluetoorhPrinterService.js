@@ -63,7 +63,7 @@ class BluetoothPrinterService {
 
                     const extras = [];
 
-                    if (comboItem.isThinDough) extras.push("Thin Dough");
+                    if (comboItem.isThinDough) extras.push("Thin Crust");
                     if (comboItem.isGarlicCrust) extras.push("Garlic Crust");
 
                     if (comboItem.description) {
