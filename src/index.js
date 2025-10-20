@@ -5,6 +5,7 @@ import HomePage from './HomePage';
 import AdminHomePage from "./AdminHomePage";
 import {CssBaseline} from "@mui/material";
 import {OrderStatusPage} from "./OrderStatusPage";
+import ManagementPage from "./management/ManagementPage.tsx";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 function MenuRoute() {
@@ -20,6 +21,14 @@ function WatchOrderStatus() {
     return <OrderStatusPage orderId={orderId}></OrderStatusPage>;
 }
 
+function ManagementPageRoute() {
+    const [searchParams] = useSearchParams();
+    const branchNo = searchParams.get('branch_no');
+    const adminId = searchParams.get('user_id');
+    console.log("[BRANCH ID FROM URL]" + branchNo + " " + adminId);
+    return <ManagementPage branchNo={Number(branchNo)} userId={Number(adminId)}></ManagementPage>
+}
+
 root.render(
     <React.StrictMode sx ={{scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" }}}>
         <CssBaseline/>
@@ -29,6 +38,7 @@ root.render(
                 <Route path="/menu" element={<MenuRoute />} />
                 <Route path="/admin/" element={<AdminHomePage />} />
                 <Route path="/order_status" element={<WatchOrderStatus />} />
+                <Route path="/management" element={<ManagementPageRoute />} />
             </Routes>
         </BrowserRouter>
     </React.StrictMode>
