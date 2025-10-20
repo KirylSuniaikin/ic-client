@@ -1,15 +1,15 @@
 import {useEffect, useState} from "react";
-import {IBranch, IManagementResponse, IUser} from "./types.ts";
+import {IBranch, IManagementResponse, IUser} from "./types";
 import {useNavigate, useSearchParams} from "react-router-dom";
-import {getBaseManagementReports, getBranchInfo, getUser} from "./api.ts";
+import {getBaseManagementReports, getBranchInfo, getUser} from "./api";
 import {
     Box, Button,
     CircularProgress, Container, IconButton, Stack, Typography
 } from "@mui/material";
-import ReportCard from "./ReportCard.tsx";
+import ReportCard from "./ReportCard";
 import * as React from "react";
-import ManagementTopBar from "./ManagementTopBar.tsx";
-import InventoryPopup from "./InventoryPopup.tsx";
+import ManagementTopBar from "./ManagementTopBar";
+import InventoryPopup from "./InventoryPopup";
 import CloseIcon from "@mui/icons-material/Close";
 
 type Props = {branchNo : number}

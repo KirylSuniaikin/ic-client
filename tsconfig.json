@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "module": "esnext",
+    "types": [
+      "node",
+      "@wdio/globals/types",
+      "wdio-intercept-service",
+      "@wdio/mocha-framework"
+    ],
+    "jsx": "react-jsx",
+    "target": "es2022",
+    "lib": ["esnext"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["e2e/**/*.ts"],
+  "exclude": ["node_modules"]
+}

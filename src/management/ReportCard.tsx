@@ -1,5 +1,5 @@
 import {Button, Card, CardHeader, Typography} from "@mui/material";
-import {IManagementResponse} from "./types.ts";
+import {IManagementResponse} from "./types";
 
 export type ReportCardProps = {
     report: IManagementResponse;

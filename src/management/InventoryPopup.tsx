@@ -2,11 +2,11 @@ import {
     IBranch,
     InventoryRow, IUser,
     ReportTO
-} from "./types.ts";
+} from "./types";
 import  {useEffect, useMemo, useState} from "react";
-import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, withRecalc} from "./mapper.ts";
+import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, withRecalc} from "./mapper";
 import CloseIcon from "@mui/icons-material/Close";
-import {createReport, editReport, fetchProducts, getReport} from "./api.ts";
+import {createReport, editReport, fetchProducts, getReport} from "./api";
 import Decimal from "decimal.js-light";
 import {
     DataGrid,
@@ -14,7 +14,7 @@ import {
     GridRowModel, GridValueFormatter, GridValueGetter,
 } from '@mui/x-data-grid';
 import { Box, Button, CircularProgress, Dialog, IconButton, Stack, Typography} from "@mui/material";
-import {dateFormatter} from "./dateFormatter.ts";
+import {dateFormatter} from "./dateFormatter";
 
 
 type InventoryPopupProps = {
