@@ -61,6 +61,7 @@ function AdminHomePage() {
     const audioRef = useRef(null);
 
     const branchId = "1";
+    const adminId = 1;
     const STAGE_FLOW = {
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
@@ -488,6 +489,7 @@ function AdminHomePage() {
                         branchNumber={branchId}
                         workloadLevel={workloadLevel}
                         onWorkloadChange={onWorkloadChange}
+                        adminId={adminId}
                     />
             )}
             <ShiftPopup
