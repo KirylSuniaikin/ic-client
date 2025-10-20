@@ -6,6 +6,8 @@ import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import {fetchWorkload, updateWorkload} from "../api/api";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import {useNavigate} from "react-router-dom";
 
 
 export default function AdminTopbar({   stage,
@@ -17,9 +19,11 @@ export default function AdminTopbar({   stage,
                                         branchNumber,
                                         workloadLevel,
                                         onWorkloadChange,
+                                        adminId
                                         }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
+    const navigate = useNavigate();
 
     const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
     const handleMenuClose = () => setAnchorEl(null);
@@ -78,6 +82,11 @@ export default function AdminTopbar({   stage,
     }
 
     const label = getStageData(stage);
+
+    const handleOpenInventory = () => {
+        if (branchNumber == null) return console.error("branchNo is required");
+        navigate(`/management?branch_no=${branchNumber}&user_id=${adminId}`);
+    };
 
     return (
         <Box
@@ -189,6 +198,7 @@ export default function AdminTopbar({   stage,
                         { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
                         { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
                         { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },
+                        {label: "Inventorization", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: handleOpenInventory }
                     ].map((item, i) => (
                         <Box
                             key={item.label}
