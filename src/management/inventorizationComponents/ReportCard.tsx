@@ -17,7 +17,7 @@ export default function ReportCard({ report, onEditClick }: ReportCardProps) {
                     {report.title}
                 </Typography>
             }
-            subheader={`Total: ${report.finalPrice}`}
+            subheader={`Total: ${report.finalPrice} BHD`}
             action={
                 <Button
                     size="small"

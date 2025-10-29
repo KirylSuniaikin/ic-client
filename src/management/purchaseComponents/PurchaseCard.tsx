@@ -17,11 +17,7 @@ export function PurchaseCard({ report, onEditClick }: PurchaseCardProps) {
                         {report.title}
                     </Typography>
                 }
-                subheader={
-                    <Typography variant="h6">
-                        {report.finalPrice}
-                    </Typography>
-                }
+                subheader={`Total: ${report.finalPrice} BHD`}
                 action={
                     <Button
                         size="small"

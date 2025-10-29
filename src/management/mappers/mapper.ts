@@ -108,8 +108,17 @@ export const toPayloadLine = (r: PurchaseRow) => {
     };
 };
 
-export const parseDecimal = (v: unknown) => {
-    const s = String(v ?? "").trim().replace(",", ".");
-    const n = Number(s);
-    return Number.isFinite(n) ? n : NaN;
-};
+const isFilledNumber = (v: unknown) => Number.isFinite(v) && !Number.isNaN(v) && !toDecimal(v).isZero();
+
+export function validateRows(allRows: PurchaseRow[]): Map<string, Set<string>> {
+    const m = new Map<string, Set<string>>();
+    for (const r of allRows) {
+        const fields: string[] = [];
+        if (r.productId == null) fields.push("productId");
+        if (String(r.vendorName ?? "").trim() === "") fields.push("vendorName");
+        if (!isFilledNumber(r.price)) fields.push("price");
+        if (!isFilledNumber(r.quantity)) fields.push("quantity");
+        if (fields.length) m.set(r.id as string, new Set(fields));
+    }
+    return m;
+}

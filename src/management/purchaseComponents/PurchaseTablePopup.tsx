@@ -27,7 +27,7 @@ import {
     getPurchaseReport,
     getUser
 } from "../api/api";
-import {toDecimal, toPayloadLine} from "../mappers/mapper";
+import {toDecimal, toPayloadLine, validateRows} from "../mappers/mapper";
 import {
     DataGrid,
     GridColDef,
@@ -41,6 +41,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Decimal from "decimal.js-light";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {DecimalCellEditor, normalizeDecimal} from "./DecimalCellEditor";
+import {gridFilteredSortedRowIdsSelector} from "@mui/x-data-grid"
 
 type Props = {
     open: boolean;
@@ -71,6 +72,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>(null);
+    const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
+    const hasErr = (id: string, field: string) => invalid.get(id)?.has(field) === true;
+
 
     useEffect(() => {
         if (!open) return;
@@ -125,6 +129,8 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             field: "purchaseDate",
             headerName: "Date of purchase",
             width: 150,
+            headerAlign: "left",
+            align: "left",
             editable: true,
             valueFormatter: (v) => (v ? dayjs(String(v)).format("DD.MM.YYYY") : ""),
             renderEditCell: (params) => {
@@ -151,6 +157,8 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         {
             field: "productId",
             headerName: "Product",
+            headerAlign: "left",
+            align: "left",
             width: 180,
             editable: true,
             renderCell: (params) => {
@@ -206,11 +214,68 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             },
         },
         {
+            field: "quantity",
+            headerName: "Quantity",
+            width: 130,
+            headerAlign: "left",
+            align: "left",
+            editable: true,
+            type: "number",
+            valueFormatter: fmt3,
+            renderEditCell: (params) => <DecimalCellEditor {...params} />,
+        },
+        {
+            field: "price",
+            headerName: "Price Per Unit",
+            width: 140,
+            editable: true,
+            type: "number",
+            headerAlign: "left",
+            align: "left",
+            valueFormatter: fmt3,
+            renderEditCell: (params) => {
+                const row = params.row as PurchaseRow;
+                const targetRaw = row.productId != null ? productById.get(row.productId!)?.targetPrice : undefined;
+                return (
+                    <DecimalCellEditor
+                        {...params}
+                        highlightPredicate={(text: string) => {
+                            const price = asDec(normalizeDecimal(text));
+                            const target = asDec(targetRaw);
+                            return isDecFinite(price) && isDecFinite(target) && price.greaterThan(target);
+                        }}
+                    />
+                );
+            },
+            getCellClassName: (p) => {
+                const r = p.row as PurchaseRow;
+                const price = asDec(r.price);
+                const target = asDec(r.productId != null ? productById.get(r.productId!)?.targetPrice : undefined);
+                if (!isDecFinite(price) || !isDecFinite(target)) return "";
+                return price.greaterThan(target) ? "cell-overTarget" : "";
+            },
+        },
+        {
+            field: "finalPrice",
+            headerName: "Final Price",
+            width: 140,
+            headerAlign: "left",
+            align: "left",
+            valueGetter: ((_v, row) => {
+                const q = asDec(row.quantity);
+                const p = asDec(row.price);
+                if (!isDecFinite(q) || !isDecFinite(p)) return null;
+                return q.mul(p);
+            }) as GridValueGetter,
+            valueFormatter: (v) => fixedSafe(asDec(v), 4),
+        },
+        {
             field: "vendorName",
             headerName: "Vendor",
             width: 180,
             editable: true,
-
+            headerAlign: "left",
+            align: "left",
 
             renderCell: (params) => {
                 const vn = params.row.vendorName;
@@ -269,59 +334,11 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             },
         },
         {
-            field: "price",
-            headerName: "Price Per Unit",
-            width: 140,
-            editable: true,
-            type: "number",
-            valueFormatter: fmt3,
-            renderEditCell: (params) => {
-                const row = params.row as PurchaseRow;
-                const targetRaw = row.productId != null ? productById.get(row.productId!)?.targetPrice : undefined;
-                return (
-                    <DecimalCellEditor
-                        {...params}
-                        highlightPredicate={(text: string) => {
-                            const price = asDec(normalizeDecimal(text));
-                            const target = asDec(targetRaw);
-                            return isDecFinite(price) && isDecFinite(target) && price.greaterThan(target);
-                        }}
-                    />
-                );
-            },
-            getCellClassName: (p) => {
-                const r = p.row as PurchaseRow;
-                const price = asDec(r.price);
-                const target = asDec(r.productId != null ? productById.get(r.productId!)?.targetPrice : undefined);
-                if (!isDecFinite(price) || !isDecFinite(target)) return "";
-                return price.greaterThan(target) ? "cell-overTarget" : "";
-            },
-        },
-        {
-            field: "quantity",
-            headerName: "Quantity",
-            width: 130,
-            editable: true,
-            type: "number",
-            valueFormatter: fmt3,
-            renderEditCell: (params) => <DecimalCellEditor {...params} />,
-        },
-        {
-            field: "finalPrice",
-            headerName: "Final Price",
-            width: 140,
-            valueGetter: ((_v, row) => {
-                const q = asDec(row.quantity);
-                const p = asDec(row.price);
-                if (!isDecFinite(q) || !isDecFinite(p)) return null;
-                return q.mul(p);
-            }) as GridValueGetter,
-            valueFormatter: (v) => fixedSafe(asDec(v), 4),
-        },
-        {
             field: "__actions",
             headerName: "",
             width: 64,
+            headerAlign: "left",
+            align: "left",
             sortable: false,
             filterable: false,
             renderCell: (params) => (
@@ -390,6 +407,24 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             }
             console.log("[gridRows]", gridRows);
 
+            const invalidMap = validateRows(gridRows);
+            setInvalid(invalidMap);
+
+            if (invalidMap.size > 0) {
+                const [badId, badFields] = invalidMap.entries().next().value as [string, Set<string>];
+                const badField = Array.from(badFields)[0] ?? "productId";
+                const ids = gridFilteredSortedRowIdsSelector(apiRef);
+                const rowIndex = ids.indexOf(badId);
+                const colIndex = columns.findIndex(c => c.field === badField);
+                try {
+                    apiRef.current.scrollToIndexes?.({ rowIndex, colIndex});
+                    apiRef.current.setCellFocus?.(badId, badField);
+                    apiRef.current.startCellEditMode?.({ id: badId, field: badField });
+                } catch {}
+                console.error("[save] skip commit active cell:");
+                return;
+            }
+
             const readyRows = gridRows.filter(r =>
                 r.productId != null &&
                 String(r.vendorName ?? "").trim() !== "" &&
@@ -457,12 +492,28 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 <IconButton onClick={onClose}>
                     <CloseIcon />
                 </IconButton>
-                <Typography>{title}</Typography>
+                <Typography
+                    variant="body1"
+                    sx={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                    }}
+                >
+                    {title}
+                </Typography>
                 <Box flex={1} />
                 <Typography>Total: <b>{total}</b></Typography>
-                <Button variant="contained"
-                        onClick={() => { setRows(prev => [...prev, mkEmptyRow()]); setDirty(true); }}
-                        sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                <Button
+                    variant="contained"
+                    onClick={() => {
+                        const r = mkEmptyRow();
+                        setRows(prev => [r, ...(prev ?? [])]);
+                        setDirty(true);
+                    }}
+                    sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
                 >
                     Add
                 </Button>
@@ -483,6 +534,14 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         backgroundColor: `${theme.palette.error.light}33`,
                         color: theme.palette.error.main,
                         fontWeight: 700,
+                    }),
+                    "& .cell-invalid, & .MuiDataGrid-cell--editing.cell-invalid": (t) => ({
+                        backgroundColor: `${t.palette.error.light}33`,
+                        color: t.palette.error.main,
+                        fontWeight: 700,
+                    }),
+                    "& .row-invalid .MuiDataGrid-cell": (t) => ({
+                        backgroundColor: `${t.palette.error.light}1a`,
                     }),
                 }}
             >
@@ -514,7 +573,10 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     columnVisibilityModel={columnVisibilityModel}
                     onColumnVisibilityModelChange={(model) =>
                         setColumnVisibilityModel({ ...model, targetPrice: false, productName: false})
-                    }                    />
+                    }
+                    getRowClassName={(p) => (invalid.has(p.id as string) ? "row-invalid" : "")}
+                    getCellClassName={(p) => (hasErr(p.id as string, p.field) ? "cell-invalid" : "")}
+                    />
                 )}
             </Box>
         </Dialog>
