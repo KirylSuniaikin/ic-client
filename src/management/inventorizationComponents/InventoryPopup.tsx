@@ -87,26 +87,36 @@ export default function InventoryPopup({
             field: "name",
             headerName: "Name",
             flex: 1,
-            minWidth: 140 },
-        {
-            field: "price",
-            headerName: "Price per unit/kg",
-            width: 160,
-            valueFormatter:  fmt3},
+            headerAlign: "left",
+            align: "left",
+            minWidth: 140
+        },
         {
             field: "quantity",
             headerName: "Quantity",
             width: 140,
             editable: true,
             type: "number",
+            headerAlign: "left",
+            align: "left",
             valueFormatter: fmt3,
         },
         {
             field: "finalPrice",
             headerName: "Final Price",
             width: 140,
+            headerAlign: "left",
+            align: "left",
             valueGetter: finalGetter,
             valueFormatter: fmt3,
+        },
+        {
+            field: "price",
+            headerName: "Price per unit/kg",
+            width: 160,
+            headerAlign: "left",
+            align: "left",
+            valueFormatter:  fmt3
         },
     ], []);
 
@@ -195,7 +205,17 @@ export default function InventoryPopup({
                 <IconButton onClick={onClose}>
                     <CloseIcon />
                 </IconButton>
-                <Typography>{title}</Typography>
+                <Typography variant="body1"
+                            sx={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                            }}
+                >
+                    {title}
+                </Typography>
                 <Box flex={1} />
                 <Typography>Total: <b>{total}</b></Typography>
                 <Button variant="contained"
