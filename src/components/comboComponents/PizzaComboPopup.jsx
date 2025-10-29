@@ -24,17 +24,18 @@ export function PizzaComboPopup({
                                     selectedPizza,
                                 }) {
     const [selectedSize, setSelectedSize] = useState(
-        selectedPizza?.size?.trim() || "S"
+        selectedPizza?.size?.trim() || "M"
     );
 
     const [pizza, setPizza] = useState(() => {
-        const targetSize = selectedPizza?.size?.trim() || "S";
+        const targetSize = selectedPizza?.size?.trim() || "M";
 
         const found =
             pizzas
                 .flatMap(p => p.items)
-                .find(i => i.name === selectedPizza?.name && i.size.trim() === targetSize) ||
-            pizzas[0].items[0];
+                .find(i => i.name === selectedPizza?.name && i.size.trim() === targetSize)
+                ?? findPizzaBySize(pizzas, "M")
+                ?? pizzas[0].items[0];
 
         console.log("Found pizza " + found);
 
@@ -63,6 +64,22 @@ export function PizzaComboPopup({
 
     const sizeItem = comboGroup.find((i) => i.size === selectedSize);
     const basePrice = sizeItem ? sizeItem.price : 0;
+
+    function findPizzaBySize(
+        pizzas,
+        targetSize){
+        if (!pizzas?.length) return undefined;
+        const sizeNorm = targetSize.trim().toUpperCase();
+
+        const all = pizzas.flatMap(p => p.items ?? []);
+
+        const anyAvail = all.find(i =>
+            i.size?.trim().toUpperCase() === sizeNorm && i.available
+        );
+        if (anyAvail) return anyAvail;
+
+        return all.find(i => i.size?.trim().toUpperCase() === sizeNorm);
+    }
 
     function openEditor(target, items) {
         setEditorTarget(target);
@@ -256,7 +273,9 @@ export function PizzaComboPopup({
                             }}
                             fullWidth
                         >
-                            {comboGroup.map((c) => (
+                            {comboGroup
+                                .filter((c) => c.available===true)
+                                .map((c) => (
                                 <ToggleButton
                                     key={c.size}
                                     value={c.size}
