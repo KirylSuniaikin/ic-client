@@ -4,7 +4,14 @@ import type {
     IUser,
     ProductTO,
     ReportTO
-} from "../management/types";
+} from "../types/inventoryTypes";
+import {
+    BasePurchaseResponse,
+    CreatePurchasePayload,
+    EditPurchasePayload,
+    PurchaseTO,
+    VendorTO
+} from "../types/purchaseTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -19,37 +26,39 @@ export async function getBaseManagementReports(branchNo: number): Promise<IManag
 }
 
 export async function createReport(payload: {
-    inventoryProducts: { quantity: number; id: number; finalPrice: number }[];
-    userId: number;
+    inventoryProducts: { quantity: number; finalPrice: number; id: number }[];
+    finalPrice: number;
     title: string;
     type: string;
+    userId: number;
     branchNo: number
-}) {
+}): Promise<IManagementResponse> {
     const res = await fetch(URL + `/create_report`, {
         method: "POST",
         headers: {"Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`Response: ${res.text()}`);
-    return res.text();
+    return await res.json() as IManagementResponse;
 }
 
 
 export async function editReport(payload: {
-    inventoryProducts: { quantity: number; id: number; finalPrice: number }[];
-    userId: number;
+    inventoryProducts: { quantity: number; finalPrice: number; id: number }[];
+    finalPrice: number;
     id: number;
-    title: any;
     type: string;
+    title: string;
+    userId: number;
     branchNo: number
-}) {
+}): Promise<IManagementResponse> {
     const res = await fetch(URL + `/report_edit`, {
         method: "PUT",
         headers: {"Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`Response:  ${res.text()}`);
-    return res.text();
+    return await res.json() as IManagementResponse;
 }
 
 export async function getReport(reportId: number ): Promise<ReportTO> {
@@ -82,7 +91,54 @@ export async function fetchProducts(): Promise<ProductTO[]> {
 export async function getUser(userId: number): Promise<IUser> {
     const res = await fetch(URL + `/get_user?userId=${userId}`, {
         method: "GET",
+        headers: {"Content-Type": "application/json" },
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchVendors(): Promise<VendorTO[]> {
+    const res = await fetch(URL + `/get_all_vendors`, {
+        method: "GET",
         headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchPurchaseReports(): Promise<BasePurchaseResponse[]> {
+    const res = await fetch(URL + `/get_purchase_reports`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function createPurchaseReport(payload: CreatePurchasePayload): Promise<BasePurchaseResponse> {
+    const res = await fetch(URL + `/create_purchase_report`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getPurchaseReport(payload:{id: number}): Promise<PurchaseTO> {
+    const res = await fetch(URL + `/get_purchase_report?id=${payload.id}`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function editPurchaseReport(payload: EditPurchasePayload) : Promise<BasePurchaseResponse> {
+    const res = await fetch(URL + `/edit_purchase_report`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json" },
+        body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();

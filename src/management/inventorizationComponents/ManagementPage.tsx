@@ -1,20 +1,24 @@
 import {useEffect, useState} from "react";
-import {IBranch, IManagementResponse, IUser} from "./types";
-import {useNavigate, useSearchParams} from "react-router-dom";
-import {getBaseManagementReports, getBranchInfo, getUser} from "./api";
+import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
+import {useNavigate} from "react-router-dom";
+import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
 import {
-    Box, Button,
-    CircularProgress, Container, IconButton, Stack, Typography
+    Box,
+    CircularProgress, Container, Dialog, Stack, Typography
 } from "@mui/material";
 import ReportCard from "./ReportCard";
 import * as React from "react";
-import ManagementTopBar from "./ManagementTopBar";
 import InventoryPopup from "./InventoryPopup";
-import CloseIcon from "@mui/icons-material/Close";
+import {ManagementTopBar} from "./ManagementTopBar";
 
-type Props = {branchNo : number}
+type Props = {
+    isOpen: boolean;
+    onClose: () => void;
+    branchNo: number;
+    userId: number;
+};
 
-export default function ManagementPage({branchNo}: Props) {
+export default function ManagementPage({isOpen, onClose, branchNo, userId}: Props) {
     const navigate = useNavigate();
     const [reports, setReports] = useState<IManagementResponse[]>([]);
     const [branch, setBranch] = useState<IBranch>();
@@ -27,16 +31,9 @@ export default function ManagementPage({branchNo}: Props) {
     }>
     ({ open: false, mode: "new" });
     const[admin, setAdmin] = useState<IUser>();
-    const [searchParams] = useSearchParams();
-
-    const id: number  = Number(searchParams.get("user_id"));
 
     function handleCreateReportClick() {
         setInventoryPopup({open: true, mode: "new"});
-    }
-
-    function returnToAdminPage(){
-        navigate("/admin");
     }
 
 
@@ -46,7 +43,14 @@ export default function ManagementPage({branchNo}: Props) {
 
     function handleCloseInventoryPopup() {
         setInventoryPopup(prev => ({ ...prev, open: false }));
-        navigate(0);
+    }
+
+    function upsertReport(list: IManagementResponse[], next: IManagementResponse): IManagementResponse[] {
+        const idx = list.findIndex(r => r.id === next.id);
+        if (idx === -1) return [next, ...list];
+        const copy = list.slice();
+        copy[idx] = next;
+        return copy;
     }
 
     useEffect(() => {
@@ -58,11 +62,12 @@ export default function ManagementPage({branchNo}: Props) {
                 const [baseManagementResponse, branchResponse, userResponse] = await Promise.all([
                     getBaseManagementReports(branchNo),
                     getBranchInfo(branchNo),
-                    getUser(id)
+                    getUser(userId)
                 ]);
                 if (alive) {
                     setReports(baseManagementResponse);
                     setBranch(branchResponse);
+                    console.log(branchResponse);
                     setAdmin(userResponse);
                 }
             }
@@ -78,7 +83,7 @@ export default function ManagementPage({branchNo}: Props) {
 
     if (loading) {
         return (
-            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240 }}>
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
                 <CircularProgress />
             </Box>
         );
@@ -86,54 +91,43 @@ export default function ManagementPage({branchNo}: Props) {
 
     return (
         <>
-        <Container maxWidth="lg" sx={{ py: 3 }}>
+            <Dialog fullScreen open={isOpen} onClose={onClose} PaperProps={{ sx: {
+                    backgroundColor: "#fbfaf6",
+                } }}>
             <ManagementTopBar
-                title={
-                    <>
-                        Reports For Branch #{branchNo}
-                    </>
-                }
-                right={
-                <>
-                    <Button
-                        variant="contained"
-                        onClick={() => handleCreateReportClick()}
-                        sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
-                    >
-                        New
-                    </Button>
-                    <IconButton edge="end" color="inherit" onClick={returnToAdminPage} aria-label="close">
-                    <CloseIcon />
-                    </IconButton>
-                </>
-                }
+                title={<>Inventory</>}
+                newButtonLabel="New"
+                onClose={onClose}
+                onNewClick={handleCreateReportClick}
             />
+        <Container maxWidth="lg" sx={{ py: 3, backgroundColor: "#fbfaf6" }}>
 
             {reports.length === 0 ? (
                 <Box
-                    sx={{
-                        p: 3,
-                        border: "1px dashed",
-                        borderColor: "divider",
-                        borderRadius: 2,
+                      sx={{
+                            p: 3,
+                            border: "1px dashed",
+                            borderColor: "divider",
+                             borderRadius: 2,
                         textAlign: "center",
-                    }}
-                >
+                     }}
+                 >
                     <Typography color="text.secondary">There are no reports</Typography>
-                </Box>
-            ) : (
-                <Stack gap={2}>
-                    {reports.map((r) => (
-                        <Box key={r.id}>
-                            <ReportCard
-                                report={r}
-                                onEditClick={() => handleEditClick(r.id)}
-                            />
-                        </Box>
-                    ))}
-                </Stack>
-            )}
-        </Container>
+                  </Box>
+             ) : (
+                 <Stack gap={2}>
+                     {reports.map((r) => (
+                         <Box key={r.id}>
+                             <ReportCard
+                                  report={r}
+                                 onEditClick={() => handleEditClick(r.id)}
+                               />
+                         </Box>
+                        ))}
+                    </Stack>
+                    )}
+                </Container>
+            </Dialog>
             {inventoryPopup.open && (
                 <InventoryPopup
                     open={inventoryPopup.open}
@@ -142,6 +136,9 @@ export default function ManagementPage({branchNo}: Props) {
                     branch={branch}
                     author={admin}
                     onClose={handleCloseInventoryPopup}
+                    onSaved={(report) => {
+                        setReports(prev => upsertReport(prev, report));
+                    }}
                 />
             )}
         </>

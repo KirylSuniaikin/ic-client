@@ -1,12 +1,12 @@
 import {
-    IBranch,
+    IBranch, IManagementResponse,
     InventoryRow, IUser,
     ReportTO
-} from "./types";
-import  {useEffect, useMemo, useState} from "react";
-import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, withRecalc} from "./mapper";
-import CloseIcon from "@mui/icons-material/Close";
-import {createReport, editReport, fetchProducts, getReport} from "./api";
+} from "../types/inventoryTypes";
+import React, {useEffect, useMemo, useState} from "react";
+import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/mapper";
+import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import {createReport, editReport, fetchProducts, getReport} from "../api/api";
 import Decimal from "decimal.js-light";
 import {
     DataGrid,
@@ -14,7 +14,7 @@ import {
     GridRowModel, GridValueFormatter, GridValueGetter,
 } from '@mui/x-data-grid';
 import { Box, Button, CircularProgress, Dialog, IconButton, Stack, Typography} from "@mui/material";
-import {dateFormatter} from "./dateFormatter";
+import {dateFormatter} from "../mappers/dateFormatter";
 
 
 type InventoryPopupProps = {
@@ -24,7 +24,7 @@ type InventoryPopupProps = {
     reportId?: number;
     author: IUser;
     onClose: () => void;
-    onSaved?: () => void;
+    onSaved?: (report: IManagementResponse) => void;
 };
 
 export default function InventoryPopup({
@@ -43,9 +43,6 @@ export default function InventoryPopup({
     const [error, setError] = useState<string | null>(null);
     const [reportToEdit, setReportToEdit] = useState<ReportTO | null>(null);
     const [title, setTitle] = useState<string>("");
-
-    const fmt2: GridValueFormatter = (value: any) =>
-        value instanceof Decimal ? value.toFixed(2) : new Decimal(value ?? 0).toFixed(4);
 
     const fmt3: GridValueFormatter = (value: any) =>
         value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
@@ -66,7 +63,7 @@ export default function InventoryPopup({
                     if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
                     const products = await fetchProducts();
                     const data = products.filter(p => p.isInventory).map(mapProductToRow);
-                    setTitle(dateFormatter() + "-" + branch.externalId + "-" + author.userName)
+                    setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase())
                     if (alive) setRows(data);
                 } else {
                     if (!Number.isFinite(reportId)) throw new Error("reportId is required");
@@ -86,8 +83,16 @@ export default function InventoryPopup({
     }, [open, mode, reportId]);
 
     const columns = useMemo<GridColDef<InventoryRow>[]>(() => [
-        { field: "name", headerName: "Name", flex: 1, minWidth: 140 },
-        { field: "price", headerName: "Price per unit/kg", width: 160, valueFormatter:  fmt2},
+        {
+            field: "name",
+            headerName: "Name",
+            flex: 1,
+            minWidth: 140 },
+        {
+            field: "price",
+            headerName: "Price per unit/kg",
+            width: 160,
+            valueFormatter:  fmt3},
         {
             field: "quantity",
             headerName: "Quantity",
@@ -101,9 +106,14 @@ export default function InventoryPopup({
             headerName: "Final Price",
             width: 140,
             valueGetter: finalGetter,
-            valueFormatter: fmt2,
+            valueFormatter: fmt3,
         },
     ], []);
+
+    const total = useMemo(
+        () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),
+        [rows]
+    );
 
     const processRowUpdate = (newRow: GridRowModel, oldRow: GridRowModel) => {
         const nr = newRow as unknown as InventoryRow;
@@ -124,29 +134,43 @@ export default function InventoryPopup({
     const handleSave = async () => {
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
-            console.log(inventoryProducts);
             setSaving(true);
+            let report;
+            let totalDecimal = new Decimal(0);
+            for (const r of inventoryProducts) {
+                try {
+                    totalDecimal = totalDecimal.add( toDecimal(r.finalPrice));
+                } catch (e) {
+                    console.error("[total fail on row]", r, e);
+                }
+            }
+            const totalNumber = Number(totalDecimal.toFixed(3));
             if (mode === "new") {
                 if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
-                await createReport({
+                 const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
                     userId: author.id,
+                    finalPrice: totalNumber,
                     inventoryProducts: inventoryProducts,
                 });
+                console.log(report);
+                onSaved(report);
             } else {
-                await editReport({
+                const report: IManagementResponse = await editReport({
                     id: reportId!,
                     type: "INVENTORY",
                     title: title,
                     branchNo: branch.branchNo,
                     userId: author.id,
+                    finalPrice: totalNumber,
                     inventoryProducts: inventoryProducts,
                 });
+                console.log(report);
+                onSaved(report);
             }
             onClose();
-            onSaved?.();
         } catch (e:any) {
             setError(e?.message ?? "Save failed");
         } finally {
@@ -167,39 +191,21 @@ export default function InventoryPopup({
             overflow: "hidden",
             }}
         >
-            <Box
-                component="header"
-                sx={{
-                    position: "sticky",
-                    top: 0,
-                    zIndex: (t) => t.zIndex.appBar,
-                    bgcolor: "background.paper",
-                    borderBottom: 1,
-                    borderColor: "divider",
-                    px: 2,
-                    py: 3,
-                }}
-            >
-                <Stack direction="row" alignItems="center" gap={2}>
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        {title}
-                    </Typography>
-                    <Box sx={{ flex: 1 }} />
-                    <Stack direction="row" alignItems="center" gap={1.5}>
-                        <Button
-                            variant="contained"
-                            disabled={saving || dirty.size === 0}
-                            sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
-                            onClick={handleSave}
-                        >
-                            {saving ? "Saving..." : `Save`}
-                        </Button>
-                        <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
-                            <CloseIcon />
-                        </IconButton>
-                    </Stack>
-                </Stack>
-            </Box>
+            <Stack direction="row" gap={2} alignItems="center" sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+                <IconButton onClick={onClose}>
+                    <CloseIcon />
+                </IconButton>
+                <Typography>{title}</Typography>
+                <Box flex={1} />
+                <Typography>Total: <b>{total}</b></Typography>
+                <Button variant="contained"
+                        disabled={!dirty || saving}
+                        sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                        onClick={handleSave}
+                >
+                    {saving ? "Saving..." : "Save"}
+                </Button>
+            </Stack>
 
             <Box sx={{
                 p: 2,

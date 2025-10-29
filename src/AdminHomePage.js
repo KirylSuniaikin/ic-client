@@ -32,6 +32,8 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import BluetoothPrinterService from "./services/BluetoorhPrinterService";
 import {socket} from "./api/socket";
+import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
+import ManagementPage from "./management/inventorizationComponents/ManagementPage";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -57,6 +59,8 @@ function AdminHomePage() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [workloadLevel, setWorkloadLevel] = useState("IDLE");
+    const [purchasePopupOpen, setPurchasePopupOpen] = useState(false);
+    const [managementPageOpen, setManagementPageOpen] = useState(false);
 
     const audioRef = useRef(null);
 
@@ -477,7 +481,7 @@ function AdminHomePage() {
                 order={selectedOrder}
                 onPaymentSuccess={handlePaymentSuccess}
             />
-            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && (
+            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && !managementPageOpen && (
 
                     <AdminTopbar
                         stage={shiftStage}
@@ -490,6 +494,8 @@ function AdminHomePage() {
                         workloadLevel={workloadLevel}
                         onWorkloadChange={onWorkloadChange}
                         adminId={adminId}
+                        onPurchaseOpen={() => setPurchasePopupOpen(true)}
+                        onManagementPageOpen={() => setManagementPageOpen(true)}
                     />
             )}
             <ShiftPopup
@@ -547,6 +553,23 @@ function AdminHomePage() {
                     isOpen={isStatisticsOpen}
                     onClose={() => setIsStatisticsOpen(false)}
                 />
+            )}
+
+            {purchasePopupOpen && (
+                <PurchasePopup
+                open={purchasePopupOpen}
+                onClose={() => setPurchasePopupOpen(false)}
+                adminId={adminId}
+                branchNo={Number(branchId)}
+                />
+            )}
+
+            {managementPageOpen && (
+                <ManagementPage
+                isOpen={managementPageOpen}
+                onClose={() => setManagementPageOpen(false)}
+                userId={adminId}
+                branchNo={Number(branchId)} />
             )}
 
             <Snackbar

@@ -10,35 +10,14 @@ export interface IManagementResponse {
     createdAt: string;
     branchNo: number;
     userName: string;
+    finalPrice: number;
 }
 
 export interface IBranch {
     id: number;
     externalId: string;
     branchNo: number;
-}
-
-export interface ICreateReport {
-    title: string;
-    type: ReportType;
-    branchNo: number;
-    userId: number;
-    inventoryProducts: IInventoryProducts[];
-}
-
-export interface IInventoryProducts {
-    id: number;
-    quantity: number;
-    finalPrice: number;
-}
-
-export interface IEditReport {
-    id: number;
-    title: string;
-    type: ReportType;
-    branchNo: number;
-    userId: number;
-    inventoryProducts: IInventoryProducts[];
+    branchName: string;
 }
 
 export interface IUser {
@@ -49,8 +28,12 @@ export interface IUser {
 export type ProductTO = {
     id: number;
     name: string;
+    targetPrice: number;
     price: number;
     isInventory: boolean;
+    isPurchasable: boolean;
+    isBundle: boolean;
+    topVendor: string;
 }
 
 export type ReportInventoryProductDTO = {
@@ -64,6 +47,7 @@ export type ReportTO = {
     title: string;
     branchNo: number;
     userId: number;
+    finalPrice: number;
     inventoryProducts: ReportInventoryProductDTO[];
 }
 

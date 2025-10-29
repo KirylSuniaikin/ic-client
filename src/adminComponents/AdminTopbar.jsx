@@ -8,6 +8,8 @@ import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import {fetchWorkload, updateWorkload} from "../api/api";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import {useNavigate} from "react-router-dom";
+import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
+
 
 
 export default function AdminTopbar({   stage,
@@ -19,7 +21,9 @@ export default function AdminTopbar({   stage,
                                         branchNumber,
                                         workloadLevel,
                                         onWorkloadChange,
-                                        adminId
+                                        adminId,
+                                        onPurchaseOpen,
+                                        onManagementPageOpen
                                         }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -45,6 +49,15 @@ export default function AdminTopbar({   stage,
                 return "";
         }
     };
+
+    const items = [
+        { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
+        { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
+        { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
+        { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },
+        {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: onManagementPageOpen },
+        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen }
+    ]
 
     const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];
 
@@ -82,11 +95,6 @@ export default function AdminTopbar({   stage,
     }
 
     const label = getStageData(stage);
-
-    const handleOpenInventory = () => {
-        if (branchNumber == null) return console.error("branchNo is required");
-        navigate(`/management?branch_no=${branchNumber}&user_id=${adminId}`);
-    };
 
     return (
         <Box
@@ -193,13 +201,7 @@ export default function AdminTopbar({   stage,
                         },
                     }}
                 >
-                    {[
-                        { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
-                        { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
-                        { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
-                        { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },
-                        {label: "Inventorization", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: handleOpenInventory }
-                    ].map((item, i) => (
+                    {items.map((item, i) => (
                         <Box
                             key={item.label}
                             onClick={() => {
@@ -216,7 +218,7 @@ export default function AdminTopbar({   stage,
                                 fontWeight: 500,
                                 fontFamily: "Baloo Bhaijaan 2",
                                 color: "#333",
-                                borderBottom: i < 3 ? "1px solid #f0f0f0" : "none",
+                                borderBottom: i < items.length - 1 ? "1px solid #f0f0f0" : "none",
                                 cursor: "pointer",
                                 "&:hover": {
                                     backgroundColor: "#fff5f5",
