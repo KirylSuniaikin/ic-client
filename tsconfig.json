@@ -12,6 +12,7 @@
     "target": "es2022",
     "lib": ["esnext"],
     "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
     "noEmit": true
   },
   "include": ["e2e/**/*.ts"],
