@@ -34,6 +34,7 @@ export type CreatePurchasePayload = {
     finalPrice: number;
     userId: number;
     purchaseDate: string;
+    branchNo: number;
     purchaseProducts: {
         id: number;
         quantity: number;

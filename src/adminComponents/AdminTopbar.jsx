@@ -1,4 +1,14 @@
-import {Box, Button, FormControl, IconButton, InputLabel, MenuItem, Popover, Select, Typography} from "@mui/material";
+import {
+    Box,
+    Button,
+    FormControl,
+    IconButton,
+    InputLabel,
+    MenuItem,
+    Popover,
+    Select,
+    Typography
+} from "@mui/material";
 import {useEffect, useState} from "react";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import AddIcon from "@mui/icons-material/Add";
@@ -7,9 +17,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import {fetchWorkload, updateWorkload} from "../api/api";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import {useNavigate} from "react-router-dom";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
-
 
 
 export default function AdminTopbar({   stage,
@@ -24,10 +32,9 @@ export default function AdminTopbar({   stage,
                                         adminId,
                                         onPurchaseOpen,
                                         onManagementPageOpen
-                                        }) {
+                                    }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
-    const navigate = useNavigate();
 
     const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
     const handleMenuClose = () => setAnchorEl(null);
@@ -230,7 +237,6 @@ export default function AdminTopbar({   stage,
                         </Box>
                     ))}
                 </Popover>
-
             </Box>
         </Box>
     );

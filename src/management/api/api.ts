@@ -12,6 +12,7 @@ import {
     PurchaseTO,
     VendorTO
 } from "../types/purchaseTypes";
+import {ConsumptionReportTO} from "../types/consumptionTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -139,6 +140,15 @@ export async function editPurchaseReport(payload: EditPurchasePayload) : Promise
         method: "PUT",
         headers: {"Content-Type": "application/json" },
         body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchLatestConsumptionReport(): Promise<ConsumptionReportTO> {
+    const res = await fetch(URL + `/get_consumption_report`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
     })
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
