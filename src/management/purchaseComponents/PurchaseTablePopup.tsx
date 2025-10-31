@@ -452,6 +452,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 title,
                 finalPrice: totalNumber,
                 userId: admin.id,
+                branchNo: branch.branchNo,
                 purchaseDate: reportDate,
                 purchaseProducts: lines as any,
             };

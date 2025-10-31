@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import {Box, Typography, Button, Fab, Grid, CardContent, Card, Popover} from '@mui/material';
+import {
+    Box,
+    Typography,
+    Button,
+    Fab,
+    Grid,
+    CardContent,
+    Card,
+    Popover,
+    ToggleButton,
+    ToggleButtonGroup
+} from '@mui/material';
 import { DateRange } from 'react-date-range';
 import {endOfDay, startOfDay} from 'date-fns';
 import 'react-date-range/dist/styles.css';
@@ -8,10 +19,8 @@ import {fetchStatistics} from "../api/api";
 import {enUS} from "date-fns/locale";
 import { formatInTimeZone } from 'date-fns-tz';
 import { format } from 'date-fns';
-import CloseIcon from "@mui/icons-material/Close";
-
-
-const brandRed = "#E44B4C";
+import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
+import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
 
 export default function StatisticsComponent({isOpen, onClose}) {
     const [dateRange, setDateRange] = useState([
@@ -84,30 +93,59 @@ export default function StatisticsComponent({isOpen, onClose}) {
     }, []);
 
     const [retentionAnchorEl, setRetentionAnchorEl] = useState(null);
+    const [mode, setMode] = useState("Performance");
     const retentionOpen = Boolean(retentionAnchorEl);
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
 
     return (
-        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
-            <Fab
-                color="primary"
-                aria-label="close"
-                onClick={onClose}
-                sx={{
-                    position: 'fixed',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: brandRed,
-                    color: "white",
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <CloseIcon sx={{ fontSize: 30 }} />
-            </Fab>
+        <>
+            <Box sx={{
+                gap: 1,
+            }}>
+            <BackTopBar
+                onClose={onClose}
+                title="Statistics"
+            />
+            </Box>
 
-            <Card sx={{ borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2}}>
+            <Box sx={{ px: 1, pt: 1 }}>
+                <ToggleButtonGroup
+                    exclusive
+                    value={mode}
+                    onChange={(_, v) => v && setMode(v)}
+                    size="small"
+                    sx={{
+                        '& .MuiToggleButton-root': {
+                            textTransform: 'none',
+                            px: 2,
+                            border: '1px solid #e0e0e0',
+                        },
+                        '& .MuiToggleButtonGroup-grouped': {
+                            borderRadius: '999px !important',
+                            margin: 0,
+                            border: '1px solid #e0e0e0',
+                        },
+                        '& .MuiToggleButtonGroup-grouped:not(:first-of-type)': {
+                            marginLeft: 1,
+                            borderLeft: '1px solid #e0e0e0',
+                        },
+                        '& .Mui-selected': {
+                            backgroundColor: '#E44B4C',
+                            color: '#fff',
+                            borderColor: '#E44B4C',
+                            '&:hover': { backgroundColor: '#d23c3d', borderColor: '#d23c3d' },
+                        },
+                    }}
+                >
+                    <ToggleButton value="Performance">Performance</ToggleButton>
+                    <ToggleButton value="Consumption">Consumption</ToggleButton>
+                </ToggleButtonGroup>
+            </Box>
+
+        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+            {mode === "Performance" ? ( <>
+
+            <Card sx={{ borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
                 <CardContent>
                     <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
                     {globalStats && (
@@ -161,12 +199,10 @@ export default function StatisticsComponent({isOpen, onClose}) {
                 <CardContent>
                     <Typography variant="h6" gutterBottom>📆 Stats by Date Range</Typography>
 
-                    {/* Button to open calendar */}
                     <Button variant="outlined" onClick={handleOpenCalendar}>
                         {formatDate(dateRange[0].startDate)} — {formatDate(dateRange[0].endDate)}
                     </Button>
 
-                    {/* Popover with calendar + Refresh */}
                     <Popover
                         id={id}
                         open={open}
@@ -341,6 +377,10 @@ export default function StatisticsComponent({isOpen, onClose}) {
                     )}
                 </CardContent>
             </Card>
+                </>
+            ):
+            <ConsumptionStatistics/>}
         </Box>
+        </>
     );
 }
