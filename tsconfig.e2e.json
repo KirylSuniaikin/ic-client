@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node",
+      "@wdio/globals/types",
+      "wdio-intercept-service",
+      "@wdio/mocha-framework"
+    ]
+  },
+  "include": ["e2e/**/*.ts", "e2e/**/*.tsx"]
+}
