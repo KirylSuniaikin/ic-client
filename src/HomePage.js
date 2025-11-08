@@ -546,11 +546,12 @@ function HomePage({userParam}) {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 console.log(order)
-                await editOrder(order, orderToEdit.id);
+                const res = await editOrder(order, orderToEdit.id);
                 // await localStorage.removeItem("orderToEdit");
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
-                const list = [order.id];
+                const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
+                console.log(localStorage.getItem(EDITED_ORDER_ID_KEY));
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {

@@ -143,7 +143,6 @@ function AdminHomePage() {
     const suppressedSoundIdsRef = useRef(new Set());
     const stompRef = useRef(null);
 
-    const editedOrderIdRef = useRef(new Set());
     const EDITED_ORDER_ID_KEY = 'editedOrderId';
 
     const getExtId = (o) =>
@@ -213,12 +212,28 @@ function AdminHomePage() {
     }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
 
     useEffect(() => {
+        let lock;
+        async function req() {
+            try {
+                lock = await navigator.wakeLock?.request("screen");
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") req();
+                }, { once: true });
+            } catch {}
+        }
+        req();
+        return () => { try { lock?.release?.(); } catch {} };
+    }, []);
+
+    useEffect(() => {
         if (!newlyUpdatedOrder || !audioRef.current) return;
-        const edited = editedOrderIdRef.current.has(newlyUpdatedOrder.id);
-        const id = normalizeId(newlyUpdatedOrder.id);
-        if(edited) {
-            editedOrderIdRef.current.delete(id);
-            localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...editedOrderIdRef.current]));
+        const id = normalizeId(String(newlyUpdatedOrder.id));
+        console.log(': ', id);
+        const suppressed = suppressedSoundIdsRef.current.has(id);
+        if(suppressed) {
+            suppressedSoundIdsRef.current.delete(id);
+            console.log(suppressedSoundIdsRef.current);
+            localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
             console.log(`[EDITED_ORDERS] ID ${id} was removed from localStorage.`);
         }
         else {
@@ -232,6 +247,27 @@ function AdminHomePage() {
 
         setNewlyUpdatedOrder(null);
     }, [newlyUpdatedOrder, audioRef, setActiveAlertOrderEdit]);
+
+    // useEffect(() => {
+    //     if (!newlyAddedOrder || !audioRef.current) return;
+    //     const id = normalizeId(newlyAddedOrder.id);
+    //     const suppressed = suppressedSoundIdsRef.current.has(id);
+    //     console.log(suppressedSoundIdsRef.current);
+    //     if (suppressed) {
+    //         suppressedSoundIdsRef.current.delete(id);
+    //         localStorage.setItem(SUPPRESS_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
+    //         console.log(`[SUPPRESS] ID ${id} was removed from localStorage.`);
+    //     } else {
+    //         console.log(`[AUDIO] Playing sound for new order ID: ${id}`);
+    //         setActiveAlertOrder(newlyAddedOrder);
+    //         audioRef.current.currentTime = 0;
+    //         audioRef.current.play()
+    //             .then(() => console.log('[AUDIO] playing'))
+    //             .catch(e => console.warn('[AUDIO] play() blocked/error:', e));
+    //     }
+    //
+    //     setNewlyAddedOrder(null);
+    // }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
 
     useEffect(() => {
         async function initialize() {
@@ -292,6 +328,14 @@ function AdminHomePage() {
 
                     socket.subscribe('/topic/order-updates', async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
+
+                        try {
+                            const arr = JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) || '[]');
+                            suppressedSoundIdsRef.current = new Set(arr.map(String));
+                        } catch {
+                            suppressedSoundIdsRef.current = new Set();
+                        }
+
                         try {
                             await BluetoothPrinterService.printOrder(updatedOrder);
                             console.log("🖨️ Auto print success");
@@ -384,7 +428,6 @@ function AdminHomePage() {
                             setWorkloadLevel(payload.level);
                         }
                     })
-
 
                 };
 
