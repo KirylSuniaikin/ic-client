@@ -65,7 +65,7 @@ function HistoryComponent({isOpen, onClose}) {
 
 
     const sortedOrders = [...orders].sort(
-        (a, b) => new Date(a.order_created) - new Date(b.order_created)
+        (a, b) => new Date(b.order_created) - new Date(a.order_created)
     );
 
     return (
