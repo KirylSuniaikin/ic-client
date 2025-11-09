@@ -18,7 +18,7 @@ import {
     Tooltip,
     Typography
 } from "@mui/material";
-import dayjs, { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import {
     createPurchaseReport,
     editPurchaseReport,
@@ -52,6 +52,12 @@ type Props = {
     onClose: () => void;
     onSaved?: (report: BasePurchaseResponse) => void;
 }
+
+const asDec = (v: unknown): Decimal => toDecimal(v);
+const isDecFinite = (d: Decimal) => Number.isFinite(d.toNumber());
+const fixedSafe = (d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : "");
+
+const fmt3: GridValueFormatter = (value: any) => fixedSafe(asDec(value), 3);
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
@@ -117,12 +123,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             }
         })();
         return () => { alive = false; };
-    }, [open, mode, purchaseId]);
-    const asDec = (v: unknown): Decimal => toDecimal(v);
-    const isDecFinite = (d: Decimal) => Number.isFinite(d.toNumber());
-    const fixedSafe = (d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : "");
-
-    const fmt3: GridValueFormatter = (value: any) => fixedSafe(asDec(value), 3);
+    }, [open, mode, purchaseId, userId]);
 
     const columns = useMemo<GridColDef<PurchaseRow>[]>(() => [
         {
@@ -356,7 +357,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 </Tooltip>
             ),
         },
-    ], [products, vendors]);
+    ], [fixedSafe, fmt3, productById, products, vendorByName, vendors]);
 
     const handleCellEditStop = React.useCallback((params) => {
         const { id } = params;
@@ -365,7 +366,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             setRows(prev => prev.map(r => (r.id === id ? updated : r)));
             setDirty(true);
         });
-    }, []);
+    }, [apiRef]);
 
     const total = useMemo(
         () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),

@@ -5,8 +5,6 @@ import HomePage from './HomePage';
 import AdminHomePage from "./AdminHomePage";
 import {CssBaseline} from "@mui/material";
 import {OrderStatusPage} from "./OrderStatusPage";
-import ManagementPage from "./management/inventorizationComponents/ManagementPage.tsx";
-import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 function MenuRoute() {

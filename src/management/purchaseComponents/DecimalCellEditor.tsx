@@ -4,10 +4,9 @@ import {TextField} from "@mui/material";
 
 export const normalizeDecimal = (s: unknown) => {
     let t = String(s ?? "").trim().replace(",", ".");
-    t = t.replace(/[^\d.\-]/g, "");      // только цифры/точка/минус
-    t = t.replace(/(?!^)-/g, "");        // минус только в начале
+    t = t.replace(/[^\d.\-]/g, "");
     const i = t.indexOf(".");
-    if (i !== -1) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, ""); // одна точка
+    if (i !== -1) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, "");
     return t;
 };
 

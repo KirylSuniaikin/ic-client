@@ -41,7 +41,7 @@ export default function InventoryPopup({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [reportToEdit, setReportToEdit] = useState<ReportTO | null>(null);
+    // const [reportToEdit, setReportToEdit] = useState<ReportTO | null>(null);
     const [title, setTitle] = useState<string>("");
 
     const fmt3: GridValueFormatter = (value: any) =>
@@ -69,7 +69,7 @@ export default function InventoryPopup({
                     if (!Number.isFinite(reportId)) throw new Error("reportId is required");
                     const rep: ReportTO = await getReport(reportId!);
                     console.log("Received report! ", rep);
-                    setReportToEdit(rep as ReportTO);
+                    // setReportToEdit(rep as ReportTO);
                     setTitle(rep.title as string);
                     if (alive) setRows(normalizeReportPayload(rep));
                 }
@@ -80,7 +80,7 @@ export default function InventoryPopup({
             }
         })();
         return () => { alive = false; };
-    }, [open, mode, reportId]);
+    }, [open, mode, reportId, branch.branchNo, branch.branchName, author.userName]);
 
     const columns = useMemo<GridColDef<InventoryRow>[]>(() => [
         {

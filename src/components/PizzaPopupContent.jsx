@@ -115,7 +115,7 @@ function PizzaPopup({
         const sortedSizes = order.filter(size => sizes.includes(size));
         setAvailableSizes(sortedSizes);
         setLoading(false);
-    }, [open, group, isEditMode]);
+    }, [open, group, isEditMode, editItem]);
 
     useEffect(() => {
         if (selectedSize === "S") {

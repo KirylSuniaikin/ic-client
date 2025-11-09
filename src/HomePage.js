@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useLocation, useSearchParams} from 'react-router-dom';
+import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -82,8 +82,6 @@ function HomePage({userParam}) {
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
-    const location = useLocation();
-
     // useOscillatingAutoScroll(bestRef, {
     //     bestsellers,
     //     cycles: 2,
@@ -94,12 +92,6 @@ function HomePage({userParam}) {
     //     runOnce: true,
     //     onceTtlMs: 30_000,
     // });
-
-    useEffect(() => {
-        if (bestRef.current) {
-            const el = bestRef.current;
-        }
-    }, [bestRef.current, bestsellers]);
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -223,7 +215,7 @@ function HomePage({userParam}) {
             }
         }
 
-    }, []);
+    }, [isEditMode, normalizeComboItem, userParam]);
 
 
     function parseItemNote(desc) {

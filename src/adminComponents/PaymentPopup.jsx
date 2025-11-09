@@ -1,7 +1,7 @@
 // PaymentSheetMobile.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    Box, Button, Stack, Paper, Select, MenuItem, TextField,
+    Box, Button, Stack, Select, MenuItem,
     IconButton, Typography
 } from "@mui/material";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";

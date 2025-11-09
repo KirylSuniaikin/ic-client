@@ -89,7 +89,7 @@ export default function AdminTopbar({   stage,
         }
 
         loadWorkload();
-    }, [branchNumber]);
+    }, [branchNumber, onWorkloadChange]);
 
     async function handleChangeWorkloadLevel(event) {
         const newLevel = event.target.value;

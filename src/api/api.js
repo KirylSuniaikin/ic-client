@@ -324,7 +324,7 @@ export async function fetchWorkload(branchNumber) {
 export async function updateWorkload({branchNumber, newLevel}) {
     try{
         console.log(newLevel + branchNumber);
-        const response = await fetch(URL + "/branch/update_workload_level", {
+        await fetch(URL + "/branch/update_workload_level", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",

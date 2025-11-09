@@ -3,7 +3,6 @@ import {
     Box,
     Typography,
     Button,
-    Fab,
     Grid,
     CardContent,
     Card,
@@ -35,9 +34,9 @@ export default function StatisticsComponent({isOpen, onClose}) {
     const [globalStats, setGlobalStats] = useState(null);
     const [rangeStats, setRangeStats] = useState(null);
     const [retentionStats, setRetentionStats] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()))
-    const [changed, setChanged] = useState(false);
+    // const [changed, setChanged] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [doughUsage, setDoughUsage] = useState([]);
 
@@ -54,10 +53,9 @@ export default function StatisticsComponent({isOpen, onClose}) {
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-
     const loadStats = async () => {
         try {
-            setLoading(true);
+            // setLoading(true);
             const start = formatInTimeZone(dateRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
             const end = formatInTimeZone(dateRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
 
@@ -91,14 +89,14 @@ export default function StatisticsComponent({isOpen, onClose}) {
             });
         } catch (err) {
             console.error("Failed to load statistics:", err);
-        } finally {
-            setLoading(false);
+        // } finally {
+        //     setLoading(false);
         }
-    };
+    }
 
     useEffect(() => {
         loadStats();
-    }, []);
+    }, [loadStats]);
 
     const [retentionAnchorEl, setRetentionAnchorEl] = useState(null);
     const [mode, setMode] = useState("Performance");
@@ -230,7 +228,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                 editableDateInputs={true}
                                 onChange={item => {
                                     setDateRange([item.selection]);
-                                    setChanged(true);
+                                    // setChanged(true);
                                 }}
                                 moveRangeOnFirstSelection={false}
                                 ranges={dateRange}
@@ -345,7 +343,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                 value={format(selectedDate, 'yyyy-MM-dd')}
                                 onChange={(e) => {
                                     setSelectedDate(new Date(e.target.value));
-                                    setChanged(true);
+                                    // setChanged(true);
                                 }}
                                 style={{ padding: "8px", fontSize: "16px", width: "100%" }}
                             />

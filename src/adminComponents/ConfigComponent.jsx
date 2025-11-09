@@ -3,7 +3,6 @@ import { Box, Typography, Switch, Button, Fab } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
-import {groupItemsByName} from "../utils/menu_service";
 
 const brandRed = "#E44B4C";
 
@@ -13,7 +12,6 @@ function ConfigComponent({ isOpen, onClose }) {
     const [originalGroups, setOriginalGroups] = useState([]);
     const [originalDough, setOriginalDough] = useState({});
     const [changes, setChanges] = useState([]);
-    const [isChanged, setIsChanged] = useState(false)
     const isSaveDisabled = changes.length === 0;
     const [doughAvailability, setDoughAvailability] = useState({
         S: true,
