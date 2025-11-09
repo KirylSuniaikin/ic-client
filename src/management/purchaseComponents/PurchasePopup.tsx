@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
 import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
-import {IBranch, IUser} from "../types/inventoryTypes";
+import {IBranch} from "../types/inventoryTypes";
 import {Box, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
 import {PurchaseTopBar} from "./PurchaseTopBar";
@@ -16,9 +16,9 @@ type Props = {
 
 export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const[admin, setAdmin] = useState<IUser>();
+    // const [loading, setLoading] = useState(true);
+    // const [error, setError] = useState("");
+    // const[admin, setAdmin] = useState<IUser>();
     const [branch, setBranch] = useState<IBranch>();
     const [purchasePopup, setPurchasePopup] = useState<{open: boolean;
         mode: "new" | "edit";
@@ -36,9 +36,9 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     useEffect(() => {
         let alive = true;
         (async () => {
-            setLoading(true);
-            setError(null);
-            try{
+            // setLoading(true);
+            // setError(null);
+            // try{
                 const [baseManagementResponse, userResponse, branchResponse] = await Promise.all([
                     fetchPurchaseReports(),
                     getUser(adminId),
@@ -46,16 +46,16 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                 ]);
                 if (alive) {
                     setPurchaseReports(baseManagementResponse);
-                    setAdmin(userResponse);
+                    // setAdmin(userResponse);
                     setBranch(branchResponse);
                 }
-            }
-            catch(e: any) {
-                if (alive) setError(e?.message ?? "Failed to load");
-            }
-            finally {
-                if (alive) setLoading(false);
-            }
+            // }
+            // catch(e: any) {
+            //     if (alive) setError(e?.message ?? "Failed to load");
+            // }
+            // finally {
+            //     if (alive) setLoading(false);
+            // }
         })();
         return () => {alive = false;};
     }, [adminId, branchNo])

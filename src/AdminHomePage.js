@@ -34,6 +34,18 @@ import {socket} from "./api/socket";
 import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
 import ManagementPage from "./management/inventorizationComponents/ManagementPage";
 
+
+const branchId = "1";
+const adminId = 1;
+const colorRed = '#E44B4C';
+const STAGE_FLOW = {
+    OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
+    OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
+    CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
+    CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
+};
+
+
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
@@ -60,19 +72,7 @@ function AdminHomePage() {
 
     const audioRef = useRef(null);
 
-    const branchId = "1";
-    const adminId = 1;
-    const STAGE_FLOW = {
-        OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
-        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
-        CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
-        CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
-    };
-
-    const colorRed = '#E44B4C';
-
-    useClosingAlarm(true);
-
+    useClosingAlarm();
 
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => {
@@ -433,6 +433,8 @@ function AdminHomePage() {
                 setLoading(false);
             }
         }
+
+
         async function loadStage(branchId) {
             try {
                 const stage = await fetchLastStage(branchId);
@@ -458,7 +460,7 @@ function AdminHomePage() {
             stompRef.current = null;
             c?.deactivate?.().catch(() => {});
         };
-    }, [getAllActiveOrders]);
+    }, []);
 
     if (loading) {
         return <PizzaLoader/>;

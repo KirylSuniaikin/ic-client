@@ -8,17 +8,17 @@ type Props = {
     rows: unknown[];
 };
 
-export default function DoughUsageTable({rows}: Props) {
+const DAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+] as const;
 
-    const DAYS = [
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    ] as const;
+export default function DoughUsageTable({rows}: Props) {
 
     const DAY_LABEL: Record<typeof DAYS[number], string> = {
         monday: "Monday",

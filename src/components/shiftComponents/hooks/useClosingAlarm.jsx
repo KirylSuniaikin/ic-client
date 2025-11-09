@@ -4,13 +4,11 @@ import dayjs from "dayjs";
 import {getClosingTime} from "../getClosingTime";
 
 
-const useClosingAlarm = (audioAllowed) => {
+const useClosingAlarm = () => {
     const playedRef = useRef(false);
     const [audioRef] = useState(new Audio(alertSound));
 
     useEffect(() => {
-        if (!audioAllowed) return;
-
         const interval = setInterval(() => {
             const now = dayjs().tz("Asia/Bahrain");
             const closingTime = getClosingTime(now);
@@ -35,7 +33,7 @@ const useClosingAlarm = (audioAllowed) => {
         }, 30 * 1000);
 
         return () => clearInterval(interval);
-    }, [audioAllowed]);
+    }, [audioRef]);
 };
 
 export default useClosingAlarm;

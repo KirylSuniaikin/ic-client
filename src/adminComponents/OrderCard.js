@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
 
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -141,10 +141,6 @@ function OrderCard({order,
     const navigate = useNavigate();
     const [paymentType, setPaymentType] = useState(order.payment_type);
     const [extraSec, setExtraSec] = useState(0);
-
-    useEffect(() => {
-        console.info(order)
-    }, [])
 
     const createdMs = useMemo(
         () => toEpochMsBahrain(order.order_created),
