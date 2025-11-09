@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
+import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import {useLocation, useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
@@ -27,7 +27,7 @@ import {UpsellPopup} from "./components/UpSellPopup";
 
 
 const brandRed = "#E44B4C";
-const colorBeige = '#FCF4DD';
+// const colorBeige = '#FCF4DD';
 
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
@@ -546,11 +546,12 @@ function HomePage({userParam}) {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 console.log(order)
-                await editOrder(order, orderToEdit.id);
+                const res = await editOrder(order, orderToEdit.id);
                 // await localStorage.removeItem("orderToEdit");
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
-                const list = [order.id];
+                const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
+                console.log(localStorage.getItem(EDITED_ORDER_ID_KEY));
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
