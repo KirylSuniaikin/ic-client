@@ -145,6 +145,7 @@ export default function InventoryPopup({
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
+            let report;
             let totalDecimal = new Decimal(0);
             for (const r of inventoryProducts) {
                 try {
@@ -153,6 +154,7 @@ export default function InventoryPopup({
                     console.error("[total fail on row]", r, e);
                 }
             }
+            const totalNumber = Number(totalDecimal.toFixed(3));
             if (mode === "new") {
                 if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
                  const report: IManagementResponse = await createReport({
@@ -160,7 +162,7 @@ export default function InventoryPopup({
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
                     userId: author.id,
-                    finalPrice: Number(total),
+                    finalPrice: totalNumber,
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);
@@ -172,7 +174,7 @@ export default function InventoryPopup({
                     title: title,
                     branchNo: branch.branchNo,
                     userId: author.id,
-                    finalPrice: Number(total),
+                    finalPrice: totalNumber,
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);

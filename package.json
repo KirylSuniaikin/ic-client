@@ -2,9 +2,6 @@
   "name": "ic-client",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=18"
-  },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
