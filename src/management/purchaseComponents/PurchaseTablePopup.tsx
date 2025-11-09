@@ -18,7 +18,7 @@ import {
     Tooltip,
     Typography
 } from "@mui/material";
-import * as dayjs from "dayjs";
+import dayjs, { Dayjs } from 'dayjs';
 import {
     createPurchaseReport,
     editPurchaseReport,
@@ -459,7 +459,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             console.log("[payload]", base);
 
             try {
-                let newReport: BasePurchaseResponse
                 if (mode === "new") {
                     const newReport: BasePurchaseResponse = await createPurchaseReport(base);
                     console.log(newReport);

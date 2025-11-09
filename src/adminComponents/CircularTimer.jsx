@@ -33,6 +33,20 @@ const formatMmSs = (secondsLike) => {
     return `${sign}${mm}:${ss}`;
 };
 
+const coerceFinite = (v, fallback = 0) => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : fallback;
+};
+
+const formatMmSsSigned = (secondsLike) => {
+    const s = Math.trunc(coerceFinite(secondsLike, 0));
+    const sign = s < 0 ? "-" : "";
+    const abs = Math.abs(s);
+    const mm = String(Math.floor(abs / 60)).padStart(2, "0");
+    const ss = String(abs % 60).padStart(2, "0");
+    return `${sign}${mm}:${ss}`;
+};
+
 export function CircularTimer({
                                   timeLeft,
                                   totalSec,
@@ -40,10 +54,10 @@ export function CircularTimer({
                                   stroke = 6,
                                   onClick,
                               }) {
+    const labelSeconds = Math.trunc(coerceFinite(timeLeft, 0)); // может быть < 0
+    const total = Math.max(1, Math.trunc(coerceFinite(totalSec, 1)));
 
-    const rawLeft = coerceSeconds(timeLeft);
-    const left = Math.max(0, rawLeft);
-    const total = Math.max(1, coerceSeconds(totalSec));
+    const left = Math.max(0, Math.min(labelSeconds, total));
 
     const r = (size - stroke) / 2;
     const C = 2 * Math.PI * r;
@@ -53,7 +67,6 @@ export function CircularTimer({
     const gap = C - dash;
 
     const color = left < 60 ? colorRed : left < 300 ? colorYellow : colorGreen;
-    const label = formatMmSs(rawLeft);
 
     return (
         <Box
@@ -93,7 +106,7 @@ export function CircularTimer({
                     fontSize: 14,
                 }}
             >
-                {label}
+                {formatMmSsSigned(labelSeconds)}
             </Box>
         </Box>
     );
