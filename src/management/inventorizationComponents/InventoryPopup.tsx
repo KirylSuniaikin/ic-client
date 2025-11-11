@@ -168,14 +168,13 @@ export default function InventoryPopup({
                     console.error("[total fail on row]", r, e);
                 }
             }
-            const totalNumber = Number(totalDecimal.toFixed(3));
             if (mode === "new") {
                  const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
                     userId: author.id,
-                    finalPrice: totalNumber,
+                    finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);
@@ -187,7 +186,7 @@ export default function InventoryPopup({
                     title: title,
                     branchNo: branch.branchNo,
                     userId: author.id,
-                    finalPrice: totalNumber,
+                    finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);

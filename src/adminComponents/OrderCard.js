@@ -9,12 +9,13 @@ import {
 } from "@mui/material";
 import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 import {CircularTimer} from "./CircularTimer";
 import BluetoorhPrinterService from "../services/BluetoorhPrinterService";
+import {usePreciseCountdown} from "./usePreciseCountdown";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -155,24 +156,45 @@ function OrderCard({order,
         [order.estimation]
     );
 
+    const endTs = useMemo(
+        () => createdMs + (TOTAL_SEC + extraSec) * 1000,
+        [createdMs, TOTAL_SEC, extraSec]
+    );
 
-    const computeLeft = useCallback(() => {
-        const elapsed = (Date.now() - createdMs) / 1000;
-        return Math.floor(TOTAL_SEC + extraSec - elapsed);
-    }, [createdMs, TOTAL_SEC, extraSec]);
-
-    const [timeLeft, setTimeLeft] = useState(() => computeLeft());
+    const msLeft = usePreciseCountdown(endTs, 250);
+    const timeLeft = Math.ceil(msLeft / 1000);
 
     useEffect(() => {
-        let timerId;
-        const tick = () => {
-            setTimeLeft(computeLeft());
-            const msToNextSecond = 1000 - (Date.now() % 1000);
-            timerId = window.setTimeout(tick, msToNextSecond);
-        };
-        tick();
-        return () => clearTimeout(timerId);
-    }, [computeLeft]);
+        let lock;
+        async function req() {
+            try {
+                lock = await navigator.wakeLock?.request("screen");
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") req();
+                }, { once: true });
+            } catch {}
+        }
+        req();
+        return () => { try { lock?.release?.(); } catch {} };
+    }, []);
+
+
+    // const computeLeft = useCallback(() => {
+    //     const elapsed = (Date.now() - createdMs) / 1000;
+    //     return Math.floor(TOTAL_SEC + extraSec - elapsed);
+    // }, [createdMs, TOTAL_SEC, extraSec]);
+    //
+    //
+    // useEffect(() => {
+    //     let timerId;
+    //     const tick = () => {
+    //         setTimeLeft(computeLeft());
+    //         const msToNextSecond = 1000 - (Date.now() % 1000);
+    //         timerId = window.setTimeout(tick, msToNextSecond);
+    //     };
+    //     tick();
+    //     return () => clearTimeout(timerId);
+    // }, [computeLeft]);
 
     const isCritical = timeLeft < 60;
 

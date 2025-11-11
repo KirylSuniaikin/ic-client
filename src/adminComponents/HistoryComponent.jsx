@@ -8,7 +8,7 @@ import {Masonry} from "@mui/lab";
 
 
 
-function HistoryComponent({isOpen, onClose}) {
+function HistoryComponent({onClose}) {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
@@ -65,7 +65,7 @@ function HistoryComponent({isOpen, onClose}) {
 
 
     const sortedOrders = [...orders].sort(
-        (a, b) => new Date(a.order_created) - new Date(b.order_created)
+        (a, b) => new Date(b.order_created) - new Date(a.order_created)
     );
 
     return (
@@ -104,14 +104,12 @@ function HistoryComponent({isOpen, onClose}) {
                 onClose={() => setDeleteDialogOpen(false)}
                 maxWidth="xs"
                 fullWidth={false}
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        p: 2,
-                        width: 300,
-                        maxWidth: "90vw"
-                    }
-                }}
+                sx={{
+                    borderRadius: 3,
+                    p: 2,
+                    width: 300,
+                    maxWidth: "90vw"
+            }}
             >
                 <DialogTitle
                     sx={{

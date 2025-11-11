@@ -122,3 +122,8 @@ export function validateRows(allRows: PurchaseRow[]): Map<string, Set<string>> {
     }
     return m;
 }
+
+
+const isDecFinite = (d: Decimal) => Number.isFinite(Number(d)) && !d.isZero();
+
+export const safeDiv = (a: Decimal, b: Decimal) => (isDecFinite(a) && isDecFinite(b) && !b.isZero() ? a.div(b) : new Decimal(0));

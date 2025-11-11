@@ -4,8 +4,8 @@ export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
 export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
-export var URL = PROD_BASE_HOST;
-export var WS_URL = PROD_SOCKET_URL;
+export var URL = DEV_BASE_HOST;
+export var WS_URL = DEV_SOCKET_URL;
 
 
 export async function fetchBaseAppInfo(userId) {
@@ -167,7 +167,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
     try {
-        const response = await fetch(URL + "/send_shift_event", {
+        const response = await fetch(URL + "/branch/send_shift_event", {
 
             method: "POST",
             headers: {
@@ -337,5 +337,21 @@ export async function updateWorkload({branchNumber, newLevel}) {
 
     } catch (e){
         console.error("Failed to update workload", e);
+    }
+}
+
+export async function getBaseAdminInfo(branchNumber){
+    try {
+        const response = await fetch(URL + "/branch/get_admin_base_info?branchNumber=" + branchNumber, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+
+        return await response.json();
+    }
+    catch(error) {
+        console.error("Failed to get base admin info", error);
     }
 }

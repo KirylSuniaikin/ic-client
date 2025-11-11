@@ -11,8 +11,7 @@ import {
 } from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {
-    fetchLastStage,
-    getAllActiveOrders,
+    getAllActiveOrders, getBaseAdminInfo,
     updateOrderStatus,
 } from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
@@ -92,6 +91,11 @@ function AdminHomePage() {
         setWorkloadLevel(newLevel);
     }
 
+    const onStageChange = (newStage) => {
+        console.log(newStage);
+        setShiftStage(newStage);
+    }
+
     const toLongOrNull = (v) => {
         if (v == null) return null;
         if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : null;
@@ -140,7 +144,6 @@ function AdminHomePage() {
     const suppressedSoundIdsRef = useRef(new Set());
     const stompRef = useRef(null);
 
-    const editedOrderIdRef = useRef(new Set());
     const EDITED_ORDER_ID_KEY = 'editedOrderId';
 
     const getExtId = (o) =>
@@ -210,12 +213,28 @@ function AdminHomePage() {
     }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
 
     useEffect(() => {
+        let lock;
+        async function req() {
+            try {
+                lock = await navigator.wakeLock?.request("screen");
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") req();
+                }, { once: true });
+            } catch {}
+        }
+        req();
+        return () => { try { lock?.release?.(); } catch {} };
+    }, []);
+
+    useEffect(() => {
         if (!newlyUpdatedOrder || !audioRef.current) return;
-        const edited = editedOrderIdRef.current.has(newlyUpdatedOrder.id);
-        const id = normalizeId(newlyUpdatedOrder.id);
-        if(edited) {
-            editedOrderIdRef.current.delete(id);
-            localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...editedOrderIdRef.current]));
+        const id = normalizeId(String(newlyUpdatedOrder.id));
+        console.log(': ', id);
+        const suppressed = suppressedSoundIdsRef.current.has(id);
+        if(suppressed) {
+            suppressedSoundIdsRef.current.delete(id);
+            console.log(suppressedSoundIdsRef.current);
+            localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
             console.log(`[EDITED_ORDERS] ID ${id} was removed from localStorage.`);
         }
         else {
@@ -289,6 +308,14 @@ function AdminHomePage() {
 
                     socket.subscribe('/topic/order-updates', async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
+
+                        try {
+                            const arr = JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) || '[]');
+                            suppressedSoundIdsRef.current = new Set(arr.map(String));
+                        } catch {
+                            suppressedSoundIdsRef.current = new Set();
+                        }
+
                         try {
                             await BluetoothPrinterService.printOrder(updatedOrder);
                             console.log("🖨️ Auto print success");
@@ -373,15 +400,19 @@ function AdminHomePage() {
                         }
                     })
 
-                    socket.subscribe("/topic/workload-level-change", (frame) => {
+                    socket.subscribe("/topic/admin-base-info", (frame) => {
                         const payload = JSON.parse(frame.body);
-                        console.log("[WORKLOAD_CHANGE] ", payload);
+                        console.log("[BASE ADMIN INFO CHANGED] ", payload);
                         if(String(payload.branchNumber)===branchId){
-                            console.log("[WORKLOAD_CHANGE] true");
-                            setWorkloadLevel(payload.level);
-                        }
-                    })
+                                    console.log("[WORKLOAD_CHANGE] true");
+                                    onWorkloadChange(payload.level);
+                                    const nextStage = STAGE_FLOW[payload.type] || payload.type;
+                                        setShiftStage(nextStage);
 
+                                        console.log(shiftStage);
+
+                                }
+                    })
 
                 };
 
@@ -391,24 +422,24 @@ function AdminHomePage() {
                 setLoading(false);
             }
         }
-        async function loadStage(branchId) {
+
+        async function fetchAdminBaseInfo(branchId) {
             try {
-                const stage = await fetchLastStage(branchId);
-                if (!stage) {
+                const response = await getBaseAdminInfo(branchId);
+                if (!response) {
                     setShiftStage("OPEN_SHIFT_CASH_CHECK");
                 }
                 else {
-                    const nextStage = STAGE_FLOW[stage] || stage;
-
+                    const nextStage = STAGE_FLOW[response.type] || response.type;
+                    onWorkloadChange(response.level)
                     setShiftStage(nextStage);
                 }
-                console.log("Last stage: ", stage, ", updated stage to: ");
+                console.log("Last stage: ", response.type, ", updated stage to: ");
             } catch (err) {
                 console.error("Ошибка загрузки stage:", err);
             }
         }
-
-        loadStage(branchId);
+        fetchAdminBaseInfo(Number(branchId));
         initialize();
 
         return () => {
@@ -499,8 +530,9 @@ function AdminHomePage() {
                 isOpen={shiftPopupOpen}
                 onClose={() => {
                     setShiftPopupOpen(false);
+                    console.log(shiftStage)
                 }}
-                setStage={setShiftStage}
+                setStage={onStageChange}
                 stage={shiftStage}
                 branchId={branchId}
                 onCashWarning={setCashWarning}

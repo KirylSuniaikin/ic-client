@@ -1,5 +1,9 @@
 import {IBranch, IUser, ProductTO} from "../types/inventoryTypes";
+<<<<<<< HEAD
 import React, {useCallback, useEffect, useMemo, useState} from "react";
+=======
+import React, { useEffect, useMemo, useState} from "react";
+>>>>>>> 469e420 (Dough consumption + bug edits)
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -18,7 +22,7 @@ import {
     Tooltip,
     Typography
 } from "@mui/material";
-import * as dayjs from "dayjs";
+import dayjs from 'dayjs';
 import {
     createPurchaseReport,
     editPurchaseReport,
@@ -27,11 +31,10 @@ import {
     getPurchaseReport,
     getUser
 } from "../api/api";
-import {toDecimal, toPayloadLine, validateRows} from "../mappers/mapper";
+import { toDecimal, toPayloadLine, validateRows} from "../mappers/mapper";
 import {
     DataGrid,
     GridColDef,
-    GridValueGetter,
     useGridApiRef,
     GridValueFormatter,
 } from "@mui/x-data-grid";
@@ -40,7 +43,7 @@ import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Decimal from "decimal.js-light";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
-import {DecimalCellEditor, normalizeDecimal} from "./DecimalCellEditor";
+import {DecimalCellEditor} from "./DecimalCellEditor";
 import {gridFilteredSortedRowIdsSelector} from "@mui/x-data-grid"
 
 type Props = {
@@ -52,6 +55,7 @@ type Props = {
     onClose: () => void;
     onSaved?: (report: BasePurchaseResponse) => void;
 }
+
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
@@ -117,12 +121,38 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             }
         })();
         return () => { alive = false; };
+<<<<<<< HEAD
     }, [open, mode, purchaseId, userId]);
     const asDec = useCallback((v: unknown): Decimal => toDecimal(v), []);
     const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
     const fixedSafe = useCallback((d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : ""), [isDecFinite]);
 
     const fmt3: GridValueFormatter = useCallback((value: any) => fixedSafe(asDec(value), 3), [fixedSafe, asDec]);
+=======
+    }, [open, mode, purchaseId]);
+
+    const asDec = (v: unknown): Decimal => toDecimal(v);
+    const isDecFinite = (d: Decimal) => Number.isFinite(d.toNumber());
+    const fixedSafe = (d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : "");
+
+    const unitFromRow = (row: PurchaseRow) => {
+        const price = toDecimal(row.price);
+        if (isDecFinite(price) && !price===null) return price;
+
+        const tot = toDecimal(row.finalPrice);
+        const qty = toDecimal(row.quantity);
+        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero()) ? tot.div(qty) : toDecimal(NaN);
+    };
+
+    const isOverTarget = (row: PurchaseRow) => {
+        const unit   = unitFromRow(row); // что видим сейчас
+        const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
+        console.log("HL", unit.toString(), target.toString());
+        return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
+    };
+
+    const fmt3: GridValueFormatter = (value: any) => fixedSafe(asDec(value), 3);
+>>>>>>> 469e420 (Dough consumption + bug edits)
 
     const columns = useMemo<GridColDef<PurchaseRow>[]>(() => [
         {
@@ -183,10 +213,19 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             const v = vendorByName.get(top);
                             console.log(v)
                             if (v) {
-                                api.updateRows([
+                                await api.updateRows([
                                     {
                                         id: id,
-                                        vendorName: v.vendorName
+                                        vendorName: v.vendorName,
+                                        price: val.targetPrice
+                                    }
+                                ]);
+                            }
+                            else{
+                                await api.updateRows([
+                                    {
+                                        id: id,
+                                        price: val.targetPrice
                                     }
                                 ]);
                             }
@@ -215,7 +254,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         },
         {
             field: "quantity",
-            headerName: "Quantity",
+            headerName: "Amount(kg/unit)",
             width: 130,
             headerAlign: "left",
             align: "left",
@@ -225,49 +264,29 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             renderEditCell: (params) => <DecimalCellEditor {...params} />,
         },
         {
-            field: "price",
-            headerName: "Price Per Unit",
+            field: "finalPrice",
+            headerName: "Total Price",
             width: 140,
             editable: true,
-            type: "number",
             headerAlign: "left",
             align: "left",
-            valueFormatter: fmt3,
-            renderEditCell: (params) => {
-                const row = params.row as PurchaseRow;
-                const targetRaw = row.productId != null ? productById.get(row.productId!)?.targetPrice : undefined;
-                return (
-                    <DecimalCellEditor
-                        {...params}
-                        highlightPredicate={(text: string) => {
-                            const price = asDec(normalizeDecimal(text));
-                            const target = asDec(targetRaw);
-                            return isDecFinite(price) && isDecFinite(target) && price.greaterThan(target);
-                        }}
-                    />
-                );
-            },
-            getCellClassName: (p) => {
-                const r = p.row as PurchaseRow;
-                const price = asDec(r.price);
-                const target = asDec(r.productId != null ? productById.get(r.productId!)?.targetPrice : undefined);
-                if (!isDecFinite(price) || !isDecFinite(target)) return "";
-                return price.greaterThan(target) ? "cell-overTarget" : "";
-            },
+            valueFormatter: (v) => fixedSafe(asDec(v), 3),
+            renderEditCell: (params) => <DecimalCellEditor {...params}/>,
+            getCellClassName: (p) => (isOverTarget(p.row as PurchaseRow) ? "cell-overTarget" : "")
         },
         {
-            field: "finalPrice",
-            headerName: "Final Price",
-            width: 140,
-            headerAlign: "left",
-            align: "left",
-            valueGetter: ((_v, row) => {
-                const q = asDec(row.quantity);
-                const p = asDec(row.price);
-                if (!isDecFinite(q) || !isDecFinite(p)) return null;
-                return q.mul(p);
-            }) as GridValueGetter,
-            valueFormatter: (v) => fixedSafe(asDec(v), 4),
+            field: "price",
+            headerName: "Target Price(kg/unit)",
+            width: 160,
+            editable: false,
+            sortable: true,
+            filterable: true,
+            valueFormatter: (v) => {
+                const d = toDecimal(v);
+                return isDecFinite(d) ? d.toFixed(3) : "";
+            },
+            сellClassName: (p) =>
+                isOverTarget(p.row as PurchaseRow) ? "cell-overTarget" : "",
         },
         {
             field: "vendorName",
@@ -358,6 +377,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         },
     ], [products, vendors, fixedSafe, fmt3, productById, vendorByName, asDec, isDecFinite]);
 
+<<<<<<< HEAD
     const handleCellEditStop = React.useCallback((params) => {
         const { id } = params;
         queueMicrotask(() => {
@@ -367,8 +387,13 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         });
     }, [apiRef]);
 
+=======
+>>>>>>> 469e420 (Dough consumption + bug edits)
     const total = useMemo(
-        () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),
+        () =>
+            rows
+                .reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0))
+                .toFixed(3),
         [rows]
     );
 
@@ -442,7 +467,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             let totalDecimal = new Decimal(0);
             for (const r of readyRows) {
                 try {
-                    totalDecimal = totalDecimal.add( toDecimal(r.quantity).mul( toDecimal(r.price) ) );
+                    totalDecimal = totalDecimal.add( r.finalPrice );
                 } catch (e) {
                     console.error("[total fail on row]", r, e);
                 }
@@ -564,12 +589,20 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     const mode = apiRef.current.getCellMode(p.id, p.field);
                     if (mode !== "edit") apiRef.current.startCellEditMode({ id: p.id, field: p.field });
                 }}
-                    processRowUpdate={(newRow) => {
-                        setRows(prev => prev.map(r => r.id === newRow.id ? (newRow as PurchaseRow) : r));
+                    processRowUpdate={(newRow, oldRow) => {
+                        let calculatedRow = { ...newRow };
+
+                        const q   = toDecimal(calculatedRow.quantity);
+                        const tot = toDecimal(calculatedRow.finalPrice);
+
+                        if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
+                            calculatedRow.price = Number(tot.div(q).toFixed(3));
+                        }
+                        setRows(prev => prev.map(r => (r.id === newRow.id ? calculatedRow : r)));
                         setDirty(true);
-                        return newRow;
+
+                        return calculatedRow;
                     }}
-                    onCellEditStop={handleCellEditStop}
                     columnVisibilityModel={columnVisibilityModel}
                     onColumnVisibilityModelChange={(model) =>
                         setColumnVisibilityModel({ ...model, targetPrice: false, productName: false})

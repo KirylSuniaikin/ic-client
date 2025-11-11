@@ -20,8 +20,9 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { format } from 'date-fns';
 import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
+import DoughUsageTable from "./DoughUsageTable";
 
-export default function StatisticsComponent({isOpen, onClose}) {
+export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
         {
             startDate: startOfDay(new Date()),
@@ -36,6 +37,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()))
     const [anchorEl, setAnchorEl] = useState(null);
+    const [doughUsage, setDoughUsage] = useState([]);
 
     const handleOpenCalendar = (event) => {
         setAnchorEl(event.currentTarget);
@@ -64,6 +66,12 @@ export default function StatisticsComponent({isOpen, onClose}) {
                 repeatClients: response.repeat_customers_all_time,
                 aov: response.average_order_value_all_time,
             });
+
+            setDoughUsage({
+                doughUsage: response.doughUsageTOS
+            })
+
+            console.log(response.doughUsageTOS)
 
             setRangeStats({
                 totalPickUpRevenue: response.pick_up_total_revenue,
@@ -150,6 +158,10 @@ export default function StatisticsComponent({isOpen, onClose}) {
 
         <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
             {mode === "Performance" ? ( <>
+
+                        <DoughUsageTable
+                            rows={doughUsage.doughUsage}
+                    />
 
             <Card sx={{ borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
                 <CardContent>
