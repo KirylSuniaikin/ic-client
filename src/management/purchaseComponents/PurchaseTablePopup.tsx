@@ -365,7 +365,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             setRows(prev => prev.map(r => (r.id === id ? updated : r)));
             setDirty(true);
         });
-    }, []);
+    }, [apiRef]);
 
     const total = useMemo(
         () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),
@@ -459,7 +459,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             console.log("[payload]", base);
 
             try {
-                let newReport: BasePurchaseResponse
                 if (mode === "new") {
                     const newReport: BasePurchaseResponse = await createPurchaseReport(base);
                     console.log(newReport);

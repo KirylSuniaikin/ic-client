@@ -14,7 +14,6 @@ import {
     fetchLastStage,
     getAllActiveOrders,
     updateOrderStatus,
-    WS_URL
 } from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import alertSound from "./assets/alert2.mp3";
@@ -42,11 +41,9 @@ function AdminHomePage() {
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const navigate = useNavigate();
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
     const [newlyAddedOrder, setNewlyAddedOrder] = useState(null);
-    const [audioAllowed, setAudioAllowed] = useState(false);
     const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
     const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [cashWarning, setCashWarning] = useState(null);

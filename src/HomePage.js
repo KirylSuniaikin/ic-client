@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
-import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
+import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useLocation, useSearchParams} from 'react-router-dom';
+import { useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -27,7 +27,6 @@ import {UpsellPopup} from "./components/UpSellPopup";
 
 
 const brandRed = "#E44B4C";
-const colorBeige = '#FCF4DD';
 
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
@@ -82,7 +81,6 @@ function HomePage({userParam}) {
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
-    const location = useLocation();
 
     // useOscillatingAutoScroll(bestRef, {
     //     bestsellers,

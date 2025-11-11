@@ -145,7 +145,6 @@ export default function InventoryPopup({
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
-            let report;
             let totalDecimal = new Decimal(0);
             for (const r of inventoryProducts) {
                 try {

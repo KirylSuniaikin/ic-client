@@ -1,6 +1,6 @@
 import Decimal from "decimal.js-light";
 import {InventoryRow, ProductTO} from "../types/inventoryTypes";
-import {CreatePurchasePayload, PurchaseRow} from "../types/purchaseTypes";
+import { PurchaseRow} from "../types/purchaseTypes";
 
 export function toDecimal(v: unknown): Decimal {
     if (v instanceof Decimal) return v;
