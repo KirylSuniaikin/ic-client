@@ -2,10 +2,11 @@ import {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
 import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
-import {Box, Container, Dialog, Stack, Typography} from "@mui/material";
+import {Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
 import {PurchaseTopBar} from "./PurchaseTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
+import * as React from "react";
 
 type Props = {
     open: boolean;
@@ -18,7 +19,7 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const[admin, setAdmin] = useState<IUser>();
+    const [admin, setAdmin] = useState<IUser>();
     const [branch, setBranch] = useState<IBranch>();
     const [purchasePopup, setPurchasePopup] = useState<{open: boolean;
         mode: "new" | "edit";
@@ -48,17 +49,19 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     setPurchaseReports(baseManagementResponse);
                     setAdmin(userResponse);
                     setBranch(branchResponse);
+                    console.log(baseManagementResponse, admin?.userName);
                 }
             }
             catch(e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
+                console.error(error)
             }
             finally {
                 if (alive) setLoading(false);
             }
         })();
         return () => {alive = false;};
-    }, [adminId, branchNo])
+    }, [adminId, branchNo, error, admin])
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});
@@ -72,11 +75,22 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
         setPurchasePopup({open: false, mode: "new"});
     }
 
+    if (loading) {
+        return (
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <>
-        <Dialog fullScreen open={open} onClose={onClose} PaperProps={{ sx: {
+        <Dialog fullScreen
+                open={open}
+                onClose={onClose}
+                sx={{
             backgroundColor: "#fbfaf6",
-            } }}>
+            }}>
             <PurchaseTopBar
                 onClose={onClose}
                 onNewClick={handleCreatePurchaseClick}

@@ -41,7 +41,6 @@ export default function InventoryPopup({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [reportToEdit, setReportToEdit] = useState<ReportTO | null>(null);
     const [title, setTitle] = useState<string>("");
 
     const fmt3: GridValueFormatter = (value: any) =>
@@ -56,20 +55,34 @@ export default function InventoryPopup({
     useEffect(() => {
         if (!open) return;
         let alive = true;
+
+        // 1. Выполняем проверки ДО try...catch
+        if (mode === "new" && !Number.isFinite(branch.branchNo)) {
+            setError("branchNo is required");
+            setLoading(false);
+            return; // Прерываем выполнение
+        }
+        if (mode === "edit" && !Number.isFinite(reportId)) {
+            setError("reportId is required");
+            setLoading(false);
+            return; // Прерываем выполнение
+        }
+
         (async () => {
             try {
-                setLoading(true); setError(null); setDirty(new Set()); setRows([]);
+                setLoading(true);
+                setError(null);
+                setDirty(new Set());
+                setRows([]);
+
                 if (mode === "new") {
-                    if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
                     const products = await fetchProducts();
                     const data = products.filter(p => p.isInventory).map(mapProductToRow);
-                    setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase())
+                    setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase());
                     if (alive) setRows(data);
                 } else {
-                    if (!Number.isFinite(reportId)) throw new Error("reportId is required");
                     const rep: ReportTO = await getReport(reportId!);
                     console.log("Received report! ", rep);
-                    setReportToEdit(rep as ReportTO);
                     setTitle(rep.title as string);
                     if (alive) setRows(normalizeReportPayload(rep));
                 }
@@ -79,8 +92,9 @@ export default function InventoryPopup({
                 if (alive) setLoading(false);
             }
         })();
+
         return () => { alive = false; };
-    }, [open, mode, reportId]);
+    }, [open, mode, reportId, author, branch]);
 
     const columns = useMemo<GridColDef<InventoryRow>[]>(() => [
         {
@@ -142,6 +156,7 @@ export default function InventoryPopup({
     };
 
     const handleSave = async () => {
+        if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
@@ -155,7 +170,6 @@ export default function InventoryPopup({
             }
             const totalNumber = Number(totalDecimal.toFixed(3));
             if (mode === "new") {
-                if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
                  const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",

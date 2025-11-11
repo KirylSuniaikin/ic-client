@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import { useEffect, useMemo, useRef, useState} from "react";
 import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
 import {
     Alert,
@@ -37,7 +37,7 @@ import ManagementPage from "./management/inventorizationComponents/ManagementPag
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
-    const [error, setError] = useState(null);
+    const [error] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
@@ -63,12 +63,12 @@ function AdminHomePage() {
 
     const branchId = "1";
     const adminId = 1;
-    const STAGE_FLOW = {
+    const STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
-    };
+    }), []);
 
     const colorRed = '#E44B4C';
 
@@ -416,7 +416,7 @@ function AdminHomePage() {
             stompRef.current = null;
             c?.deactivate?.().catch(() => {});
         };
-    }, [getAllActiveOrders]);
+    }, [STAGE_FLOW]);
 
     if (loading) {
         return <PizzaLoader/>;

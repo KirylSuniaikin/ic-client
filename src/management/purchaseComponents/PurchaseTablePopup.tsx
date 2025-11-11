@@ -1,5 +1,5 @@
 import {IBranch, IUser, ProductTO} from "../types/inventoryTypes";
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -117,12 +117,12 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             }
         })();
         return () => { alive = false; };
-    }, [open, mode, purchaseId]);
-    const asDec = (v: unknown): Decimal => toDecimal(v);
-    const isDecFinite = (d: Decimal) => Number.isFinite(d.toNumber());
-    const fixedSafe = (d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : "");
+    }, [open, mode, purchaseId, userId]);
+    const asDec = useCallback((v: unknown): Decimal => toDecimal(v), []);
+    const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
+    const fixedSafe = useCallback((d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : ""), [isDecFinite]);
 
-    const fmt3: GridValueFormatter = (value: any) => fixedSafe(asDec(value), 3);
+    const fmt3: GridValueFormatter = useCallback((value: any) => fixedSafe(asDec(value), 3), [fixedSafe, asDec]);
 
     const columns = useMemo<GridColDef<PurchaseRow>[]>(() => [
         {
@@ -356,7 +356,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 </Tooltip>
             ),
         },
-    ], [products, vendors]);
+    ], [products, vendors, fixedSafe, fmt3, productById, vendorByName, asDec, isDecFinite]);
 
     const handleCellEditStop = React.useCallback((params) => {
         const { id } = params;

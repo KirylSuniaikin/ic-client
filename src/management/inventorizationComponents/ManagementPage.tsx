@@ -1,6 +1,5 @@
 import {useEffect, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
-import {useNavigate} from "react-router-dom";
 import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
 import {
     Box,
@@ -19,7 +18,6 @@ type Props = {
 };
 
 export default function ManagementPage({isOpen, onClose, branchNo, userId}: Props) {
-    const navigate = useNavigate();
     const [reports, setReports] = useState<IManagementResponse[]>([]);
     const [branch, setBranch] = useState<IBranch>();
     const [error, setError] = useState<string | null>(null);
@@ -73,13 +71,14 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             }
             catch(e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
+                console.error(error);
             }
             finally {
                 if (alive) setLoading(false);
             }
         })();
         return () => {alive = false;};
-    }, [branchNo]);
+    }, [branchNo, userId, error]);
 
     if (loading) {
         return (
@@ -91,9 +90,12 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
 
     return (
         <>
-            <Dialog fullScreen open={isOpen} onClose={onClose} PaperProps={{ sx: {
+            <Dialog fullScreen
+                    open={isOpen}
+                    onClose={onClose}
+                    sx={{
                     backgroundColor: "#fbfaf6",
-                } }}>
+                }}>
             <ManagementTopBar
                 title={<>Inventory</>}
                 newButtonLabel="New"

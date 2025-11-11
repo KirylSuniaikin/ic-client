@@ -24,7 +24,7 @@ function CartPopup({
         const discountedPrice = i.amount * (1 - discount / 100);
         return acc + discountedPrice * i.quantity;
     }, 0).toFixed(2);
-    const [tel, setTel] = useState(null);
+    const tel = useState(null);
     const PIXEL_ID = '1717861405707714';
 
     useEffect(() => {

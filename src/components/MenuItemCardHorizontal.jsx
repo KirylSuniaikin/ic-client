@@ -4,14 +4,13 @@ import {
     CardContent,
     CardMedia,
     Box,
-    IconButton, Typography
+    IconButton
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../utils/typography";
 
 const colorText = "#1A1A1A";
-const colorWhite = "#ffffff";
 const highlightColor = "#E44B4C";
 
 function MenuItemCardHorizontal({
