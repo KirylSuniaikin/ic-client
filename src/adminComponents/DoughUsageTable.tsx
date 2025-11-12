@@ -2,7 +2,7 @@ import {useMemo} from "react";
 import {Box} from "@mui/material";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {DoughUsageRow} from "../management/types/statTypes";
-import {GRAMS_BY_TYPE, makeTotalsInGrams} from "../management/mappers/doughMapper";
+import {GRAMS_BY_TYPE, makeTotalsInGrams, orderDaysEndingWithYesterday} from "../management/mappers/doughMapper";
 
 type Props = {
     rows: unknown[];
@@ -10,15 +10,12 @@ type Props = {
 
 export default function DoughUsageTable({rows}: Props) {
 
-    const DAYS = [
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    ] as const;
+    const DAYS = useMemo(() => ([
+        "monday","tuesday","wednesday","thursday","friday","saturday","sunday",
+    ] as const), []);
+
+    const orderedDays = useMemo(() => orderDaysEndingWithYesterday(), []);
+    const lastDay = orderedDays[orderedDays.length - 1];
 
     const DAY_LABEL: Record<typeof DAYS[number], string> = {
         monday: "Monday",
@@ -56,7 +53,7 @@ export default function DoughUsageTable({rows}: Props) {
             }, 0);
         }
         return totals;
-    }, [data]);
+    }, [data, DAYS]);
 
     type DayKey = "monday"|"tuesday"|"wednesday"|"thursday"|"friday"|"saturday"|"sunday";
 
@@ -86,7 +83,7 @@ export default function DoughUsageTable({rows}: Props) {
 
     const columns: GridColDef<DoughUsageRow>[] = [
         { field: "doughType", headerName: "Dough type", flex: 1, minWidth: 160 },
-        ...DAYS.map((d) => ({
+        ...orderedDays.map((d) => ({
             field: d,
             headerName: DAY_LABEL[d],
             width: 170,
@@ -95,6 +92,7 @@ export default function DoughUsageTable({rows}: Props) {
             renderCell: (p) =>
                 p.id === "__total" ? <b>{(p.value as number) ?? 0} g</b> : renderQtyCell(d)(p),
             valueGetter: (_v, row) => row[d],
+            headerClassName: d === lastDay ? "yesterday-col" : undefined,
         })),
     ];
 

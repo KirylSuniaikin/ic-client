@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useLocation, useSearchParams} from 'react-router-dom';
+import { useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -27,14 +27,64 @@ import {UpsellPopup} from "./components/UpSellPopup";
 
 
 const brandRed = "#E44B4C";
-// const colorBeige = '#FCF4DD';
+
+function parseItemNote(desc) {
+    let note = "";
+
+    const hasParentheses = /\(.*?\)/.test(desc);
+    let restPart = desc;
+
+    if (hasParentheses) {
+        const lastParenIndex = desc.lastIndexOf(")");
+        restPart = desc.substring(lastParenIndex + 1);
+    }
+
+    const plusRegex = /\+([^+]+)/g;
+    let match;
+    while ((match = plusRegex.exec(restPart)) !== null) {
+        let text = match[1].trim();
+        if (text !== "Thin") {
+            note += (note ? " " : "") + text;
+        }
+    }
+    console.log(note)
+    return note.trim();
+}
+
+function parseExtraIngr(desc) {
+    const extras = [];
+    const regex = /\((.*?)\)/g;
+    let match;
+    while ((match = regex.exec(desc)) !== null) {
+        const ingr = match[1]
+            .split("+")
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+        extras.push(...ingr);
+    }
+    console.log(extras)
+    return extras;
+}
+
+function normalizeComboItem(ci)  {
+    return {
+        name: ci?.name ?? "",
+        category: ci?.category ?? "",
+        size: ci?.size ?? "",
+        quantity: ci?.quantity ?? 1,
+        isGarlicCrust: !!ci?.isGarlicCrust,
+        isThinDough: !!ci?.isThinDough,
+        note: parseItemNote(ci?.description),
+        extraIngredients: parseExtraIngr(ci?.description)
+    };
+}
 
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
     const [extraIngredients, setExtraIngredients] = useState([]);
     const [cartItems, setCartItems] = useState([]);
     const [cartOpen, setCartOpen] = useState(false);
-    const [user, setUser] = useState(null);
+    const user = useState(null);
     const [username, setUsername] = useState("");
     const [phone, setPhone] = useState("");
 
@@ -82,7 +132,6 @@ function HomePage({userParam}) {
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
-    const location = useLocation();
 
     // useOscillatingAutoScroll(bestRef, {
     //     bestsellers,
@@ -94,12 +143,6 @@ function HomePage({userParam}) {
     //     runOnce: true,
     //     onceTtlMs: 30_000,
     // });
-
-    useEffect(() => {
-        if (bestRef.current) {
-            const el = bestRef.current;
-        }
-    }, [bestRef.current, bestsellers]);
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -223,46 +266,7 @@ function HomePage({userParam}) {
             }
         }
 
-    }, []);
-
-
-    function parseItemNote(desc) {
-        let note = "";
-
-        const hasParentheses = /\(.*?\)/.test(desc);
-        let restPart = desc;
-
-        if (hasParentheses) {
-            const lastParenIndex = desc.lastIndexOf(")");
-            restPart = desc.substring(lastParenIndex + 1);
-        }
-
-        const plusRegex = /\+([^\+]+)/g;
-        let match;
-        while ((match = plusRegex.exec(restPart)) !== null) {
-            let text = match[1].trim();
-            if (text !== "Thin") {
-                note += (note ? " " : "") + text;
-            }
-        }
-        console.log(note)
-        return note.trim();
-    }
-
-    function parseExtraIngr(desc) {
-        const extras = [];
-        const regex = /\((.*?)\)/g;
-        let match;
-        while ((match = regex.exec(desc)) !== null) {
-            const ingr = match[1]
-                .split("+")
-                .map(s => s.trim())
-                .filter(s => s.length > 0);
-            extras.push(...ingr);
-        }
-        console.log(extras)
-        return extras;
-    }
+    }, [isEditMode, userParam]);
 
     const totalPrice = cartItems
         ? cartItems.reduce((acc, i) => {
@@ -426,19 +430,6 @@ function HomePage({userParam}) {
                 !(item.name === name && item.amount === amount && item.quantity === quantity)
             )
         );
-    }
-
-    function normalizeComboItem(ci) {
-        return {
-            name: ci?.name ?? "",
-            category: ci?.category ?? "",
-            size: ci?.size ?? "",
-            quantity: ci?.quantity ?? 1,
-            isGarlicCrust: !!ci?.isGarlicCrust,
-            isThinDough: !!ci?.isThinDough,
-            note: parseItemNote(ci?.description),
-            extraIngredients: parseExtraIngr(ci?.description)
-        };
     }
 
     function handleRemoveItemFromCart(item) {

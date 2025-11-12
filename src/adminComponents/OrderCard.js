@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
 
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -31,7 +31,7 @@ function toEpochMsBahrain(s) {
     if (!s) return Date.now();
     const withT = s.replace(' ', 'T');
 
-    if (/[Zz]|[+\-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
+    if (/[Zz]|[+-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
 
     return Date.parse(withT + '+03:00');
 }
@@ -139,12 +139,12 @@ function OrderCard({order,
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
-    const [paymentType, setPaymentType] = useState(order.payment_type);
-    const [extraSec, setExtraSec] = useState(0);
+    const paymentType = useState(order.payment_type);
+    const extraSec = useState(0);
 
     useEffect(() => {
         console.info(order)
-    }, [])
+    }, [order])
 
     const createdMs = useMemo(
         () => toEpochMsBahrain(order.order_created),

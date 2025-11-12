@@ -21,3 +21,28 @@ export function makeTotalsInGrams(rows: DoughUsageRow[]): DoughUsageRow {
     }
     return totals as DoughUsageRow;
 }
+
+const DAY_KEYS = [
+    "monday","tuesday","wednesday","thursday","friday","saturday","sunday",
+] as const;
+
+type DayKey = typeof DAY_KEYS[number];
+
+export function orderDaysEndingWithYesterday(): ReadonlyArray<DayKey> {
+    const yesterday = getBusinessYesterdayKey();
+    const idx = DAY_KEYS.indexOf(yesterday);
+    return [
+        ...DAY_KEYS.slice(idx + 1),
+        ...DAY_KEYS.slice(0, idx),
+        yesterday,
+    ] as const;
+}
+
+function getBusinessYesterdayKey(): DayKey {
+    const d = new Date();
+    d.setHours(d.getHours() - 2);
+    d.setDate(d.getDate() - 1);
+    const js = d.getDay();
+    const toMonFirst = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
+    return toMonFirst[js];
+}

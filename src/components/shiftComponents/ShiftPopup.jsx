@@ -32,20 +32,12 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
     const [cash, setCash] = useState();
     const [checklist, setChecklist] = useState([]);
 
-    const handleCheck = index => {
-        const updated = [...checklist];
-        updated[index].done = !updated[index].done;
-        setChecklist(updated);
-    };
+    const handleCheck = index => { const updated = [...checklist]; updated[index].done = !updated[index].done; setChecklist(updated); };
 
-    const mapToChecklistItems = (list) => {
-        return list.map((text) => ({
-            text,
-            done: false
-        }));
-    };
+    const mapToChecklistItems = (list) => { return list.map((text) => ({ text, done: false })); };
 
     useEffect(() => {
+        console.log("Stage in shift popup: ", stage);
         if (stage === "OPEN_SHIFT_EVENT") {
             setChecklist(mapToChecklistItems(CHECKLISTS.OPENING));
         } else if (stage === "CLOSE_SHIFT_EVENT") {
@@ -61,6 +53,23 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
         try {
             onClose();
 
+            // switch (stage) {
+            //     case "OPEN_SHIFT_CASH_CHECK":
+            //         await setStage("OPEN_SHIFT_EVENT");
+            //         break;
+            //     case "OPEN_SHIFT_EVENT":
+            //         await setStage("CLOSE_SHIFT_EVENT");
+            //         break;
+            //     case "CLOSE_SHIFT_EVENT":
+            //         await setStage("CLOSE_SHIFT_CASH_CHECK");
+            //         break;
+            //     case "CLOSE_SHIFT_CASH_CHECK":
+            //         await setStage("OPEN_SHIFT_CASH_CHECK");
+            //         break;
+            //     default:
+            //         break;
+            // }
+
             const data = await sendShiftEvent({
                 type: stage,
                 datetime: new Date().toISOString(),
@@ -68,23 +77,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                 cash_amount: isCashStage ? parseFloat(cash) : null,
                 prep_plan: null,
             });
-
-                switch (stage) {
-                    case "OPEN_SHIFT_CASH_CHECK":
-                        setStage("OPEN_SHIFT_EVENT");
-                        break;
-                    case "OPEN_SHIFT_EVENT":
-                        setStage("CLOSE_SHIFT_EVENT");
-                        break;
-                    case "CLOSE_SHIFT_EVENT":
-                        setStage("CLOSE_SHIFT_CASH_CHECK");
-                        break;
-                    case "CLOSE_SHIFT_CASH_CHECK":
-                        setStage("OPEN_SHIFT_CASH_CHECK");
-                        break;
-                    default:
-                        break;
-                }
 
             if (data?.cashWarning) {
                 onCashWarning(data.cashWarning);
@@ -94,7 +86,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
             }
 
             setCash('');
-                setChecklist([]);
 
         } catch (error) {
             console.error('Error occurred while sending an shift event:', error);

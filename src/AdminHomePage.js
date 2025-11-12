@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import { useEffect, useMemo, useRef, useState} from "react";
 import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
 import {
     Alert,
@@ -11,8 +11,7 @@ import {
 } from '@mui/material';
 import {useNavigate} from "react-router-dom";
 import {
-    fetchLastStage,
-    getAllActiveOrders,
+    getAllActiveOrders, getBaseAdminInfo,
     updateOrderStatus,
 } from "./api/api";
 import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
@@ -37,6 +36,7 @@ import ManagementPage from "./management/inventorizationComponents/ManagementPag
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
+    const [error] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
@@ -62,12 +62,12 @@ function AdminHomePage() {
 
     const branchId = "1";
     const adminId = 1;
-    const STAGE_FLOW = {
+    const STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
-    };
+    }), []);
 
     const colorRed = '#E44B4C';
 
@@ -89,6 +89,11 @@ function AdminHomePage() {
 
     const onWorkloadChange = (newLevel) => {
         setWorkloadLevel(newLevel);
+    }
+
+    const onStageChange = (newStage) => {
+        console.log(newStage);
+        setShiftStage(newStage);
     }
 
     const toLongOrNull = (v) => {
@@ -244,27 +249,6 @@ function AdminHomePage() {
         setNewlyUpdatedOrder(null);
     }, [newlyUpdatedOrder, audioRef, setActiveAlertOrderEdit]);
 
-    // useEffect(() => {
-    //     if (!newlyAddedOrder || !audioRef.current) return;
-    //     const id = normalizeId(newlyAddedOrder.id);
-    //     const suppressed = suppressedSoundIdsRef.current.has(id);
-    //     console.log(suppressedSoundIdsRef.current);
-    //     if (suppressed) {
-    //         suppressedSoundIdsRef.current.delete(id);
-    //         localStorage.setItem(SUPPRESS_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
-    //         console.log(`[SUPPRESS] ID ${id} was removed from localStorage.`);
-    //     } else {
-    //         console.log(`[AUDIO] Playing sound for new order ID: ${id}`);
-    //         setActiveAlertOrder(newlyAddedOrder);
-    //         audioRef.current.currentTime = 0;
-    //         audioRef.current.play()
-    //             .then(() => console.log('[AUDIO] playing'))
-    //             .catch(e => console.warn('[AUDIO] play() blocked/error:', e));
-    //     }
-    //
-    //     setNewlyAddedOrder(null);
-    // }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
-
     useEffect(() => {
         async function initialize() {
             try {
@@ -416,13 +400,15 @@ function AdminHomePage() {
                         }
                     })
 
-                    socket.subscribe("/topic/workload-level-change", (frame) => {
+                    socket.subscribe("/topic/admin-base-info", (frame) => {
                         const payload = JSON.parse(frame.body);
-                        console.log("[WORKLOAD_CHANGE] ", payload);
+                        console.log("[BASE ADMIN INFO CHANGED] ", payload);
                         if(String(payload.branchNumber)===branchId){
-                            console.log("[WORKLOAD_CHANGE] true");
-                            setWorkloadLevel(payload.level);
-                        }
+                                    console.log("[WORKLOAD_CHANGE] true");
+                                    onWorkloadChange(payload.level);
+                                    const nextStage = STAGE_FLOW[payload.type] || payload.type;
+                                        setShiftStage(nextStage);
+                                }
                     })
 
                 };
@@ -433,24 +419,24 @@ function AdminHomePage() {
                 setLoading(false);
             }
         }
-        async function loadStage(branchId) {
+
+        async function fetchAdminBaseInfo(branchId) {
             try {
-                const stage = await fetchLastStage(branchId);
-                if (!stage) {
+                const response = await getBaseAdminInfo(branchId);
+                if (!response) {
                     setShiftStage("OPEN_SHIFT_CASH_CHECK");
                 }
                 else {
-                    const nextStage = STAGE_FLOW[stage] || stage;
-
+                    const nextStage = STAGE_FLOW[response.type] || response.type;
+                    onWorkloadChange(response.level)
                     setShiftStage(nextStage);
                 }
-                console.log("Last stage: ", stage, ", updated stage to: ");
+                console.log("Last stage: ", response.type, ", updated stage to: ");
             } catch (err) {
                 console.error("Ошибка загрузки stage:", err);
             }
         }
-
-        loadStage(branchId);
+        fetchAdminBaseInfo(Number(branchId));
         initialize();
 
         return () => {
@@ -458,15 +444,18 @@ function AdminHomePage() {
             stompRef.current = null;
             c?.deactivate?.().catch(() => {});
         };
-    }, [getAllActiveOrders]);
+    }, [STAGE_FLOW]);
 
     if (loading) {
         return <PizzaLoader/>;
     }
 
+    if (error) return <div>Error: {error}</div>;
+
     const sortedOrders = [...orders].sort(
         (a, b) => new Date(a.order_created) - new Date(b.order_created)
     );
+
 
     const handlePaymentSuccess = (orderId) => {
         setOrders((prev) =>
@@ -538,8 +527,9 @@ function AdminHomePage() {
                 isOpen={shiftPopupOpen}
                 onClose={() => {
                     setShiftPopupOpen(false);
+                    console.log(shiftStage)
                 }}
-                setStage={setShiftStage}
+                setStage={onStageChange}
                 stage={shiftStage}
                 branchId={branchId}
                 onCashWarning={setCashWarning}

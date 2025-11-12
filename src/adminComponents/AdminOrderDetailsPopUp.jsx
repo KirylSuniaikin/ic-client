@@ -6,7 +6,6 @@ import {
     FormControl,
     InputLabel,
     MenuItem,
-    Modal,
     Select,
     TextField,
     Typography
@@ -94,13 +93,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
         onClose?.();
     }
 
-    const drawerPaperSx = {
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        maxHeight: "92vh",
-        pb: 2
-    };
-
     const fieldSx = {
         mb: 2,
         "& .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
@@ -108,9 +100,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
         "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#B0B0B0" },
         "&.Mui-focused": { backgroundColor: focusBg }
     };
-
-    const captionSx = { fontWeight: 700, color: grayText, mb: 1 };
-
 
     return (
         <SwipeableDrawer
@@ -237,11 +226,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                             const discount = parseInt(e.target.value, 10);
                             setGlobalDiscount(discount);
 
-                            // keep your discount logic intact
                             const updated = cartItems.map((item) => {
-                                const discountedAmount =
-                                    item.amount / (1 - (item.discount || 0) / 100);
-                                const newAmount = discountedAmount * (1 - discount / 100);
                                 return { ...item, discount };
                             });
                             setCartItems(updated);

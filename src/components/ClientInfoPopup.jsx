@@ -43,7 +43,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             console.log("Customer name from props:", customerName);
             setName(customerName);
         }
-    }, []);
+    }, [customerName, phoneNumber]);
 
     function handleSave() {
         const regex = /^\d+$/;

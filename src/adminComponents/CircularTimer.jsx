@@ -5,34 +5,6 @@ const colorYellow = "#F2C94C";
 const colorGreen = "#27AE60";
 const colorTrack = "#e9edf3";
 
-const coerceSeconds = (v) => {
-    if (v == null) return 0;
-    if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-
-    const s = String(v).trim();
-
-    const mmss = /^(-)?(\d{1,3}):(\d{2})$/;
-    const m = s.match(mmss);
-    if (m) {
-        const sign = m[1] ? -1 : 1;
-        const mm = parseInt(m[2], 10);
-        const ss = Math.min(59, parseInt(m[3], 10));
-        return sign * (mm * 60 + ss);
-    }
-
-    const n = Number(s.replace(",", "."));
-    return Number.isFinite(n) ? Math.trunc(n) : 0;
-};
-
-const formatMmSs = (secondsLike) => {
-    const s = coerceSeconds(secondsLike);
-    const sign = s < 0 ? "-" : "";
-    const abs = Math.abs(s);
-    const mm = String(Math.floor(abs / 60)).padStart(2, "0");
-    const ss = String(abs % 60).padStart(2, "0");
-    return `${sign}${mm}:${ss}`;
-};
-
 const coerceFinite = (v, fallback = 0) => {
     const n = typeof v === "number" ? v : Number(v);
     return Number.isFinite(n) ? n : fallback;

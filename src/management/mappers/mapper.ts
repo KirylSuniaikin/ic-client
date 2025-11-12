@@ -1,6 +1,6 @@
 import Decimal from "decimal.js-light";
 import {InventoryRow, ProductTO} from "../types/inventoryTypes";
-import {CreatePurchasePayload, PurchaseRow} from "../types/purchaseTypes";
+import { PurchaseRow} from "../types/purchaseTypes";
 
 export function toDecimal(v: unknown): Decimal {
     if (v instanceof Decimal) return v;
@@ -122,3 +122,8 @@ export function validateRows(allRows: PurchaseRow[]): Map<string, Set<string>> {
     }
     return m;
 }
+
+
+const isDecFinite = (d: Decimal) => Number.isFinite(Number(d)) && !d.isZero();
+
+export const safeDiv = (a: Decimal, b: Decimal) => (isDecFinite(a) && isDecFinite(b) && !b.isZero() ? a.div(b) : new Decimal(0));

@@ -2,10 +2,11 @@ import {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
 import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
-import {Box, Container, Dialog, Stack, Typography} from "@mui/material";
+import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
 import {PurchaseTopBar} from "./PurchaseTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
+import * as React from "react";
 
 type Props = {
     open: boolean;
@@ -17,8 +18,8 @@ type Props = {
 export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const[admin, setAdmin] = useState<IUser>();
+    const [error, setError] = useState<string | null>(null);
+    const [admin, setAdmin] = useState<IUser>();
     const [branch, setBranch] = useState<IBranch>();
     const [purchasePopup, setPurchasePopup] = useState<{open: boolean;
         mode: "new" | "edit";
@@ -34,31 +35,37 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     }
 
     useEffect(() => {
-        let alive = true;
+        if (!open) return;
+
+        const ac = new AbortController();
+
         (async () => {
             setLoading(true);
             setError(null);
-            try{
+            try {
                 const [baseManagementResponse, userResponse, branchResponse] = await Promise.all([
                     fetchPurchaseReports(),
                     getUser(adminId),
-                    getBranchInfo(branchNo)
+                    getBranchInfo(branchNo),
                 ]);
-                if (alive) {
-                    setPurchaseReports(baseManagementResponse);
-                    setAdmin(userResponse);
-                    setBranch(branchResponse);
-                }
-            }
-            catch(e: any) {
-                if (alive) setError(e?.message ?? "Failed to load");
-            }
-            finally {
-                if (alive) setLoading(false);
+
+                if (ac.signal.aborted) return;
+
+                setPurchaseReports(baseManagementResponse);
+                setAdmin(userResponse);
+                setBranch(branchResponse);
+            } catch (e: unknown) {
+                if (ac.signal.aborted) return;
+                const msg = e instanceof Error ? e.message : "Failed to load";
+                setError(msg);
+                console.error(e);
+            } finally {
+                if (!ac.signal.aborted) setLoading(false);
             }
         })();
-        return () => {alive = false;};
-    }, [adminId, branchNo])
+
+        return () => ac.abort();
+    }, [adminId, branchNo, open]);
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});
@@ -72,11 +79,27 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
         setPurchasePopup({open: false, mode: "new"});
     }
 
+    if (loading) {
+        return (
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <>
-        <Dialog fullScreen open={open} onClose={onClose} PaperProps={{ sx: {
+            {error && (
+                <Box sx={{ p: 2 }}>
+                    <Alert severity="error">{error}</Alert>
+                </Box>
+            )}
+        <Dialog fullScreen
+                open={open}
+                onClose={onClose}
+                sx={{
             backgroundColor: "#fbfaf6",
-            } }}>
+            }}>
             <PurchaseTopBar
                 onClose={onClose}
                 onNewClick={handleCreatePurchaseClick}
@@ -121,7 +144,7 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     open={purchasePopup.open}
                     mode={purchasePopup.mode}
                     purchaseId={purchasePopup?.purchaseId}
-                    userId={adminId}
+                    userId={admin.id}
                     branch={branch}
                     onClose={handleCloseClick}
                     onSaved={(report) => {

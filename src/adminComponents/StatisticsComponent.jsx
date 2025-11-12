@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
     Box,
     Typography,
     Button,
-    Fab,
     Grid,
     CardContent,
     Card,
     Popover,
     ToggleButton,
-    ToggleButtonGroup
+    ToggleButtonGroup, CircularProgress
 } from '@mui/material';
 import { DateRange } from 'react-date-range';
 import {endOfDay, startOfDay} from 'date-fns';
@@ -23,7 +22,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
 import DoughUsageTable from "./DoughUsageTable";
 
-export default function StatisticsComponent({isOpen, onClose}) {
+export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
         {
             startDate: startOfDay(new Date()),
@@ -37,7 +36,6 @@ export default function StatisticsComponent({isOpen, onClose}) {
     const [retentionStats, setRetentionStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()))
-    const [changed, setChanged] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [doughUsage, setDoughUsage] = useState([]);
 
@@ -55,7 +53,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 
-    const loadStats = async () => {
+    const loadStats = useCallback(async () => {
         try {
             setLoading(true);
             const start = formatInTimeZone(dateRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
@@ -94,16 +92,24 @@ export default function StatisticsComponent({isOpen, onClose}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateRange, selectedDate]);
 
     useEffect(() => {
         loadStats();
-    }, []);
+    }, [loadStats]);
 
     const [retentionAnchorEl, setRetentionAnchorEl] = useState(null);
     const [mode, setMode] = useState("Performance");
     const retentionOpen = Boolean(retentionAnchorEl);
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
+
+    if (loading) {
+        return (
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <>
@@ -116,7 +122,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
             />
             </Box>
 
-            <Box sx={{ px: 1, pt: 1 }}>
+            <Box sx={{ px: 1, pt: 1, backgroundColor: "#fbfaf6" }}>
                 <ToggleButtonGroup
                     exclusive
                     value={mode}
@@ -150,7 +156,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
                 </ToggleButtonGroup>
             </Box>
 
-        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" }, backgroundColor: "#fbfaf6" }}>
             {mode === "Performance" ? ( <>
 
                         <DoughUsageTable
@@ -230,7 +236,6 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                 editableDateInputs={true}
                                 onChange={item => {
                                     setDateRange([item.selection]);
-                                    setChanged(true);
                                 }}
                                 moveRangeOnFirstSelection={false}
                                 ranges={dateRange}
@@ -345,7 +350,6 @@ export default function StatisticsComponent({isOpen, onClose}) {
                                 value={format(selectedDate, 'yyyy-MM-dd')}
                                 onChange={(e) => {
                                     setSelectedDate(new Date(e.target.value));
-                                    setChanged(true);
                                 }}
                                 style={{ padding: "8px", fontSize: "16px", width: "100%" }}
                             />
