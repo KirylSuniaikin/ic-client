@@ -1,9 +1,5 @@
 import {IBranch, IUser, ProductTO} from "../types/inventoryTypes";
-<<<<<<< HEAD
 import React, {useCallback, useEffect, useMemo, useState} from "react";
-=======
-import React, { useEffect, useMemo, useState} from "react";
->>>>>>> 469e420 (Dough consumption + bug edits)
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -121,38 +117,31 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             }
         })();
         return () => { alive = false; };
-<<<<<<< HEAD
     }, [open, mode, purchaseId, userId]);
+
+
     const asDec = useCallback((v: unknown): Decimal => toDecimal(v), []);
     const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
     const fixedSafe = useCallback((d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : ""), [isDecFinite]);
 
     const fmt3: GridValueFormatter = useCallback((value: any) => fixedSafe(asDec(value), 3), [fixedSafe, asDec]);
-=======
-    }, [open, mode, purchaseId]);
 
-    const asDec = (v: unknown): Decimal => toDecimal(v);
-    const isDecFinite = (d: Decimal) => Number.isFinite(d.toNumber());
-    const fixedSafe = (d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : "");
 
-    const unitFromRow = (row: PurchaseRow) => {
+    const unitFromRow = useCallback((row: PurchaseRow) => {
         const price = toDecimal(row.price);
         if (isDecFinite(price) && !price===null) return price;
 
         const tot = toDecimal(row.finalPrice);
         const qty = toDecimal(row.quantity);
         return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero()) ? tot.div(qty) : toDecimal(NaN);
-    };
+    }, [isDecFinite]);
 
-    const isOverTarget = (row: PurchaseRow) => {
+    const isOverTarget = useCallback((row: PurchaseRow) => {
         const unit   = unitFromRow(row); // что видим сейчас
         const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
         console.log("HL", unit.toString(), target.toString());
         return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
-    };
-
-    const fmt3: GridValueFormatter = (value: any) => fixedSafe(asDec(value), 3);
->>>>>>> 469e420 (Dough consumption + bug edits)
+    }, [productById, unitFromRow, isDecFinite]);
 
     const columns = useMemo<GridColDef<PurchaseRow>[]>(() => [
         {
@@ -375,20 +364,8 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 </Tooltip>
             ),
         },
-    ], [products, vendors, fixedSafe, fmt3, productById, vendorByName, asDec, isDecFinite]);
+    ], [products, vendors, fixedSafe, fmt3, productById, vendorByName, asDec, isDecFinite, isOverTarget]);
 
-<<<<<<< HEAD
-    const handleCellEditStop = React.useCallback((params) => {
-        const { id } = params;
-        queueMicrotask(() => {
-            const updated = apiRef.current.getRow(id) as PurchaseRow;
-            setRows(prev => prev.map(r => (r.id === id ? updated : r)));
-            setDirty(true);
-        });
-    }, [apiRef]);
-
-=======
->>>>>>> 469e420 (Dough consumption + bug edits)
     const total = useMemo(
         () =>
             rows

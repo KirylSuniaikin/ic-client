@@ -4,8 +4,8 @@ export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
 export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
-export var URL = DEV_BASE_HOST;
-export var WS_URL = DEV_SOCKET_URL;
+export var URL = PROD_BASE_HOST;
+export var WS_URL = PROD_SOCKET_URL;
 
 
 export async function fetchBaseAppInfo(userId) {
@@ -87,27 +87,27 @@ export async function editOrder(order, orderId) {
     return await response.json();
 }
 
-export async function updatePaymentType(orderId, newPaymentType) {
-    try {
-        const res = await fetch(`${URL}/update_payment_type`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                // "ngrok-skip-browser-warning": "69420"
-            },
-            body: JSON.stringify({
-                order_id: orderId,
-                payment_type: newPaymentType
-            })
-        });
-
-        if (!res.ok) throw new Error(`Error: ${res.status}`);
-        const data = await res.json();
-        console.log("Payment type updated", data);
-    } catch (error) {
-        console.error("Failed to update payment type:", error);
-    }
-}
+// export async function updatePaymentType(orderId, newPaymentType) {
+//     try {
+//         const res = await fetch(`${URL}/update_payment_type`, {
+//             method: "PUT",
+//             headers: {
+//                 "Content-Type": "application/json",
+//                 // "ngrok-skip-browser-warning": "69420"
+//             },
+//             body: JSON.stringify({
+//                 order_id: orderId,
+//                 payment_type: newPaymentType
+//             })
+//         });
+//
+//         if (!res.ok) throw new Error(`Error: ${res.status}`);
+//         const data = await res.json();
+//         console.log("Payment type updated", data);
+//     } catch (error) {
+//         console.error("Failed to update payment type:", error);
+//     }
+// }
 
 export async function getAllActiveOrders() {
     const response = await fetch(URL + "/get_all_active_orders", {
@@ -197,21 +197,21 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 
 }
 
-export async function fetchLastStage(branchId) {
-    const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            // "ngrok-skip-browser-warning": "69420"
-        }
-    });
-    if (!response.ok) {
-        throw new Error(`Ошибка: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.type || null;
-}
+// export async function fetchLastStage(branchId) {
+//     const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
+//     const response = await fetch(url, {
+//         method: "GET",
+//         headers: {
+//             // "ngrok-skip-browser-warning": "69420"
+//         }
+//     });
+//     if (!response.ok) {
+//         throw new Error(`Ошибка: ${response.status}`);
+//     }
+//
+//     const data = await response.json();
+//     return data.type || null;
+// }
 
 export async function deleteOrder(orderId) {
     const url = `${URL}/delete_order?orderId=${encodeURIComponent(orderId)}`;

@@ -408,9 +408,6 @@ function AdminHomePage() {
                                     onWorkloadChange(payload.level);
                                     const nextStage = STAGE_FLOW[payload.type] || payload.type;
                                         setShiftStage(nextStage);
-
-                                        console.log(shiftStage);
-
                                 }
                     })
 

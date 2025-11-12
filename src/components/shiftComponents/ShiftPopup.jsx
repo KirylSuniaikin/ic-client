@@ -129,7 +129,8 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
             anchor="bottom"
             open={isOpen}
             onClose={onClose}
-                sx={ {
+            PaperProps={{
+                sx: {
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
                     p: 3,
@@ -137,7 +138,8 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                     boxShadow: 6,
                     maxHeight: "85vh",
                     overflowY: "auto",
-                }}
+                },
+            }}
         >
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 ,  textAlign: "center" }}>
                 {getStageTitle(stage)}
@@ -160,12 +162,11 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                             backgroundColor: "#fff",
                             border: "1px solid #ddd",
                             mb: 2,
-                            px: 2,
-                            py: 1.5,
                             "& .MuiOutlinedInput-root": {
                                 borderRadius: 2,
                             },
                         }}
+                        InputProps={{ sx: { px: 2, py: 1.5 } }}
                     />
                 </Box>
                     <Box

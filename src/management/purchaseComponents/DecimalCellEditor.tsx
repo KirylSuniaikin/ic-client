@@ -1,5 +1,5 @@
-import React from "react";
 import {TextField} from "@mui/material";
+import {useState} from "react";
 
 
 export const normalizeDecimal = (s: unknown) => {
@@ -18,7 +18,7 @@ type DecimalCellEditorProps = any & {
 
 export const DecimalCellEditor: React.FC<DecimalCellEditorProps> = (params) => {
     const { api, id, field, highlightPredicate } = params;
-    const [text, setText] = React.useState<string>(String(params.value ?? ""));
+    const [text, setText] = useState<string>(String(params.value ?? ""));
 
     const apply = async () => {
         const norm = normalizeDecimal(text);

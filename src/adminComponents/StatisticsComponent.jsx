@@ -122,7 +122,7 @@ export default function StatisticsComponent({onClose}) {
             />
             </Box>
 
-            <Box sx={{ px: 1, pt: 1 }}>
+            <Box sx={{ px: 1, pt: 1, backgroundColor: "#fbfaf6" }}>
                 <ToggleButtonGroup
                     exclusive
                     value={mode}
@@ -156,7 +156,7 @@ export default function StatisticsComponent({onClose}) {
                 </ToggleButtonGroup>
             </Box>
 
-        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" }, backgroundColor: "#fbfaf6" }}>
             {mode === "Performance" ? ( <>
 
                         <DoughUsageTable

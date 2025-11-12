@@ -62,10 +62,9 @@ export default function ClosedPopup({ open, onClose }) {
                 </Typography>
 
                 <Box sx={{ mt: 1, fontSize: 14, lineHeight: 1.6 }}>
-                    <Typography>Tue, Wed, Sun — 11:30–00:00</Typography>
-                    <Typography>Thu — 11:30–01:30</Typography>
-                    <Typography>Fri, Sat — 13:30–01:30</Typography>
-                    <Typography>Mon — Closed</Typography>
+                    <Typography>Mon, Tue, Wed, Sat — 14:00–00:00</Typography>
+                    <Typography>Thu, Fri — 15:30–00:00</Typography>
+                    <Typography>Sun — Closed</Typography>
                 </Box>
 
                 <Button
