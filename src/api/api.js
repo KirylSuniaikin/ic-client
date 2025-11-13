@@ -167,7 +167,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
     try {
-        const response = await fetch(URL + "/send_shift_event", {
+        const response = await fetch(URL + "/branch/send_shift_event", {
 
             method: "POST",
             headers: {
@@ -197,21 +197,21 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 
 }
 
-export async function fetchLastStage(branchId) {
-    const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            // "ngrok-skip-browser-warning": "69420"
-        }
-    });
-    if (!response.ok) {
-        throw new Error(`Ошибка: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.type || null;
-}
+// export async function fetchLastStage(branchId) {
+//     const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
+//     const response = await fetch(url, {
+//         method: "GET",
+//         headers: {
+//             // "ngrok-skip-browser-warning": "69420"
+//         }
+//     });
+//     if (!response.ok) {
+//         throw new Error(`Ошибка: ${response.status}`);
+//     }
+//
+//     const data = await response.json();
+//     return data.type || null;
+// }
 
 export async function deleteOrder(orderId) {
     const url = `${URL}/delete_order?orderId=${encodeURIComponent(orderId)}`;
@@ -305,26 +305,26 @@ export async function getOrderStatus(orderId) {
     }
 }
 
-export async function fetchWorkload(branchNumber) {
-    try{
-        const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-
-        return await response.json();
-    }catch(error) {
-        console.error("Failed to fetch workload", error);
-        return { error: true, message: "Connection error" };
-    }
-}
+// export async function fetchWorkload(branchNumber) {
+//     try{
+//         const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
+//             method: "GET",
+//             headers: {
+//                 "Content-Type": "application/json",
+//             }
+//         })
+//
+//         return await response.json();
+//     }catch(error) {
+//         console.error("Failed to fetch workload", error);
+//         return { error: true, message: "Connection error" };
+//     }
+// }
 
 export async function updateWorkload({branchNumber, newLevel}) {
     try{
         console.log(newLevel + branchNumber);
-        const response = await fetch(URL + "/branch/update_workload_level", {
+        await fetch(URL + "/branch/update_workload_level", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
@@ -337,5 +337,21 @@ export async function updateWorkload({branchNumber, newLevel}) {
 
     } catch (e){
         console.error("Failed to update workload", e);
+    }
+}
+
+export async function getBaseAdminInfo(branchNumber){
+    try {
+        const response = await fetch(URL + "/branch/get_admin_base_info?branchNumber=" + branchNumber, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+
+        return await response.json();
+    }
+    catch(error) {
+        console.error("Failed to get base admin info", error);
     }
 }

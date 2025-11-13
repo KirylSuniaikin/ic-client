@@ -23,7 +23,6 @@ function GenericItemPopupContent({
     const [quantity, setQuantity] = useState(1);
     const [description, setDescription] = useState("");
     const [selectedToppings, setSelectedToppings] = useState([""]);
-    const [selectedIngr, setSelectedIngr] = useState([]);
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
     const [note, setNote] = useState( "");
 
@@ -85,12 +84,6 @@ function GenericItemPopupContent({
 
     if (!item) return null;
 
-    const ingrsForSize = extraIngredients.filter(ing => ing.size === "Small");
-
-    const extraCost = selectedIngr.reduce((sum, ingrName) => {
-        const found = ingrsForSize.find(i => i.name === ingrName);
-        return found ? sum + found.price : sum;
-    }, 0);
 
     const finalPizzaPricePerItem = item.price;
 
@@ -103,14 +96,6 @@ function GenericItemPopupContent({
             }
         }))
         return (finalPizzaPricePerItem * quantity + price).toFixed(2);
-    }
-
-    function handleToggleIngr(name) {
-        if (selectedIngr.includes(name)) {
-            setSelectedIngr(prev => prev.filter(x => x !== name));
-        } else {
-            setSelectedIngr(prev => [...prev, name]);
-        }
     }
 
     function handleAdd() {

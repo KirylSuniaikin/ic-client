@@ -11,16 +11,14 @@ const brandRed = "#E44B4C";
 
 function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust }) {
     const [selectedItem, setSelectedItem] = useState(items[0]);
-    const [dough, setDough] = useState(initialDough || "Traditional");
-    const [crust, setCrust] = useState(initialCrust || "Classic Crust");
 
     function handleConfirm() {
         if (!selectedItem) return;
         onSave({
             item: selectedItem,
             size,
-            dough,
-            crust,
+            dough: initialDough? initialDough: "Traditional",
+            crust: initialCrust ? initialCrust : "Classic Crust",
         });
         onClose();
     }

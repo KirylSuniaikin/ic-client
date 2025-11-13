@@ -41,7 +41,6 @@ export default function InventoryPopup({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [reportToEdit, setReportToEdit] = useState<ReportTO | null>(null);
     const [title, setTitle] = useState<string>("");
 
     const fmt3: GridValueFormatter = (value: any) =>
@@ -69,7 +68,6 @@ export default function InventoryPopup({
                     if (!Number.isFinite(reportId)) throw new Error("reportId is required");
                     const rep: ReportTO = await getReport(reportId!);
                     console.log("Received report! ", rep);
-                    setReportToEdit(rep as ReportTO);
                     setTitle(rep.title as string);
                     if (alive) setRows(normalizeReportPayload(rep));
                 }
@@ -145,16 +143,6 @@ export default function InventoryPopup({
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
-            let report;
-            let totalDecimal = new Decimal(0);
-            for (const r of inventoryProducts) {
-                try {
-                    totalDecimal = totalDecimal.add( toDecimal(r.finalPrice));
-                } catch (e) {
-                    console.error("[total fail on row]", r, e);
-                }
-            }
-            const totalNumber = Number(totalDecimal.toFixed(3));
             if (mode === "new") {
                 if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
                  const report: IManagementResponse = await createReport({
@@ -162,7 +150,7 @@ export default function InventoryPopup({
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
                     userId: author.id,
-                    finalPrice: totalNumber,
+                    finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);
@@ -174,7 +162,7 @@ export default function InventoryPopup({
                     title: title,
                     branchNo: branch.branchNo,
                     userId: author.id,
-                    finalPrice: totalNumber,
+                    finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
                 console.log(report);

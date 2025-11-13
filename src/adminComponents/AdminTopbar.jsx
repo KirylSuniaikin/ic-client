@@ -9,13 +9,13 @@ import {
     Select,
     Typography
 } from "@mui/material";
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
-import {fetchWorkload, updateWorkload} from "../api/api";
+import {updateWorkload} from "../api/api";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 
@@ -77,19 +77,6 @@ export default function AdminTopbar({   stage,
             default: return ""
         }
     }
-
-    useEffect(() => {
-        async function loadWorkload() {
-            try {
-                const data = await fetchWorkload(branchNumber);
-                onWorkloadChange?.(data);
-            } catch (err) {
-                console.error("Failed to fetch workload:", err);
-            }
-        }
-
-        loadWorkload();
-    }, [branchNumber]);
 
     async function handleChangeWorkloadLevel(event) {
         const newLevel = event.target.value;

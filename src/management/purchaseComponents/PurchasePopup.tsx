@@ -1,8 +1,8 @@
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
 import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
-import {Box, Container, Dialog, Stack, Typography} from "@mui/material";
+import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
 import {PurchaseTopBar} from "./PurchaseTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
@@ -50,8 +50,10 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     setBranch(branchResponse);
                 }
             }
-            catch(e: any) {
-                if (alive) setError(e?.message ?? "Failed to load");
+            catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Failed to load";
+                if (alive) setError(msg);
+                console.error(msg);
             }
             finally {
                 if (alive) setLoading(false);
@@ -121,13 +123,23 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     open={purchasePopup.open}
                     mode={purchasePopup.mode}
                     purchaseId={purchasePopup?.purchaseId}
-                    userId={adminId}
+                    userId={admin? admin.id:adminId}
                     branch={branch}
                     onClose={handleCloseClick}
                     onSaved={(report) => {
                         setPurchaseReports(prev => upsertReport(prev, report));
                     }}
                 />
+            )}
+
+            {loading && (
+                <Box sx={{ position: 'fixed', top: 64, right: 16, zIndex: 1500 }}>
+                    <CircularProgress size={24}/>
+                </Box>
+            )}
+
+            {error && (
+                <Alert severity="error">{error}</Alert>
             )}
         </>
     );

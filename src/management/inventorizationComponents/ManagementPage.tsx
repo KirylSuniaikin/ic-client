@@ -1,8 +1,8 @@
 import {useEffect, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
-import {useNavigate} from "react-router-dom";
 import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
 import {
+    Alert,
     Box,
     CircularProgress, Container, Dialog, Stack, Typography
 } from "@mui/material";
@@ -19,7 +19,6 @@ type Props = {
 };
 
 export default function ManagementPage({isOpen, onClose, branchNo, userId}: Props) {
-    const navigate = useNavigate();
     const [reports, setReports] = useState<IManagementResponse[]>([]);
     const [branch, setBranch] = useState<IBranch>();
     const [error, setError] = useState<string | null>(null);
@@ -79,7 +78,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             }
         })();
         return () => {alive = false;};
-    }, [branchNo]);
+    }, [branchNo, userId]);
 
     if (loading) {
         return (
@@ -140,6 +139,10 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
                         setReports(prev => upsertReport(prev, report));
                     }}
                 />
+            )}
+
+            {error && (
+                <Alert severity="error">{error}</Alert>
             )}
         </>
     );

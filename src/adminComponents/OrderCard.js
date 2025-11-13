@@ -9,12 +9,13 @@ import {
 } from "@mui/material";
 import {updateOrderStatus} from "../api/api";
 import {useNavigate} from "react-router-dom";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 import {CircularTimer} from "./CircularTimer";
 import BluetoorhPrinterService from "../services/BluetoorhPrinterService";
+import {usePreciseCountdown} from "./usePreciseCountdown";
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -30,7 +31,7 @@ function toEpochMsBahrain(s) {
     if (!s) return Date.now();
     const withT = s.replace(' ', 'T');
 
-    if (/[Zz]|[+\-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
+    if (/[Zz]|[+-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
 
     return Date.parse(withT + '+03:00');
 }
@@ -96,8 +97,6 @@ function renderComboDescription(comboItems) {
 }
 
 export function renderItemDetails(item) {
-
-
     if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
         return renderComboDescription(item.comboItemTO);
     }
@@ -134,16 +133,15 @@ function OrderCard({order,
                        onDeleteClick,
                        onPayClick = order => {},
                        onPickedUpClick = () => {},
-                        onOvenClick = () => {},
+                       onOvenClick = () => {},
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
-    const [paymentType, setPaymentType] = useState(order.payment_type);
+    const paymentType = useState(order.payment_type);
     const [extraSec, setExtraSec] = useState(0);
-
     useEffect(() => {
         console.info(order)
-    }, [])
+    }, [order])
 
     const createdMs = useMemo(
         () => toEpochMsBahrain(order.order_created),
@@ -151,28 +149,31 @@ function OrderCard({order,
     );
 
     const TOTAL_SEC = useMemo(
-        () => (order.estimation ? order.estimation * 60: 15 * 60),
+        () => (order.estimation ? order.estimation * 60 : 15 * 60),
         [order.estimation]
     );
 
+    const endTs = useMemo(
+        () => createdMs + (TOTAL_SEC + extraSec) * 1000,
+        [createdMs, TOTAL_SEC, extraSec]
+    );
 
-    const computeLeft = useCallback(() => {
-        const elapsed = (Date.now() - createdMs) / 1000;
-        return Math.floor(TOTAL_SEC + extraSec - elapsed);
-    }, [createdMs, TOTAL_SEC, extraSec]);
-
-    const [timeLeft, setTimeLeft] = useState(() => computeLeft());
+    const msLeft = usePreciseCountdown(endTs, 250);
+    const timeLeft = Math.ceil(msLeft / 1000);
 
     useEffect(() => {
-        let timerId;
-        const tick = () => {
-            setTimeLeft(computeLeft());
-            const msToNextSecond = 1000 - (Date.now() % 1000);
-            timerId = window.setTimeout(tick, msToNextSecond);
-        };
-        tick();
-        return () => clearTimeout(timerId);
-    }, [computeLeft]);
+        let lock;
+        async function req() {
+            try {
+                lock = await navigator.wakeLock?.request("screen");
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") req();
+                }, { once: true });
+            } catch {}
+        }
+        req();
+        return () => { try { lock?.release?.(); } catch {} };
+    }, []);
 
     const isCritical = timeLeft < 60;
 
@@ -446,7 +447,3 @@ function OrderCard({order,
 }
 
 export default OrderCard;
-
-
-
-

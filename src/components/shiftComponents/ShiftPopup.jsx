@@ -32,20 +32,12 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
     const [cash, setCash] = useState();
     const [checklist, setChecklist] = useState([]);
 
-    const handleCheck = index => {
-        const updated = [...checklist];
-        updated[index].done = !updated[index].done;
-        setChecklist(updated);
-    };
+    const handleCheck = index => { const updated = [...checklist]; updated[index].done = !updated[index].done; setChecklist(updated); };
 
-    const mapToChecklistItems = (list) => {
-        return list.map((text) => ({
-            text,
-            done: false
-        }));
-    };
+    const mapToChecklistItems = (list) => { return list.map((text) => ({ text, done: false })); };
 
     useEffect(() => {
+        console.log("Stage in shift popup: ", stage);
         if (stage === "OPEN_SHIFT_EVENT") {
             setChecklist(mapToChecklistItems(CHECKLISTS.OPENING));
         } else if (stage === "CLOSE_SHIFT_EVENT") {
@@ -60,7 +52,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
     const handleSubmit = async () => {
         try {
             onClose();
-
             const data = await sendShiftEvent({
                 type: stage,
                 datetime: new Date().toISOString(),
@@ -68,23 +59,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                 cash_amount: isCashStage ? parseFloat(cash) : null,
                 prep_plan: null,
             });
-
-                switch (stage) {
-                    case "OPEN_SHIFT_CASH_CHECK":
-                        setStage("OPEN_SHIFT_EVENT");
-                        break;
-                    case "OPEN_SHIFT_EVENT":
-                        setStage("CLOSE_SHIFT_EVENT");
-                        break;
-                    case "CLOSE_SHIFT_EVENT":
-                        setStage("CLOSE_SHIFT_CASH_CHECK");
-                        break;
-                    case "CLOSE_SHIFT_CASH_CHECK":
-                        setStage("OPEN_SHIFT_CASH_CHECK");
-                        break;
-                    default:
-                        break;
-                }
 
             if (data?.cashWarning) {
                 onCashWarning(data.cashWarning);
@@ -94,7 +68,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
             }
 
             setCash('');
-                setChecklist([]);
 
         } catch (error) {
             console.error('Error occurred while sending an shift event:', error);
@@ -156,28 +129,28 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
 
             {isCashStage ? (
                 <>
-                <Box sx={{ pb: 7 }}>
+                    <Box sx={{ pb: 7 }}>
 
-                <TextField
-                        label="Cash Amount"
-                        type="number"
-                        inputMode="decimal"
-                        value={cash}
-                        onChange={e => setCash(e.target.value)}
-                        fullWidth
-                        placeholder="Cash Amount"
-                        sx={{
-                            borderRadius: 2,
-                            backgroundColor: "#fff",
-                            border: "1px solid #ddd",
-                            mb: 2,
-                            "& .MuiOutlinedInput-root": {
+                        <TextField
+                            label="Cash Amount"
+                            type="number"
+                            inputMode="decimal"
+                            value={cash}
+                            onChange={e => setCash(e.target.value)}
+                            fullWidth
+                            placeholder="Cash Amount"
+                            sx={{
                                 borderRadius: 2,
-                            },
-                        }}
-                        InputProps={{ sx: { px: 2, py: 1.5 } }}
-                    />
-                </Box>
+                                backgroundColor: "#fff",
+                                border: "1px solid #ddd",
+                                mb: 2,
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                },
+                            }}
+                            InputProps={{ sx: { px: 2, py: 1.5 } }}
+                        />
+                    </Box>
                     <Box
                         sx={{
                             position: "fixed",
@@ -213,84 +186,83 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                 </>
             ) : (
                 <>
-                <Box sx={{ pb: 10 }}>
-                    <FormGroup sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        {checklist.map((item, idx) => (
-                            <Card
-                                key={idx}
-                                variant="outlined"
-                                onClick={() => handleCheck(idx)}
-                                sx={{
-                                    borderRadius: 3,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    cursor: "pointer",
-                                    backgroundColor: item.done ? "#f9f9f9" : "white",
-                                    borderColor: item.done ? "#E44B4C" : "#ccc",
-                                    boxShadow: "none",
-                                    px: 2,
-                                    py: 2,
-                                }}
-                            >
-                                <Checkbox
-                                    checked={item.done}
-                                    tabIndex={-1}
-                                    disableRipple
+                    <Box sx={{ pb: 10 }}>
+                        <FormGroup sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            {checklist.map((item, idx) => (
+                                <Card
+                                    key={idx}
+                                    variant="outlined"
+                                    onClick={() => handleCheck(idx)}
                                     sx={{
-                                        color: "#E44B4C",
-                                        "&.Mui-checked": { color: "#E44B4C" },
-                                        mr: 2,
+                                        borderRadius: 3,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        cursor: "pointer",
+                                        backgroundColor: item.done ? "#f9f9f9" : "white",
+                                        borderColor: item.done ? "#E44B4C" : "#ccc",
+                                        boxShadow: "none",
+                                        px: 2,
+                                        py: 2,
                                     }}
-                                />
-                                <Typography
-                                    variant="body2"
-                                    sx=
-                                        {{
-                                        whiteSpace: "pre-line",
-                                        lineHeight: 1.4,
-                                        }}
                                 >
-                                    {item.text}
-                                </Typography>
-                            </Card>
-                        ))}
-                    </FormGroup>
-                </Box>
+                                    <Checkbox
+                                        checked={item.done}
+                                        tabIndex={-1}
+                                        disableRipple
+                                        sx={{
+                                            color: "#E44B4C",
+                                            "&.Mui-checked": { color: "#E44B4C" },
+                                            mr: 2,
+                                        }}
+                                    />
+                                    <Typography
+                                        variant="body2"
+                                        sx=
+                                            {{
+                                                whiteSpace: "pre-line",
+                                                lineHeight: 1.4,
+                                            }}
+                                    >
+                                        {item.text}
+                                    </Typography>
+                                </Card>
+                            ))}
+                        </FormGroup>
+                    </Box>
 
-                <Box
-                    sx={{
-                        position: "fixed",
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        p: 2,
-                        backgroundColor: "#fff",
-                        borderTop: "1px solid #eee",
-                        zIndex: 1301, // выше Drawer
-                    }}
-                >
-                    <Button
-                        onClick={handleSubmit}
-                        variant="contained"
-                        fullWidth
-                        disabled={!allChecked}
+                    <Box
                         sx={{
-                            backgroundColor: "#E44B4C",
-                            borderRadius: "999px",
-                            textTransform: "none",
-                            fontWeight: "bold",
-                            py: 1.25,
-                            fontSize: "1rem",
-                            '&:hover': {
-                                backgroundColor: '#c63b3c',
-                            },
-                        }}>
-                        Submit
-                    </Button>
-                </Box>
+                            position: "fixed",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            p: 2,
+                            backgroundColor: "#fff",
+                            borderTop: "1px solid #eee",
+                            zIndex: 1301, // выше Drawer
+                        }}
+                    >
+                        <Button
+                            onClick={handleSubmit}
+                            variant="contained"
+                            fullWidth
+                            disabled={!allChecked}
+                            sx={{
+                                backgroundColor: "#E44B4C",
+                                borderRadius: "999px",
+                                textTransform: "none",
+                                fontWeight: "bold",
+                                py: 1.25,
+                                fontSize: "1rem",
+                                '&:hover': {
+                                    backgroundColor: '#c63b3c',
+                                },
+                            }}>
+                            Submit
+                        </Button>
+                    </Box>
                 </>
             )}
         </Drawer>
     );
 }
-

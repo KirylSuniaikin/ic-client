@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
-import {Badge, Box, Fab, IconButton, Typography} from "@mui/material";
+import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import {useLocation, useSearchParams} from 'react-router-dom';
+import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -27,14 +27,12 @@ import {UpsellPopup} from "./components/UpSellPopup";
 
 
 const brandRed = "#E44B4C";
-const colorBeige = '#FCF4DD';
 
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
     const [extraIngredients, setExtraIngredients] = useState([]);
     const [cartItems, setCartItems] = useState([]);
     const [cartOpen, setCartOpen] = useState(false);
-    const [user, setUser] = useState(null);
     const [username, setUsername] = useState("");
     const [phone, setPhone] = useState("");
 
@@ -82,7 +80,6 @@ function HomePage({userParam}) {
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
-    const location = useLocation();
 
     // useOscillatingAutoScroll(bestRef, {
     //     bestsellers,
@@ -94,12 +91,6 @@ function HomePage({userParam}) {
     //     runOnce: true,
     //     onceTtlMs: 30_000,
     // });
-
-    useEffect(() => {
-        if (bestRef.current) {
-            const el = bestRef.current;
-        }
-    }, [bestRef.current, bestsellers]);
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -237,7 +228,7 @@ function HomePage({userParam}) {
             restPart = desc.substring(lastParenIndex + 1);
         }
 
-        const plusRegex = /\+([^\+]+)/g;
+        const plusRegex = /\+([^+]+)/g;
         let match;
         while ((match = plusRegex.exec(restPart)) !== null) {
             let text = match[1].trim();
@@ -479,7 +470,6 @@ function HomePage({userParam}) {
             id: orderToEdit.id,
             order_no: orderToEdit.order_no,
             tel,
-            user_id: user,
             customer_name: customer_name,
             delivery_method: delivery_method,
             payment_type: payment_type,
@@ -546,11 +536,12 @@ function HomePage({userParam}) {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 console.log(order)
-                await editOrder(order, orderToEdit.id);
+                const res = await editOrder(order, orderToEdit.id);
                 // await localStorage.removeItem("orderToEdit");
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
-                const list = [order.id];
+                const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
+                console.log(localStorage.getItem(EDITED_ORDER_ID_KEY));
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
@@ -562,7 +553,6 @@ function HomePage({userParam}) {
         } else {
             const order = {
                 tel,
-                user_id: user,
                 customer_name: customerName,
                 type: "Pick Up",
                 payment_type: paymentMethod,
