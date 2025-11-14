@@ -119,7 +119,7 @@ export default function InventoryPopup({
     ], []);
 
     const total = useMemo(
-        () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),
+        () => rows.reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0)).toFixed(3),
         [rows]
     );
 

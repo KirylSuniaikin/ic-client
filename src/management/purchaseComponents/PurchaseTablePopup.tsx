@@ -274,7 +274,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 const d = toDecimal(v);
                 return isDecFinite(d) ? d.toFixed(3) : "";
             },
-            сellClassName: (p) =>
+            cellClassName: (p) =>
                 isOverTarget(p.row as PurchaseRow) ? "cell-overTarget" : "",
         },
         {
@@ -449,10 +449,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     console.error("[total fail on row]", r, e);
                 }
             }
-            const totalNumber = Number(totalDecimal.toFixed(3));
             const base: CreatePurchasePayload = {
                 title,
-                finalPrice: totalNumber,
+                finalPrice: Number(total),
                 userId: admin.id,
                 branchNo: branch.branchNo,
                 purchaseDate: reportDate,
