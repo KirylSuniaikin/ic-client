@@ -17,8 +17,13 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
         onSave({
             item: selectedItem,
             size,
+<<<<<<< HEAD
             dough: initialDough? initialDough: "Traditional",
             crust: initialCrust ? initialCrust : "Classic Crust",
+=======
+            initialDough: initialDough || "Traditional",
+            crust: initialCrust || "Classic Crust",
+>>>>>>> main
         });
         onClose();
     }
@@ -117,7 +122,6 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                     })}
                 </Box>
 
-                {/* Кнопка Add */}
                 <Button
                     fullWidth
                     variant="contained"

@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import { useEffect, useMemo, useRef, useState} from "react";
 import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
 import {
     Alert,
@@ -36,7 +36,7 @@ import ManagementPage from "./management/inventorizationComponents/ManagementPag
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
-    const [error, setError] = useState(null);
+    const [error] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
@@ -62,12 +62,12 @@ function AdminHomePage() {
 
     const branchId = "1";
     const adminId = 1;
-    const STAGE_FLOW = {
+    const STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
-    };
+    }), []);
 
     const colorRed = '#E44B4C';
 
@@ -89,6 +89,11 @@ function AdminHomePage() {
 
     const onWorkloadChange = (newLevel) => {
         setWorkloadLevel(newLevel);
+    }
+
+    const onStageChange = (newStage) => {
+        console.log(newStage);
+        setShiftStage(newStage);
     }
 
     const toLongOrNull = (v) => {
@@ -207,6 +212,20 @@ function AdminHomePage() {
 
         setNewlyAddedOrder(null);
     }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
+
+    useEffect(() => {
+        let lock;
+        async function req() {
+            try {
+                lock = await navigator.wakeLock?.request("screen");
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") req();
+                }, { once: true });
+            } catch {}
+        }
+        req();
+        return () => { try { lock?.release?.(); } catch {} };
+    }, []);
 
     useEffect(() => {
         if (!newlyUpdatedOrder || !audioRef.current) return;
@@ -401,7 +420,6 @@ function AdminHomePage() {
             }
         }
 
-
         async function fetchAdminBaseInfo(branchId) {
             try {
                 const response = await getBaseAdminInfo(branchId);
@@ -426,7 +444,7 @@ function AdminHomePage() {
             stompRef.current = null;
             c?.deactivate?.().catch(() => {});
         };
-    }, [getAllActiveOrders]);
+    }, [STAGE_FLOW]);
 
     if (loading) {
         return <PizzaLoader/>;
@@ -509,8 +527,9 @@ function AdminHomePage() {
                 isOpen={shiftPopupOpen}
                 onClose={() => {
                     setShiftPopupOpen(false);
+                    console.log(shiftStage)
                 }}
-                setStage={setShiftStage}
+                setStage={onStageChange}
                 stage={shiftStage}
                 branchId={branchId}
                 onCashWarning={setCashWarning}

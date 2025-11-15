@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
     Box,
     Typography,
     Button,
-    Fab,
     Grid,
     CardContent,
     Card,
@@ -23,7 +22,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
 import {DoughUsageTable} from "./DoughUsageTable";
 
-export default function StatisticsComponent({isOpen, onClose}) {
+export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
         {
             startDate: startOfDay(new Date()),
@@ -54,7 +53,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 
-    const loadStats = async () => {
+    const loadStats = useCallback(async () => {
         try {
             setLoading(true);
             const start = formatInTimeZone(dateRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
@@ -67,6 +66,12 @@ export default function StatisticsComponent({isOpen, onClose}) {
                 repeatClients: response.repeat_customers_all_time,
                 aov: response.average_order_value_all_time,
             });
+
+            setDoughUsage({
+                doughUsage: response.doughUsageTOS
+            })
+
+            console.log(response.doughUsageTOS)
 
             setRangeStats({
                 totalPickUpRevenue: response.pick_up_total_revenue,
@@ -91,16 +96,24 @@ export default function StatisticsComponent({isOpen, onClose}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateRange, selectedDate]);
 
     useEffect(() => {
         loadStats();
-    }, []);
+    }, [loadStats]);
 
     const [retentionAnchorEl, setRetentionAnchorEl] = useState(null);
     const [mode, setMode] = useState("Performance");
     const retentionOpen = Boolean(retentionAnchorEl);
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
+
+    if (loading) {
+        return (
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <>
@@ -119,7 +132,7 @@ export default function StatisticsComponent({isOpen, onClose}) {
             />
             </Box>
 
-            <Box sx={{ px: 1, pt: 1 }}>
+            <Box sx={{ px: 1, pt: 1, backgroundColor: "#fbfaf6" }}>
                 <ToggleButtonGroup
                     exclusive
                     value={mode}
@@ -153,13 +166,12 @@ export default function StatisticsComponent({isOpen, onClose}) {
                 </ToggleButtonGroup>
             </Box>
 
-        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+        <Box sx={{ p: 1, height: "100vh", overflowY: "auto",scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" }, backgroundColor: "#fbfaf6" }}>
             {mode === "Performance" ? ( <>
 
                         <DoughUsageTable
                             rows={doughUsage.doughUsage}
                         />
-
             <Card sx={{ borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
                 <CardContent>
                     <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>

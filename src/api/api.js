@@ -87,27 +87,27 @@ export async function editOrder(order, orderId) {
     return await response.json();
 }
 
-export async function updatePaymentType(orderId, newPaymentType) {
-    try {
-        const res = await fetch(`${URL}/update_payment_type`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                // "ngrok-skip-browser-warning": "69420"
-            },
-            body: JSON.stringify({
-                order_id: orderId,
-                payment_type: newPaymentType
-            })
-        });
-
-        if (!res.ok) throw new Error(`Error: ${res.status}`);
-        const data = await res.json();
-        console.log("Payment type updated", data);
-    } catch (error) {
-        console.error("Failed to update payment type:", error);
-    }
-}
+// export async function updatePaymentType(orderId, newPaymentType) {
+//     try {
+//         const res = await fetch(`${URL}/update_payment_type`, {
+//             method: "PUT",
+//             headers: {
+//                 "Content-Type": "application/json",
+//                 // "ngrok-skip-browser-warning": "69420"
+//             },
+//             body: JSON.stringify({
+//                 order_id: orderId,
+//                 payment_type: newPaymentType
+//             })
+//         });
+//
+//         if (!res.ok) throw new Error(`Error: ${res.status}`);
+//         const data = await res.json();
+//         console.log("Payment type updated", data);
+//     } catch (error) {
+//         console.error("Failed to update payment type:", error);
+//     }
+// }
 
 export async function getAllActiveOrders() {
     const response = await fetch(URL + "/get_all_active_orders", {

@@ -136,21 +136,25 @@ class BluetoothPrinterService {
 
         const ESC = "\x1B";
         const LF = "\x0A";
+<<<<<<< HEAD
         const alignLeft = ESC + "a" + "\x00";
+=======
+        const alignLeft = `${ESC}a\x00`;
+>>>>>>> main
 
         const text = [
             ESC + "@",
             alignLeft,
-            ESC + "!" + "\x38",
+            `${ESC}!\x38`,
             "IC PIZZA\n",
             LF,
-            ESC + "!" + "\x24",
+            `${ESC}!\x24`,
             `Order #${
                 order.order_type === "Jahez"
                     ? order.external_id
                     : order.order_no
             }\n`,
-            ESC + "!" + "\x08",
+            `${ESC}!\x08`,
             alignLeft,
             "--------------------------\n",
             "Order Type: " + order.order_type + "\n",
@@ -187,26 +191,27 @@ class BluetoothPrinterService {
         }
     }
 
-    async disconnect() {
-        console.log("🔹 Disconnecting...");
-        try {
-            await new Promise((resolve, reject) => {
-                BluetoothSerial.disconnect(
-                    () => {
-                        this.isConnected = false;
-                        console.log("🔴 Disconnected");
-                        resolve();
-                    },
-                    (err) => {
-                        console.error("❌ Disconnect failed:", err);
-                        reject(err);
-                    }
-                );
-            });
-        } catch (e) {
-            console.error("Disconnect error:", e);
-        }
-    }
+    // async disconnect() {
+    //     console.log("🔹 Disconnecting...");
+    //     try {
+    //         await new Promise((resolve, reject) => {
+    //             BluetoothSerial.disconnect(
+    //                 () => {
+    //                     this.isConnected = false;
+    //                     console.log("🔴 Disconnected");
+    //                     resolve();
+    //                 },
+    //                 (err) => {
+    //                     console.error("❌ Disconnect failed:", err);
+    //                     reject(err);
+    //                 }
+    //             );
+    //         });
+    //     } catch (e) {
+    //         console.error("Disconnect error:", e);
+    //     }
+    // }
 }
 
-export default new BluetoothPrinterService();
+const bluetoothPrinterService = new BluetoothPrinterService();
+export default bluetoothPrinterService;

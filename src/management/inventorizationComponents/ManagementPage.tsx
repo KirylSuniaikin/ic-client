@@ -72,6 +72,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             }
             catch(e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
+                console.error(error);
             }
             finally {
                 if (alive) setLoading(false);
@@ -79,6 +80,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
         })();
         return () => {alive = false;};
     }, [branchNo, userId]);
+
 
     if (loading) {
         return (
@@ -90,9 +92,12 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
 
     return (
         <>
-            <Dialog fullScreen open={isOpen} onClose={onClose} PaperProps={{ sx: {
+            <Dialog fullScreen
+                    open={isOpen}
+                    onClose={onClose}
+                    sx={{
                     backgroundColor: "#fbfaf6",
-                } }}>
+                }}>
             <ManagementTopBar
                 title={<>Inventory</>}
                 newButtonLabel="New"

@@ -35,7 +35,7 @@ const useClosingAlarm = (audioAllowed) => {
         }, 30 * 1000);
 
         return () => clearInterval(interval);
-    }, [audioAllowed]);
+    }, [audioAllowed, audioRef]);
 };
 
 export default useClosingAlarm;

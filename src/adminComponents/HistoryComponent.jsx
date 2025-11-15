@@ -8,7 +8,7 @@ import {Masonry} from "@mui/lab";
 
 
 
-function HistoryComponent({isOpen, onClose}) {
+function HistoryComponent({onClose}) {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
@@ -104,14 +104,12 @@ function HistoryComponent({isOpen, onClose}) {
                 onClose={() => setDeleteDialogOpen(false)}
                 maxWidth="xs"
                 fullWidth={false}
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        p: 2,
-                        width: 300,
-                        maxWidth: "90vw"
-                    }
-                }}
+                sx={{
+                    borderRadius: 3,
+                    p: 2,
+                    width: 300,
+                    maxWidth: "90vw"
+            }}
             >
                 <DialogTitle
                     sx={{

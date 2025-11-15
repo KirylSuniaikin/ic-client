@@ -17,8 +17,8 @@ type Props = {
 export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const[admin, setAdmin] = useState<IUser>();
+    const [error, setError] = useState<string | null>(null);
+    const [admin, setAdmin] = useState<IUser>();
     const [branch, setBranch] = useState<IBranch>();
     const [purchasePopup, setPurchasePopup] = useState<{open: boolean;
         mode: "new" | "edit";
@@ -38,11 +38,11 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
         (async () => {
             setLoading(true);
             setError(null);
-            try{
+            try {
                 const [baseManagementResponse, userResponse, branchResponse] = await Promise.all([
                     fetchPurchaseReports(),
                     getUser(adminId),
-                    getBranchInfo(branchNo)
+                    getBranchInfo(branchNo),
                 ]);
                 if (alive) {
                     setPurchaseReports(baseManagementResponse);
@@ -74,11 +74,27 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
         setPurchasePopup({open: false, mode: "new"});
     }
 
+    if (loading) {
+        return (
+            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <>
-        <Dialog fullScreen open={open} onClose={onClose} PaperProps={{ sx: {
+            {error && (
+                <Box sx={{ p: 2 }}>
+                    <Alert severity="error">{error}</Alert>
+                </Box>
+            )}
+        <Dialog fullScreen
+                open={open}
+                onClose={onClose}
+                sx={{
             backgroundColor: "#fbfaf6",
-            } }}>
+            }}>
             <PurchaseTopBar
                 onClose={onClose}
                 onNewClick={handleCreatePurchaseClick}

@@ -1,5 +1,5 @@
 import {Box, Button, Modal, Typography} from "@mui/material";
-import {useEffect, useState} from "react";
+import {useState} from "react";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";

@@ -226,7 +226,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                             const discount = parseInt(e.target.value, 10);
                             setGlobalDiscount(discount);
 
-                            // keep your discount logic intact
                             const updated = cartItems.map((item) => {
                                 return { ...item, discount };
                             });
