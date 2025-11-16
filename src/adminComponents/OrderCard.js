@@ -97,8 +97,6 @@ function renderComboDescription(comboItems) {
 }
 
 export function renderItemDetails(item) {
-
-
     if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
         return renderComboDescription(item.comboItemTO);
     }
@@ -135,13 +133,12 @@ function OrderCard({order,
                        onDeleteClick,
                        onPayClick = order => {},
                        onPickedUpClick = () => {},
-                        onOvenClick = () => {},
+                       onOvenClick = () => {},
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const paymentType = useState(order.payment_type);
-    const extraSec = useState(0);
-
+    const [extraSec, setExtraSec] = useState(0);
     useEffect(() => {
         console.info(order)
     }, [order])
@@ -152,7 +149,7 @@ function OrderCard({order,
     );
 
     const TOTAL_SEC = useMemo(
-        () => (order.estimation ? order.estimation * 60: 15 * 60),
+        () => (order.estimation ? order.estimation * 60 : 15 * 60),
         [order.estimation]
     );
 
@@ -177,24 +174,6 @@ function OrderCard({order,
         req();
         return () => { try { lock?.release?.(); } catch {} };
     }, []);
-
-
-    // const computeLeft = useCallback(() => {
-    //     const elapsed = (Date.now() - createdMs) / 1000;
-    //     return Math.floor(TOTAL_SEC + extraSec - elapsed);
-    // }, [createdMs, TOTAL_SEC, extraSec]);
-    //
-    //
-    // useEffect(() => {
-    //     let timerId;
-    //     const tick = () => {
-    //         setTimeLeft(computeLeft());
-    //         const msToNextSecond = 1000 - (Date.now() % 1000);
-    //         timerId = window.setTimeout(tick, msToNextSecond);
-    //     };
-    //     tick();
-    //     return () => clearTimeout(timerId);
-    // }, [computeLeft]);
 
     const isCritical = timeLeft < 60;
 
@@ -468,7 +447,3 @@ function OrderCard({order,
 }
 
 export default OrderCard;
-
-
-
-

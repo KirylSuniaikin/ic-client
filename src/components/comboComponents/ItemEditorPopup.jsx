@@ -17,8 +17,8 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
         onSave({
             item: selectedItem,
             size,
-            initialDough: initialDough || "Traditional",
-            crust: initialCrust || "Classic Crust",
+            dough: initialDough? initialDough: "Traditional",
+            crust: initialCrust ? initialCrust : "Classic Crust",
         });
         onClose();
     }

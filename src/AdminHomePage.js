@@ -36,7 +36,7 @@ import ManagementPage from "./management/inventorizationComponents/ManagementPag
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
-    const [error] = useState(null);
+    const [error, setError] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
@@ -164,6 +164,7 @@ function AdminHomePage() {
             await updateOrderStatus({ orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted" });
             setActiveAlertOrder(null);
         } catch (e) {
+            setError(e)
             console.error("[Confirm] failed:", e?.message || e);
         } finally {
             setConfirmingAccept(false);
@@ -404,13 +405,12 @@ function AdminHomePage() {
                         const payload = JSON.parse(frame.body);
                         console.log("[BASE ADMIN INFO CHANGED] ", payload);
                         if(String(payload.branchNumber)===branchId){
-                                    console.log("[WORKLOAD_CHANGE] true");
-                                    onWorkloadChange(payload.level);
-                                    const nextStage = STAGE_FLOW[payload.type] || payload.type;
-                                        setShiftStage(nextStage);
-                                }
+                            console.log("[WORKLOAD_CHANGE] true");
+                            onWorkloadChange(payload.level);
+                            const nextStage = STAGE_FLOW[payload.type] || payload.type;
+                            setShiftStage(nextStage);
+                        }
                     })
-
                 };
 
                 socket.onWebSocketClose = () => console.log('🔴 WS disconnected');

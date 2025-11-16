@@ -2,6 +2,7 @@ import {useEffect, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
 import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
 import {
+    Alert,
     Box,
     CircularProgress, Container, Dialog, Stack, Typography
 } from "@mui/material";
@@ -78,7 +79,8 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             }
         })();
         return () => {alive = false;};
-    }, [branchNo, userId, error]);
+    }, [branchNo, userId]);
+
 
     if (loading) {
         return (
@@ -142,6 +144,10 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
                         setReports(prev => upsertReport(prev, report));
                     }}
                 />
+            )}
+
+            {error && (
+                <Alert severity="error">{error}</Alert>
             )}
         </>
     );

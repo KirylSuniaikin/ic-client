@@ -129,15 +129,17 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
     const unitFromRow = useCallback((row: PurchaseRow) => {
         const price = toDecimal(row.price);
-        if (isDecFinite(price) && !price===null) return price;
+        if (row.price != null && isDecFinite(price)) return price;
 
         const tot = toDecimal(row.finalPrice);
         const qty = toDecimal(row.quantity);
-        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero()) ? tot.div(qty) : toDecimal(NaN);
+        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero())
+            ? tot.div(qty)
+            : toDecimal(NaN);
     }, [isDecFinite]);
 
     const isOverTarget = useCallback((row: PurchaseRow) => {
-        const unit   = unitFromRow(row); // что видим сейчас
+        const unit   = unitFromRow(row);
         const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
         console.log("HL", unit.toString(), target.toString());
         return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
@@ -209,6 +211,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         price: val.targetPrice
                                     }
                                 ]);
+                                setRows(prev => prev.map(r =>
+                                    r.id === id ? { ...r, vendorName: v.vendorName, price: val.targetPrice } : r
+                                ));
                             }
                             else{
                                 await api.updateRows([
@@ -217,6 +222,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         price: val.targetPrice
                                     }
                                 ]);
+                                setRows(prev => prev.map(r =>
+                                    r.id === id ? { ...r, price: val.targetPrice } : r
+                                ));
                             }
                         }
                         console.log(row)
@@ -274,7 +282,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 const d = toDecimal(v);
                 return isDecFinite(d) ? d.toFixed(3) : "";
             },
-            сellClassName: (p) =>
+            cellClassName: (p) =>
                 isOverTarget(p.row as PurchaseRow) ? "cell-overTarget" : "",
         },
         {
@@ -449,10 +457,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     console.error("[total fail on row]", r, e);
                 }
             }
-            const totalNumber = Number(totalDecimal.toFixed(3));
             const base: CreatePurchasePayload = {
                 title,
-                finalPrice: totalNumber,
+                finalPrice: Number(total),
                 userId: admin.id,
                 branchNo: branch.branchNo,
                 purchaseDate: reportDate,
@@ -555,37 +562,37 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     </Box>
                 ) : (
                     <DataGrid
-                    apiRef={apiRef}
-                    rows={rows}
-                    columns={columns}
-                    getRowId={(r) => r.id}
-                    editMode="cell"
-                    disableRowSelectionOnClick
-                    onCellClick={(p) => {
-                    if (!p.isEditable || p.field === "__actions") return;
-                    const mode = apiRef.current.getCellMode(p.id, p.field);
-                    if (mode !== "edit") apiRef.current.startCellEditMode({ id: p.id, field: p.field });
-                }}
-                    processRowUpdate={(newRow, oldRow) => {
-                        let calculatedRow = { ...newRow };
+                        apiRef={apiRef}
+                        rows={rows}
+                        columns={columns}
+                        getRowId={(r) => r.id}
+                        editMode="cell"
+                        disableRowSelectionOnClick
+                        onCellClick={(p) => {
+                            if (!p.isEditable || p.field === "__actions") return;
+                            const mode = apiRef.current.getCellMode(p.id, p.field);
+                            if (mode !== "edit") apiRef.current.startCellEditMode({ id: p.id, field: p.field });
+                        }}
+                        processRowUpdate={(newRow, oldRow) => {
+                            let calculatedRow = { ...newRow };
 
-                        const q   = toDecimal(calculatedRow.quantity);
-                        const tot = toDecimal(calculatedRow.finalPrice);
+                            const q   = toDecimal(calculatedRow.quantity);
+                            const tot = toDecimal(calculatedRow.finalPrice);
 
-                        if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
-                            calculatedRow.price = Number(tot.div(q).toFixed(3));
+                            if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
+                                calculatedRow.price = Number(tot.div(q).toFixed(3));
+                            }
+                            setRows(prev => prev.map(r => (r.id === newRow.id ? calculatedRow : r)));
+                            setDirty(true);
+
+                            return calculatedRow;
+                        }}
+                        columnVisibilityModel={columnVisibilityModel}
+                        onColumnVisibilityModelChange={(model) =>
+                            setColumnVisibilityModel({ ...model, targetPrice: false, productName: false})
                         }
-                        setRows(prev => prev.map(r => (r.id === newRow.id ? calculatedRow : r)));
-                        setDirty(true);
-
-                        return calculatedRow;
-                    }}
-                    columnVisibilityModel={columnVisibilityModel}
-                    onColumnVisibilityModelChange={(model) =>
-                        setColumnVisibilityModel({ ...model, targetPrice: false, productName: false})
-                    }
-                    getRowClassName={(p) => (invalid.has(p.id as string) ? "row-invalid" : "")}
-                    getCellClassName={(p) => (hasErr(p.id as string, p.field) ? "cell-invalid" : "")}
+                        getRowClassName={(p) => (invalid.has(p.id as string) ? "row-invalid" : "")}
+                        getCellClassName={(p) => (hasErr(p.id as string, p.field) ? "cell-invalid" : "")}
                     />
                 )}
             </Box>

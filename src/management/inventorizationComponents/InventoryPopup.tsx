@@ -10,10 +10,10 @@ import {createReport, editReport, fetchProducts, getReport} from "../api/api";
 import Decimal from "decimal.js-light";
 import {
     DataGrid,
-    GridColDef,
+    GridColDef, GridFilterModel,
     GridRowModel, GridValueFormatter, GridValueGetter,
 } from '@mui/x-data-grid';
-import { Box, Button, CircularProgress, Dialog, IconButton, Stack, Typography} from "@mui/material";
+import {Box, Button, CircularProgress, Dialog, IconButton, Stack, TextField, Typography} from "@mui/material";
 import {dateFormatter} from "../mappers/dateFormatter";
 
 
@@ -42,6 +42,7 @@ export default function InventoryPopup({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [title, setTitle] = useState<string>("");
+    const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
 
     const fmt3: GridValueFormatter = (value: any) =>
         value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
@@ -56,16 +57,15 @@ export default function InventoryPopup({
         if (!open) return;
         let alive = true;
 
-        // 1. Выполняем проверки ДО try...catch
         if (mode === "new" && !Number.isFinite(branch.branchNo)) {
             setError("branchNo is required");
             setLoading(false);
-            return; // Прерываем выполнение
+            return;
         }
         if (mode === "edit" && !Number.isFinite(reportId)) {
             setError("reportId is required");
             setLoading(false);
-            return; // Прерываем выполнение
+            return;
         }
 
         (async () => {
@@ -86,15 +86,30 @@ export default function InventoryPopup({
                     setTitle(rep.title as string);
                     if (alive) setRows(normalizeReportPayload(rep));
                 }
-            } catch (e:any) {
+            } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
             } finally {
                 if (alive) setLoading(false);
             }
         })();
 
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [open, mode, reportId, author, branch]);
+
+    const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        console.log("handleFilterParamChange", e);
+        const value = e.target.value;
+        setFilterModel({
+            items: value ? [{
+                id: 0,
+                field: "name",
+                operator: "contains",
+                value: value
+            }]: []
+        });
+    };
 
     const columns = useMemo<GridColDef<InventoryRow>[]>(() => [
         {
@@ -130,12 +145,12 @@ export default function InventoryPopup({
             width: 160,
             headerAlign: "left",
             align: "left",
-            valueFormatter:  fmt3
+            valueFormatter: fmt3
         },
     ], []);
 
     const total = useMemo(
-        () => rows.reduce((acc, r) => acc.add(toDecimal(r.quantity).mul(toDecimal(r.price))), new Decimal(0)).toFixed(3),
+        () => rows.reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0)).toFixed(3),
         [rows]
     );
 
@@ -160,16 +175,8 @@ export default function InventoryPopup({
         try {
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
-            let totalDecimal = new Decimal(0);
-            for (const r of inventoryProducts) {
-                try {
-                    totalDecimal = totalDecimal.add( toDecimal(r.finalPrice));
-                } catch (e) {
-                    console.error("[total fail on row]", r, e);
-                }
-            }
             if (mode === "new") {
-                 const report: IManagementResponse = await createReport({
+                const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
@@ -193,7 +200,7 @@ export default function InventoryPopup({
                 onSaved(report);
             }
             onClose();
-        } catch (e:any) {
+        } catch (e: any) {
             setError(e?.message ?? "Save failed");
         } finally {
             setSaving(false);
@@ -205,17 +212,17 @@ export default function InventoryPopup({
             open={open}
             onClose={onClose}
             fullScreen
-            sx = {{
-            display: "flex",
-            flexDirection: "column",
-            height: "100dvh",
-            maxHeight: "100dvh",
-            overflow: "hidden",
+            sx={{
+                display: "flex",
+                flexDirection: "column",
+                height: "100dvh",
+                maxHeight: "100dvh",
+                overflow: "hidden",
             }}
         >
-            <Stack direction="row" gap={2} alignItems="center" sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+            <Stack direction="row" gap={2} alignItems="center" sx={{p: 2, borderBottom: 1, borderColor: "divider"}}>
                 <IconButton onClick={onClose}>
-                    <CloseIcon />
+                    <CloseIcon/>
                 </IconButton>
                 <Typography variant="body1"
                             sx={{
@@ -228,11 +235,11 @@ export default function InventoryPopup({
                 >
                     {title}
                 </Typography>
-                <Box flex={1} />
+                <Box flex={1}/>
                 <Typography>Total: <b>{total}</b></Typography>
                 <Button variant="contained"
                         disabled={!dirty || saving}
-                        sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                        sx={{bgcolor: "#E44B4C", "&:hover": {bgcolor: "#c93d3e"}, borderRadius: 4}}
                         onClick={handleSave}
                 >
                     {saving ? "Saving..." : "Save"}
@@ -247,8 +254,8 @@ export default function InventoryPopup({
                 overscrollBehavior: "contain"
             }}>
                 {loading ? (
-                    <Box sx={{ display: "grid", placeItems: "center", flex: 1 }}>
-                        <CircularProgress />
+                    <Box sx={{display: "grid", placeItems: "center", flex: 1}}>
+                        <CircularProgress/>
                     </Box>
                 ) : error ? (
                     <Box
@@ -265,17 +272,36 @@ export default function InventoryPopup({
                         {error}
                     </Box>
                 ) : (
-                    <Box sx={{ flex: 1, minHeight: 0 }}>
-                        <DataGrid
-                            rows={rows.map((r) => ({ id: r.productId, ...r }))}
-                            columns={columns}
-                            disableRowSelectionOnClick
-                            processRowUpdate={processRowUpdate}
-                            editMode="row"
-                            onRowEditStop={() => setRows((r) => [...r])}
-                            onProcessRowUpdateError={(err) => setError(String(err))}
-                        />
-                    </Box>
+                    <>
+                        <Box
+                            sx={{mb: 1, borderRadius: 4}}
+                        >
+                            <TextField
+                                size="small"
+                                label="Filter by product name"
+                                placeholder="Type to filter"
+                                onChange={handleFilterParamChange}
+                                autoFocus
+                                fullWidth
+                                sx={{
+                                    borderRadius: 4
+                                }}
+                            />
+                        </Box>
+
+                        <Box sx={{flex: 1, minHeight: 0}}>
+                            <DataGrid rows={rows.map((r) => ({id: r.productId, ...r}))}
+                                      columns={columns}
+                                      disableRowSelectionOnClick
+                                      processRowUpdate={processRowUpdate}
+                                      editMode="row"
+                                      onFilterModelChange={setFilterModel}
+                                      filterModel={filterModel}
+                                      onRowEditStop={() => setRows((r) => [...r])}
+                                      onProcessRowUpdateError={(err) => setError(String(err))}
+                            />
+                        </Box>
+                    </>
                 )}
             </Box>
         </Dialog>

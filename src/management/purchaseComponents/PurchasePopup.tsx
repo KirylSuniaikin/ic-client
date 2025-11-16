@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
 import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
@@ -6,7 +6,6 @@ import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from
 import {PurchaseCard} from "./PurchaseCard";
 import {PurchaseTopBar} from "./PurchaseTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
-import * as React from "react";
 
 type Props = {
     open: boolean;
@@ -35,10 +34,7 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     }
 
     useEffect(() => {
-        if (!open) return;
-
-        const ac = new AbortController();
-
+        let alive = true;
         (async () => {
             setLoading(true);
             setError(null);
@@ -48,24 +44,23 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     getUser(adminId),
                     getBranchInfo(branchNo),
                 ]);
-
-                if (ac.signal.aborted) return;
-
-                setPurchaseReports(baseManagementResponse);
-                setAdmin(userResponse);
-                setBranch(branchResponse);
-            } catch (e: unknown) {
-                if (ac.signal.aborted) return;
+                if (alive) {
+                    setPurchaseReports(baseManagementResponse);
+                    setAdmin(userResponse);
+                    setBranch(branchResponse);
+                }
+            }
+            catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Failed to load";
-                setError(msg);
-                console.error(e);
-            } finally {
-                if (!ac.signal.aborted) setLoading(false);
+                if (alive) setError(msg);
+                console.error(msg);
+            }
+            finally {
+                if (alive) setLoading(false);
             }
         })();
-
-        return () => ac.abort();
-    }, [adminId, branchNo, open]);
+        return () => {alive = false;};
+    }, [adminId, branchNo])
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});
@@ -144,13 +139,23 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     open={purchasePopup.open}
                     mode={purchasePopup.mode}
                     purchaseId={purchasePopup?.purchaseId}
-                    userId={admin.id}
+                    userId={admin? admin.id:adminId}
                     branch={branch}
                     onClose={handleCloseClick}
                     onSaved={(report) => {
                         setPurchaseReports(prev => upsertReport(prev, report));
                     }}
                 />
+            )}
+
+            {loading && (
+                <Box sx={{ position: 'fixed', top: 64, right: 16, zIndex: 1500 }}>
+                    <CircularProgress size={24}/>
+                </Box>
+            )}
+
+            {error && (
+                <Alert severity="error">{error}</Alert>
             )}
         </>
     );

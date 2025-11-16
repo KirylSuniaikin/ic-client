@@ -4,8 +4,8 @@ export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
 export var DEV_SOCKET_URL = "http://localhost:8000/ws";
 
-export var URL = PROD_BASE_HOST;
-export var WS_URL = PROD_SOCKET_URL;
+export var URL = DEV_BASE_HOST;
+export var WS_URL = DEV_SOCKET_URL;
 
 
 export async function fetchBaseAppInfo(userId) {
@@ -305,21 +305,21 @@ export async function getOrderStatus(orderId) {
     }
 }
 
-export async function fetchWorkload(branchNumber) {
-    try{
-        const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-
-        return await response.json();
-    }catch(error) {
-        console.error("Failed to fetch workload", error);
-        return { error: true, message: "Connection error" };
-    }
-}
+// export async function fetchWorkload(branchNumber) {
+//     try{
+//         const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
+//             method: "GET",
+//             headers: {
+//                 "Content-Type": "application/json",
+//             }
+//         })
+//
+//         return await response.json();
+//     }catch(error) {
+//         console.error("Failed to fetch workload", error);
+//         return { error: true, message: "Connection error" };
+//     }
+// }
 
 export async function updateWorkload({branchNumber, newLevel}) {
     try{

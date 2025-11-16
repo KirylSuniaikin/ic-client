@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Badge, Box, Fab, IconButton} from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import { useSearchParams} from 'react-router-dom';
+import {useSearchParams} from 'react-router-dom';
 import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
@@ -84,7 +84,6 @@ function HomePage({userParam}) {
     const [extraIngredients, setExtraIngredients] = useState([]);
     const [cartItems, setCartItems] = useState([]);
     const [cartOpen, setCartOpen] = useState(false);
-    const user = useState(null);
     const [username, setUsername] = useState("");
     const [phone, setPhone] = useState("");
 
@@ -266,7 +265,47 @@ function HomePage({userParam}) {
             }
         }
 
-    }, [isEditMode, userParam]);
+    }, []);
+
+
+    function parseItemNote(desc) {
+        let note = "";
+
+        const hasParentheses = /\(.*?\)/.test(desc);
+        let restPart = desc;
+
+        if (hasParentheses) {
+            const lastParenIndex = desc.lastIndexOf(")");
+            restPart = desc.substring(lastParenIndex + 1);
+        }
+
+        const plusRegex = /\+([^+]+)/g;
+        let match;
+        while ((match = plusRegex.exec(restPart)) !== null) {
+            let text = match[1].trim();
+            if (text !== "Thin") {
+                note += (note ? " " : "") + text;
+            }
+        }
+        console.log(note)
+        return note.trim();
+    }
+
+    function parseExtraIngr(desc) {
+        const extras = [];
+        const regex = /\((.*?)\)/g;
+        let match;
+        while ((match = regex.exec(desc)) !== null) {
+            const ingr = match[1]
+                .split("+")
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+            extras.push(...ingr);
+        }
+        console.log(extras)
+        return extras;
+    }
+
 
     const totalPrice = cartItems
         ? cartItems.reduce((acc, i) => {
@@ -470,7 +509,6 @@ function HomePage({userParam}) {
             id: orderToEdit.id,
             order_no: orderToEdit.order_no,
             tel,
-            user_id: user,
             customer_name: customer_name,
             delivery_method: delivery_method,
             payment_type: payment_type,
@@ -554,7 +592,6 @@ function HomePage({userParam}) {
         } else {
             const order = {
                 tel,
-                user_id: user,
                 customer_name: customerName,
                 type: "Pick Up",
                 payment_type: paymentMethod,

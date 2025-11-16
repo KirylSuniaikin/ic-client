@@ -136,7 +136,7 @@ class BluetoothPrinterService {
 
         const ESC = "\x1B";
         const LF = "\x0A";
-        const alignLeft = `${ESC}a\x00`;
+        const alignLeft = ESC + "a" + "\x00";
 
         const text = [
             ESC + "@",

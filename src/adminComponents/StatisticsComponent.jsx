@@ -20,7 +20,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { format } from 'date-fns';
 import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
-import DoughUsageTable from "./DoughUsageTable";
+import {DoughUsageTable} from "./DoughUsageTable";
 
 export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
@@ -36,8 +36,8 @@ export default function StatisticsComponent({onClose}) {
     const [retentionStats, setRetentionStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()))
-    const [anchorEl, setAnchorEl] = useState(null);
     const [doughUsage, setDoughUsage] = useState([]);
+    const [anchorEl, setAnchorEl] = useState(null);
 
     const handleOpenCalendar = (event) => {
         setAnchorEl(event.currentTarget);
@@ -82,6 +82,10 @@ export default function StatisticsComponent({onClose}) {
                 totalJahezOrders: response.jahez_total_order_count,
             });
 
+            setDoughUsage({
+                doughUsage: response.doughUsageTOS
+            })
+
             setRetentionStats({
                 month_count: response.month_total_customers,
                 retained_customers: response.retained_customers,
@@ -92,7 +96,7 @@ export default function StatisticsComponent({onClose}) {
         } finally {
             setLoading(false);
         }
-    }, [dateRange, selectedDate]);
+    }, []);
 
     useEffect(() => {
         loadStats();
@@ -113,6 +117,12 @@ export default function StatisticsComponent({onClose}) {
 
     return (
         <>
+            {loading && (
+                <Box sx={{ position: 'fixed', top: 64, right: 16, zIndex: 1500 }}>
+                    <CircularProgress size={24}/>
+                </Box>
+            )}
+
             <Box sx={{
                 gap: 1,
             }}>
@@ -161,8 +171,7 @@ export default function StatisticsComponent({onClose}) {
 
                         <DoughUsageTable
                             rows={doughUsage.doughUsage}
-                    />
-
+                        />
             <Card sx={{ borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
                 <CardContent>
                     <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>

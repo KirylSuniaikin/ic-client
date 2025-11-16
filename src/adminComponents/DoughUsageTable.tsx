@@ -8,7 +8,7 @@ type Props = {
     rows: unknown[];
 };
 
-export default function DoughUsageTable({rows}: Props) {
+export function DoughUsageTable({rows}: Props) {
 
     const DAYS = useMemo(() => ([
         "monday","tuesday","wednesday","thursday","friday","saturday","sunday",
