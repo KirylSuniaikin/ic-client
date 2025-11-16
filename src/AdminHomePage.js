@@ -36,7 +36,7 @@ import ManagementPage from "./management/inventorizationComponents/ManagementPag
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
-    const [error] = useState(null);
+    const [error, setError] = useState(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)

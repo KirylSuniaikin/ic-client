@@ -96,7 +96,7 @@ export default function StatisticsComponent({onClose}) {
         } finally {
             setLoading(false);
         }
-    }, [dateRange, selectedDate]);
+    }, []);
 
     useEffect(() => {
         loadStats();
