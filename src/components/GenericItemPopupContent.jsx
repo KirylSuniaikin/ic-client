@@ -19,7 +19,7 @@ function GenericItemPopupContent({
                                      onAddToCart,
                                      crossSellItems
 }) {
-    const item = useState(group.items[0]);
+    const [item, setItem] = useState(group.items[0]);
     const [quantity, setQuantity] = useState(1);
     const [description, setDescription] = useState("");
     const [selectedToppings, setSelectedToppings] = useState([""]);
