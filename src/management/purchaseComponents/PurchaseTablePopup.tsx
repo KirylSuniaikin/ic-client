@@ -129,15 +129,17 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
     const unitFromRow = useCallback((row: PurchaseRow) => {
         const price = toDecimal(row.price);
-        if (isDecFinite(price) && !price===null) return price;
+        if (row.price != null && isDecFinite(price)) return price;
 
         const tot = toDecimal(row.finalPrice);
         const qty = toDecimal(row.quantity);
-        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero()) ? tot.div(qty) : toDecimal(NaN);
+        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero())
+            ? tot.div(qty)
+            : toDecimal(NaN);
     }, [isDecFinite]);
 
     const isOverTarget = useCallback((row: PurchaseRow) => {
-        const unit   = unitFromRow(row); // что видим сейчас
+        const unit   = unitFromRow(row);
         const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
         console.log("HL", unit.toString(), target.toString());
         return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
@@ -209,6 +211,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         price: val.targetPrice
                                     }
                                 ]);
+                                setRows(prev => prev.map(r =>
+                                    r.id === id ? { ...r, vendorName: v.vendorName, price: val.targetPrice } : r
+                                ));
                             }
                             else{
                                 await api.updateRows([
@@ -217,6 +222,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         price: val.targetPrice
                                     }
                                 ]);
+                                setRows(prev => prev.map(r =>
+                                    r.id === id ? { ...r, price: val.targetPrice } : r
+                                ));
                             }
                         }
                         console.log(row)

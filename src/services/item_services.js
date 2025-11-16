@@ -6,6 +6,7 @@ export function groupItemsByCategory(groups) {
     const sides = groups.filter(x => x.category === 'Sides');
     const beverages = groups.filter(x => x.category === 'Beverages');
     const sauces = groups.filter(x => x.category === 'Sauces');
+    console.log(brickPizzas);
     return {
         bestsellers,
         brickPizzas,

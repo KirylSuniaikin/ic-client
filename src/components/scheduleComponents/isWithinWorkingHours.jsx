@@ -36,8 +36,11 @@ export function isWithinWorkingHours() {
 
         if (prevHours) {
             const [start, end] = prevHours;
-            const startTime = parseTime(now.clone().subtract(1, "day"), start);
-            let endTime = parseTime(now, end);
+
+            const prevBase = now.clone().subtract(1, "day");
+
+            const startTime = parseTime(prevBase, start);
+            let endTime = parseTime(prevBase, end);
 
             if (endTime.isBefore(startTime)) {
                 endTime = endTime.add(1, "day");
@@ -46,6 +49,7 @@ export function isWithinWorkingHours() {
             if (now.isAfter(startTime) && now.isBefore(endTime)) return true;
         }
     }
+
 
     return false;
 }
