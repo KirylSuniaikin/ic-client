@@ -18,7 +18,7 @@ export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 
 
-export var URL = DEV_BASE_HOST;
+export var URL = PROD_BASE_HOST;
 
 export async function getBaseManagementReports(branchNo: number): Promise<IManagementResponse[]> {
     const res = await fetch(URL + `/base_management?branchNo=${branchNo}`, { headers: { Accept: "application/json" } });
