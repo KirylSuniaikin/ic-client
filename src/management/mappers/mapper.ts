@@ -104,6 +104,7 @@ export const toPayloadLine = (r: PurchaseRow) => {
             toDecimal(qty).mul(toDecimal(price)).toDecimalPlaces(4).toFixed(4)
         ),
         vendorName: (r.vendorName).trim(),
+        purchaseDate: r.purchaseDate
     };
 };
 

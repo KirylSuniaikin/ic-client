@@ -1,100 +1,100 @@
-import {useMemo} from "react";
+import React, {useMemo} from "react";
 import {Box} from "@mui/material";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
-import {DoughUsageRow} from "../management/types/statTypes";
-import {GRAMS_BY_TYPE, makeTotalsInGrams, orderDaysEndingWithYesterday} from "../management/mappers/doughMapper";
+import {
+    GRAMS_BY_TYPE,
+    makeTotalsDynamic,
+} from "../management/mappers/doughMapper";
+import dayjs from "dayjs";
+import {DoughUsageRow, DoughUsageTO} from "../management/types/statTypes";
 
 type Props = {
-    rows: unknown[];
+    rows: DoughUsageTO[];
 };
 
 export function DoughUsageTable({rows}: Props) {
+    const dateKeys = useMemo(() => {
+        if (!rows || rows.length === 0) return [];
+        return rows[0].history
+            .map(h => h.date)
+            .sort((a, b) => a.localeCompare(b));
+    }, [rows]);
 
-    const DAYS = useMemo(() => ([
-        "monday","tuesday","wednesday","thursday","friday","saturday","sunday",
-    ] as const), []);
-
-    const orderedDays = useMemo(() => orderDaysEndingWithYesterday(), []);
-    const lastDay = orderedDays[orderedDays.length - 1];
-
-    const DAY_LABEL: Record<typeof DAYS[number], string> = {
-        monday: "Monday",
-        tuesday: "Tuesday",
-        wednesday: "Wednesday",
-        thursday: "Thursday",
-        friday: "Friday",
-        saturday: "Saturday",
-        sunday: "Sunday",
-    };
-
-    const data = useMemo<DoughUsageRow[]>(
-        () =>
-            (Array.isArray(rows) ? rows : []).map((r: DoughUsageRow) => ({
+    const flatData = useMemo<DoughUsageRow[]>(() => {
+        return (rows || []).map((r) => {
+            const row: DoughUsageRow = {
                 id: r.doughType,
                 doughType: r.doughType,
-                monday: r.monday ?? 0,
-                tuesday: r.tuesday ?? 0,
-                wednesday: r.wednesday ?? 0,
-                thursday: r.thursday ?? 0,
-                friday: r.friday ?? 0,
-                saturday: r.saturday ?? 0,
-                sunday: r.sunday ?? 0,
-            })),
-        [rows]
-    );
+            };
+            r.history.forEach((h) => {
+                row[h.date] = h.quantity;
+            });
+            return row;
+        });
+    }, [rows]);
 
-    const totalsByDay = useMemo<Record<typeof DAYS[number], number>>(() => {
-        const totals: any = {};
-        for (const d of DAYS) {
-            totals[d] = data.reduce((sum, r) => {
+    const totalsByDate = useMemo<Record<string, number>>(() => {
+        const totals: Record<string, number> = {};
+        for (const date of dateKeys) {
+            totals[date] = flatData.reduce((sum, r) => {
                 const gramsPerUnit = GRAMS_BY_TYPE[r.doughType] ?? 0;
-                const count = r[d] ?? 0;
+                const count = (r[date] as number) ?? 0;
                 return sum + count * gramsPerUnit;
             }, 0);
         }
         return totals;
-    }, [data, DAYS]);
+    }, [flatData, dateKeys]);
 
-    type DayKey = "monday"|"tuesday"|"wednesday"|"thursday"|"friday"|"saturday"|"sunday";
+    const dataWithTotal = useMemo(() => {
+        if (!flatData.length) return [];
+        const totalRow = makeTotalsDynamic(flatData, dateKeys);
+        return [...flatData, totalRow];
+    }, [flatData, dateKeys]);
 
-
-    const renderQtyCell = (day: DayKey): GridColDef<DoughUsageRow>["renderCell"] => {
+    const renderQtyCell = (dateKey: string): GridColDef<DoughUsageRow>["renderCell"] => {
         return (params) => {
-            const row = params.row as DoughUsageRow;
-            if(row.isTotal) return;
-            const count = Number(row[day] ?? 0);
+            const row = params.row;
+            if (row.isTotal) return;
+
+            const count = Number(row[dateKey] ?? 0);
+            if (count === 0) return <span style={{ opacity: 0.3 }}>-</span>;
+
             const gramsPerUnit = GRAMS_BY_TYPE[row.doughType] ?? 0;
             const grams = Math.round(count * gramsPerUnit);
-            const totalGrams = totalsByDay[day] || 0;
-            const pct = totalGrams > 0 ? ((grams / totalGrams) * 100).toFixed(1) : "0.0";
+            const totalGramsDay = totalsByDate[dateKey] || 0;
+
+            const pct = totalGramsDay > 0
+                ? ((grams / totalGramsDay) * 100).toFixed(1)
+                : "0.0";
+
             return (
                 <span>
-        {count} <span style={{ opacity: 0.7 }}>({grams} g, {pct}%)</span>
-      </span>
+                    {count} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>({grams}g, {pct}%)</span>
+                </span>
             );
         };
     };
 
-    const dataWithTotal = useMemo(() => {
-        if (!data.length) return data;
-        const total = makeTotalsInGrams(data);
-        return [...data, total];
-    }, [data]);
+    const formatHeader = (dateStr: string) => {
+        const d = dayjs(dateStr);
+        return `${d.format("dddd")} (${d.format("DD.MM")})`;
+    };
 
-    const columns: GridColDef<DoughUsageRow>[] = [
-        { field: "doughType", headerName: "Dough type", flex: 1, minWidth: 160 },
-        ...orderedDays.map((d) => ({
-            field: d,
-            headerName: DAY_LABEL[d],
-            width: 170,
+    const columns = useMemo<GridColDef<DoughUsageRow>[]>(() => [
+        { field: "doughType", headerName: "Dough type", width: 160, frozen: true },
+        ...dateKeys.map((dateStr) => ({
+            field: dateStr,
+            headerName: formatHeader(dateStr),
+            minWidth: 180,
+            flex: 1,
             sortable: false,
             filterable: false,
             renderCell: (p) =>
-                p.id === "__total" ? <b>{(p.value as number) ?? 0} g</b> : renderQtyCell(d)(p),
-            valueGetter: (_v, row) => row[d],
-            headerClassName: d === lastDay ? "yesterday-col" : undefined,
+                p.row.isTotal
+                    ? <b>{(p.value as number)?.toFixed(0) ?? 0} g</b>
+                    : renderQtyCell(dateStr)(p),
         })),
-    ];
+    ], [dateKeys, totalsByDate]);
 
     return (
         <Box sx={{ borderRadius: 3, width: '100%', boxShadow: 3}}>

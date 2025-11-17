@@ -1,12 +1,16 @@
-export type DoughUsageRow = {
-    id: string
+export type DoughDailyUsageTO = {
+    date: string;
+    quantity: number;
+};
+
+export type DoughUsageTO = {
     doughType: string;
-    monday: number;
-    tuesday: number;
-    wednesday: number;
-    thursday: number;
-    friday: number;
-    saturday: number;
-    sunday: number;
-    isTotal?: boolean
-}
+    history: DoughDailyUsageTO[];
+};
+
+export type DoughUsageRow = {
+    id: string;
+    doughType: string;
+    isTotal?: boolean;
+    [date: string]: string | number | boolean | undefined;
+};

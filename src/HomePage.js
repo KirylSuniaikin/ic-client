@@ -23,6 +23,7 @@ import {TextButton, TextGroup, TextTitle} from "./utils/typography";
 import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
 import {DetroitComboPopup} from "./components/comboComponents/DetroitComboPopup";
 import {UpsellPopup} from "./components/UpSellPopup";
+import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
 
 
 
@@ -118,6 +119,7 @@ function HomePage({userParam}) {
     const [pendingItems, setPendingItems] = useState(null);
     const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
     const [comboPrice, setComboPrice] = useState(null);
+    const [pickUpReminder, setPickUpReminder] = useState(false);
 
     const bestRef = useRef(null);
 
@@ -634,7 +636,8 @@ function HomePage({userParam}) {
                 ),
             };
             setCartItems([]);
-            setShowOrderConfirmed(true);
+            // setShowOrderConfirmed(true);
+            setPickUpReminder(true);
 
             try {
                 let response;
@@ -1072,6 +1075,10 @@ function HomePage({userParam}) {
                 cartItems={cartItems}
                 setCartItems={setCartItems}
             />}
+
+            {pickUpReminder &&
+                <PickUpReminderPopup onClose={() => setPickUpReminder(false)}/>
+            }
 
             {!isAdmin && showOrderConfirmed && (
                     <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
