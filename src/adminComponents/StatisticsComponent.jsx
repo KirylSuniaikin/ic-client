@@ -53,13 +53,20 @@ export default function StatisticsComponent({onClose}) {
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 
-    const loadStats = useCallback(async () => {
+    const loadStats = useCallback(async (manualDateRange, manualSelectedDate) => {
         try {
             setLoading(true);
-            const start = formatInTimeZone(dateRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
-            const end = formatInTimeZone(dateRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
 
-            const response = await fetchStatistics(start, end, formatInTimeZone(selectedDate, 'Asia/Bahrain', 'yyyy-MM-dd'));
+            const currentRange = manualDateRange || dateRange;
+            const currentSelectedDate = manualSelectedDate || selectedDate;
+
+            const start = formatInTimeZone(currentRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
+            const end = formatInTimeZone(currentRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
+            const retentionDate = formatInTimeZone(currentSelectedDate, 'Asia/Bahrain', 'yyyy-MM-dd');
+
+            console.log("loading stats", start, end);
+
+            const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'));
             setGlobalStats({
                 arpu: response.ARPU,
                 uniqueClients: response.unique_customers_all_time,
@@ -254,7 +261,7 @@ export default function StatisticsComponent({onClose}) {
                                 variant="contained"
                                 fullWidth
                                 onClick={() => {
-                                    loadStats();
+                                    loadStats(dateRange, selectedDate);
                                     handleCloseCalendar();
                                 }}
                                 sx={{ mt: 2 }}
@@ -366,7 +373,7 @@ export default function StatisticsComponent({onClose}) {
                                 variant="contained"
                                 fullWidth
                                 onClick={() => {
-                                    loadStats();
+                                    loadStats(dateRange, selectedDate);
                                     setRetentionAnchorEl(null);
                                 }}
                                 sx={{ mt: 2 }}
