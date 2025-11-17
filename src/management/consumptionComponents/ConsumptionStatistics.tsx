@@ -1,9 +1,9 @@
-import {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import {fetchLatestConsumptionReport} from "../api/api";
 import {ConsumptionProductTO, ConsumptionReportTO} from "../types/consumptionTypes";
-import {DataGrid, GridColDef} from "@mui/x-data-grid";
+import {DataGrid, GridColDef, GridFilterModel} from "@mui/x-data-grid";
 import { getDaysInMonth } from "date-fns";
-import {Box, Card, CardContent, Typography} from "@mui/material";
+import {Box, Card, CardContent, TextField, Typography} from "@mui/material";
 
 function parseYearMonthFromTitle(title: string): { year: number; month: number } | null {
     const m = title.trim().toLowerCase().match(/^([a-z]{3})-(\d{2})/);
@@ -37,6 +37,8 @@ export function  ConsumptionStatistics() {
     const [report, setReport] = useState<ConsumptionReportTO | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
+    const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
+
 
     useEffect(() => {
         (async () => {
@@ -88,9 +90,38 @@ export function  ConsumptionStatistics() {
         { field: "usagePerShift", headerName: "Usage / Shift", width: 150, renderCell: (p) => ((p.value as number).toFixed(3)) },
     ];
 
+    const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setFilterModel({
+            items: value ? [{
+                id: 0,
+                field: "name",
+                operator: "contains",
+                value: value
+            }]: []
+        });
+    };
+
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <Card sx={{ borderRadius: 3, boxShadow: 3 }}>
+                <Box
+                    sx={{mb: 1, borderRadius: 4, mt: 2
+                    }}
+                >
+                    <TextField
+                        size="small"
+                        label="Filter by product name"
+                        placeholder="Type to filter"
+                        onChange={handleFilterParamChange}
+                        autoFocus
+                        fullWidth
+                        sx={{
+                            borderRadius: 4,
+                            borderColor: "white"
+                        }}
+                    />
+                </Box>
                 <CardContent>
                     {report && (
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -104,6 +135,8 @@ export function  ConsumptionStatistics() {
                             columns={columns}
                             loading={loading}
                             disableRowSelectionOnClick
+                            onFilterModelChange={setFilterModel}
+                            filterModel={filterModel}
                             pageSizeOptions={[10, 25, 50]}
                             initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
                         />

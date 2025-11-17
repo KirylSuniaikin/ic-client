@@ -99,7 +99,6 @@ export default function InventoryPopup({
     }, [open, mode, reportId, author, branch]);
 
     const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        console.log("handleFilterParamChange", e);
         const value = e.target.value;
         setFilterModel({
             items: value ? [{

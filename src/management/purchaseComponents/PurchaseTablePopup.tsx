@@ -96,12 +96,13 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 } else {
                     if (!purchaseId) throw new Error("purchaseId is required for edit");
                     const rep: PurchaseTO = await getPurchaseReport({id: purchaseId});
+                    console.log("rep", rep);
                     if (!alive) return;
                     setTitle(rep.title);
                     setReportDate(rep.purchaseDate);
                     setRows(rep.purchaseProducts.map((x, i) => ({
                         id: `r-${i}`,
-                        purchaseDate: rep.purchaseDate,
+                        purchaseDate: x.purchaseDate,
                         productId: x.product.id,
                         price: Number(x.price),
                         quantity: Number(x.quantity),

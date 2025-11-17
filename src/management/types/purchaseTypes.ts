@@ -18,6 +18,7 @@ export type PurchaseProductTO = {
     finalPrice: number;
     price: number;
     vendorName: string;
+    purchaseDate: string
 }
 
 export type PurchaseTO = {
