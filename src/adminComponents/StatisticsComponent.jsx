@@ -28,7 +28,6 @@ export default function StatisticsComponent({onClose}) {
             startDate: startOfDay(new Date()),
             endDate: endOfDay(new Date()),
             key: 'selection'
-
         }
     ]);
     const [globalStats, setGlobalStats] = useState(null);
@@ -63,8 +62,6 @@ export default function StatisticsComponent({onClose}) {
             const start = formatInTimeZone(currentRange[0].startDate, 'Asia/Bahrain', 'yyyy-MM-dd');
             const end = formatInTimeZone(currentRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
             const retentionDate = formatInTimeZone(currentSelectedDate, 'Asia/Bahrain', 'yyyy-MM-dd');
-
-            console.log("loading stats", start, end);
 
             const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'));
             setGlobalStats({

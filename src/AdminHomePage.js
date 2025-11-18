@@ -32,6 +32,7 @@ import BluetoothPrinterService from "./services/BluetoorhPrinterService";
 import {socket} from "./api/socket";
 import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
 import ManagementPage from "./management/inventorizationComponents/ManagementPage";
+import CashPopup from "./components/shiftComponents/CashPopup";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -44,7 +45,7 @@ function AdminHomePage() {
     const [activeAlertOrder, setActiveAlertOrder] = useState(null);
     const [newlyAddedOrder, setNewlyAddedOrder] = useState(null);
     const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
-    const [shiftStage, setShiftStage] = useState("OPEN_SHIFT_CASH_CHECK");
+    const [cashPopupOpen, setCashPopupOpen] = useState(false);
     const [cashWarning, setCashWarning] = useState(null);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
@@ -57,17 +58,24 @@ function AdminHomePage() {
     const [workloadLevel, setWorkloadLevel] = useState("IDLE");
     const [purchasePopupOpen, setPurchasePopupOpen] = useState(false);
     const [managementPageOpen, setManagementPageOpen] = useState(false);
+    const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
+    const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
+
 
     const audioRef = useRef(null);
 
     const branchId = "1";
     const adminId = 1;
-    const STAGE_FLOW = useMemo(() => ({
-        OPEN_SHIFT_CASH_CHECK: "OPEN_SHIFT_EVENT",
-        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
-        CLOSE_SHIFT_EVENT: "CLOSE_SHIFT_CASH_CHECK",
+
+    const CASH_STAGE_FLOW = useMemo(() => ({
+        OPEN_SHIFT_CASH_CHECK: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
-    }), []);
+    }), [])
+
+    const EVENT_STAGE_FLOW = useMemo(()=> ({
+        OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
+        CLOSE_SHIFT_EVENT: "OPEN_SHIFT_EVENT"
+    }), [])
 
     const colorRed = '#E44B4C';
 
@@ -89,11 +97,6 @@ function AdminHomePage() {
 
     const onWorkloadChange = (newLevel) => {
         setWorkloadLevel(newLevel);
-    }
-
-    const onStageChange = (newStage) => {
-        console.log(newStage);
-        setShiftStage(newStage);
     }
 
     const toLongOrNull = (v) => {
@@ -407,8 +410,10 @@ function AdminHomePage() {
                         if(String(payload.branchNumber)===branchId){
                             console.log("[WORKLOAD_CHANGE] true");
                             onWorkloadChange(payload.level);
-                            const nextStage = STAGE_FLOW[payload.type] || payload.type;
-                            setShiftStage(nextStage);
+                            const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
+                            const nextEventStage = EVENT_STAGE_FLOW[payload.checklistStage] || payload.checklistStage;
+                            setCashStage(nextCashStage);
+                            setEventStage(nextEventStage);
                         }
                     })
                 };
@@ -424,14 +429,18 @@ function AdminHomePage() {
             try {
                 const response = await getBaseAdminInfo(branchId);
                 if (!response) {
-                    setShiftStage("OPEN_SHIFT_CASH_CHECK");
+                    setEventStage("OPEN_SHIFT_EVENT");
+                    setCashStage("OPEN_SHIFT_CASH_CHECK");
                 }
                 else {
-                    const nextStage = STAGE_FLOW[response.type] || response.type;
+                    const nextCashStage = CASH_STAGE_FLOW[response.cashStage];
+                    const nextEventStage = EVENT_STAGE_FLOW[response.checklistStage];
+                    console.log(nextCashStage, " ", nextEventStage);
                     onWorkloadChange(response.level)
-                    setShiftStage(nextStage);
+                    setCashStage(nextCashStage);
+                    setEventStage(nextEventStage);
                 }
-                console.log("Last stage: ", response.type, ", updated stage to: ");
+                console.log(response);
             } catch (err) {
                 console.error("Ошибка загрузки stage:", err);
             }
@@ -444,7 +453,7 @@ function AdminHomePage() {
             stompRef.current = null;
             c?.deactivate?.().catch(() => {});
         };
-    }, [STAGE_FLOW]);
+    }, [CASH_STAGE_FLOW, EVENT_STAGE_FLOW]);
 
     if (loading) {
         return <PizzaLoader/>;
@@ -509,8 +518,6 @@ function AdminHomePage() {
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && !managementPageOpen && (
 
                     <AdminTopbar
-                        stage={shiftStage}
-                        onClick={() => setShiftPopupOpen(true)}
                         onOpenHistory={() => setIsHistoryOpen(true)}
                         onOpenStatistics={() => setIsStatisticsOpen(true)}
                         onOpenConfig={() => setIsConfigOpen(true)}
@@ -521,16 +528,26 @@ function AdminHomePage() {
                         adminId={adminId}
                         onPurchaseOpen={() => setPurchasePopupOpen(true)}
                         onManagementPageOpen={() => setManagementPageOpen(true)}
+                        cashStage={cashStage}
+                        shiftStage={eventStage}
+                        onShiftStageClick={() => setShiftPopupOpen(true)}
+                        onCashClick={() => setCashPopupOpen(true)}
                     />
             )}
             <ShiftPopup
                 isOpen={shiftPopupOpen}
                 onClose={() => {
                     setShiftPopupOpen(false);
-                    console.log(shiftStage)
+                    console.log(eventStage)
                 }}
-                setStage={onStageChange}
-                stage={shiftStage}
+                stage={eventStage}
+                branchId={branchId}
+                onCashWarning={setCashWarning}
+            />
+            <CashPopup
+                isOpen={cashPopupOpen}
+                onClose={() => setCashPopupOpen(false)}
+                stage={cashStage}
                 branchId={branchId}
                 onCashWarning={setCashWarning}
             />

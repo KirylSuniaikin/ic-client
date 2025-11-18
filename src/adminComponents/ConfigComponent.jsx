@@ -3,6 +3,7 @@ import { Box, Typography, Switch, Button, Fab } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
+import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
 const brandRed = "#E44B4C";
 
@@ -153,25 +154,16 @@ function ConfigComponent({ isOpen, onClose }) {
     if (isLoading) return <PizzaLoader/>;
 
     return (
+        <>
+        <Box sx={{
+            gap: 1,
+        }}>
+            <BackTopBar
+                onClose={onClose}
+                title="Config"
+            />
+        </Box>
         <Box sx={{ p: 0, position: "relative", height: "100vh", display: "flex", flexDirection: "column" }}>
-            <Fab
-                color="primary"
-                aria-label="close"
-                onClick={onClose}
-                sx={{
-                    position: 'fixed',
-                    top: 16,
-                    right: 16,
-                    backgroundColor: brandRed,
-                    color: "white",
-                    '&:hover': {
-                        backgroundColor: '#d23c3d',
-                    },
-                }}
-            >
-                <CloseIcon sx={{ fontSize: 30 }} />
-            </Fab>
-
             <Box
                 sx={{
                     flex: 1,
@@ -261,6 +253,7 @@ function ConfigComponent({ isOpen, onClose }) {
                 </Button>
             </Box>
         </Box>
+        </>
     );
 }
 

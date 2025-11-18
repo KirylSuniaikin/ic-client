@@ -20,8 +20,7 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 
 
-export default function AdminTopbar({   stage,
-                                        onClick,
+export default function AdminTopbar({
                                         onOpenHistory,
                                         onOpenStatistics,
                                         onOpenConfig,
@@ -31,7 +30,11 @@ export default function AdminTopbar({   stage,
                                         onWorkloadChange,
                                         adminId,
                                         onPurchaseOpen,
-                                        onManagementPageOpen
+                                        onManagementPageOpen,
+                                        cashStage,
+                                        shiftStage,
+                                        onCashClick,
+                                        onShiftStageClick,
                                     }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -41,13 +44,19 @@ export default function AdminTopbar({   stage,
 
     const colorRed = '#E44B4C';
 
-
-    const getStageData = (stage) => {
+    const getCashStage = (stage) => {
         switch (stage) {
             case "OPEN_SHIFT_CASH_CHECK":
-                return "Open Cash"
+                return "Open Cash";
             case "CLOSE_SHIFT_CASH_CHECK":
                 return "Close Cash";
+            default:
+                return "";
+        }
+    }
+
+    const getShiftStage = (stage) => {
+        switch (stage) {
             case "OPEN_SHIFT_EVENT":
                 return "Open Shift";
             case "CLOSE_SHIFT_EVENT":
@@ -55,7 +64,7 @@ export default function AdminTopbar({   stage,
             default:
                 return "";
         }
-    };
+    }
 
     const items = [
         { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
@@ -70,10 +79,10 @@ export default function AdminTopbar({   stage,
 
     const getWorkloadData = (workload) => {
         switch (workload) {
-            case "IDLE": return "Idle(+0 min)"
-            case "BUSY": return "Busy(+10 min)"
-            case "CROWDED": return "Crowded(+20 min)"
-            case "OVERLOADED": return "Overloaded(+30 min)"
+            case "IDLE": return "+0"
+            case "BUSY": return "+10"
+            case "CROWDED": return "+20"
+            case "OVERLOADED": return "+30"
             default: return ""
         }
     }
@@ -87,8 +96,6 @@ export default function AdminTopbar({   stage,
             console.error("Failed to update workload:", err);
         }
     }
-
-    const label = getStageData(stage);
 
     return (
         <Box
@@ -109,7 +116,7 @@ export default function AdminTopbar({   stage,
             <Box sx={{ flexGrow: 1 }} />
 
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                <FormControl size="small" sx={{ minWidth: 160, borderColor: colorRed }}>
+                <FormControl size="small" sx={{ minWidth: 80, borderColor: colorRed }}>
                     <InputLabel>Workload</InputLabel>
                     <Select
                         value={workloadLevel ?? "IDLE"}
@@ -131,7 +138,7 @@ export default function AdminTopbar({   stage,
                 </FormControl>
 
                 <Button
-                    onClick={onClick}
+                    onClick={onCashClick}
                     variant="outlined"
                     size="small"
                     sx={{
@@ -150,7 +157,30 @@ export default function AdminTopbar({   stage,
                         },
                     }}
                 >
-                    {label}
+                    {getCashStage(cashStage)}
+                </Button>
+
+                <Button
+                    onClick={onShiftStageClick}
+                    variant="outlined"
+                    size="small"
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: "999px",
+                        fontWeight: 500,
+                        fontSize: "0.8rem",
+                        px: 2,
+                        height: "40px",
+                        py: 0.5,
+                        color: colorRed,
+                        borderColor: colorRed,
+                        '&:hover': {
+                            backgroundColor: "#fff5f5",
+                            borderColor: colorRed,
+                        },
+                    }}
+                >
+                    {getShiftStage(shiftStage)}
                 </Button>
 
                 <IconButton

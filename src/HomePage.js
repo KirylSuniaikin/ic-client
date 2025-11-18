@@ -578,7 +578,6 @@ function HomePage({userParam}) {
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
                 console.log(order)
                 const res = await editOrder(order, orderToEdit.id);
-                // await localStorage.removeItem("orderToEdit");
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
                 const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
@@ -877,7 +876,6 @@ function HomePage({userParam}) {
                                         display: "flex",
                                         overflowX: "auto",
                                         px: 1,
-                                        // snap есть, но мы его временно отключаем в хуке
                                         scrollSnapType: "x mandatory",
                                         scrollBehavior: "auto",
                                         "&::-webkit-scrollbar": { display: "none" },
