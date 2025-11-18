@@ -1,10 +1,11 @@
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {deleteOrder, getHistory} from "../api/api";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import OrderCard from "./OrderCard";
 import {Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {Masonry} from "@mui/lab";
+import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
 
 
@@ -70,27 +71,14 @@ function HistoryComponent({onClose}) {
 
     return (
         <div className="p-4 max-w-4xl mx-auto">
-            {(
-                    <Box sx={{
-                        position: 'fixed',
-                        top: 16,
-                        right: 16,
-                    }}
-                    >
-                        <IconButton
-                            onClick={onClose}
-                            sx={{
-                                backgroundColor: colorRed,
-                                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                                "&:hover": {
-                                    backgroundColor: colorRed
-                                }
-                            }}
-                        >
-                            <CloseIcon sx={{fontSize: 30, color: "white"}}/>
-                        </IconButton>
-                    </Box>
-                )}
+            <Box sx={{
+                gap: 1,
+            }}>
+                <BackTopBar
+                    onClose={onClose}
+                    title="Order History"
+                />
+            </Box>
             <Box sx={{ pt: 1, pl: 1 }}>
             <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                 {sortedOrders.map((order) => (

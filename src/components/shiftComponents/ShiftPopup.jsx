@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react";
 import {
-    TextField, Button,
+    Button,
     FormGroup, Checkbox, Typography, Card, Drawer, Box
 } from "@mui/material";
 import {sendShiftEvent} from "../../api/api";
@@ -28,8 +28,7 @@ const CHECKLISTS = {
     ]
 };
 
-export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, onCashWarning}) {
-    const [cash, setCash] = useState();
+export default function ShiftPopup({isOpen, onClose, stage, branchId}) {
     const [checklist, setChecklist] = useState([]);
 
     const handleCheck = index => { const updated = [...checklist]; updated[index].done = !updated[index].done; setChecklist(updated); };
@@ -52,34 +51,20 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
     const handleSubmit = async () => {
         try {
             onClose();
-            const data = await sendShiftEvent({
+             await sendShiftEvent({
                 type: stage,
                 datetime: new Date().toISOString(),
                 branch_id: branchId,
-                cash_amount: isCashStage ? parseFloat(cash) : null,
+                cash_amount: null,
                 prep_plan: null,
             });
-
-            if (data?.cashWarning) {
-                onCashWarning(data.cashWarning);
-                setTimeout(() => onCashWarning(null), 5000);
-            } else {
-                onCashWarning(null);
-            }
-
-            setCash('');
-
         } catch (error) {
             console.error('Error occurred while sending an shift event:', error);
         }
     };
 
-    const isCashStage = stage === "OPEN_SHIFT_CASH_CHECK" || stage === "CLOSE_SHIFT_CASH_CHECK";
-
     const getStageTitle = (stage) => {
         switch (stage) {
-            case "OPEN_SHIFT_CASH_CHECK":
-                return "Start Cash Balance";
             case "OPEN_SHIFT_EVENT":
                 return (
                     <>
@@ -89,8 +74,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                         </Typography>
                     </>
                 );
-            case "CLOSE_SHIFT_CASH_CHECK":
-                return "End Cash Balance";
             case "CLOSE_SHIFT_EVENT":
                 return (
                     <>
@@ -126,65 +109,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 ,  textAlign: "center" }}>
                 {getStageTitle(stage)}
             </Typography>
-
-            {isCashStage ? (
-                <>
-                    <Box sx={{ pb: 7 }}>
-
-                        <TextField
-                            label="Cash Amount"
-                            type="number"
-                            inputMode="decimal"
-                            value={cash}
-                            onChange={e => setCash(e.target.value)}
-                            fullWidth
-                            placeholder="Cash Amount"
-                            sx={{
-                                borderRadius: 2,
-                                backgroundColor: "#fff",
-                                border: "1px solid #ddd",
-                                mb: 2,
-                                "& .MuiOutlinedInput-root": {
-                                    borderRadius: 2,
-                                },
-                            }}
-                            InputProps={{ sx: { px: 2, py: 1.5 } }}
-                        />
-                    </Box>
-                    <Box
-                        sx={{
-                            position: "fixed",
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            p: 2,
-                            backgroundColor: "#fff",
-                            borderTop: "1px solid #eee",
-                            zIndex: 1301,
-                        }}
-                    >
-                        <Button
-                            onClick={handleSubmit}
-                            variant="contained"
-                            fullWidth
-                            disabled={!cash}
-                            sx={{
-                                backgroundColor: "#E44B4C",
-                                borderRadius: "999px",
-                                textTransform: "none",
-                                fontWeight: "bold",
-                                py: 1.25,
-                                fontSize: "1rem",
-                                '&:hover': {
-                                    backgroundColor: '#c63b3c',
-                                },
-                            }}
-                        >
-                            Submit
-                        </Button>
-                    </Box>
-                </>
-            ) : (
                 <>
                     <Box sx={{ pb: 10 }}>
                         <FormGroup sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -239,7 +163,7 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                             p: 2,
                             backgroundColor: "#fff",
                             borderTop: "1px solid #eee",
-                            zIndex: 1301, // выше Drawer
+                            zIndex: 1301,
                         }}
                     >
                         <Button
@@ -262,7 +186,6 @@ export default function ShiftPopup({isOpen, onClose, stage, setStage, branchId, 
                         </Button>
                     </Box>
                 </>
-            )}
         </Drawer>
     );
 }
