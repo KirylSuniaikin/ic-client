@@ -70,13 +70,12 @@ export default function AdminTopbar({
 
     const items = [
         { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
+        { label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
         { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
         { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
         { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },
-        {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: onManagementPageOpen },
-        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen },
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen}
+        { label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: onManagementPageOpen },
+        { label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen }
     ]
 
     const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];

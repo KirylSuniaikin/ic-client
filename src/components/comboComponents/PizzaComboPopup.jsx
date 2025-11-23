@@ -26,9 +26,14 @@ export function PizzaComboPopup({
                                     isEditMode,
                                     removeFromCart
                                 }) {
-    const [selectedSize, setSelectedSize] = useState(
-        selectedPizza?.size?.trim() || "M"
-    );
+    const [selectedSize, setSelectedSize] = useState(() => {
+        if(isEditMode){
+            return editItem.size.trim();
+        }
+        else{
+            return selectedPizza?.size?.trim() || "M";
+        }
+    });
     const [initialEditorItem, setInitialEditorItem] = useState(null);
 
     const [pizza, setPizza] = useState(() => {
@@ -90,8 +95,14 @@ export function PizzaComboPopup({
         }
     });
 
-    const [description, setDescription] = useState(
-        selectedPizza?.note?.trim() || ""
+    const [description, setDescription] = useState(() => {
+        if (isEditMode) {
+            return editItem.comboItems[0].description.trim();
+        } else {
+            return selectedPizza?.note?.trim() || "" ;
+        }
+    }
+
     );
     const [editorOpen, setEditorOpen] = useState(false);
     const [editorItems, setEditorItems] = useState([]);
@@ -191,7 +202,7 @@ export function PizzaComboPopup({
                 },
             ],
         };
-        removeFromCart(orderItem.name, orderItem.amount, orderItem.quantity);
+        removeFromCart(editItem.name, editItem.amount, editItem.quantity);
         onAddToCart?.(orderItem);
         onClose?.();
     }

@@ -14,3 +14,8 @@ export type DoughUsageRow = {
     isTotal?: boolean;
     [date: string]: string | number | boolean | undefined;
 };
+
+export type SellsByDay = {
+    hour: number;
+    sellsByDay: [string, number];
+}
