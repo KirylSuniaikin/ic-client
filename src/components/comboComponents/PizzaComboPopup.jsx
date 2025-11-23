@@ -202,7 +202,9 @@ export function PizzaComboPopup({
                 },
             ],
         };
-        removeFromCart(editItem.name, editItem.amount, editItem.quantity);
+        if(isEditMode){
+            removeFromCart(editItem.name, editItem.amount, editItem.quantity);
+        }
         onAddToCart?.(orderItem);
         onClose?.();
     }
