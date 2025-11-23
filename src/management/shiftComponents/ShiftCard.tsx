@@ -17,7 +17,7 @@ export function ShiftCard({report, onEditClick}: Props) {
                         {report.title}
                     </Typography>
                 }
-                subheader={`Total hours: ${report.totalHours} h`}
+                subheader={`Total hours: ${report.totalHours.toFixed(3)} h`}
                 action={
                     <Button
                         size="small"

@@ -97,6 +97,7 @@ function CartItemHorizontal({
         >
             {item.category === "Pizzas" && <IconButton
                 onClick={() => {
+                    console.log(item)
                     openPizzaEditPopUp(item)
                 }}
 
