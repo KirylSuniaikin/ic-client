@@ -31,8 +31,9 @@ import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import BluetoothPrinterService from "./services/BluetoorhPrinterService";
 import {socket} from "./api/socket";
 import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
-import ManagementPage from "./management/inventorizationComponents/ManagementPage";
+import ManagementPage from "./management/inventoryComponents/ManagementPage";
 import CashPopup from "./components/shiftComponents/CashPopup";
+import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -60,6 +61,7 @@ function AdminHomePage() {
     const [managementPageOpen, setManagementPageOpen] = useState(false);
     const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
+    const [shiftManagementPageOpen ,setShiftManagementPageOpen] = useState(false);
 
 
     const audioRef = useRef(null);
@@ -529,6 +531,7 @@ function AdminHomePage() {
                         onPurchaseOpen={() => setPurchasePopupOpen(true)}
                         onManagementPageOpen={() => setManagementPageOpen(true)}
                         cashStage={cashStage}
+                        onShiftManagementPageOpen={()=> setShiftManagementPageOpen(true)}
                         shiftStage={eventStage}
                         onShiftStageClick={() => setShiftPopupOpen(true)}
                         onCashClick={() => setCashPopupOpen(true)}
@@ -609,10 +612,18 @@ function AdminHomePage() {
 
             {managementPageOpen && (
                 <ManagementPage
-                isOpen={managementPageOpen}
-                onClose={() => setManagementPageOpen(false)}
-                userId={adminId}
-                branchNo={Number(branchId)} />
+                    isOpen={managementPageOpen}
+                    onClose={() => setManagementPageOpen(false)}
+                    userId={adminId}
+                    branchNo={Number(branchId)}
+                />
+            )}
+
+            {shiftManagementPageOpen && (
+                <ShiftHomePage open={shiftManagementPageOpen}
+                               onClose={() => setShiftManagementPageOpen(false)}
+                               branchNo={Number(branchId)}
+                />
             )}
 
             <Snackbar

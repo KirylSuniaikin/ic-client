@@ -22,37 +22,72 @@ export function PizzaComboPopup({
                                     sauces,
                                     onAddToCart,
                                     selectedPizza,
+                                    editItem,
+                                    isEditMode,
+                                    removeFromCart
                                 }) {
     const [selectedSize, setSelectedSize] = useState(
         selectedPizza?.size?.trim() || "M"
     );
+    const [initialEditorItem, setInitialEditorItem] = useState(null);
 
     const [pizza, setPizza] = useState(() => {
-        const targetSize = selectedPizza?.size?.trim() || "M";
+        if (isEditMode) {
+            const editedItem = editItem.comboItems[0];
+            const targetSize = editedItem.size.trim() || "M";
 
-        const found =
-            pizzas
+            const found = pizzas
                 .flatMap(p => p.items)
-                .find(i => i.name === selectedPizza?.name && i.size.trim() === targetSize)
+                .find(i => i.name === editedItem.name && i.size.trim() === targetSize);
+
+            return {
+                item: found,
+                size: targetSize,
+                dough: editedItem.isThinDough ? "Thin Dough" : "Traditional Dough",
+                crust: editedItem.isGarlicCrust ? "Garlic Crust" : "Classic Crust",
+            };
+
+        } else {
+            const targetSize = selectedPizza?.size?.trim() || "M";
+
+            const found =
+                pizzas
+                    .flatMap(p => p.items)
+                    .find(i => i.name === selectedPizza?.name && i.size.trim() === targetSize)
                 ?? findPizzaBySize(pizzas, "M")
                 ?? pizzas[0].items[0];
 
-        console.log("Found pizza " + found);
-
-        return {
-            item: found,
-            size: targetSize,
-            dough: selectedPizza?.isThinDough ? "Thin Dough" : "Traditional Dough",
-            crust: selectedPizza?.isGarlicCrust ? "Garlic Crust" : "Classic Crust",
-        };
+            return {
+                item: found,
+                size: targetSize,
+                dough: selectedPizza?.isThinDough ? "Thin Dough" : "Traditional Dough",
+                crust: selectedPizza?.isGarlicCrust ? "Garlic Crust" : "Classic Crust",
+            };
+        }
     });
 
-    const [drink, setDrink] = useState({
-        item: drinks[0].items[0],
+    const [drink, setDrink] = useState(() => {
+        if (isEditMode) {
+            const foundDrink = drinks
+                .flatMap(list => list.items)
+                .find(i => i.name === editItem.comboItems[1].name);
+
+            return { item: foundDrink || drinks[0].items[0] };
+        } else {
+            return { item: drinks[0].items[0] };
+        }
     });
 
-    const [sauce, setSauce] = useState({
-        item: sauces[0].items[0],
+    const [sauce, setSauce] = useState(() => {
+        if (isEditMode) {
+            const foundSauce = sauces
+                .flatMap(list => list.items)
+                .find(i => i.name === editItem.comboItems[2].name);
+
+            return { item: foundSauce || sauces[0].items[0] };
+        } else {
+            return { item: sauces[0].items[0] };
+        }
     });
 
     const [description, setDescription] = useState(
@@ -81,9 +116,10 @@ export function PizzaComboPopup({
         return all.find(i => i.size?.trim().toUpperCase() === sizeNorm);
     }
 
-    function openEditor(target, items) {
+    function openEditor(target, items, currentItem) {
         setEditorTarget(target);
         setEditorItems(items);
+        setInitialEditorItem(currentItem);
         setEditorOpen(true);
     }
 
@@ -155,7 +191,7 @@ export function PizzaComboPopup({
                 },
             ],
         };
-
+        removeFromCart(orderItem.name, orderItem.amount, orderItem.quantity);
         onAddToCart?.(orderItem);
         onClose?.();
     }
@@ -226,7 +262,8 @@ export function PizzaComboPopup({
                             onChange={() => {
                                 openEditor("pizza", pizzas
                                     .map(p => p.items.find(i => i.size.trim() === selectedSize))
-                                    .filter(Boolean)
+                                    .filter(Boolean),
+                                    pizza.item
                                 );
                             }
                             }
@@ -235,11 +272,11 @@ export function PizzaComboPopup({
                         />
                         <ItemCard
                             item={drink.item}
-                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items))}
+                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
                         />
                         <ItemCard
                             item={sauce.item}
-                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items))}
+                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
                         />
                     </Box>
 
@@ -335,6 +372,7 @@ export function PizzaComboPopup({
                     items={editorItems}
                     size={selectedSize}
                     onSave={handleEditorSave}
+                    initialItem={initialEditorItem}
                     target={editorTarget}
                     dough={pizza?.dough}
                     crust={pizza?.crust}

@@ -9,8 +9,8 @@ import CloseIcon from "@mui/icons-material/Close";
 
 const brandRed = "#E44B4C";
 
-function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust }) {
-    const [selectedItem, setSelectedItem] = useState(items[0]);
+function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust, initialItem }) {
+    const [selectedItem, setSelectedItem] = useState(initialItem || items[0]);
 
     function handleConfirm() {
         if (!selectedItem) return;
