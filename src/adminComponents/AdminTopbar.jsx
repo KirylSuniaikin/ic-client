@@ -70,6 +70,7 @@ export default function AdminTopbar({
 
     const items = [
         { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
         { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
         { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
         { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },

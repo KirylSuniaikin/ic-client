@@ -14,6 +14,9 @@ import {
     DataGrid,
     GridColDef, GridRenderEditCellParams
 } from "@mui/x-data-grid";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 type Props = {
     open: boolean;
@@ -47,14 +50,18 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         }, [hasFocus]);
 
         return (
-            <div onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '100%', height: '100%' }} onClick={(e) => e.stopPropagation()}>
                 <TextField
                     type="time"
                     size="small"
                     fullWidth
                     inputRef={inputRef}
                     value={value ?? ""}
-                    inputProps={{ step: 300 }} // шаг 5 минут
+                    inputProps={{ step: 300 }}
+                    sx={{
+                        '& fieldset': { border: 'none' },
+                        height: '100%',
+                    }}
                     onChange={(e) => {
                         const timeStr = e.target.value || null;
                         api.setEditCellValue({
@@ -89,9 +96,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             }
             d = d.add(1, "day");
         }
-
-        console.log(rows)
-
         return rows;
     }
 
@@ -112,8 +116,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         if (!open) return;
         if (!branch) return;
 
-        console.log("32313", branch);
-
         (async () => {
             try {
                 setError(null);
@@ -124,7 +126,8 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     if (!cancelled) {
                         setRows(initialRows);
                         setTitle(
-                            `${dayjs(reportDate).format("MM-YY")}-BH-${branch.branchName}`
+                            `${dayjs(reportDate).format("MMM-YY")}-BH-${branch.branchName}`
+
                                 .toLowerCase()
                         );
                     }
@@ -139,8 +142,8 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                             resp.shifts.map((x, i) => ({
                                 id: `r-${i}`,
                                 shiftDate: x.shiftDate,
-                                startTime: x.startTime,
-                                endTime: x.endTime,
+                                startTime: x.startTime ? x.startTime.slice(0, 5) : null,
+                                endTime: x.endTime ? x.endTime.slice(0, 5) : null,
                                 totalHours: x.total,
                             }))
                         );
@@ -152,7 +155,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     setError(e?.message ?? "Load failed");
                 }
             } finally {
-                console.log(rows)
                 if (!cancelled) {
                     setLoading(false);
                 }

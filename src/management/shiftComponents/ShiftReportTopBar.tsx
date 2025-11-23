@@ -4,7 +4,7 @@ import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRound
 
 export function ShiftReportTopBar({onClose = () => {}, onNewClick = () => {}}) {
     return (
-        <AppBar elevation={0} color="inherit" sx={{ borderBottom: 1, borderColor: "divider", backgroundColor:"#fbfaf6",
+        <AppBar elevation={0} color="inherit" sx={{ borderBottom: 1, borderColor: "divider"
         }}>
             <Toolbar sx={{ gap: 1 }}>
                 <IconButton edge="start" onClick={onClose} aria-label="close" size="small" sx={{borderColor: "divider"}}>
