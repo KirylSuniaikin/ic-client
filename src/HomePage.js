@@ -347,6 +347,24 @@ function HomePage({userParam}) {
         ))
     }
 
+    function openPizzaComboEditPopup(item) {
+        console.log(item)
+        setEditItem(item)
+        setEditMode(true)
+        const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+        setPopupGroup(comboVariants);
+        setPizzaComboPopupOpen(true)
+    }
+
+    function openDetroitComboEditPopup(item) {
+        console.log(item)
+        setEditItem(item)
+        setEditMode(true)
+        const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+        setPopupGroup(comboVariants);
+        setDetroitComboPopupOpen(true)
+    }
+
     function getSameItems(item_name) {
         const sameItems = [];
         menuData.forEach(item => {
@@ -378,7 +396,7 @@ function HomePage({userParam}) {
             } else if (item.name === "Detroit Combo") {
 
                 setPopupGroup(item);
-                setDetroitComboPopupOpen(true); // когда сделаем Detroit popup
+                setDetroitComboPopupOpen(true);
             }
         } else {
             setPopupGroup(item);
@@ -986,6 +1004,9 @@ function HomePage({userParam}) {
                     sauces={sauces}
                     onAddToCart={handleAddToCart}
                     selectedPizza={upsellItem}
+                    editItem={editItem}
+                    isEditMode={editMode}
+                    removeFromCart={removeFromCart}
                 />
             )}
 
@@ -999,6 +1020,9 @@ function HomePage({userParam}) {
                 sauces={sauces}
                 onAddToCart={handleAddToCart}
                 selectedDetroitPizza={upsellItem}
+                editItem={editItem}
+                isEditMode={editMode}
+                removeFromCart={removeFromCart}
                 >
                 </DetroitComboPopup>
             )}
@@ -1043,6 +1067,8 @@ function HomePage({userParam}) {
                 onRemoveItem={handleRemoveItemFromCart}
                 onCheckout={handleCheckout}
                 openPizzaEditPopUp={openPizzaEditPopUp}
+                openPizzaComboEditPopup={openPizzaComboEditPopup}
+                openDetroitComboEditPopup={openDetroitComboEditPopup}
                 isAdmin={isAdmin}
                 handleDiscountChange={handleDiscountChange}
                 menuData={menuData}

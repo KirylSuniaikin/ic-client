@@ -18,6 +18,7 @@ import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import {updateWorkload} from "../api/api";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
+import ScheduleIcon from '@mui/icons-material/Schedule';
 
 
 export default function AdminTopbar({
@@ -32,6 +33,7 @@ export default function AdminTopbar({
                                         onPurchaseOpen,
                                         onManagementPageOpen,
                                         cashStage,
+                                        onShiftManagementPageOpen,
                                         shiftStage,
                                         onCashClick,
                                         onShiftStageClick,
@@ -68,6 +70,7 @@ export default function AdminTopbar({
 
     const items = [
         { label: "New Order" , icon: <AddIcon fontSize="small" />, onClick: onGoToMenu },
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
         { label: "Order History", icon: <HistoryIcon fontSize="small" />, onClick: onOpenHistory },
         { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
         { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },

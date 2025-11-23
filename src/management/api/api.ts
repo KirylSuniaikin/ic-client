@@ -13,6 +13,7 @@ import {
     VendorTO
 } from "../types/purchaseTypes";
 import {ConsumptionReportTO} from "../types/consumptionTypes";
+import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -147,6 +148,44 @@ export async function editPurchaseReport(payload: EditPurchasePayload) : Promise
 
 export async function fetchLatestConsumptionReport(): Promise<ConsumptionReportTO> {
     const res = await fetch(URL + `/get_consumption_report`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchShiftReports(): Promise<BaseShiftResponse[]> {
+    const res = await fetch(URL + `/get_all_shift_reports`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function createShiftReport(payload: CreateShiftReportTO): Promise<BaseShiftResponse> {
+    const res = await fetch(URL + `/create_shift_report`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: {"Content-Type": "application/json" }
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function editShiftReport(payload: EditShiftReportTO): Promise<BaseShiftResponse> {
+    const res = await fetch(URL + `/edit_shift_report`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getShiftReport(payload:{id: number}): Promise<ShiftReportTO> {
+    const res = await fetch(URL + `/get_shift_report?id=${payload.id}`, {
         method: "GET",
         headers: {"Content-Type": "application/json" }
     })
