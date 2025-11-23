@@ -75,7 +75,8 @@ export default function AdminTopbar({
         { label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics },
         { label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig },
         {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small" />, onClick: onManagementPageOpen },
-        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen }
+        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen },
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen}
     ]
 
     const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];

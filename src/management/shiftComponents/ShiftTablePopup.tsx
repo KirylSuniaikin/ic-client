@@ -39,7 +39,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
     const [error, setError] = useState<string | null>(null);
 
     function TimeEditCell(props: TimeEditCellProps) {
-
         const { id, field, value, api, hasFocus } = props;
         const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -97,7 +96,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             }
             d = d.add(1, "day");
         }
-
         return rows;
     }
 
@@ -117,6 +115,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
 
         if (!open) return;
         if (!branch) return;
+
         (async () => {
             try {
                 setError(null);
@@ -128,6 +127,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                         setRows(initialRows);
                         setTitle(
                             `${dayjs(reportDate).format("MMM-YY")}-BH-${branch.branchName}`
+
                                 .toLowerCase()
                         );
                     }
