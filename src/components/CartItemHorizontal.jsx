@@ -19,6 +19,8 @@ function CartItemHorizontal({
                                 onChangeSize,
                                 onRemoveItem,
                                 openPizzaEditPopUp,
+                                openPizzaComboEditPopup,
+                                openDetroitComboEditPopup,
                                 isAdmin,
                                 handleDiscountChange,
                                 menuData,
@@ -28,12 +30,10 @@ function CartItemHorizontal({
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
 
     function renderItemDetails(item) {
-        // 1. Если это комбо
         if (item.category === "Combo Deals" && Array.isArray(item.comboItems)) {
             return (
                 <Box sx={{ mt: 1, ml: 1 }}>
                     {item.comboItems.map((ci, idx) => {
-                        // собираем extras
                         const extras = [];
                         if (ci.isThinDough) extras.push("Thin Dough");
                         if (ci.isGarlicCrust) extras.push("Garlic Crust");
@@ -98,6 +98,37 @@ function CartItemHorizontal({
             {item.category === "Pizzas" && <IconButton
                 onClick={() => {
                     openPizzaEditPopUp(item)
+                }}
+
+                sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 36,
+                    color: "#555",
+                }}
+            >
+                <Edit/>
+            </IconButton>
+            }
+            {item.category === "Combo Deals" && item.name === "Pizza Combo" && <IconButton
+                onClick={() => {
+                    openPizzaComboEditPopup(item)
+                }}
+
+                sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 36,
+                    color: "#555",
+                }}
+            >
+                <Edit/>
+            </IconButton>
+            }
+
+            {item.category === "Combo Deals" && item.name === "Detroit Combo" && <IconButton
+                onClick={() => {
+                    openDetroitComboEditPopup(item)
                 }}
 
                 sx={{

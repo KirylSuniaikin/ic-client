@@ -4,38 +4,67 @@ import {
     Typography,
     Button,
 } from "@mui/material";
-import React, { useState } from "react";
+import React, {useState} from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
 
 const brandRed = "#E44B4C";
 
 export function DetroitComboPopup({
-                                    open,
-                                    onClose,
-                                    combo,
-                                    bricks,
-                                    drinks,
-                                    sauces,
-                                    onAddToCart,
-                                    selectedDetroitPizza,
-                                }) {
+                                      open,
+                                      onClose,
+                                      combo,
+                                      bricks,
+                                      drinks,
+                                      sauces,
+                                      onAddToCart,
+                                      selectedDetroitPizza,
+                                      editItem,
+                                      isEditMode,
+                                      removeFromCart,
+                                  }) {
     const [brick, setBrick] = useState(() => {
-        const found = bricks
-            .flatMap(b => b.items)
-            .find(i => i.name === selectedDetroitPizza?.name);
+        if (isEditMode === false) {
+            const found = bricks
+                .flatMap(b => b.items)
+                .find(i => i.name === selectedDetroitPizza?.name);
 
-        return { item: found || bricks[0].items[0] };
+            return {item: found || bricks[0].items[0]};
+        } else {
+            const found = bricks
+                .flatMap(b => b.items)
+                .find(i => i.name === editItem.comboItems[0].name);
+
+            return {item: found || bricks[0].items[0]};
+        }
+
     });
 
-    const [drink, setDrink] = useState({
-        item: drinks[0].items[0],
+    const [drink, setDrink] = useState(() => {
+        if (isEditMode === false) {
+            return {item: drinks[0].items[0]}
+        } else {
+            const foundDrink = drinks
+                .flatMap(list => list.items)
+                .find(i => i.name === editItem.comboItems[1].name);
+
+            return {item: foundDrink || drinks[0].items[0]}
+        }
     });
 
-    const [sauce, setSauce] = useState({
-        item: sauces[0].items[0],
+    const [sauce, setSauce] = useState(() => {
+        if (isEditMode === false) {
+            return {item: sauces[0].items[0]}
+        } else {
+            const foundSauce = sauces
+                .flatMap(list => list.items)
+                .find(i => i.name === editItem.comboItems[2].name);
+
+            return {item: foundSauce || sauces[0].items[0]}
+        }
     });
 
+    const [initialEditorItem ,setInitialEditorItem] = useState(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editorItems, setEditorItems] = useState([]);
     const [editorTarget, setEditorTarget] = useState(null);
@@ -44,9 +73,10 @@ export function DetroitComboPopup({
     const comboGroup = combo.items?.[0] || combo[0] || {};
     const basePrice = comboGroup?.price || 0;
 
-    function openEditor(target, items) {
+    function openEditor(target, items, currentItem) {
         setEditorTarget(target);
         setEditorItems(items);
+        setInitialEditorItem(currentItem);
         setEditorOpen(true);
     }
 
@@ -97,6 +127,7 @@ export function DetroitComboPopup({
         };
         console.log(orderItem);
 
+        removeFromCart(orderItem.name, orderItem.amount, orderItem.quantity);
         onAddToCart?.(orderItem);
         onClose?.();
     }
@@ -121,14 +152,13 @@ export function DetroitComboPopup({
                         flexDirection: "column",
                     }}
                 >
-                    {/* Header with photo + title + description */}
                     <Box sx={{
                         flex: 1,
                         overflowY: "auto",
                         p: 2,
-                        "&::-webkit-scrollbar": { display: "none" },
+                        "&::-webkit-scrollbar": {display: "none"},
                     }}>
-                        <Box sx={{ textAlign: "center", mb: 2 }}>
+                        <Box sx={{textAlign: "center", mb: 2}}>
                             {comboGroup?.photo && (
                                 <Box
                                     component="img"
@@ -137,8 +167,8 @@ export function DetroitComboPopup({
                                     sx={{
                                         width: "100%",
                                         height: "auto",
-                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
-                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
+                                        maxWidth: {xs: 320, sm: 800, md: 900, lg: 1000},
+                                        maxHeight: {xs: 320, sm: 600, md: 400, lg: 480},
                                         objectFit: "contain",
                                         display: "block",
                                         mx: "auto",
@@ -149,7 +179,7 @@ export function DetroitComboPopup({
                             <Typography
                                 variant="h6"
                                 fontWeight="bold"
-                                sx={{ fontSize: "18px", mb: 0.5 }}
+                                sx={{fontSize: "18px", mb: 0.5}}
                             >
                                 {comboGroup?.name}
                             </Typography>
@@ -161,17 +191,17 @@ export function DetroitComboPopup({
                         <ItemCard
                             item={brick.item}
                             onChange={() => {
-                                openEditor("brick", bricks.flatMap((b) => b.items)
+                                openEditor("brick", bricks.flatMap((b) => b.items), brick.item
                                 );
                             }}
                         />
                         <ItemCard
                             item={drink.item}
-                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items))}
+                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
                         />
                         <ItemCard
                             item={sauce.item}
-                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items))}
+                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
                         />
                     </Box>
 
@@ -194,7 +224,7 @@ export function DetroitComboPopup({
                                 fontSize: "20px",
                                 borderRadius: 8,
                                 flex: 1,
-                                minHeight:60,
+                                minHeight: 60,
                                 height: "100%",
                                 "&:hover": {
                                     backgroundColor: "#d23f40"
@@ -214,6 +244,7 @@ export function DetroitComboPopup({
                     items={editorItems}
                     onSave={handleEditorSave}
                     target={editorTarget}
+                    initialItem={initialEditorItem}
                 />
             )}
         </>

@@ -15,6 +15,8 @@ function CartPopup({
                        onRemoveItem,
                        onCheckout,
                        openPizzaEditPopUp,
+                       openPizzaComboEditPopup,
+                       openDetroitComboEditPopup,
                        isAdmin,
                        handleDiscountChange,
                         menuData
@@ -129,6 +131,8 @@ function CartPopup({
                             onChangeSize={onChangeSize}
                             onRemoveItem={onRemoveItem}
                             openPizzaEditPopUp={openPizzaEditPopUp}
+                            openPizzaComboEditPopup={openPizzaComboEditPopup}
+                            openDetroitComboEditPopup={openDetroitComboEditPopup}
                             isAdmin={isAdmin}
                             handleDiscountChange={handleDiscountChange}
                             menuData={menuData}
