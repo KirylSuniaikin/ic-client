@@ -121,11 +121,17 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                     fullWidth
                     variant="contained"
                     sx={{
-                        mt: 1,
                         backgroundColor: brandRed,
                         color: "#fff",
-                        borderRadius: "9999px",
-                        fontWeight: 600,
+                        textTransform: "none",
+                        fontSize: "20px",
+                        borderRadius: 8,
+                        flex: 1,
+                        minHeight: 60,
+                        height: "100%",
+                        "&:hover": {
+                        backgroundColor: "#d23f40"
+                    }
                     }}
                     onClick={handleConfirm}
                 >
