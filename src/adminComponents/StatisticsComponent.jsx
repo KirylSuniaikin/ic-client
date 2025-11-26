@@ -77,8 +77,6 @@ export default function StatisticsComponent({onClose}) {
                 doughUsage: response.doughUsageTOS
             })
 
-            console.log(response.doughUsageTOS)
-
             setRangeStats({
                 totalPickUpRevenue: response.pick_up_total_revenue,
                 totalPickUpOrders: response.pick_up_total_order_count,
@@ -86,12 +84,13 @@ export default function StatisticsComponent({onClose}) {
                 oldCustomers: response.old_customer_ordered_count,
                 totalJahezRevenue: response.jahez_total_revenue,
                 totalJahezOrders: response.jahez_total_order_count,
+                totalTalabatOrders: response.totalTalabatOrders,
+                totalTalabatRevenue: response.totalTalabatRevenue
             });
 
             setSellStats({
                 sellStats: response.sellsByHour,
             })
-            console.log(response.sellsByHour);
 
             setDoughUsage({
                 doughUsage: response.doughUsageTOS
@@ -350,6 +349,30 @@ export default function StatisticsComponent({onClose}) {
                                                                     color="text.secondary">Orders</Typography>
                                                         <Typography variant="h5" fontWeight="bold">
                                                             {rangeStats.totalJahezOrders}
+                                                        </Typography>
+                                                    </Box>
+                                                </Grid>
+                                            </Grid>
+                                            <Box sx={{my: 2, borderBottom: "1px solid #e0e0e0"}}/>
+                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
+                                                Talabat
+                                            </Typography>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={6}>
+                                                    <Box textAlign="center">
+                                                        <Typography variant="body2"
+                                                                    color="text.secondary">Revenue</Typography>
+                                                        <Typography variant="h5" fontWeight="bold">
+                                                            {rangeStats.totalTalabatRevenue} BD
+                                                        </Typography>
+                                                    </Box>
+                                                </Grid>
+                                                <Grid item xs={6}>
+                                                    <Box textAlign="center">
+                                                        <Typography variant="body2"
+                                                                    color="text.secondary">Orders</Typography>
+                                                        <Typography variant="h5" fontWeight="bold">
+                                                            {rangeStats.totalTalabatOrders}
                                                         </Typography>
                                                     </Box>
                                                 </Grid>

@@ -175,7 +175,7 @@ function HomePage({userParam}) {
         }
 
         window.fbq('init', FB_PIXEL_ID);
-        window.fbq('track', 'HomePage');
+        window.fbq('track', 'PageView');
 
         if (!window.ttq) {
             (function (w, d, t) {
@@ -468,6 +468,7 @@ function HomePage({userParam}) {
             ...prev,
             ...(Array.isArray(items) ? items : [items])
         ]);
+        console.log(items);
 
         handleClosePizzaPopup();
         handleCloseComboPopup();
@@ -477,6 +478,13 @@ function HomePage({userParam}) {
                 content_type: 'product',
                 value: items[0].price,
                 currency: 'BHD'
+            });
+            window.fbq('track', 'AddToCart', {
+                content_ids: [items[0].id ?? items[0].name],
+                content_name: items[0].name,
+                content_type: 'product',
+                value: items[0].price,
+                currency: 'BHD',
             });
         }
 
@@ -691,6 +699,17 @@ function HomePage({userParam}) {
                     });
                     window.ttq.identify({
                         phone_number: "+" + tel
+                    });
+                    window.fbq('track', 'Purchase', {
+                        value: order.amount_paid,
+                        currency: 'BHD',
+                        contents: order.items.map((item) => ({
+                            id: item.id ?? item.name,
+                            quantity: item.quantity,
+                            item_price: item.amount,
+                        })),
+                        content_type: 'product',
+                        order_id: order.id,
                     });
                 }
                 console.log("Order placed successfully:", response);
