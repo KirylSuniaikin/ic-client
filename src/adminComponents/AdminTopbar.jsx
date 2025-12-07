@@ -106,14 +106,14 @@ export default function AdminTopbar({
                 display: "flex",
                 justifyContent: "flex-end",
                 alignItems: "center",
-                backgroundColor: "#fff",
+                backgroundColor: "#fbfaf6",
                 gap: 1,
                 px: 1,
                 py: 1,
                 borderBottom: "1px solid #ddd",
                 position: "sticky",
                 top: 0,
-                zIndex: 10,
+                zIndex: 10
             }}
         >
             <Box sx={{ flexGrow: 1 }} />

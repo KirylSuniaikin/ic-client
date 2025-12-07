@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
-import { fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
+import {fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
 import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
@@ -14,16 +14,17 @@ type Props = {
     branchNo: number;
 };
 
-export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
+export function PurchasePopup({open, onClose, adminId, branchNo}: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>();
     const [branch, setBranch] = useState<IBranch>();
-    const [purchasePopup, setPurchasePopup] = useState<{open: boolean;
+    const [purchasePopup, setPurchasePopup] = useState<{
+        open: boolean;
         mode: "new" | "edit";
         purchaseId?: number;
-    }>({ open: false, mode: "new" });
+    }>({open: false, mode: "new"});
 
     function upsertReport(list: BasePurchaseResponse[], next: BasePurchaseResponse): BasePurchaseResponse[] {
         const idx = list.findIndex(r => r.id === next.id);
@@ -49,17 +50,17 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
                     setAdmin(userResponse);
                     setBranch(branchResponse);
                 }
-            }
-            catch (e: unknown) {
+            } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Failed to load";
                 if (alive) setError(msg);
                 console.error(msg);
-            }
-            finally {
+            } finally {
                 if (alive) setLoading(false);
             }
         })();
-        return () => {alive = false;};
+        return () => {
+            alive = false;
+        };
     }, [adminId, branchNo])
 
     function handleCreatePurchaseClick() {
@@ -67,7 +68,7 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     }
 
     function handleEditClick(purchaseId: number) {
-        setPurchasePopup({ open: true, mode: "edit", purchaseId });
+        setPurchasePopup({open: true, mode: "edit", purchaseId});
     }
 
     function handleCloseClick() {
@@ -76,8 +77,8 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
 
     if (loading) {
         return (
-            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
-                <CircularProgress />
+            <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress/>
             </Box>
         );
     }
@@ -85,61 +86,66 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
     return (
         <>
             {error && (
-                <Box sx={{ p: 2 }}>
+                <Box sx={{p: 2}}>
                     <Alert severity="error">{error}</Alert>
                 </Box>
             )}
-        <Dialog fullScreen
+            <Dialog
+                fullScreen
                 open={open}
                 onClose={onClose}
-                sx={{
-            backgroundColor: "#fbfaf6",
-            }}>
-            <PurchaseTopBar
-                onClose={onClose}
-                onNewClick={handleCreatePurchaseClick}
-            ></PurchaseTopBar>
+                PaperProps={{
+                    sx: {
+                        backgroundColor: "#fbfaf6",
+                    }
+                }}>
+                <PurchaseTopBar
+                    onClose={onClose}
+                    onNewClick={handleCreatePurchaseClick}
+                ></PurchaseTopBar>
 
-            <Container
-                maxWidth="sm"
-                sx={{
-                    pt: `${64 + 12}px`,
-                    pb: 3,
-                }}
-            >
-                {purchaseReports.length === 0 ? (
-                    <Box
-                        sx={{
-                            mt: 2,
-                            p: 3,
-                            border: "1px dashed",
-                            borderColor: "divider",
-                            borderRadius: 2,
-                            textAlign: "center",
-                        }}
-                    >
-                        <Typography color="text.secondary">No purchase reports yet</Typography>
-                    </Box>
-                ) : (
-                    <Stack gap={1.5} sx={{ pb: 2 }}>
-                        {purchaseReports.map((r) => (
-                            <Box key={r.id}>
-                                <PurchaseCard
-                                    report={r}
-                                    onEditClick={() => {handleEditClick(r.id)}}
-                                />
-                            </Box>
-                        ))}
-                    </Stack>
-                )}
-            </Container>
-        </Dialog>
+                <Container
+                    maxWidth="sm"
+                    sx={{
+                        pt: `${64 + 12}px`,
+                        pb: 3,
+                    }}
+                >
+                    {purchaseReports.length === 0 ? (
+                        <Box
+                            sx={{
+                                mt: 2,
+                                p: 3,
+                                border: "1px dashed",
+                                borderColor: "divider",
+                                borderRadius: 2,
+                                textAlign: "center",
+                            }}
+                        >
+                            <Typography color="text.secondary">No purchase reports yet</Typography>
+                        </Box>
+                    ) : (
+                        <Stack gap={1.5} sx={{pb: 2}}>
+                            {purchaseReports.map((r) => (
+                                <Box key={r.id}>
+                                    <PurchaseCard
+                                        report={r}
+                                        onEditClick={() => {
+                                            handleEditClick(r.id)
+                                        }}
+                                    />
+                                </Box>
+                            ))}
+                        </Stack>
+                    )}
+                </Container>
+            </Dialog>
             {purchasePopup.open && (
                 <PurchaseTablePopup
                     open={purchasePopup.open}
                     mode={purchasePopup.mode}
                     purchaseId={purchasePopup?.purchaseId}
-                    userId={admin? admin.id:adminId}
+                    userId={admin ? admin.id : adminId}
                     branch={branch}
                     onClose={handleCloseClick}
                     onSaved={(report) => {
@@ -149,7 +155,7 @@ export function PurchasePopup({ open, onClose, adminId, branchNo }: Props) {
             )}
 
             {loading && (
-                <Box sx={{ position: 'fixed', top: 64, right: 16, zIndex: 1500 }}>
+                <Box sx={{position: 'fixed', top: 64, right: 16, zIndex: 1500}}>
                     <CircularProgress size={24}/>
                 </Box>
             )}

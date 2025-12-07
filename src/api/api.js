@@ -1,4 +1,3 @@
-
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
@@ -58,7 +57,7 @@ export async function updateAvailability(changes) {
             "Content-Type": "application/json",
             // "ngrok-skip-browser-warning": "69420"
         },
-        body: JSON.stringify({ changes })
+        body: JSON.stringify({changes})
     });
 
     if (!response.ok) {
@@ -165,7 +164,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
     return await response.json();
 }
 
-export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}){
+export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}) {
     try {
         const response = await fetch(URL + "/branch/send_shift_event", {
 
@@ -186,12 +185,11 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
         const data = await response.json();
 
         if (!response.ok) {
-            return { error: true, ...data };
+            return {error: true, ...data};
         }
         console.log(data);
         return data;
-    }
-    catch (error) {
+    } catch (error) {
         console.error("Failed to sendShiftEvent", error);
     }
 
@@ -226,7 +224,7 @@ export async function deleteOrder(orderId) {
     }
 }
 
-export async function sendOrderPayment({orderId, amount, type, branchId}){
+export async function sendOrderPayment({orderId, amount, type, branchId}) {
     try {
         const response = await fetch(URL + "/order_payment", {
 
@@ -245,19 +243,18 @@ export async function sendOrderPayment({orderId, amount, type, branchId}){
         const data = await response.json();
 
         if (!response.ok) {
-            return { error: true, ...data };
+            return {error: true, ...data};
         }
         console.log(data);
         return data;
-    }
-    catch (error) {
+    } catch (error) {
         console.error("Failed to sendOrderPayment", error);
     }
 
 }
 
 export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, reason}) {
-    try{
+    try {
         console.log(jahezOrderId);
         const response = await fetch(URL + "/status_update", {
             method: "POST",
@@ -278,16 +275,16 @@ export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, rea
         try {
             const t = await response.text();
             if (t) detail = ` – ${t}`;
-        } catch {}
+        } catch {
+        }
         throw new Error(`HTTP ${response.status}${detail}`);
-    }
-    catch (error) {
+    } catch (error) {
         console.error("Failed to update status", error);
     }
 }
 
 export async function getOrderStatus(orderId) {
-    try{
+    try {
         const response = await fetch(URL + "/order_status?order_id=" + orderId, {
             method: "GET",
             headers: {
@@ -296,12 +293,12 @@ export async function getOrderStatus(orderId) {
         })
         if (!response.ok) {
             const data = await response.json();
-            return { error: true, message: data.message || "Order not found" };
+            return {error: true, message: data.message || "Order not found"};
         }
         return await response.json();
     } catch (error) {
         console.error("Failed to get order", error);
-        return { error: true, message: "Connection error" };
+        return {error: true, message: "Connection error"};
     }
 }
 
@@ -322,7 +319,7 @@ export async function getOrderStatus(orderId) {
 // }
 
 export async function updateWorkload({branchNumber, newLevel}) {
-    try{
+    try {
         console.log(newLevel + branchNumber);
         await fetch(URL + "/branch/update_workload_level", {
             method: "PUT",
@@ -335,12 +332,12 @@ export async function updateWorkload({branchNumber, newLevel}) {
             })
         })
 
-    } catch (e){
+    } catch (e) {
         console.error("Failed to update workload", e);
     }
 }
 
-export async function getBaseAdminInfo(branchNumber){
+export async function getBaseAdminInfo(branchNumber) {
     try {
         const response = await fetch(URL + "/branch/get_admin_base_info?branchNumber=" + branchNumber, {
             method: "GET",
@@ -350,8 +347,22 @@ export async function getBaseAdminInfo(branchNumber){
         })
 
         return await response.json();
-    }
-    catch(error) {
+    } catch (error) {
         console.error("Failed to get base admin info", error);
+    }
+}
+
+export async function checkCustomer(telephoneNumber) {
+    try {
+        const response = await fetch(URL + "/check_customer?tel=" + telephoneNumber, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+
+        return await response.json();
+    } catch (error) {
+        console.error("Failed to check customer", error);
     }
 }

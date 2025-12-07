@@ -24,12 +24,13 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [inventoryPopup, setInventoryPopup] = useState<
-        {open: boolean;
-        mode: "new" | "edit";
-        reportId?: number;
-    }>
-    ({ open: false, mode: "new" });
-    const[admin, setAdmin] = useState<IUser>();
+        {
+            open: boolean;
+            mode: "new" | "edit";
+            reportId?: number;
+        }>
+    ({open: false, mode: "new"});
+    const [admin, setAdmin] = useState<IUser>();
 
     function handleCreateReportClick() {
         setInventoryPopup({open: true, mode: "new"});
@@ -37,11 +38,11 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
 
 
     function handleEditClick(reportId: number) {
-        setInventoryPopup({ open: true, mode: "edit", reportId });
+        setInventoryPopup({open: true, mode: "edit", reportId});
     }
 
     function handleCloseInventoryPopup() {
-        setInventoryPopup(prev => ({ ...prev, open: false }));
+        setInventoryPopup(prev => ({...prev, open: false}));
     }
 
     function upsertReport(list: IManagementResponse[], next: IManagementResponse): IManagementResponse[] {
@@ -57,7 +58,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
         (async () => {
             setLoading(true);
             setError(null);
-            try{
+            try {
                 const [baseManagementResponse, branchResponse, userResponse] = await Promise.all([
                     getBaseManagementReports(branchNo),
                     getBranchInfo(branchNo),
@@ -69,23 +70,23 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
                     console.log(branchResponse);
                     setAdmin(userResponse);
                 }
-            }
-            catch(e: any) {
+            } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
                 console.error(error);
-            }
-            finally {
+            } finally {
                 if (alive) setLoading(false);
             }
         })();
-        return () => {alive = false;};
+        return () => {
+            alive = false;
+        };
     }, [branchNo, userId]);
 
 
     if (loading) {
         return (
-            <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
-                <CircularProgress />
+            <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
+                <CircularProgress/>
             </Box>
         );
     }
@@ -95,40 +96,42 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             <Dialog fullScreen
                     open={isOpen}
                     onClose={onClose}
-                    sx={{
-                    backgroundColor: "#fbfaf6",
-                }}>
-            <ManagementTopBar
-                title={<>Inventory</>}
-                newButtonLabel="New"
-                onClose={onClose}
-                onNewClick={handleCreateReportClick}
-            />
-        <Container maxWidth="lg" sx={{ py: 3, backgroundColor: "#fbfaf6" }}>
+                    PaperProps={{
+                        sx: {
+                            backgroundColor: "#fbfaf6",
+                        }
+                    }}>
+                <ManagementTopBar
+                    title={<>Inventory</>}
+                    newButtonLabel="New"
+                    onClose={onClose}
+                    onNewClick={handleCreateReportClick}
+                />
+                <Container maxWidth="lg" sx={{py: 3, backgroundColor: "#fbfaf6"}}>
 
-            {reports.length === 0 ? (
-                <Box
-                      sx={{
-                            p: 3,
-                            border: "1px dashed",
-                            borderColor: "divider",
-                             borderRadius: 2,
-                        textAlign: "center",
-                     }}
-                 >
-                    <Typography color="text.secondary">There are no reports</Typography>
-                  </Box>
-             ) : (
-                 <Stack gap={2}>
-                     {reports.map((r) => (
-                         <Box key={r.id}>
-                             <ReportCard
-                                  report={r}
-                                 onEditClick={() => handleEditClick(r.id)}
-                               />
-                         </Box>
-                        ))}
-                    </Stack>
+                    {reports.length === 0 ? (
+                        <Box
+                            sx={{
+                                p: 3,
+                                border: "1px dashed",
+                                borderColor: "divider",
+                                borderRadius: 2,
+                                textAlign: "center",
+                            }}
+                        >
+                            <Typography color="text.secondary">There are no reports</Typography>
+                        </Box>
+                    ) : (
+                        <Stack gap={2}>
+                            {reports.map((r) => (
+                                <Box key={r.id}>
+                                    <ReportCard
+                                        report={r}
+                                        onEditClick={() => handleEditClick(r.id)}
+                                    />
+                                </Box>
+                            ))}
+                        </Stack>
                     )}
                 </Container>
             </Dialog>

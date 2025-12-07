@@ -8,7 +8,7 @@ import {
     Card,
     Popover,
     ToggleButton,
-    ToggleButtonGroup, CircularProgress
+    ToggleButtonGroup, CircularProgress, Divider
 } from '@mui/material';
 import {DateRange} from 'react-date-range';
 import {endOfDay, startOfDay} from 'date-fns';
@@ -22,6 +22,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import {ConsumptionStatistics} from "../management/consumptionComponents/ConsumptionStatistics";
 import {DoughUsageTable} from "./DoughUsageTable";
 import {RevenueByHourTable} from "./RevenueByHourTable";
+import {TopProductsTable} from "./TopProductsTable";
 
 export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
@@ -85,7 +86,8 @@ export default function StatisticsComponent({onClose}) {
                 totalJahezRevenue: response.jahez_total_revenue,
                 totalJahezOrders: response.jahez_total_order_count,
                 totalTalabatOrders: response.totalTalabatOrders,
-                totalTalabatRevenue: response.totalTalabatRevenue
+                totalTalabatRevenue: response.totalTalabatRevenue,
+                topProducts: response.topProducts
             });
 
             setSellStats({
@@ -142,40 +144,6 @@ export default function StatisticsComponent({onClose}) {
                 />
             </Box>
 
-            <Box sx={{px: 1, pt: 1, backgroundColor: "#fbfaf6"}}>
-                <ToggleButtonGroup
-                    exclusive
-                    value={mode}
-                    onChange={(_, v) => v && setMode(v)}
-                    size="small"
-                    sx={{
-                        '& .MuiToggleButton-root': {
-                            textTransform: 'none',
-                            px: 2,
-                            border: '1px solid #e0e0e0',
-                        },
-                        '& .MuiToggleButtonGroup-grouped': {
-                            borderRadius: '999px !important',
-                            margin: 0,
-                            border: '1px solid #e0e0e0',
-                        },
-                        '& .MuiToggleButtonGroup-grouped:not(:first-of-type)': {
-                            marginLeft: 1,
-                            borderLeft: '1px solid #e0e0e0',
-                        },
-                        '& .Mui-selected': {
-                            backgroundColor: '#E44B4C',
-                            color: '#fff',
-                            borderColor: '#E44B4C',
-                            '&:hover': {backgroundColor: '#d23c3d', borderColor: '#d23c3d'},
-                        },
-                    }}
-                >
-                    <ToggleButton value="Performance">Performance</ToggleButton>
-                    <ToggleButton value="Consumption">Consumption</ToggleButton>
-                </ToggleButtonGroup>
-            </Box>
-
             <Box sx={{
                 p: 1,
                 height: "100vh",
@@ -184,63 +152,41 @@ export default function StatisticsComponent({onClose}) {
                 "&::-webkit-scrollbar": {display: "none"},
                 backgroundColor: "#fbfaf6"
             }}>
+                <Box sx={{px: 1, pt: 1, backgroundColor: "#fbfaf6"}}>
+                    <ToggleButtonGroup
+                        exclusive
+                        value={mode}
+                        onChange={(_, v) => v && setMode(v)}
+                        size="small"
+                        sx={{
+                            columnGap: 1,
+                            '& .MuiToggleButtonGroup-grouped': {
+                                border: '1px solid #e0e0e0',
+                                borderRadius: 999,
+                                margin: 0,
+                                '&:not(:first-of-type)': {
+                                    marginLeft: 0,
+                                    borderLeft: '1px solid #e0e0e0',
+                                },
+                            },
+                            '& .MuiToggleButton-root': {
+                                textTransform: 'none',
+                                px: 2,
+                            },
+                            '& .MuiToggleButton-root.Mui-selected': {
+                                backgroundColor: '#E44B4C',
+                                color: '#fff',
+                                borderColor: '#E44B4C',
+                                '&:hover': {backgroundColor: '#d23c3d', borderColor: '#d23c3d'},
+                            },
+                        }}
+                    >
+                        <ToggleButton value="Performance">Performance</ToggleButton>
+                        <ToggleButton value="Consumption">Consumption</ToggleButton>
+                    </ToggleButtonGroup>
+                </Box>
                 {mode === "Performance" ? (<>
-
-                            <DoughUsageTable
-                                rows={doughUsage.doughUsage}
-                            />
-                            <RevenueByHourTable rawData={sellStats.sellStats}/>
-                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
-                                    {globalStats && (
-                                        <Grid container spacing={4}>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        ARPU
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.arpu.toFixed(2)} BD
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        AOV (All Time)
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.aov.toFixed(2)} BD
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Unique Customers
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.uniqueClients}
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Repeat Customers
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.repeatClients}
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        </Grid>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 600, mb: 2}}>
+                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 600, mb: 2, mt: 1}}>
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom>📆 Stats by Date Range</Typography>
 
@@ -377,6 +323,23 @@ export default function StatisticsComponent({onClose}) {
                                                     </Box>
                                                 </Grid>
                                             </Grid>
+
+                                            <Box sx={{my: 3, borderBottom: "1px solid #e0e0e0"}}/>
+
+                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
+                                                Top 5 Products
+                                            </Typography>
+
+                                            <TopProductsTable topProducts={rangeStats.topProducts}/>
+
+                                            <Box sx={{my: 3, borderBottom: "1px solid #e0e0e0"}}/>
+
+                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
+                                                Revenue By Hour
+                                            </Typography>
+
+                                            <RevenueByHourTable rawData={sellStats.sellStats}/>
+
                                         </>
                                     )}
                                 </CardContent>
@@ -447,9 +410,69 @@ export default function StatisticsComponent({onClose}) {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
+                                <CardContent>
+                                    <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
+                                    {globalStats && (
+                                        <Grid container spacing={4}>
+                                            <Grid item xs={6}>
+                                                <Box textAlign="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        ARPU
+                                                    </Typography>
+                                                    <Typography variant="h5" fontWeight="bold">
+                                                        {globalStats.arpu.toFixed(2)} BD
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box textAlign="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        AOV (All Time)
+                                                    </Typography>
+                                                    <Typography variant="h5" fontWeight="bold">
+                                                        {globalStats.aov.toFixed(2)} BD
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box textAlign="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        Unique Customers
+                                                    </Typography>
+                                                    <Typography variant="h5" fontWeight="bold">
+                                                        {globalStats.uniqueClients}
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={6}>
+                                                <Box textAlign="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        Repeat Customers
+                                                    </Typography>
+                                                    <Typography variant="h5" fontWeight="bold">
+                                                        {globalStats.repeatClients}
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                        </Grid>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </>
                     ) :
-                    <ConsumptionStatistics/>}
+                    <>
+                        <Box sx={{mt: 1}}>
+                            <ConsumptionStatistics/>
+
+                            <Box sx={{mt: 1}}></Box>
+                            <DoughUsageTable
+                                rows={doughUsage.doughUsage}
+                            />
+                        </Box>
+                    </>
+                }
             </Box>
         </>
     );

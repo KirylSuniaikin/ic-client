@@ -12,7 +12,7 @@ export function BackTopBar({title, onClose}: BackTopBarProps) {
         elevation={0}
         color="inherit"
         position="sticky"
-        sx={{ borderBottom: 1, borderColor: "divider" }}
+        sx={{ borderBottom: 1, borderColor: "divider", backgroundColor: "#fbfaf6" }}
     >
         <Toolbar sx={{ gap: 1 }}>
             <IconButton edge="start" onClick={onClose} aria-label="close" size="small">

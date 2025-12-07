@@ -1,5 +1,5 @@
 import React, {useMemo} from "react";
-import {Box} from "@mui/material";
+import {Box, Typography} from "@mui/material";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {
     GRAMS_BY_TYPE,
@@ -97,7 +97,12 @@ export function DoughUsageTable({rows}: Props) {
     ], [dateKeys, totalsByDate]);
 
     return (
-        <Box sx={{ borderRadius: 3, width: '100%', boxShadow: 3}}>
+        <Box sx={{ borderRadius: 3, width: '100%', boxShadow: 3, bgcolor: 'background.paper' }}>
+            <Box sx={{ p: 2 }}>
+                <Typography variant="h6" component="div">
+                    Dough Usage
+                </Typography>
+            </Box>
             <DataGrid
                 rows={dataWithTotal}
                 getRowId={(r) => r.doughType}

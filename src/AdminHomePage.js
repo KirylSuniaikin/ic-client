@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
 import {
     Alert,
@@ -61,7 +61,7 @@ function AdminHomePage() {
     const [managementPageOpen, setManagementPageOpen] = useState(false);
     const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
-    const [shiftManagementPageOpen ,setShiftManagementPageOpen] = useState(false);
+    const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
 
 
     const audioRef = useRef(null);
@@ -74,7 +74,7 @@ function AdminHomePage() {
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     }), [])
 
-    const EVENT_STAGE_FLOW = useMemo(()=> ({
+    const EVENT_STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "OPEN_SHIFT_EVENT"
     }), [])
@@ -87,12 +87,13 @@ function AdminHomePage() {
     const handleRemoveItem = (orderIdToRemove) => {
         setOrders(prev => {
             return prev.filter(o => o.id !== orderIdToRemove);
-        });    }
+        });
+    }
 
     const handleMarkInOven = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? { ...o, status: "Oven" } : o
+                o.id === orderId ? {...o, status: "Oven"} : o
             )
         );
     }
@@ -130,7 +131,7 @@ function AdminHomePage() {
     const handleMarkReady = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? { ...o, status: "Ready" } : o
+                o.id === orderId ? {...o, status: "Ready"} : o
             )
         );
     };
@@ -166,7 +167,7 @@ function AdminHomePage() {
         }
         setConfirmingAccept(true);
         try {
-            await updateOrderStatus({ orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted" });
+            await updateOrderStatus({orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted"});
             setActiveAlertOrder(null);
         } catch (e) {
             setError(e)
@@ -180,7 +181,12 @@ function AdminHomePage() {
         if (!cancelReason || !cancelReason.trim()) console.log("[Cancel] no cancel reason");
         setConfirmingCancel(true);
         try {
-            await updateOrderStatus({orderId: normalizeId(order.id), jahezOrderId: getExtId(order), orderStatus: "Cancelled", reason: cancelReason.trim()});
+            await updateOrderStatus({
+                orderId: normalizeId(order.id),
+                jahezOrderId: getExtId(order),
+                orderStatus: "Cancelled",
+                reason: cancelReason.trim()
+            });
             setCancelDialogOpen(false);
             setActiveAlertOrder(null);
             setOrders(prev => prev.filter(o => normalizeId(o.id) !== normalizeId(order.id)));
@@ -220,16 +226,24 @@ function AdminHomePage() {
 
     useEffect(() => {
         let lock;
+
         async function req() {
             try {
                 lock = await navigator.wakeLock?.request("screen");
                 document.addEventListener("visibilitychange", () => {
                     if (document.visibilityState === "visible") req();
-                }, { once: true });
-            } catch {}
+                }, {once: true});
+            } catch {
+            }
         }
+
         req();
-        return () => { try { lock?.release?.(); } catch {} };
+        return () => {
+            try {
+                lock?.release?.();
+            } catch {
+            }
+        };
     }, []);
 
     useEffect(() => {
@@ -237,13 +251,12 @@ function AdminHomePage() {
         const id = normalizeId(String(newlyUpdatedOrder.id));
         console.log(': ', id);
         const suppressed = suppressedSoundIdsRef.current.has(id);
-        if(suppressed) {
+        if (suppressed) {
             suppressedSoundIdsRef.current.delete(id);
             console.log(suppressedSoundIdsRef.current);
             localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
             console.log(`[EDITED_ORDERS] ID ${id} was removed from localStorage.`);
-        }
-        else {
+        } else {
             console.log(`[AUDIO] Playing sound for updated order ID: ${id}`);
             setActiveAlertOrderEdit(newlyUpdatedOrder);
             audioRef.current.currentTime = 0;
@@ -270,7 +283,8 @@ function AdminHomePage() {
                 console.log(response.orders);
 
                 if (stompRef.current?.active) {
-                    stompRef.current.deactivate().catch(() => {});
+                    stompRef.current.deactivate().catch(() => {
+                    });
                 }
 
                 stompRef.current = socket;
@@ -346,7 +360,7 @@ function AdminHomePage() {
                         setOrders(prev =>
                             prev.map(o =>
                                 getStringId(o) === paidOrderId
-                                    ? { ...o, isPaid: true }
+                                    ? {...o, isPaid: true}
                                     : o
                             )
                         );
@@ -390,26 +404,25 @@ function AdminHomePage() {
                         const orderId = getStringId(payload?.orderId ?? payload?.id);
                         const status = payload.status;
 
-                        if(status==="Picked Up"){
+                        if (status === "Picked Up") {
                             console.log("[ORDER_STATUS] Order is picked up with id: ", orderId);
                             setOrders(prev => prev.filter(o => getStringId(o) !== orderId));
-                        }
-                        else{
+                        } else {
                             console.log("[ORDER_STATUS] Updated order status ->", status);
                             setOrders(prev =>
-                                    prev.map(o =>
-                                        getStringId(o) === orderId
-                                            ? { ...o, status: status}
-                                            : o
-                                    )
-                                );
+                                prev.map(o =>
+                                    getStringId(o) === orderId
+                                        ? {...o, status: status}
+                                        : o
+                                )
+                            );
                         }
                     })
 
                     socket.subscribe("/topic/admin-base-info", (frame) => {
                         const payload = JSON.parse(frame.body);
                         console.log("[BASE ADMIN INFO CHANGED] ", payload);
-                        if(String(payload.branchNumber)===branchId){
+                        if (String(payload.branchNumber) === branchId) {
                             console.log("[WORKLOAD_CHANGE] true");
                             onWorkloadChange(payload.level);
                             const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
@@ -433,8 +446,7 @@ function AdminHomePage() {
                 if (!response) {
                     setEventStage("OPEN_SHIFT_EVENT");
                     setCashStage("OPEN_SHIFT_CASH_CHECK");
-                }
-                else {
+                } else {
                     const nextCashStage = CASH_STAGE_FLOW[response.cashStage];
                     const nextEventStage = EVENT_STAGE_FLOW[response.checklistStage];
                     console.log(nextCashStage, " ", nextEventStage);
@@ -447,13 +459,15 @@ function AdminHomePage() {
                 console.error("Ошибка загрузки stage:", err);
             }
         }
+
         fetchAdminBaseInfo(Number(branchId));
         initialize();
 
         return () => {
             const c = stompRef.current;
             stompRef.current = null;
-            c?.deactivate?.().catch(() => {});
+            c?.deactivate?.().catch(() => {
+            });
         };
     }, [CASH_STAGE_FLOW, EVENT_STAGE_FLOW]);
 
@@ -471,7 +485,7 @@ function AdminHomePage() {
     const handlePaymentSuccess = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? { ...o, isPaid: true } : o
+                o.id === orderId ? {...o, isPaid: true} : o
             )
         );
         console.log(orders);
@@ -503,9 +517,9 @@ function AdminHomePage() {
                             fontSize: "1rem",
                         }}
                     >
-                        Cash mismatch! <br />
+                        Cash mismatch! <br/>
                         <strong>Expected: </strong>
-                        <span style={{ color: "#E44B4C", fontWeight: 700 }}>
+                        <span style={{color: "#E44B4C", fontWeight: 700}}>
                                 {cashWarning.expected} BD
                         </span>
                     </Alert>
@@ -519,23 +533,23 @@ function AdminHomePage() {
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && !managementPageOpen && (
 
-                    <AdminTopbar
-                        onOpenHistory={() => setIsHistoryOpen(true)}
-                        onOpenStatistics={() => setIsStatisticsOpen(true)}
-                        onOpenConfig={() => setIsConfigOpen(true)}
-                        onGoToMenu={() => navigate('/menu?isAdmin=true')}
-                        branchNumber={branchId}
-                        workloadLevel={workloadLevel}
-                        onWorkloadChange={onWorkloadChange}
-                        adminId={adminId}
-                        onPurchaseOpen={() => setPurchasePopupOpen(true)}
-                        onManagementPageOpen={() => setManagementPageOpen(true)}
-                        cashStage={cashStage}
-                        onShiftManagementPageOpen={()=> setShiftManagementPageOpen(true)}
-                        shiftStage={eventStage}
-                        onShiftStageClick={() => setShiftPopupOpen(true)}
-                        onCashClick={() => setCashPopupOpen(true)}
-                    />
+                <AdminTopbar
+                    onOpenHistory={() => setIsHistoryOpen(true)}
+                    onOpenStatistics={() => setIsStatisticsOpen(true)}
+                    onOpenConfig={() => setIsConfigOpen(true)}
+                    onGoToMenu={() => navigate('/menu?isAdmin=true')}
+                    branchNumber={branchId}
+                    workloadLevel={workloadLevel}
+                    onWorkloadChange={onWorkloadChange}
+                    adminId={adminId}
+                    onPurchaseOpen={() => setPurchasePopupOpen(true)}
+                    onManagementPageOpen={() => setManagementPageOpen(true)}
+                    cashStage={cashStage}
+                    onShiftManagementPageOpen={() => setShiftManagementPageOpen(true)}
+                    shiftStage={eventStage}
+                    onShiftStageClick={() => setShiftPopupOpen(true)}
+                    onCashClick={() => setCashPopupOpen(true)}
+                />
             )}
             <ShiftPopup
                 isOpen={shiftPopupOpen}
@@ -555,28 +569,35 @@ function AdminHomePage() {
                 onCashWarning={setCashWarning}
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
-                <Box sx={{ pt: 1, pl: 1 }}>
-                <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
-                    {sortedOrders.map((order) => (
-                        <OrderCard key={order.id} order={order}
-                                   onReadyClick={(order) => {
-                                        handleMarkReady(order.id)
-                                    }}
+                <Box sx=
+                         {{
+                             pt: 1,
+                             pl: 1,
+                             backgroundColor: "#fbfaf6",
+                             minHeight: '100vh',
+                             width: '100%'
+                         }}>
+                    <Masonry columns={{xs: 1, sm: 2, md: 3, lg: 4}} spacing={1} sequential>
+                        {sortedOrders.map((order) => (
+                            <OrderCard key={order.id} order={order}
+                                       onReadyClick={(order) => {
+                                           handleMarkReady(order.id)
+                                       }}
 
-                                   onPayClick={(order) => {
-                                        setSelectedOrder(order);
-                                        setPaymentDialogOpen(true);
+                                       onPayClick={(order) => {
+                                           setSelectedOrder(order);
+                                           setPaymentDialogOpen(true);
 
-                                    }}
-                                   onPickedUpClick={(order) => {
-                                       handleRemoveItem(order.id)
-                                   }}
-                                   onOvenClick={(order) => {
-                                       handleMarkInOven(order.id)
-                                   }}
-                        />
-                    ))}
-                </Masonry>
+                                       }}
+                                       onPickedUpClick={(order) => {
+                                           handleRemoveItem(order.id)
+                                       }}
+                                       onOvenClick={(order) => {
+                                           handleMarkInOven(order.id)
+                                       }}
+                            />
+                        ))}
+                    </Masonry>
                 </Box>
             }
 
@@ -603,10 +624,10 @@ function AdminHomePage() {
 
             {purchasePopupOpen && (
                 <PurchasePopup
-                open={purchasePopupOpen}
-                onClose={() => setPurchasePopupOpen(false)}
-                adminId={adminId}
-                branchNo={Number(branchId)}
+                    open={purchasePopupOpen}
+                    onClose={() => setPurchasePopupOpen(false)}
+                    adminId={adminId}
+                    branchNo={Number(branchId)}
                 />
             )}
 
@@ -628,8 +649,8 @@ function AdminHomePage() {
 
             <Snackbar
                 open={Boolean(activeAlertOrder)}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{ zIndex: 1300 }}
+                anchorOrigin={{vertical: "top", horizontal: "center"}}
+                sx={{zIndex: 1300}}
             >
                 <Paper
                     elevation={3}
@@ -643,93 +664,106 @@ function AdminHomePage() {
                         maxWidth: 600,
                     }}
                 >
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            {getExtId(activeAlertOrder) ? 'Jahez Order' : 'New Order'}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
-                        </Typography>
+                    <Box sx={{display: "flex", flexDirection: "column", gap: 2}}>
+                        <Box sx={{flexGrow: 1}}>
+                            <Typography variant="subtitle1" sx={{fontWeight: 600}}>
+                                {getExtId(activeAlertOrder) ? 'Jahez Order' : 'New Order'}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
+                            </Typography>
 
-                        <Typography variant="body2">
-                            Total price: {activeAlertOrder?.amount_paid} BHD
-                        </Typography>
-                    </Box>
+                            <Typography variant="body2">
+                                Total price: {activeAlertOrder?.amount_paid} BHD
+                            </Typography>
+                        </Box>
 
-                    {getExtId(activeAlertOrder) ? (
-                        <>
-                            <Box>
-                                {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
-                                    <Box
-                                        key={idx}
-                                        sx={{ mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0" }}
+                        {getExtId(activeAlertOrder) ? (
+                            <>
+                                <Box>
+                                    {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
+                                        <Box
+                                            key={idx}
+                                            sx={{mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0"}}
+                                        >
+                                            <Typography variant="body2">
+                                                {item.quantity}x <strong>{item.name}</strong>
+                                                {item.size && (
+                                                    <Typography
+                                                        component="span"
+                                                        variant="body2"
+                                                        sx={{ml: 1, fontStyle: "italic"}}
+                                                    >
+                                                        ({item.size})
+                                                    </Typography>
+                                                )}
+                                            </Typography>
+                                            {renderItemDetails(item)}
+                                        </Box>
+                                    ))}
+                                </Box>
+                                <Box sx={{display: "flex", gap: 2, mt: 1}}>
+
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<CheckCircleIcon/>}
+                                        onClick={() => {
+                                            confirmExternalOrder(activeAlertOrder)
+                                            if (audioRef.current) {
+                                                audioRef.current.pause();
+                                                audioRef.current.currentTime = 0;
+                                            }
+                                        }}
+                                        disabled={confirmingAccept}
+                                        sx={{
+                                            borderRadius: 4,
+                                            textTransform: 'none',
+                                            flex: 1,
+                                            backgroundColor: colorRed,
+                                            color: "white",
+                                            borderColor: "white"
+                                        }}
                                     >
-                                        <Typography variant="body2">
-                                            {item.quantity}x <strong>{item.name}</strong>
-                                            {item.size && (
-                                                <Typography
-                                                    component="span"
-                                                    variant="body2"
-                                                    sx={{ ml: 1, fontStyle: "italic" }}
-                                                >
-                                                    ({item.size})
-                                                </Typography>
-                                            )}
-                                        </Typography>
-                                        {renderItemDetails(item)}
-                                    </Box>
-                                ))}
-                            </Box>
-                            <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+                                        {confirmingAccept ? 'Confirming…' : 'Confirm'}
+                                    </Button>
 
-                            <Button
-                            variant="outlined"
-                            startIcon={<CheckCircleIcon />}
-                            onClick={() => {
-                                confirmExternalOrder(activeAlertOrder)
-                                if (audioRef.current) {
-                                    audioRef.current.pause();
-                                    audioRef.current.currentTime = 0;
-                                }
-                            }}
-                            disabled={confirmingAccept}
-                            sx={{ borderRadius: 4, textTransform: 'none', flex: 1, backgroundColor: colorRed, color: "white", borderColor: "white" }}
-                        >
-                            {confirmingAccept ? 'Confirming…' : 'Confirm'}
-                        </Button>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<CancelIcon/>}
+                                        onClick={() => setCancelDialogOpen(true)}
+                                        sx={{
+                                            borderRadius: 4,
+                                            textTransform: "none",
+                                            flex: 1,
+                                            borderColor: colorRed,
+                                            color: colorRed
+                                        }}
+                                    >
+                                        Cancel
+                                    </Button>
+                                </Box>
+                            </>
+                        ) : (
 
-                            <Button
-                                variant="outlined"
-                                startIcon={<CancelIcon />}
-                                onClick={() => setCancelDialogOpen(true)}
-                                sx={{ borderRadius: 4, textTransform: "none", flex: 1, borderColor: colorRed, color: colorRed }}
+                            <IconButton
+                                onClick={() => {
+                                    if (audioRef.current) {
+                                        audioRef.current.pause();
+                                        audioRef.current.currentTime = 0;
+                                    }
+                                    setActiveAlertOrder(null);
+                                }}
+                                size="medium"
+                                sx={{color: colorRed}}
                             >
-                                Cancel
-                            </Button>
-                            </Box>
-                        </>
-                    ):(
-
-                    <IconButton
-                        onClick={() => {
-                            if (audioRef.current) {
-                                audioRef.current.pause();
-                                audioRef.current.currentTime = 0;
-                            }
-                            setActiveAlertOrder(null);
-                        }}
-                        size="medium"
-                        sx={{ color: colorRed }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                    )}
+                                <CloseIcon/>
+                            </IconButton>
+                        )}
                     </Box>
                 </Paper>
             </Snackbar>
 
             <Snackbar
                 open={Boolean(activeAlertOrderEdit)}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{ zIndex: 1300 }}
+                anchorOrigin={{vertical: "top", horizontal: "center"}}
+                sx={{zIndex: 1300}}
             >
                 <Paper
                     elevation={3}
@@ -746,8 +780,8 @@ function AdminHomePage() {
                         maxWidth: 600,
                     }}
                 >
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    <Box sx={{flexGrow: 1}}>
+                        <Typography variant="subtitle1" sx={{fontWeight: 600}}>
                             Order {activeAlertOrderEdit?.order_no} was edited
                         </Typography>
                     </Box>
@@ -760,70 +794,19 @@ function AdminHomePage() {
                             setActiveAlertOrderEdit(null);
                         }}
                         size="medium"
-                        sx={{ color: colorRed }}
+                        sx={{color: colorRed}}
                     >
-                        <CloseIcon />
+                        <CloseIcon/>
                     </IconButton>
                 </Paper>
             </Snackbar>
-{/*<Snackbar*/}
-{/*    open={!audioAllowed}*/}
-{/*    anchorOrigin={{ vertical: "top", horizontal: "center" }}*/}
-{/*    sx={{ zIndex: 1400 }}*/}
-{/*>*/}
-{/*    <Paper*/}
-{/*        elevation={3}*/}
-{/*        sx={{*/}
-{/*            borderRadius: 3,*/}
-{/*            p: 2,*/}
-{/*            px: 3,*/}
-{/*            backgroundColor: "#fff",*/}
-{/*            display: "flex",*/}
-{/*            alignItems: "center",*/}
-{/*            gap: 2,*/}
-{/*            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",*/}
-{/*            width: "85vw",*/}
-{/*            maxWidth: 600,*/}
-{/*        }}*/}
-{/*    >*/}
-{/*        <Box sx={{ flexGrow: 1 }}>*/}
-{/*            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>*/}
-{/*                Enable sound for order and close shift alerts*/}
-{/*            </Typography>*/}
-{/*        </Box>*/}
-{/*        <Button*/}
-{/*            onClick={() => {*/}
-{/*                audioRef.current.play()*/}
-{/*                    .then(() => {*/}
-{/*                        audioRef.current.pause();*/}
-{/*                        audioRef.current.currentTime = 0;*/}
-{/*                        setAudioAllowed(true);*/}
-{/*                    })*/}
-{/*                    .catch(err => {*/}
-{/*                        console.warn("Audio permission denied:", err);*/}
-{/*                    });*/}
-{/*            }}*/}
-{/*            variant="outlined"*/}
-{/*            sx={{*/}
-{/*                textTransform: "uppercase",*/}
-{/*                borderColor: colorRed,*/}
-{/*                color: colorRed,*/}
-{/*                fontWeight: 600,*/}
-{/*                borderRadius: 3,*/}
-{/*                px: 2.5,*/}
-{/*                py: 0.5,*/}
-{/*                minWidth: 80,*/}
-{/*            }}*/}
-{/*        >*/}
-{/*            ENABLE*/}
-{/*        </Button>*/}
-{/*    </Paper>*/}
-{/*</Snackbar>*/}
+
             <SwipeableDrawer
                 anchor="bottom"
                 open={cancelDialogOpen}
                 onClose={() => setCancelDialogOpen(false)}
-                onOpen={() => {}}
+                onOpen={() => {
+                }}
                 disableDiscovery
                 keepMounted
                 PaperProps={{
@@ -834,11 +817,11 @@ function AdminHomePage() {
                     },
                 }}
             >
-                <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
-                    <Box sx={{ width: 36, height: 4, borderRadius: 999, abgcolor: "grey.400" }} />
+                <Box sx={{display: "flex", justifyContent: "center", py: 1}}>
+                    <Box sx={{width: 36, height: 4, borderRadius: 999, abgcolor: "grey.400"}}/>
                 </Box>
 
-                <Typography variant="h6" sx={{ textAlign: "center", fontWeight: 600, mb: 2 }}>
+                <Typography variant="h6" sx={{textAlign: "center", fontWeight: 600, mb: 2}}>
                     Cancel Order
                 </Typography>
 
