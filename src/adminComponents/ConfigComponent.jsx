@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Box, Typography, Switch, Button, Fab } from "@mui/material";
+import React, {useEffect, useState} from "react";
+import {Box, Typography, Switch, Button, Fab} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
@@ -7,7 +7,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
 const brandRed = "#E44B4C";
 
-function ConfigComponent({ isOpen, onClose }) {
+function ConfigComponent({isOpen, onClose}) {
     const [isLoading, setIsLoading] = useState(false)
     const [groups, setGroups] = useState([]);
     const [originalGroups, setOriginalGroups] = useState([]);
@@ -64,7 +64,7 @@ function ConfigComponent({ isOpen, onClose }) {
 
                 const grouped = groupItemsByName(baseInfo.menu);
 
-                let sizesAvailable = { S: false, M: false, L: false, "Brick dough": false };
+                let sizesAvailable = {S: false, M: false, L: false, "Brick dough": false};
                 const pizzaGroups = grouped.filter(g => g.category === "Pizzas");
 
                 ["S", "M", "L"].forEach(size => {
@@ -102,7 +102,7 @@ function ConfigComponent({ isOpen, onClose }) {
     const handleToggleGroup = (name) => {
         setGroups(prevGroups => {
             const newGroups = prevGroups.map(group =>
-                group.name === name ? { ...group, enabled: !group.enabled } : group
+                group.name === name ? {...group, enabled: !group.enabled} : group
             );
 
             const original = originalGroups.find(g => g.name === name);
@@ -112,7 +112,7 @@ function ConfigComponent({ isOpen, onClose }) {
                 const filtered = prev.filter(c => !(c.type === 'group' && c.name === name));
 
                 if (original && original.enabled !== updated.enabled) {
-                    return [...filtered, { type: 'group', name, enabled: updated.enabled }];
+                    return [...filtered, {type: 'group', name, enabled: updated.enabled}];
                 }
                 return filtered;
             });
@@ -129,7 +129,7 @@ function ConfigComponent({ isOpen, onClose }) {
                 const filtered = prevChanges.filter(c => !(c.type === 'dough' && c.name === size));
 
                 if (originalDough[size] !== newStatus) {
-                    return [...filtered, { type: 'dough', name: size, enabled: newStatus }];
+                    return [...filtered, {type: 'dough', name: size, enabled: newStatus}];
                 }
                 return filtered;
             });
@@ -155,104 +155,109 @@ function ConfigComponent({ isOpen, onClose }) {
 
     return (
         <>
-        <Box sx={{
-            gap: 1,
-        }}>
-            <BackTopBar
-                onClose={onClose}
-                title="Config"
-            />
-        </Box>
-        <Box sx={{ p: 0, position: "relative", height: "100vh", display: "flex", flexDirection: "column" }}>
             <Box
                 sx={{
-                    flex: 1,
-                    overflowY: "auto",
-                    p: 2,
-                    pb: 0,
-                    "&::-webkit-scrollbar": {
-                        display: "none"
-                    }
-                }}
-            >
-                <Typography variant="h5" sx={{ mt: 1, mb: 2, fontWeight: "bold" }}>
-                    Dough Availability
-                </Typography>
-                {Object.entries(doughAvailability).map(([size, enabled]) => (
-                    <Box
-                        key={size}
-                        sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            borderBottom: "1px solid #eee",
-                            py: 1,
-                        }}
-                    >
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {size}
-                        </Typography>
-                        <Switch
-                            checked={enabled}
-                            onChange={() => handleToggleDough(size)}
-                            color="primary"
-                        />
-                    </Box>
-                ))}
-                <Typography variant="h5" sx={{ mt: 4, mb: 2, fontWeight: "bold" }}>
-                    Menu Availability
-                </Typography>
-                {groups.map(group => (
-                    <Box
-                        key={group.name}
-                        sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            borderBottom: "1px solid #eee",
-                            py: 1,
-                        }}
-                    >
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {group.name}
-                        </Typography>
-                        <Switch
-                            checked={group.enabled}
-                            onChange={() => handleToggleGroup(group.name)}
-                            color="primary"
-                        />
-                    </Box>
-                ))}
+                    gap: 1,
+                    backgroundColor: "#fbfaf6",
+                    // minHeight: '100vh',
+                    // width: '100%'
+                }}>
+                <BackTopBar
+                    onClose={onClose}
+                    title="Config"
+                />
             </Box>
-
-            {/* Fixed Save button at the bottom */}
-            <Box
-                sx={{
-                    borderTop: "1px solid #eee",
-                    p: 2,
-                }}
-            >
-                <Button
-                    variant="contained"
-                    fullWidth
-                    disabled={isSaveDisabled}
-                    onClick={handleSave}
+            <Box sx={{p: 0, position: "relative", height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6"
+            }}>
+                <Box
                     sx={{
-                        backgroundColor: isSaveDisabled ? "#ccc" : brandRed,
-                        color: "#fff",
-                        textTransform: "none",
-                        fontSize: "20px",
-                        borderRadius: 8,
-                        height: "100%",
-                        "&:hover": {
-                            backgroundColor: isSaveDisabled ? "#ccc" : "#d23c3d"
+                        flex: 1,
+                        overflowY: "auto",
+                        p: 2,
+                        pb: 0,
+                        "&::-webkit-scrollbar": {
+                            display: "none"
                         }
                     }}
                 >
-                    Save
-                </Button>
+                    <Typography variant="h5" sx={{mt: 1, mb: 2, fontWeight: "bold"}}>
+                        Dough Availability
+                    </Typography>
+                    {Object.entries(doughAvailability).map(([size, enabled]) => (
+                        <Box
+                            key={size}
+                            sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                borderBottom: "1px solid #eee",
+                                py: 1,
+                            }}
+                        >
+                            <Typography variant="body1" sx={{fontWeight: 500}}>
+                                {size}
+                            </Typography>
+                            <Switch
+                                checked={enabled}
+                                onChange={() => handleToggleDough(size)}
+                                color="primary"
+                            />
+                        </Box>
+                    ))}
+                    <Typography variant="h5" sx={{mt: 4, mb: 2, fontWeight: "bold"}}>
+                        Menu Availability
+                    </Typography>
+                    {groups.map(group => (
+                        <Box
+                            key={group.name}
+                            sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                borderBottom: "1px solid #eee",
+                                py: 1,
+                            }}
+                        >
+                            <Typography variant="body1" sx={{fontWeight: 500}}>
+                                {group.name}
+                            </Typography>
+                            <Switch
+                                checked={group.enabled}
+                                onChange={() => handleToggleGroup(group.name)}
+                                color="primary"
+                            />
+                        </Box>
+                    ))}
+                </Box>
+
+                {/* Fixed Save button at the bottom */}
+                <Box
+                    sx={{
+                        borderTop: "1px solid #eee",
+                        p: 2,
+                    }}
+                >
+                    <Button
+                        variant="contained"
+                        fullWidth
+                        disabled={isSaveDisabled}
+                        onClick={handleSave}
+                        sx={{
+                            backgroundColor: isSaveDisabled ? "#ccc" : brandRed,
+                            color: "#fff",
+                            textTransform: "none",
+                            fontSize: "20px",
+                            borderRadius: 8,
+                            height: "100%",
+                            "&:hover": {
+                                backgroundColor: isSaveDisabled ? "#ccc" : "#d23c3d"
+                            }
+                        }}
+                    >
+                        Save
+                    </Button>
+                </Box>
             </Box>
-        </Box>
         </>
     );
 }

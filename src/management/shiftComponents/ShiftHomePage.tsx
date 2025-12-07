@@ -89,8 +89,11 @@ export function ShiftHomePage({ open, onClose, branchNo }: Props) {
             <Dialog fullScreen
                     open={open}
                     onClose={onClose}
-                    sx={{
-                        backgroundColor: "#fbfaf6",
+                    PaperProps={{
+                        sx:
+                            {
+                                backgroundColor: "#fbfaf6",
+                            }
                     }}>
                 <ShiftReportTopBar
                     onClose={onClose}

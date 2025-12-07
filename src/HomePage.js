@@ -6,7 +6,7 @@ import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
-import {createOrder, editOrder, fetchBaseAppInfo} from "./api/api";
+import {checkCustomer, createOrder, editOrder, fetchBaseAppInfo, URL} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
 import ClientInfoPopup from "./components/ClientInfoPopup";
@@ -120,6 +120,8 @@ function HomePage({userParam}) {
     const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
     const [comboPrice, setComboPrice] = useState(null);
     const [pickUpReminder, setPickUpReminder] = useState(false);
+    const [responseOrderId ,setResponseOrderId] = useState(null);
+    const [pendingOrder, setPendingOrder] = useState(null);
 
     const bestRef = useRef(null);
 
@@ -464,10 +466,122 @@ function HomePage({userParam}) {
             return;
         }
 
-        setCartItems(prev => [
-            ...prev,
-            ...(Array.isArray(items) ? items : [items])
-        ]);
+        setCartItems(prev => {
+            const updated = [...prev];
+
+            arr.forEach(item => {
+                const idx = updated.findIndex(it => it.name === item.name);
+
+                if (idx === -1) {
+                    updated.push({ ...item });
+                    return;
+                }
+
+                const existing = updated[idx];
+
+                if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
+                    updated[idx] = {
+                        ...existing,
+                        quantity: existing.quantity + item.quantity,
+                    };
+                    return;
+                }
+
+                if (item.category === "Combo Deals" && item.name === "Detroit Combo") {
+                    console.log("[LOG]Started to compare Detroit Combo");
+                    const sameComboItems =
+                        existing.comboItems[0].name === item.comboItems[0].name &&
+                        existing.comboItems[1].name === item.comboItems[1].name &&
+                        existing.comboItems[2].name === item.comboItems[2].name;
+
+                    if (sameComboItems) {
+                        updated[idx] = {
+                            ...existing,
+                            quantity: existing.quantity + item.quantity,
+                        };
+                    } else {
+                        updated.push({ ...item });
+                    }
+                    return;
+                }
+
+                if (item.category === "Combo Deals" && item.name==="Pizza Combo") {
+                    if (existing.description !== item.description || existing.size !== item.size) {
+                        updated.push({ ...item });
+                        return;
+                    }
+
+                    const sameComboItems =
+                        existing.comboItems[0].name === item.comboItems[0].name &&
+                        existing.comboItems[0].isGarlicCrust === item.comboItems[0].isGarlicCrust &&
+                        existing.comboItems[0].isThinDough === item.comboItems[0].isThinDough &&
+                        existing.comboItems[1].name === item.comboItems[1].name &&
+                        existing.comboItems[2].name === item.comboItems[2].name;
+
+                    if (sameComboItems) {
+                        updated[idx] = {
+                            ...existing,
+                            quantity: existing.quantity + item.quantity,
+                        };
+                    } else {
+                        updated.push({ ...item });
+                    }
+                    return;
+                }
+
+                if (item.category === "Pizzas") {
+                    const baseChanged =
+                        existing.description !== item.description ||
+                        existing.size !== item.size ||
+                        existing.isThinDough !== item.isThinDough ||
+                        existing.isGarlicCrust !== item.isGarlicCrust;
+
+                    if (baseChanged) {
+                        updated.push({ ...item });
+                        return;
+                    }
+
+                    const existingExtras = existing.extraIngredients || [];
+                    const newExtras = item.extraIngredients || [];
+
+                    if (existingExtras.length === 0 && newExtras.length === 0) {
+                        updated[idx] = {
+                            ...existing,
+                            quantity: existing.quantity + item.quantity,
+                        };
+                        console.log("Updated:", existing.quantity, existing.amount);
+                        return;
+                    }
+
+                    if (existingExtras.length !== newExtras.length) {
+                        updated.push({ ...item });
+                        return;
+                    }
+
+                    const allExtrasMatch = existingExtras.every(ingredient =>
+                        newExtras.some(it => it.name === ingredient.name)
+                    );
+
+                    if (!allExtrasMatch) {
+                        updated.push({ ...item });
+                        return;
+                    }
+
+                    updated[idx] = {
+                        ...existing,
+                        quantity: existing.quantity + item.quantity,
+                        amount: existing.amount + item.amount,
+                    };
+
+                    return;
+                }
+
+                updated.push({ ...item });
+            });
+
+            return updated;
+
+        });
         console.log(items);
 
         handleClosePizzaPopup();
@@ -661,8 +775,6 @@ function HomePage({userParam}) {
                 ),
             };
             setCartItems([]);
-            // setShowOrderConfirmed(true);
-            setPickUpReminder(true);
 
             try {
                 let response;
@@ -690,27 +802,15 @@ function HomePage({userParam}) {
                         phone_number: "+" + tel
                     });
                 } else {
-                    response = await createOrder(order);
-                    window.ttq.track('PlaceAnOrder', {
-                        content_id: "PlaceAnOrder",
-                        order_id: 'id',
-                        currency: 'BHD',
-                        value: order.amount_paid,
-                    });
-                    window.ttq.identify({
-                        phone_number: "+" + tel
-                    });
-                    window.fbq('track', 'Purchase', {
-                        value: order.amount_paid,
-                        currency: 'BHD',
-                        contents: order.items.map((item) => ({
-                            id: item.id ?? item.name,
-                            quantity: item.quantity,
-                            item_price: item.amount,
-                        })),
-                        content_type: 'product',
-                        order_id: order.id,
-                    });
+                    let customerResponse = await checkCustomer(order.tel)
+                    console.log(customerResponse.isNewCustomer)
+                    if( customerResponse.isNewCustomer === false){
+                        await executeOrderCreation(order)
+                    }
+                    else{
+                        setPendingOrder(order)
+                        setPickUpReminder(true)
+                    }
                 }
                 console.log("Order placed successfully:", response);
                 setCartItems([]);
@@ -724,6 +824,49 @@ function HomePage({userParam}) {
             }
         }
     }
+
+
+    const executeOrderCreation = async (orderData) => {
+        try {
+            setLoading(true);
+
+            const response = await createOrder(orderData);
+
+            window.ttq.track('PlaceAnOrder', {
+                content_id: "PlaceAnOrder",
+                order_id: response.id,
+                currency: 'BHD',
+                value: orderData.amount_paid,
+            });
+            window.ttq.identify({ phone_number: "+" + orderData.tel });
+            window.fbq('track', 'Purchase', {
+                value: orderData.amount_paid,
+                currency: 'BHD',
+                contents: orderData.items.map((item) => ({
+                    id: item.id ?? item.name,
+                    quantity: item.quantity,
+                    item_price: item.amount,
+                })),
+                content_type: 'product',
+                order_id: response.id,
+            });
+
+            setCartItems([]);
+            setPendingOrder(null)
+            setPickUpReminder(false);
+            await localStorage.removeItem("orderToEdit");
+            setPhone("");
+            setUsername("");
+            setCartOpen(false);
+
+            navigate("/order_status?order_id=" + response.id);
+
+        } catch (error) {
+            console.error("Error processing order:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     function handleUpsellDecline() {
         if (upsellItem) {
@@ -1120,7 +1263,16 @@ function HomePage({userParam}) {
             />}
 
             {pickUpReminder &&
-                <PickUpReminderPopup onClose={() => setPickUpReminder(false)}/>
+                <PickUpReminderPopup
+                    onClose={() => {
+                        setPickUpReminder(false)
+                    }}
+                    onClick={() => {
+                        setPickUpReminder(false)
+                        executeOrderCreation(pendingOrder)
+                    }
+                }
+                />
             }
 
             {!isAdmin && showOrderConfirmed && (

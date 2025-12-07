@@ -79,7 +79,8 @@ function HistoryComponent({onClose}) {
                     title="Order History"
                 />
             </Box>
-            <Box sx={{ pt: 1, pl: 1 }}>
+            <Box sx={{ pt: 1, pl: 1, backgroundColor: "#fbfaf6", minHeight: '100vh',
+                width: '100%' }}>
             <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                 {sortedOrders.map((order) => (
                     <OrderCard key={order.id} order={order} onReadyClick={handleRemoveItem} isHistory={true} onDeleteClick={() => {handleDeleteClick(order)}}/>

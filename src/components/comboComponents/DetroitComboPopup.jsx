@@ -127,7 +127,9 @@ export function DetroitComboPopup({
         };
         console.log(orderItem);
 
-        removeFromCart(orderItem.name, orderItem.amount, orderItem.quantity);
+        if(isEditMode) {
+            removeFromCart(orderItem.name, orderItem.amount, orderItem.quantity);
+        }
         onAddToCart?.(orderItem);
         onClose?.();
     }

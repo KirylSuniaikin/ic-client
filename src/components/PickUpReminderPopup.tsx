@@ -3,9 +3,10 @@ import PriorityHighRoundedIcon from '@mui/icons-material/PriorityHighRounded';
 
 type Props = {
     onClose : () => void,
+    onClick : () => void,
 }
 
-export function PickUpReminderPopup({onClose}: Props) {
+export function PickUpReminderPopup({onClose, onClick}: Props) {
     return (
         <Box
             onClick={onClose}
@@ -59,22 +60,14 @@ export function PickUpReminderPopup({onClose}: Props) {
 
                 <Stack direction="row" alignItems="center" gap={1}>
                     <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                        Just a heads-up, we’re takeaway only!
+                        This order for Pick Up only
                     </Typography>
                 </Stack>
-
-                <Typography variant="h6" color="text.primary" fontWeight="bold">
-                    Please come inside the restaurant to pick up your order.
-                </Typography>
-
-                <Typography variant="h6" color="text.primary" fontWeight="bold" sx={{ lineHeight: 1.5 }}>
-                    If we’re busy, please don’t honk. Just walk in, it really helps us keep the service smooth for you.
-                </Typography>
 
                 <Button
                     variant="contained"
                     size="large"
-                    onClick={onClose}
+                    onClick={onClick}
                     sx={{
                         mt: 2,
                         borderRadius: 3,
@@ -86,7 +79,7 @@ export function PickUpReminderPopup({onClose}: Props) {
                         "&:hover": { bgcolor: "#c93d3e" }
                     }}
                 >
-                    Alright
+                    Place pick up order
                 </Button>
             </Stack>
         </Box>

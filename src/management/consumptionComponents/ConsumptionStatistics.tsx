@@ -106,25 +106,39 @@ export function  ConsumptionStatistics() {
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <Card sx={{ borderRadius: 3, boxShadow: 3 }}>
                 <Box
-                    sx={{mb: 1, borderRadius: 4, mt: 2
+                    sx={{p:2
                     }}
                 >
                     <TextField
+                        variant="outlined"
                         size="small"
                         label="Filter by product name"
                         placeholder="Type to filter"
                         onChange={handleFilterParamChange}
-                        autoFocus
                         fullWidth
                         sx={{
-                            borderRadius: 4,
-                            borderColor: "white"
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 3,
+                                borderColor: '#a5a5a5',
+
+                                '& fieldset': { borderColor: '#a5a5a5' },
+                                '&:hover fieldset': { borderColor: '#a5a5a5' },
+                                '&.Mui-focused fieldset': {
+                                    borderColor: '#a5a5a5'
+                                },
+                                '&.Mui-disabled fieldset': { borderColor: '#a5a5a5' }
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#6b7280',
+                            },
+
+                            '& .MuiInputBase-input': { py: 1, px: 1.5 },
                         }}
                     />
                 </Box>
                 <CardContent>
                     {report && (
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
                             Title: <b>{report.title}</b>
                         </Typography>
                     )}
