@@ -8,7 +8,7 @@ import {
     Card,
     Popover,
     ToggleButton,
-    ToggleButtonGroup, CircularProgress, Divider
+    ToggleButtonGroup, CircularProgress
 } from '@mui/material';
 import {DateRange} from 'react-date-range';
 import {endOfDay, startOfDay} from 'date-fns';
@@ -23,6 +23,8 @@ import {ConsumptionStatistics} from "../management/consumptionComponents/Consump
 import {DoughUsageTable} from "./DoughUsageTable";
 import {RevenueByHourTable} from "./RevenueByHourTable";
 import {TopProductsTable} from "./TopProductsTable";
+import {PlatformStatCard} from "./PlatformStatCatd";
+import {ProductsTable} from "../management/productsTable/ProductsTable";
 
 export default function StatisticsComponent({onClose}) {
     const [dateRange, setDateRange] = useState([
@@ -119,14 +121,6 @@ export default function StatisticsComponent({onClose}) {
     const retentionOpen = Boolean(retentionAnchorEl);
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
 
-    if (loading) {
-        return (
-            <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
-                <CircularProgress/>
-            </Box>
-        );
-    }
-
     return (
         <>
             {loading && (
@@ -186,13 +180,14 @@ export default function StatisticsComponent({onClose}) {
                     </ToggleButtonGroup>
                 </Box>
                 {mode === "Performance" ? (<>
-                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 600, mb: 2, mt: 1}}>
+                            <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
                                 <CardContent>
-                                    <Typography variant="h6" gutterBottom>📆 Stats by Date Range</Typography>
-
-                                    <Button variant="outlined" onClick={handleOpenCalendar}>
-                                        {formatDate(dateRange[0].startDate)} — {formatDate(dateRange[0].endDate)}
-                                    </Button>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                                        <Typography variant="h6">📆 Stats by Date Range</Typography>
+                                        <Button variant="outlined" onClick={handleOpenCalendar}>
+                                            {formatDate(dateRange[0].startDate)} — {formatDate(dateRange[0].endDate)}
+                                        </Button>
+                                    </Box>
 
                                     <Popover
                                         id={id}
@@ -230,246 +225,214 @@ export default function StatisticsComponent({onClose}) {
 
                                     {rangeStats && (
                                         <>
-                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
-                                                Pick Up
-                                            </Typography>
-                                            <Grid container spacing={2} sx={{mt: 2}}>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Revenue
-                                                        </Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalPickUpRevenue} BD
-                                                        </Typography>
-                                                    </Box>
+                                            <Grid container spacing={4}>
+                                                {/* ЛЕВАЯ КОЛОНКА: Статистика по платформам */}
+                                                <Grid item xs={12} md={7} lg={8}>
+
+                                                    <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
+                                                        Platforms Statistics
+                                                    </Typography>
+
+                                                    <PlatformStatCard
+                                                        title="Pick Up"
+                                                        items={[
+                                                            { label: "Revenue", value: rangeStats.totalPickUpRevenue, subValue: "BD" },
+                                                            { label: "Orders", value: rangeStats.totalPickUpOrders },
+                                                            { label: "New Customers", value: rangeStats.newCustomers },
+                                                            { label: "Returning", value: rangeStats.oldCustomers }
+                                                        ]}
+                                                    />
+
+                                                    <PlatformStatCard
+                                                        title="Jahez"
+                                                        items={[
+                                                            { label: "Revenue", value: rangeStats.totalJahezRevenue, subValue: "BD" },
+                                                            { label: "Orders", value: rangeStats.totalJahezOrders }
+                                                        ]}
+                                                    />
+
+                                                    {/* Карточка Talabat */}
+                                                    <PlatformStatCard
+                                                        title="Talabat"
+                                                        items={[
+                                                            { label: "Revenue", value: rangeStats.totalTalabatRevenue, subValue: "BD" },
+                                                            { label: "Orders", value: rangeStats.totalTalabatOrders }
+                                                        ]}
+                                                    />
+
+                                                    <Box sx={{ display: { xs: 'block', md: 'none' }, height: 24 }} />
                                                 </Grid>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Orders
-                                                        </Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalPickUpOrders}
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            New Customers
-                                                        </Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.newCustomers}
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Returning Customers
-                                                        </Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.oldCustomers}
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                            </Grid>
-                                            <Box sx={{my: 2, borderBottom: "1px solid #e0e0e0"}}/>
-                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
-                                                Jahez
-                                            </Typography>
-                                            <Grid container spacing={2}>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2"
-                                                                    color="text.secondary">Revenue</Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalJahezRevenue} BD
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2"
-                                                                    color="text.secondary">Orders</Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalJahezOrders}
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                            </Grid>
-                                            <Box sx={{my: 2, borderBottom: "1px solid #e0e0e0"}}/>
-                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
-                                                Talabat
-                                            </Typography>
-                                            <Grid container spacing={2}>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2"
-                                                                    color="text.secondary">Revenue</Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalTalabatRevenue} BD
-                                                        </Typography>
-                                                    </Box>
-                                                </Grid>
-                                                <Grid item xs={6}>
-                                                    <Box textAlign="center">
-                                                        <Typography variant="body2"
-                                                                    color="text.secondary">Orders</Typography>
-                                                        <Typography variant="h5" fontWeight="bold">
-                                                            {rangeStats.totalTalabatOrders}
-                                                        </Typography>
-                                                    </Box>
+
+                                                {/* ПРАВАЯ КОЛОНКА: Топ Продуктов */}
+                                                <Grid item xs={12} md={5} lg={4} sx={{
+                                                    borderLeft: { md: "1px solid #e0e0e0" },
+                                                    pl: { md: 2 }
+                                                }}>
+                                                    <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
+                                                        Top 10 Products
+                                                    </Typography>
+                                                    <TopProductsTable topProducts={rangeStats.topProducts}/>
                                                 </Grid>
                                             </Grid>
 
                                             <Box sx={{my: 3, borderBottom: "1px solid #e0e0e0"}}/>
 
-                                            <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
-                                                Top 5 Products
-                                            </Typography>
-
-                                            <TopProductsTable topProducts={rangeStats.topProducts}/>
-
-                                            <Box sx={{my: 3, borderBottom: "1px solid #e0e0e0"}}/>
-
+                                            {/* График по часам (на всю ширину снизу) */}
                                             <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
                                                 Revenue By Hour
                                             </Typography>
-
                                             <RevenueByHourTable rawData={sellStats.sellStats}/>
-
                                         </>
                                     )}
                                 </CardContent>
                             </Card>
 
-                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2}}>
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom>🔄 Retention Check (Pick up from last
-                                        month)</Typography>
+                            <Grid container spacing={2} sx={{ mb: 2 }}>
 
-                                    <Button variant="outlined" onClick={(e) => setRetentionAnchorEl(e.currentTarget)}>
-                                        {formatDate(selectedDate)}
-                                    </Button>
+                                <Grid item xs={12} md={6}>
+                                    <Card sx={{
+                                        borderRadius: 3,
+                                        boxShadow: 3,
+                                        height: "100%",
+                                        display: "flex",
+                                        flexDirection: "column"
+                                    }}>
+                                        <CardContent>
+                                            <Typography variant="h6" gutterBottom>🔄 Retention Check</Typography>
 
-                                    <Popover
-                                        id={retentionId}
-                                        open={retentionOpen}
-                                        anchorEl={retentionAnchorEl}
-                                        onClose={() => setRetentionAnchorEl(null)}
-                                        anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
-                                    >
-                                        <Box sx={{p: 2}}>
-                                            <input
-                                                type="date"
-                                                value={format(selectedDate, 'yyyy-MM-dd')}
-                                                onChange={(e) => {
-                                                    setSelectedDate(new Date(e.target.value));
-                                                }}
-                                                style={{padding: "8px", fontSize: "16px", width: "100%"}}
-                                            />
-                                            <Button
-                                                variant="contained"
-                                                fullWidth
-                                                onClick={() => {
-                                                    loadStats(dateRange, selectedDate);
-                                                    setRetentionAnchorEl(null);
-                                                }}
-                                                sx={{mt: 2}}
-                                            >
-                                                🔁 Upload
+                                            <Button variant="outlined" onClick={(e) => setRetentionAnchorEl(e.currentTarget)}>
+                                                {formatDate(selectedDate)}
                                             </Button>
-                                        </Box>
-                                    </Popover>
 
-                                    {retentionStats && (
-                                        <Grid container spacing={2} sx={{mt: 2}}>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        New Clients
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {retentionStats.month_count}
-                                                    </Typography>
+                                            <Popover
+                                                id={retentionId}
+                                                open={retentionOpen}
+                                                anchorEl={retentionAnchorEl}
+                                                onClose={() => setRetentionAnchorEl(null)}
+                                                anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
+                                            >
+                                                <Box sx={{p: 2}}>
+                                                    <input
+                                                        type="date"
+                                                        value={format(selectedDate, 'yyyy-MM-dd')}
+                                                        onChange={(e) => {
+                                                            setSelectedDate(new Date(e.target.value));
+                                                        }}
+                                                        style={{padding: "8px", fontSize: "16px", width: "100%"}}
+                                                    />
+                                                    <Button
+                                                        variant="contained"
+                                                        fullWidth
+                                                        onClick={() => {
+                                                            loadStats(dateRange, selectedDate);
+                                                            setRetentionAnchorEl(null);
+                                                        }}
+                                                        sx={{mt: 2}}
+                                                    >
+                                                        🔁 Upload
+                                                    </Button>
                                                 </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Retained Clients
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {retentionStats.retained_customers} ({retentionStats.percentage.toFixed(2)}%)
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        </Grid>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                            </Popover>
 
-                            <Card sx={{borderRadius: 3, boxShadow: 3, maxWidth: 500, mb: 2, mt: 1}}>
-                                <CardContent>
-                                    <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
-                                    {globalStats && (
-                                        <Grid container spacing={4}>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        ARPU
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.arpu.toFixed(2)} BD
-                                                    </Typography>
+                                            {retentionStats && (
+                                                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', mt: 2 }}>
+                                                    <Grid container spacing={2}>
+                                                        <Grid item xs={6}>
+                                                            <Box textAlign="center">
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    New Clients
+                                                                </Typography>
+                                                                <Typography variant="h5" fontWeight="bold">
+                                                                    {retentionStats.month_count}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Grid>
+                                                        <Grid item xs={6}>
+                                                            <Box textAlign="center">
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    Retained
+                                                                </Typography>
+                                                                <Typography variant="h5" fontWeight="bold">
+                                                                    {retentionStats.retained_customers} <Typography component="span" variant="caption" color="text.secondary">({retentionStats.percentage.toFixed(0)}%)</Typography>
+                                                                </Typography>
+                                                            </Box>
+                                                        </Grid>
+                                                    </Grid>
                                                 </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        AOV (All Time)
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.aov.toFixed(2)} BD
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Unique Customers
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.uniqueClients}
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={6}>
-                                                <Box textAlign="center">
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Repeat Customers
-                                                    </Typography>
-                                                    <Typography variant="h5" fontWeight="bold">
-                                                        {globalStats.repeatClients}
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        </Grid>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+
+                                <Grid item xs={12} md={6}>
+                                    <Card sx={{
+                                        borderRadius: 3,
+                                        boxShadow: 3,
+                                        height: "100%"
+                                    }}>
+                                        <CardContent>
+                                            <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
+                                            {globalStats && (
+                                                <Grid container spacing={2} sx={{ mt: 1 }}>
+                                                    <Grid item xs={6}>
+                                                        <Box textAlign="center">
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                ARPU
+                                                            </Typography>
+                                                            <Typography variant="h5" fontWeight="bold">
+                                                                {globalStats.arpu.toFixed(2)} <Typography component="span" variant="caption">BD</Typography>
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Box textAlign="center">
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                AOV (All Time)
+                                                            </Typography>
+                                                            <Typography variant="h5" fontWeight="bold">
+                                                                {globalStats.aov.toFixed(2)} <Typography component="span" variant="caption">BD</Typography>
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Box textAlign="center">
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                Unique Customers
+                                                            </Typography>
+                                                            <Typography variant="h5" fontWeight="bold">
+                                                                {globalStats.uniqueClients}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Box textAlign="center">
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                Repeat Customers
+                                                            </Typography>
+                                                            <Typography variant="h5" fontWeight="bold">
+                                                                {globalStats.repeatClients}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                </Grid>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            </Grid>
                         </>
                     ) :
                     <>
                         <Box sx={{mt: 1}}>
-                            <ConsumptionStatistics/>
-
-                            <Box sx={{mt: 1}}></Box>
                             <DoughUsageTable
                                 rows={doughUsage.doughUsage}
                             />
+                            <Box sx={{mt: 1}}></Box>
+                            <ConsumptionStatistics/>
+
+                            <Box sx={{mt: 1}}></Box>
+
+                            <ProductsTable/>
                         </Box>
                     </>
                 }

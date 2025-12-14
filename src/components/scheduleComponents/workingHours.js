@@ -5,6 +5,5 @@ export const workingHours = {
     "Thursday": ["15:30", "01:30"],
     "Friday": ["15:30", "01:30"],
     "Saturday": ["14:00", "23:59"],
-    // "Sunday": null,
-    "Sunday": ["14:00", "15:30"],
+    "Sunday": null,
 }

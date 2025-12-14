@@ -120,7 +120,6 @@ function HomePage({userParam}) {
     const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
     const [comboPrice, setComboPrice] = useState(null);
     const [pickUpReminder, setPickUpReminder] = useState(false);
-    const [responseOrderId ,setResponseOrderId] = useState(null);
     const [pendingOrder, setPendingOrder] = useState(null);
 
     const bestRef = useRef(null);
@@ -1081,21 +1080,6 @@ function HomePage({userParam}) {
                             </Box>
                         );
                     })}
-                {/*<MenuSections*/}
-                {/*    bestsellers={bestsellers}*/}
-                {/*    brickPizzas={brickPizzas}*/}
-                {/*    combos={combos}*/}
-                {/*    pizzas={pizzas}*/}
-                {/*    sides={sides}*/}
-                {/*    sauces={sauces}*/}
-                {/*    beverages={beverages}*/}
-                {/*    handleOpenPopup={handleOpenPopup}*/}
-                {/*    handleRemoveItemFromCart={handleRemoveItemFromCart}*/}
-                {/*    handleAddToCart={handleAddToCart}*/}
-                {/*    handleChangeQuantity={handleChangeQuantity}*/}
-                {/*    cartItems={cartItems}*/}
-                {/*    bestRef={bestRef}*/}
-                {/*></MenuSections>*/}
             </Box>
 
             {!pizzaPopupOpen &&
