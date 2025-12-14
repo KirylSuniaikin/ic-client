@@ -13,7 +13,7 @@ export function TopProductsTable({ topProducts }: Props) {
         {
             field: 'name',
             headerName: 'Item Name',
-            width: 150,
+            width: 200,
             type: 'string',
             sortable: false,
             disableColumnMenu: true,

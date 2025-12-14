@@ -1,6 +1,7 @@
 import Decimal from "decimal.js-light";
 import {InventoryRow, ProductTO} from "../types/inventoryTypes";
 import {PurchaseRow} from "../types/purchaseTypes";
+import {ProductStatRow} from "../types/productStatRow";
 export function toDecimal(v: unknown): Decimal {
     if (v instanceof Decimal) return v;
     if (v === null || v === undefined) return new Decimal(0);
@@ -93,16 +94,15 @@ export const toPayloadLine = (r: PurchaseRow) => {
     if (r.productId == null) throw new Error(`Row ${r.id}: product is not selected`);
     const qty   = Number(toDecimal(r.quantity).toFixed(3));
     const price = Number(toDecimal(r.price).toFixed(4));
-    if (Number.isNaN(qty) || Number.isNaN(price)) {
-        throw new Error(`Row ${r.id}: invalid quantity or price`);
+    const finalPrice = Number(toDecimal(r.finalPrice).toFixed(3));
+    if (Number.isNaN(qty) || Number.isNaN(price) || Number.isNaN(finalPrice)) {
+        throw new Error(`Row ${r.id}: invalid quantity, price or total`);
     }
     return {
         id: r.productId,
         quantity: qty,
         price,
-        finalPrice: Number(
-            toDecimal(qty).mul(toDecimal(price)).toDecimalPlaces(4).toFixed(4)
-        ),
+        finalPrice: finalPrice,
         vendorName: (r.vendorName).trim(),
         purchaseDate: r.purchaseDate
     };
@@ -122,6 +122,32 @@ export function validateRows(allRows: PurchaseRow[]): Map<string, Set<string>> {
     }
     return m;
 }
+
+export function productTOConverter(products: ProductTO[]): ProductStatRow[]{
+    return products.map((product: ProductTO) => {
+        return {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            targetPrice: product.targetPrice
+        };
+    });
+}
+
+// export function normalizeReportPayload(payload: any): InventoryRow[] {
+//     const items = payload?.inventoryProducts ?? [];
+//     return items.map((ip: any) => {
+//         const p = ip?.product ?? {};
+//         return {
+//             productId: Number(p.id),
+//             name: String(p.name ?? ""),
+//             quantity: toDecimal(ip.quantity),
+//             finalPrice: toDecimal(ip.finalPrice ?? ip.totalPrice ?? 0),
+//             price: toDecimal(p.price ?? 0),
+//             isInventory: Boolean(p.isInventory),
+//         };
+//     });
+// }
 
 
 const isDecFinite = (d: Decimal) => Number.isFinite(Number(d)) && !d.isZero();

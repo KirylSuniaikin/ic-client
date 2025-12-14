@@ -13,15 +13,45 @@
   }
 }
 
+/*.App-header {*/
+/*  background-color: #282c34;*/
+/*  min-height: 100vh;*/
+/*  display: flex;*/
+/*  flex-direction: column;*/
+/*  align-items: center;*/
+/*  justify-content: center;*/
+/*  font-size: calc(10px + 2vmin);*/
+/*  color: white;*/
+/*}*/
+
+/*.App-header {*/
+/*  background-color: #fbfaf6;*/
+
+/*  min-height: 100vh;*/
+/*  display: flex;*/
+/*  flex-direction: column;*/
+/*  align-items: center;*/
+/*  justify-content: center;*/
+/*  font-size: calc(10px + 2vmin);*/
+
+/*  color: #000000;*/
+/*}*/
+
 .App-header {
-  background-color: #282c34;
+  /* БЫЛО: background-color: #282c34; (Темно-серый) */
+  /* СТАЛО: Ставим ваш бежевый */
+  background-color: #fbfaf6;
+
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
-  color: white;
+
+  /* БЫЛО: color: white; */
+  /* СТАЛО: черный */
+  color: black;
 }
 
 .App-link {
