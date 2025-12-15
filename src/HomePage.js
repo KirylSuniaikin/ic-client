@@ -26,7 +26,6 @@ import {UpsellPopup} from "./components/UpSellPopup";
 import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
 
 
-
 const brandRed = "#E44B4C";
 
 function parseItemNote(desc) {
@@ -67,7 +66,7 @@ function parseExtraIngr(desc) {
     return extras;
 }
 
-function normalizeComboItem(ci)  {
+function normalizeComboItem(ci) {
     return {
         name: ci?.name ?? "",
         category: ci?.category ?? "",
@@ -104,6 +103,7 @@ function HomePage({userParam}) {
 
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
+    const isKiosk = searchParams.get('mode') === 'kiosk';
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const isAdminConfirmedRef = useRef(false);
     const navigate = useNavigate();
@@ -444,7 +444,7 @@ function HomePage({userParam}) {
         const brickItem = arr.find(it => it.category === "Brick Pizzas");
 
         if (pizzaItem && !upsellDeclined) {
-            const combo = menuData.find(it => it.name === "Pizza Combo" && it.size===pizzaItem.size)
+            const combo = menuData.find(it => it.name === "Pizza Combo" && it.size === pizzaItem.size)
             setComboOfferPhoto(combo.photo)
             setComboPrice(combo.price)
             setPendingItems(items)
@@ -472,7 +472,7 @@ function HomePage({userParam}) {
                 const idx = updated.findIndex(it => it.name === item.name);
 
                 if (idx === -1) {
-                    updated.push({ ...item });
+                    updated.push({...item});
                     return;
                 }
 
@@ -499,14 +499,14 @@ function HomePage({userParam}) {
                             quantity: existing.quantity + item.quantity,
                         };
                     } else {
-                        updated.push({ ...item });
+                        updated.push({...item});
                     }
                     return;
                 }
 
-                if (item.category === "Combo Deals" && item.name==="Pizza Combo") {
+                if (item.category === "Combo Deals" && item.name === "Pizza Combo") {
                     if (existing.description !== item.description || existing.size !== item.size) {
-                        updated.push({ ...item });
+                        updated.push({...item});
                         return;
                     }
 
@@ -523,7 +523,7 @@ function HomePage({userParam}) {
                             quantity: existing.quantity + item.quantity,
                         };
                     } else {
-                        updated.push({ ...item });
+                        updated.push({...item});
                     }
                     return;
                 }
@@ -536,7 +536,7 @@ function HomePage({userParam}) {
                         existing.isGarlicCrust !== item.isGarlicCrust;
 
                     if (baseChanged) {
-                        updated.push({ ...item });
+                        updated.push({...item});
                         return;
                     }
 
@@ -553,7 +553,7 @@ function HomePage({userParam}) {
                     }
 
                     if (existingExtras.length !== newExtras.length) {
-                        updated.push({ ...item });
+                        updated.push({...item});
                         return;
                     }
 
@@ -562,7 +562,7 @@ function HomePage({userParam}) {
                     );
 
                     if (!allExtrasMatch) {
-                        updated.push({ ...item });
+                        updated.push({...item});
                         return;
                     }
 
@@ -575,7 +575,7 @@ function HomePage({userParam}) {
                     return;
                 }
 
-                updated.push({ ...item });
+                updated.push({...item});
             });
 
             return updated;
@@ -785,7 +785,7 @@ function HomePage({userParam}) {
                     response = await createOrder(order)
                     const SUPPRESS_KEY = 'suppressSoundIds';
                     const createdId = String(response.id);
-                    console.log("Received id " +createdId);
+                    console.log("Received id " + createdId);
                     if (createdId != null) {
                         try {
                             const list = [createdId];
@@ -800,13 +800,13 @@ function HomePage({userParam}) {
                     window.ttq.identify({
                         phone_number: "+" + tel
                     });
-                } else {
+                }
+                else {
                     let customerResponse = await checkCustomer(order.tel)
                     console.log(customerResponse.isNewCustomer)
-                    if( customerResponse.isNewCustomer === false){
+                    if (customerResponse.isNewCustomer === false) {
                         await executeOrderCreation(order)
-                    }
-                    else{
+                    } else {
                         setPendingOrder(order)
                         setPickUpReminder(true)
                     }
@@ -837,7 +837,7 @@ function HomePage({userParam}) {
                 currency: 'BHD',
                 value: orderData.amount_paid,
             });
-            window.ttq.identify({ phone_number: "+" + orderData.tel });
+            window.ttq.identify({phone_number: "+" + orderData.tel});
             window.fbq('track', 'Purchase', {
                 value: orderData.amount_paid,
                 currency: 'BHD',
@@ -858,7 +858,9 @@ function HomePage({userParam}) {
             setUsername("");
             setCartOpen(false);
 
-            navigate("/order_status?order_id=" + response.id);
+            if (!isKiosk) {
+                navigate("/order_status?order_id=" + response.id);
+            }
 
         } catch (error) {
             console.error("Error processing order:", error);
@@ -906,7 +908,7 @@ function HomePage({userParam}) {
                     sx={{
                         position: "relative",
                         width: "100%",
-                        height: { xs: "70vh", sm: "70vh", md: "70vh" },
+                        height: {xs: "70vh", sm: "70vh", md: "70vh"},
                         overflow: "hidden",
                         backgroundColor: "#fbfaf6",
                         mb: 0,
@@ -1029,25 +1031,25 @@ function HomePage({userParam}) {
                     </Box>
                 </Box>
             )}
-            <Box sx={{ pt: 1.3, pb: 12 }}>
+            <Box sx={{pt: 1.3, pb: 12}}>
                 {[
-                    { title: "Bestsellers", items: bestsellers, isBestSellerBlock: true },
-                    { title: "Detroit Brick Pizzas", items: brickPizzas },
-                    { title: "Combo Deals", items: combos },
-                    { title: "Pizzas", items: pizzas },
-                    { title: "Sides", items: sides },
-                    { title: "Sauces", items: sauces },
-                    { title: "Beverages", items: beverages },
+                    {title: "Bestsellers", items: bestsellers, isBestSellerBlock: true},
+                    {title: "Detroit Brick Pizzas", items: brickPizzas},
+                    {title: "Combo Deals", items: combos},
+                    {title: "Pizzas", items: pizzas},
+                    {title: "Sides", items: sides},
+                    {title: "Sauces", items: sauces},
+                    {title: "Beverages", items: beverages},
                 ]
-                    .filter(({ items }) => items.length > 0)
+                    .filter(({items}) => items.length > 0)
                     .map((section, idx, arr) => {
                         const isLast = idx === arr.length - 1;
                         const isBest = section.title === "Bestsellers";
 
 
                         return (
-                            <Box key={section.title} sx={{ pb: isLast ? 1 : 4 }}>
-                                <TextGroup sx={{ px: 1.5, pb: 1 }}>{section.title}</TextGroup>
+                            <Box key={section.title} sx={{pb: isLast ? 1 : 4}}>
+                                <TextGroup sx={{px: 1.5, pb: 1}}>{section.title}</TextGroup>
 
                                 <Box
                                     ref={isBest ? bestRef : null}
@@ -1057,14 +1059,14 @@ function HomePage({userParam}) {
                                         px: 1,
                                         scrollSnapType: "x mandatory",
                                         scrollBehavior: "auto",
-                                        "&::-webkit-scrollbar": { display: "none" },
+                                        "&::-webkit-scrollbar": {display: "none"},
                                         WebkitOverflowScrolling: "touch",
                                     }}
                                 >
                                     {section.items.map(group => (
                                         <Box
                                             key={group.name}
-                                            sx={{ flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}                                     >
+                                            sx={{flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}>
                                             <MenuItemCardHorizontal
                                                 group={group}
                                                 onSelect={handleOpenPopup}
@@ -1158,30 +1160,30 @@ function HomePage({userParam}) {
 
             {detroitComboPopupOpen && (
                 <DetroitComboPopup
-                open={true}
-                onClose={handleCloseDetroitComboPopup}
-                combo={popupGroup}
-                bricks={brickPizzas}
-                drinks={beverages}
-                sauces={sauces}
-                onAddToCart={handleAddToCart}
-                selectedDetroitPizza={upsellItem}
-                editItem={editItem}
-                isEditMode={editMode}
-                removeFromCart={removeFromCart}
+                    open={true}
+                    onClose={handleCloseDetroitComboPopup}
+                    combo={popupGroup}
+                    bricks={brickPizzas}
+                    drinks={beverages}
+                    sauces={sauces}
+                    onAddToCart={handleAddToCart}
+                    selectedDetroitPizza={upsellItem}
+                    editItem={editItem}
+                    isEditMode={editMode}
+                    removeFromCart={removeFromCart}
                 >
                 </DetroitComboPopup>
             )}
 
             {upsellPopupOpen && (
                 <UpsellPopup
-                open={true}
-                upsellItem={upsellItem}
-                upsellType={upsellType}
-                onAccept={handleUpsellAccept}
-                onDecline={handleUpsellDecline}
-                photo={comboOfferPhoto}
-                comboPrice={comboPrice}>
+                    open={true}
+                    upsellItem={upsellItem}
+                    upsellType={upsellType}
+                    onAccept={handleUpsellAccept}
+                    onDecline={handleUpsellDecline}
+                    photo={comboOfferPhoto}
+                    comboPrice={comboPrice}>
                 </UpsellPopup>
             )}
 
@@ -1222,7 +1224,7 @@ function HomePage({userParam}) {
             }
 
             {closedPopup && (
-                <ClosedPopup open={closedPopup} onClose={() => setClosedPopupOpen(false)} />
+                <ClosedPopup open={closedPopup} onClose={() => setClosedPopupOpen(false)}/>
             )}
 
             {phonePopupOpen && <ClientInfoPopup
@@ -1255,65 +1257,65 @@ function HomePage({userParam}) {
                         setPickUpReminder(false)
                         executeOrderCreation(pendingOrder)
                     }
-                }
+                    }
                 />
             }
 
             {!isAdmin && showOrderConfirmed && (
-                    <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
-                )}
+                <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
+            )}
 
             {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && cartItems.length > 0 &&
-            <Box
-                onClick={handleOpenCart}
-                sx={{
-                    position: "fixed",
-                    bottom: 24,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    width: "70vw",
-                    maxWidth: 400,
-                    zIndex: 9999,
-                    px: 3,
-                    py: 2,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    borderRadius: 999,
-                    backdropFilter: "blur(8px)",
-                    backgroundColor: "rgba(255, 255, 255, 0.7)",
-                    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-                    cursor: "pointer",
-                    transition: "background-color 0.3s",
-                    "&:hover": {
-                        backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    },
-                }}
-            >
-                {totalPrice && totalPrice !== 0 && <Box sx={{ flexGrow: 1, textAlign: "center" }}>
-                    <TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>
-                        {totalPrice} BHD
-                    </TextButton>
-                </Box>}
-
-                <Badge
-                    badgeContent={cartItems.length}
-                    color="error"
+                <Box
+                    onClick={handleOpenCart}
                     sx={{
-                        "& .MuiBadge-badge": {
-                            fontSize: "12px",
-                            height: "22px",
-                            minWidth: "22px",
-                            backgroundColor: brandRed,
-                            color: "white",
-                            top: 2,
-                            right: 2,
+                        position: "fixed",
+                        bottom: 24,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: "70vw",
+                        maxWidth: 400,
+                        zIndex: 9999,
+                        px: 3,
+                        py: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderRadius: 999,
+                        backdropFilter: "blur(8px)",
+                        backgroundColor: "rgba(255, 255, 255, 0.7)",
+                        boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                        cursor: "pointer",
+                        transition: "background-color 0.3s",
+                        "&:hover": {
+                            backgroundColor: "rgba(255, 255, 255, 0.8)",
                         },
                     }}
                 >
-                    <ShoppingCartIcon sx={{ color: brandRed, fontSize: 32 }} />
-                </Badge>
-            </Box>
+                    {totalPrice && totalPrice !== 0 && <Box sx={{flexGrow: 1, textAlign: "center"}}>
+                        <TextButton sx={{fontWeight: 600, color: "#000", fontSize: "1.1rem"}}>
+                            {totalPrice} BHD
+                        </TextButton>
+                    </Box>}
+
+                    <Badge
+                        badgeContent={cartItems.length}
+                        color="error"
+                        sx={{
+                            "& .MuiBadge-badge": {
+                                fontSize: "12px",
+                                height: "22px",
+                                minWidth: "22px",
+                                backgroundColor: brandRed,
+                                color: "white",
+                                top: 2,
+                                right: 2,
+                            },
+                        }}
+                    >
+                        <ShoppingCartIcon sx={{color: brandRed, fontSize: 32}}/>
+                    </Badge>
+                </Box>
             }
         </Box>
     );
