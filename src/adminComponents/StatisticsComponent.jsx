@@ -25,8 +25,9 @@ import {RevenueByHourTable} from "./RevenueByHourTable";
 import {TopProductsTable} from "./TopProductsTable";
 import {PlatformStatCard} from "./PlatformStatCatd";
 import {ProductsTable} from "../management/productsTable/ProductsTable";
+import {VatReportCard} from "./VatReportCard";
 
-export default function StatisticsComponent({onClose}) {
+export default function StatisticsComponent({onClose, branchId}) {
     const [dateRange, setDateRange] = useState([
         {
             startDate: startOfDay(new Date()),
@@ -177,13 +178,16 @@ export default function StatisticsComponent({onClose}) {
                     >
                         <ToggleButton value="Performance">Performance</ToggleButton>
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
+                        <ToggleButton value="Reports">Reports</ToggleButton>
+                        <ToggleButton value="Pricing">Pricing</ToggleButton>
                     </ToggleButtonGroup>
                 </Box>
-                {mode === "Performance" ? (<>
+                {mode === "Performance" && (<>
                             <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
                                 <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                                        <Typography variant="h6">📆 Stats by Date Range</Typography>
+                                    <Box sx={{mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                                        <Typography variant="h6">📆 <b>Stats by Date Range</b></Typography>
+                                        <Box sx={{mt: 1}}></Box>
                                         <Button variant="outlined" onClick={handleOpenCalendar}>
                                             {formatDate(dateRange[0].startDate)} — {formatDate(dateRange[0].endDate)}
                                         </Button>
@@ -226,7 +230,6 @@ export default function StatisticsComponent({onClose}) {
                                     {rangeStats && (
                                         <>
                                             <Grid container spacing={4}>
-                                                {/* ЛЕВАЯ КОЛОНКА: Статистика по платформам */}
                                                 <Grid item xs={12} md={7} lg={8}>
 
                                                     <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
@@ -251,7 +254,6 @@ export default function StatisticsComponent({onClose}) {
                                                         ]}
                                                     />
 
-                                                    {/* Карточка Talabat */}
                                                     <PlatformStatCard
                                                         title="Talabat"
                                                         items={[
@@ -263,7 +265,6 @@ export default function StatisticsComponent({onClose}) {
                                                     <Box sx={{ display: { xs: 'block', md: 'none' }, height: 24 }} />
                                                 </Grid>
 
-                                                {/* ПРАВАЯ КОЛОНКА: Топ Продуктов */}
                                                 <Grid item xs={12} md={5} lg={4} sx={{
                                                     borderLeft: { md: "1px solid #e0e0e0" },
                                                     pl: { md: 2 }
@@ -298,7 +299,7 @@ export default function StatisticsComponent({onClose}) {
                                         flexDirection: "column"
                                     }}>
                                         <CardContent>
-                                            <Typography variant="h6" gutterBottom>🔄 Retention Check</Typography>
+                                            <Typography variant="h6" gutterBottom>🔄 <b>Retention Check</b></Typography>
 
                                             <Button variant="outlined" onClick={(e) => setRetentionAnchorEl(e.currentTarget)}>
                                                 {formatDate(selectedDate)}
@@ -371,7 +372,7 @@ export default function StatisticsComponent({onClose}) {
                                         height: "100%"
                                     }}>
                                         <CardContent>
-                                            <Typography variant="h6" gutterBottom>📉 Global Stats</Typography>
+                                            <Typography variant="h6" gutterBottom>📉 <b>Global Stats</b></Typography>
                                             {globalStats && (
                                                 <Grid container spacing={2} sx={{ mt: 1 }}>
                                                     <Grid item xs={6}>
@@ -421,7 +422,8 @@ export default function StatisticsComponent({onClose}) {
                                 </Grid>
                             </Grid>
                         </>
-                    ) :
+                    )}
+                {mode === "Consumption" &&(
                     <>
                         <Box sx={{mt: 1}}>
                             <DoughUsageTable
@@ -429,13 +431,16 @@ export default function StatisticsComponent({onClose}) {
                             />
                             <Box sx={{mt: 1}}></Box>
                             <ConsumptionStatistics/>
-
-                            <Box sx={{mt: 1}}></Box>
-
-                            <ProductsTable/>
                         </Box>
                     </>
-                }
+                )}
+                {mode === "Reports" && (
+                    <VatReportCard branchId={branchId}/>
+                )}
+
+                {mode === "Pricing" && (
+                    <ProductsTable/>
+                )}
             </Box>
         </>
     );

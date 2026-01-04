@@ -24,3 +24,9 @@ export type TopProduct = {
     name: string;
     quantity: number;
 }
+
+export type VatStatePayload = {
+    branchId: string;
+    fromDate: string;
+    toDate: string;
+}

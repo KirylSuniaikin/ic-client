@@ -123,6 +123,38 @@ class BluetoothPrinterService {
         }, intervalMs);
     }
 
+    async printVatReport(text){
+        if (!this.isConnected) {
+            console.warn("⚠️ Printer not connected — trying to reconnect...");
+            try {
+                await this.connect();
+            } catch (e) {
+                console.error("❌ Reconnect before print failed", e);
+                return false;
+            }
+        }
+
+        try {
+            await new Promise((resolve, reject) => {
+                BluetoothSerial.write(
+                    text,
+                    () => {
+                        console.log("🖨️ Printed successfully: ", text);
+                        resolve();
+                    },
+                    (err) => {
+                        console.error("❌ Print failed:", err);
+                        reject(err);
+                    }
+                );
+            });
+            return true;
+        } catch (e) {
+            console.error("Write error:", e);
+            return false;
+        }
+    }
+
     async printOrder(order) {
         if (!this.isConnected) {
         console.warn("⚠️ Printer not connected — trying to reconnect...");
@@ -162,7 +194,15 @@ class BluetoothPrinterService {
             "--------------------------\n",
             this.formatOrderItems(order.items),
             "--------------------------\n",
-            `Total: ${order.amount_paid} BHD\n`,
+            `Total: ${order.amount_paid*0.9} BHD\n`,
+            `VAT: ${order.amount_paid*0.1} BHD\n`,
+            `Grand TOTAL: ${order.amount_paid} BHD\n`,
+            "--------------------------\n",
+            "220026867000002\n",
+            "Flat/Shop No. 0,\n",
+            "Building 1284,\n",
+            "Road/Street 114, HIDD\n",
+            "Block 101, Bahrain",
             LF + LF + LF
         ].join("");
 
