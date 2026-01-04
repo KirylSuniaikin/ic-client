@@ -3,7 +3,8 @@ import {DataGrid, GridColDef, GridFilterModel} from "@mui/x-data-grid";
 import {fetchProducts} from "../api/api";
 import {ProductStatRow} from "../types/productStatRow";
 import {productTOConverter} from "../mappers/mapper";
-import {Alert, Box, Card, CardContent, CircularProgress, TextField, Typography} from "@mui/material";
+import {Alert, Box, Card, CardContent, CircularProgress, InputAdornment, TextField, Typography} from "@mui/material";
+import SearchIcon from '@mui/icons-material/Search';
 
 export function ProductsTable() {
     const [rows, setRows] = useState<ProductStatRow[]>([]);
@@ -84,20 +85,29 @@ export function ProductsTable() {
                     <CircularProgress size={24}/>
                 </Box>
             )}
-            <Box sx={{display: "flex", flexDirection: "column", gap: 1}}>
+            <Box sx={{display: "flex", flexDirection: "column", gap: 1, mt: 1}}>
                 <Card sx={{borderRadius: 3, boxShadow: 3}}>
                     <Box
                         sx={{
                             p: 2
                         }}
                     >
+                        <Typography variant="h6" sx={{mb: 1}}>
+                            <b>Products</b>
+                        </Typography>
                         <TextField
                             variant="outlined"
                             size="small"
-                            label="Filter by product name"
                             placeholder="Type to filter"
                             onChange={handleFilterParamChange}
                             fullWidth
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={{ color: '#a5a5a5' }} />
+                                    </InputAdornment>
+                                ),
+                            }}
                             sx={{
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 3,
@@ -119,11 +129,6 @@ export function ProductsTable() {
                         />
                     </Box>
                     <CardContent>
-
-                        <Typography variant="h6" sx={{mb: 1}}>
-                            Products
-                        </Typography>
-
                         <Box sx={{flex: 1, minHeight: 0}}>
                             <DataGrid rows={rows.map((r) => ({id: r.id, ...r}))}
                                       columns={columns}

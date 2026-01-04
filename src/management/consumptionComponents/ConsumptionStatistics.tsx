@@ -3,7 +3,8 @@ import {fetchLatestConsumptionReport} from "../api/api";
 import {ConsumptionProductTO, ConsumptionReportTO} from "../types/consumptionTypes";
 import {DataGrid, GridColDef, GridFilterModel} from "@mui/x-data-grid";
 import { getDaysInMonth } from "date-fns";
-import {Box, Card, CardContent, TextField, Typography} from "@mui/material";
+import {Box, Card, CardContent, InputAdornment, TextField, Typography} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 
 function parseYearMonthFromTitle(title: string): { year: number; month: number } | null {
     const m = title.trim().toLowerCase().match(/^([a-z]{3})-(\d{2})/);
@@ -109,13 +110,24 @@ export function  ConsumptionStatistics() {
                     sx={{p:2
                     }}
                 >
+                    {report && (
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                            <b>{report.title}</b>
+                        </Typography>
+                    )}
                     <TextField
                         variant="outlined"
                         size="small"
-                        label="Filter by product name"
                         placeholder="Type to filter"
                         onChange={handleFilterParamChange}
                         fullWidth
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: '#a5a5a5' }} />
+                                </InputAdornment>
+                            ),
+                        }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: 3,
@@ -137,12 +149,6 @@ export function  ConsumptionStatistics() {
                     />
                 </Box>
                 <CardContent>
-                    {report && (
-                        <Typography variant="h6" sx={{ mb: 1 }}>
-                            Title: <b>{report.title}</b>
-                        </Typography>
-                    )}
-
                     <Box sx={{ height: 560, width: "100%" }}>
                         <DataGrid
                             rows={rows}

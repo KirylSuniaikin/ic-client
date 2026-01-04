@@ -14,6 +14,7 @@ import {
 } from "../types/purchaseTypes";
 import {ConsumptionReportTO} from "../types/consumptionTypes";
 import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
+import {VatStatePayload} from "../types/statTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -191,4 +192,20 @@ export async function getShiftReport(payload:{id: number}): Promise<ShiftReportT
     })
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
+}
+
+export async function getVatStats(payload:VatStatePayload ){
+    const params = new URLSearchParams({
+        branchId: payload.branchId,
+        fromDate: payload.fromDate,
+        toDate: payload.toDate
+    });
+
+    const res = await fetch(URL + `/branch/get_vat_stats?${params}`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
 }

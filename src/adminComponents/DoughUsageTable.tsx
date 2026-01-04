@@ -100,7 +100,7 @@ export function DoughUsageTable({rows}: Props) {
         <Box sx={{ borderRadius: 3, width: '100%', boxShadow: 3, bgcolor: 'background.paper' }}>
             <Box sx={{ p: 2 }}>
                 <Typography variant="h6" component="div">
-                    Dough Usage
+                    <b>Dough Usage</b>
                 </Typography>
             </Box>
             <DataGrid

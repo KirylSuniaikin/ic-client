@@ -619,6 +619,7 @@ function AdminHomePage() {
                 <StatisticsComponent
                     isOpen={isStatisticsOpen}
                     onClose={() => setIsStatisticsOpen(false)}
+                    branchId={branchId}
                 />
             )}
 
