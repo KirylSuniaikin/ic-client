@@ -142,12 +142,19 @@ export default function StatisticsComponent({onClose, branchId}) {
             <Box sx={{
                 p: 1,
                 height: "100vh",
-                overflowY: "auto",
-                scrollbarWidth: "none",
-                "&::-webkit-scrollbar": {display: "none"},
+                // overflow: "hidden",
+                overflowX: 'hidden',
+                // scrollbarWidth: "none",
+                // "&::-webkit-scrollbar": {display: "none"},
                 backgroundColor: "#fbfaf6"
             }}>
-                <Box sx={{px: 1, pt: 1, backgroundColor: "#fbfaf6"}}>
+                <Box sx={{
+                    px: 1, pt: 2, pb: 1,
+                    flexShrink: 0,
+                    backgroundColor: "#fbfaf6",
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap'
+                }}>
                     <ToggleButtonGroup
                         exclusive
                         value={mode}
@@ -178,10 +185,18 @@ export default function StatisticsComponent({onClose, branchId}) {
                     >
                         <ToggleButton value="Performance">Performance</ToggleButton>
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
-                        <ToggleButton value="Reports">Reports</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
+                        <ToggleButton value="Reports">Reports</ToggleButton>
                     </ToggleButtonGroup>
                 </Box>
+                <Box sx={{
+                    flex: 1,
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    p: 1,
+                    scrollbarWidth: "none",
+                    "&::-webkit-scrollbar": {display: "none"},
+                }}>
                 {mode === "Performance" && (<>
                             <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
                                 <CardContent>
@@ -441,6 +456,7 @@ export default function StatisticsComponent({onClose, branchId}) {
                 {mode === "Pricing" && (
                     <ProductsTable/>
                 )}
+            </Box>
             </Box>
         </>
     );
