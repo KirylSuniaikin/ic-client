@@ -103,7 +103,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
                     }}>
                 <ManagementTopBar
                     title={<>Inventory</>}
-                    newButtonLabel="New"
+                    newButtonLabel="New Report"
                     onClose={onClose}
                     onNewClick={handleCreateReportClick}
                 />

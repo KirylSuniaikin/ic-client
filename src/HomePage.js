@@ -1028,6 +1028,35 @@ function HomePage({userParam}) {
                                 }}
                             />
                         </Fab>
+
+                        <Fab
+                            size="medium"
+                            onClick={() => window.open("https://url-eu.mykeeta.com/sjDeu4Mz", "_blank")}
+                            sx={{
+                                p: 0,
+                                minHeight: "unset",
+                                minWidth: "unset",
+                                width: 40,
+                                height: 40,
+                                borderRadius: "50%",
+                                boxShadow: "none",
+
+                            }}
+                        >
+                            <Box
+                                component="img"
+                                src="/keeta-logo.png"
+                                alt="Jahez"
+                                sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "contain",
+                                    borderRadius: "50%",
+                                    display: "block",
+                                    padding: "3px"
+                                }}
+                            />
+                        </Fab>
                     </Box>
                 </Box>
             )}

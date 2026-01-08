@@ -11,7 +11,7 @@ type Props = {
 
 export function ManagementTopBar({
                                    title = "Purchase",
-                                   newButtonLabel = "New",
+                                   newButtonLabel = "New Report",
                                    onClose = () => {},
                                    onNewClick = () => {},
                                }: Props) {
