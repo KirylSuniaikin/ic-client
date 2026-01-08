@@ -22,7 +22,7 @@ export function PurchaseTopBar({onClose = () => {}, onNewClick = () => {}}) {
                     onClick={onNewClick}
                     sx={{ borderRadius: 4, textTransform: "none", fontWeight: 700, bgcolor: "#E44B4C" }}
                 >
-                    New
+                    New Report
                 </Button>
             </Toolbar>
         </AppBar>
