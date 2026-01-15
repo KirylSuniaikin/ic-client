@@ -188,7 +188,7 @@ function OrderCard({order,
             border: '2px solid',
             borderRadius: 3,
             borderColor: cardBorderColor,
-            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : "#fff",
+            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#9eceff' :"#fff",
             boxShadow: 3
         }}>
             <CardContent>
@@ -220,7 +220,7 @@ function OrderCard({order,
 
                         <Typography variant="h6" component="div">
                             Order:{" "}
-                            {order.order_type === "Jahez" ? order.external_id : order.order_no}{" "}
+                            {order.order_type === "Jahez" ||  order.order_type === "Keeta" ? order.external_id : order.order_no}{" "}
                             <Typography
                                 component="span"
                                 sx={{ fontSize: 14, color: "text.secondary" }}
