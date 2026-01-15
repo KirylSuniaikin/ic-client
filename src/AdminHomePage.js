@@ -667,16 +667,20 @@ function AdminHomePage() {
                 >
                     <Box sx={{display: "flex", flexDirection: "column", gap: 2}}>
                         <Box sx={{flexGrow: 1}}>
+                            {activeAlertOrder &&
                             <Typography variant="subtitle1" sx={{fontWeight: 600}}>
-                                {getExtId(activeAlertOrder) ? 'Jahez Order' : 'New Order'}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
+                                {activeAlertOrder.order_type === "Jahez" ? "Jahez Order" :
+                                    activeAlertOrder.order_type === "Keeta" ? "Keeta Order" :
+                                        "New Order"}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
                             </Typography>
+                            }
 
                             <Typography variant="body2">
                                 Total price: {activeAlertOrder?.amount_paid} BHD
                             </Typography>
                         </Box>
 
-                        {getExtId(activeAlertOrder) ? (
+                        {getExtId(activeAlertOrder) && activeAlertOrder.order_type==="Jahez" ? (
                             <>
                                 <Box>
                                     {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
