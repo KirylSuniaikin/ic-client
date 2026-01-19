@@ -90,6 +90,8 @@ export default function StatisticsComponent({onClose, branchId}) {
                 totalJahezOrders: response.jahez_total_order_count,
                 totalTalabatOrders: response.totalTalabatOrders,
                 totalTalabatRevenue: response.totalTalabatRevenue,
+                totalKeetaOrders: response.totalKeetaOrders,
+                totalKeetaRevenue: response.totalKeetaRevenue,
                 topProducts: response.topProducts
             });
 
@@ -274,6 +276,14 @@ export default function StatisticsComponent({onClose, branchId}) {
                                                         items={[
                                                             { label: "Revenue", value: rangeStats.totalTalabatRevenue, subValue: "BD" },
                                                             { label: "Orders", value: rangeStats.totalTalabatOrders }
+                                                        ]}
+                                                    />
+
+                                                    <PlatformStatCard
+                                                        title="Keeta"
+                                                        items={[
+                                                            { label: "Revenue", value: rangeStats.totalKeetaRevenue, subValue: "BD" },
+                                                            { label: "Orders", value: rangeStats.totalKeetaOrders }
                                                         ]}
                                                     />
 
