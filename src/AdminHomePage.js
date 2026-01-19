@@ -305,11 +305,13 @@ function AdminHomePage() {
 
                         const suppressed = suppressedSoundIdsRef.current.has(id);
                         console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
-                        try {
-                            await BluetoothPrinterService.printOrder(newOrder);
-                            console.log("🖨️ Auto print success");
-                        } catch (e) {
-                            console.warn("⚠️ Auto print error:", e);
+                        if("Keeta" !== newOrder.order_type) {
+                            try {
+                                await BluetoothPrinterService.printOrder(newOrder);
+                                console.log("🖨️ Auto print success");
+                            } catch (e) {
+                                console.warn("⚠️ Auto print error:", e);
+                            }
                         }
 
                         setOrders(prev => {
