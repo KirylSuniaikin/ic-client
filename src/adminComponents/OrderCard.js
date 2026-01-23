@@ -188,7 +188,7 @@ function OrderCard({order,
             border: '2px solid',
             borderRadius: 3,
             borderColor: cardBorderColor,
-            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#9eceff' :"#fff",
+            backgroundColor: order.order_type === "Jahez" ? "#D04A43" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#E07C2A' :"#fff",
             boxShadow: 3
         }}>
             <CardContent>
@@ -220,7 +220,7 @@ function OrderCard({order,
 
                         <Typography variant="h6" component="div">
                             Order:{" "}
-                            {order.order_type === "Jahez" ||  order.order_type === "Keeta" ? order.external_id : order.order_no}{" "}
+                            {order.order_type === "Jahez" ||  order.order_type === "Keeta" ||  order.order_type === "Talabat" ? order.external_id : order.order_no}{" "}
                             <Typography
                                 component="span"
                                 sx={{ fontSize: 14, color: "text.secondary" }}
@@ -241,7 +241,7 @@ function OrderCard({order,
                     <Typography variant="body2">
                         <strong>Time:</strong> {formattedTime}
                     </Typography>
-                    {order.order_type !== "Jahez" && (
+                    {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                         </Typography>
@@ -370,7 +370,7 @@ function OrderCard({order,
                                     onClick={() => {
                                         updateOrderStatus({
                                             orderId: order.id,
-                                            jahezOrderId: null,
+                                            jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Picked Up",
                                             reason: null
                                         })
@@ -382,7 +382,7 @@ function OrderCard({order,
                                     PICKED UP
                                 </Button>
                             )}
-                            {order.order_type !== "Jahez" && (
+                            {order.order_type !== "Jahez" && order.order_type !== "Keeta" && order.order_type !== "TalabaT" && (
                                 <Button
                                     variant="contained"
                                     size="small"
@@ -404,7 +404,7 @@ function OrderCard({order,
                             )}
                         </>
                     )}
-                    {order.order_type !== "Jahez" && (
+                    {order.order_type !== "Jahez" && order.order_type !== "Keeta" && order.order_type !== "Talabat" && (
 
                         <Button
                             variant="outlined"
