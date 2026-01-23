@@ -188,7 +188,7 @@ function OrderCard({order,
             border: '2px solid',
             borderRadius: 3,
             borderColor: cardBorderColor,
-            backgroundColor: order.order_type === "Jahez" ? "#D04A43" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#E07C2A' :"#fff",
+            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#fbaa66' :"#fff",
             boxShadow: 3
         }}>
             <CardContent>
