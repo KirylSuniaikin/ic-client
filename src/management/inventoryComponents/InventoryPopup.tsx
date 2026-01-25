@@ -48,7 +48,9 @@ export default function InventoryPopup({
         value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
 
     const finalGetter: GridValueGetter = (_value, row: any) => {
-        const qty = row?.quantity instanceof Decimal ? row.quantity : new Decimal(row?.quantity ?? 0);
+        const kitchenQ: Decimal = row?.kitchenQuantity instanceof Decimal ? row.kitchenQuantity : new Decimal(row?.kitchenQuantity ?? 0);
+        const storageQ : Decimal = row?.storageQuantity instanceof Decimal ? row.storageQuantity : new Decimal(row?.storageQuantity ?? 0);
+        const qty = storageQ.add(kitchenQ);
         const price = row?.price instanceof Decimal ? row.price : new Decimal(row?.price ?? 0);
         return qty.mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
     };
@@ -120,8 +122,18 @@ export default function InventoryPopup({
             minWidth: 140
         },
         {
-            field: "quantity",
-            headerName: "Quantity",
+            field: "kitchenQuantity",
+            headerName: "Kitchen Quantity",
+            width: 140,
+            editable: true,
+            type: "number",
+            headerAlign: "left",
+            align: "left",
+            valueFormatter: fmt3,
+        },
+        {
+        field: "storageQuantity",
+            headerName: "Storage Quantity",
             width: 140,
             editable: true,
             type: "number",
@@ -156,16 +168,31 @@ export default function InventoryPopup({
     const processRowUpdate = (newRow: GridRowModel, oldRow: GridRowModel) => {
         const nr = newRow as unknown as InventoryRow;
         const or = oldRow as unknown as InventoryRow;
-        const next = withRecalc(or, (nr.quantity as any)?.toString?.() ?? "");
+        const next = withRecalc(or, (nr.kitchenQuantity as any)?.toString?.() ?? "", (nr.storageQuantity as any)?.toString?.() ?? "");
 
         setRows(prev => prev.map(r => (r.productId === next.productId ? next : r)));
 
+        // setDirty(prev => {
+        //     const s = new Set(prev);
+        //     const changed = next.quantity.toFixed(3) !== or.quantity.toFixed(3);
+        //     changed ? s.add(next.productId) : s.delete(next.productId);
+        //     return s;
+        // });
+        // return next;
         setDirty(prev => {
             const s = new Set(prev);
-            const changed = next.quantity.toFixed(3) !== or.quantity.toFixed(3);
+
+
+            const isKitchenChanged = nr.kitchenQuantity.toFixed(3) !== or.kitchenQuantity.toFixed(3);
+            const isStorageChanged = nr.storageQuantity.toFixed(3) !== or.storageQuantity.toFixed(3);
+
+            const changed = isKitchenChanged || isStorageChanged;
+
             changed ? s.add(next.productId) : s.delete(next.productId);
+
             return s;
         });
+
         return next;
     };
 

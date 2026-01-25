@@ -38,7 +38,8 @@ export type ProductTO = {
 
 export type ReportInventoryProductDTO = {
     product: ProductTO;
-    quantity: number;
+    kitchenQuantity: number;
+    storageQuantity: number;
     finalPrice: number;
 };
 
@@ -51,17 +52,11 @@ export type ReportTO = {
     inventoryProducts: ReportInventoryProductDTO[];
 }
 
-export type ReportLineTO = {
-    productId: number;
-    name: string;
-    quantity: number;
-    finalPrice: number;
-}
-
 export type InventoryRow = {
     productId: number;
     name: string;
-    quantity: Decimal;
+    kitchenQuantity: Decimal;
+    storageQuantity: Decimal;
     finalPrice: Decimal;
     price: Decimal;
     isInventory: boolean;
