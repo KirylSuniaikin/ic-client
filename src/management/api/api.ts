@@ -29,7 +29,7 @@ export async function getBaseManagementReports(branchNo: number): Promise<IManag
 }
 
 export async function createReport(payload: {
-    inventoryProducts: { quantity: number; finalPrice: number; id: number }[];
+    inventoryProducts: { storageQuantity: number;kitchenQuantity: number; finalPrice: number; id: number }[];
     finalPrice: number;
     title: string;
     type: string;
@@ -47,7 +47,7 @@ export async function createReport(payload: {
 
 
 export async function editReport(payload: {
-    inventoryProducts: { quantity: number; finalPrice: number; id: number }[];
+    inventoryProducts: { storageQuantity: number; kitchenQuantity: number; finalPrice: number; id: number }[];
     finalPrice: number;
     id: number;
     type: string;

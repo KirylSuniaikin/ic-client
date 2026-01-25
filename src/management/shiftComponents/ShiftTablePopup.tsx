@@ -89,9 +89,12 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                 rows.push({
                     id: dateStr,
                     shiftDate: dateStr,
-                    startTime: null,
-                    endTime: null,
-                    totalHours: null,
+                    cookStartTime: null,
+                    cookEndTime: null,
+                    cookTotalHours: null,
+                    managerStartTime: null,
+                    managerEndTime: null,
+                    managerTotalHours: null,
                 });
             }
             d = d.add(1, "day");
@@ -99,15 +102,26 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         return rows;
     }
 
-    const total = useMemo(
+    const cookTotal = useMemo(
         () =>
-            rows.reduce((acc, r) => acc + (r.totalHours ?? 0), 0),
+            rows.reduce((acc, r) => acc + (r.cookTotalHours ?? 0), 0),
         [rows]
     );
 
-    const formattedTotal = useMemo(
-        () => total.toFixed(3),
-        [total]
+    const managerTotal = useMemo(
+        () =>
+            rows.reduce((acc, r) => acc + (r.managerTotalHours ?? 0), 0),
+        [rows]
+    );
+
+    const formattedCookTotal = useMemo(
+        () => cookTotal.toFixed(3),
+        [cookTotal]
+    );
+
+    const formattedManagerTotal = useMemo(
+        () => managerTotal.toFixed(3),
+        [managerTotal]
     );
 
     useEffect(() => {
@@ -142,9 +156,12 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                             resp.shifts.map((x, i) => ({
                                 id: `r-${i}`,
                                 shiftDate: x.shiftDate,
-                                startTime: x.startTime ? x.startTime.slice(0, 5) : null,
-                                endTime: x.endTime ? x.endTime.slice(0, 5) : null,
-                                totalHours: x.total,
+                                cookStartTime: x.cookStartTime ? x.cookStartTime.slice(0, 5) : null,
+                                cookEndTime: x.cookEndTime ? x.cookEndTime.slice(0, 5) : null,
+                                cookTotalHours: x.cookTotal,
+                                managerStartTime: x.managerStartTime ? x.managerStartTime.slice(0, 5) : null,
+                                managerEndTime: x.managerEndTime ? x.managerEndTime.slice(0, 5) : null,
+                                managerTotalHours: x.managerTotal,
                             }))
                         );
                     }
@@ -175,7 +192,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                 const report: BaseShiftResponse = await createShiftReport({
                     title: title,
                     branchNo: branch.branchNo,
-                    totalHours: Number(total),
+                    totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
                     shifts: rowsToSave
                 });
                 console.log("[SHIFT REPORT] Created new shift report: {}", report);
@@ -185,7 +202,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     title: title,
                     id: shiftReportId!,
                     branchNo: branch.branchNo,
-                    totalHours: Number(total),
+                    totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
                     shifts: rowsToSave
                 })
                 console.log("[SHIFT REPORT] Edited shift report: {}", report);
@@ -200,26 +217,30 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
     }
 
     function calculateTotalHours(row: ShiftRow): ShiftRow {
-        const {startTime, endTime} = row;
+        const calcDuration = (startStr: string | null | undefined, endStr: string | null | undefined): number | null => {
+            if (!startStr || !endStr) return null;
 
-        if (!startTime || !endTime) {
-            return {...row, totalHours: null};
-        }
+            const start = dayjs(startStr, "HH:mm");
+            const end = dayjs(endStr, "HH:mm");
 
-        const start = dayjs(startTime, "HH:mm");
-        const end = dayjs(endTime, "HH:mm");
+            if (!start.isValid() || !end.isValid()) return null;
 
-        let diffInMinutes = end.diff(start, "minute");
+            let diffInMinutes = end.diff(start, "minute");
 
-        if (diffInMinutes < 0) {
-            diffInMinutes += 24 * 60;
-        }
+            if (diffInMinutes < 0) {
+                diffInMinutes += 24 * 60;
+            }
 
-        const hours = diffInMinutes / 60;
+            return Number((diffInMinutes / 60).toFixed(3));
+        };
+
+        const cookTotalHours = calcDuration(row.cookStartTime, row.cookEndTime);
+        const managerTotalHours = calcDuration(row.managerStartTime, row.managerEndTime);
 
         return {
             ...row,
-            totalHours: Number(hours.toFixed(3)),
+            cookTotalHours: cookTotalHours,
+            managerTotalHours: managerTotalHours,
         };
     }
 
@@ -240,27 +261,58 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             },
         },
         {
-            field: "startTime",
-            headerName: "Start Time",
+            field: "cookStartTime",
+            headerName: "Shift Start",
             width: 130,
             editable: true,
-            renderCell: (params: any) => <span>{params.row.startTime ?? ""}</span>,
+            renderCell: (params: any) => <span>{params.row.cookStartTime ?? ""}</span>,
             renderEditCell: (params) => <TimeEditCell {...params} />,
         },
         {
-            field: "endTime",
-            headerName: "End Time",
+            field: "cookEndTime",
+            headerName: "Shift End",
             width: 130,
             editable: true,
-            renderCell: (params: any) => <span>{params.row.endTime ?? ""}</span>,
+            renderCell: (params: any) => <span>{params.row.cookEndTime ?? ""}</span>,
             renderEditCell: (params) => <TimeEditCell {...params} />,
         },
         {
-            field: "totalHours",
+            field: "cookTotalHours",
             headerName: "Total Hours",
             width: 130,
             renderCell: (params: any) => {
-                const value = params.row.totalHours as number | null | undefined;
+                const value = params.row.cookTotalHours as number | null | undefined;
+                return value != null ? Number(value).toFixed(2) : "";
+            },
+        },
+        {
+            field: "managerStartTime",
+            headerName: "Manager Shift Start",
+            width: 200,
+            editable: true,
+            cellClassName: 'manager-cell',
+            headerClassName: 'manager-cell-header',
+            renderCell: (params: any) => <span>{params.row.managerStartTime ?? ""}</span>,
+            renderEditCell: (params) => <TimeEditCell {...params} />,
+        },
+        {
+            field: "managerEndTime",
+            headerName: "Manager Shift End",
+            width: 200,
+            cellClassName: 'manager-cell',
+            headerClassName: 'manager-cell-header',
+            editable: true,
+            renderCell: (params: any) => <span>{params.row.managerEndTime ?? ""}</span>,
+            renderEditCell: (params) => <TimeEditCell {...params} />,
+        },
+        {
+            field: "managerTotalHours",
+            headerName: "Manager Total Hours",
+            cellClassName: 'manager-cell',
+            headerClassName: 'manager-cell-header',
+            width: 200,
+            renderCell: (params: any) => {
+                const value = params.row.managerTotalHours as number | null | undefined;
                 return value != null ? Number(value).toFixed(2) : "";
             },
         },
@@ -272,8 +324,8 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             <Dialog fullScreen open={open} onClose={onClose}
                     PaperProps={{sx: {bgcolor: "background.default", display: 'flex', flexDirection: 'column'}}}>
 
-                <TableTopBar onClose={onClose} title={title} handleSave={handleSave} total={Number(formattedTotal)}
-                             saving={saving}/>
+                <TableTopBar onClose={onClose} title={title} handleSave={handleSave} total={Number(formattedCookTotal)}
+                             saving={saving} managerTotal={managerTotal} />
 
                 {loading ? (
                     <Box sx={{display: "grid", placeItems: "center", flexGrow: 1}}>
@@ -296,7 +348,15 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                 return updatedRow;
                             }}
                             disableRowSelectionOnClick
-                            sx={{height: '100%', width: '100%'}}
+                            sx={{height: '100%',
+                                width: '100%',
+                                '& .manager-cell': {
+                                    backgroundColor: "#fff5f5",
+                                },
+                                '& .manager-cell-header': {
+                                    backgroundColor: "#fff5f5",
+                                }
+                            }}
                         />
                     </Box>
                 )}

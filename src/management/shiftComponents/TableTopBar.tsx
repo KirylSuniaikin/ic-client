@@ -8,9 +8,10 @@ type Props = {
     title: string;
     handleSave: () => void;
     total: number;
+    managerTotal: number;
     saving: boolean;
 }
-export function TableTopBar({ title, handleSave, onClose, total, saving }: Props) {
+export function TableTopBar({ title, handleSave, onClose, total, saving, managerTotal }: Props) {
     return (
     <Stack direction="row" gap={2} alignItems="center" sx={{p: 2, borderBottom: 1, borderColor: "divider"}}>
         <IconButton onClick={onClose}>
@@ -29,7 +30,8 @@ export function TableTopBar({ title, handleSave, onClose, total, saving }: Props
             {title}
         </Typography>
         <Box flex={1}/>
-        <Typography>Total: <b>{total}</b></Typography>
+        <Typography>Cook: <b>{total}</b>, Mngr: <b>{managerTotal}</b></Typography>
+
 
         <Button variant="contained"
                 sx={{bgcolor: "#E44B4C", "&:hover": {bgcolor: "#c93d3e"}, borderRadius: 4}}

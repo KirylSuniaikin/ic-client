@@ -3,8 +3,11 @@ import {ShiftInfoTO, ShiftRow} from "../types/shiftTypes";
 export function toShiftInfoTO(rawRow: ShiftRow): ShiftInfoTO {
     return {
         shiftDate: rawRow.shiftDate,
-        endTime: rawRow.endTime,
-        startTime: rawRow.startTime,
-        total: rawRow.totalHours
+        cookEndTime: rawRow.cookEndTime,
+        cookStartTime: rawRow.cookStartTime,
+        cookTotal: rawRow.cookTotalHours,
+        managerEndTime: rawRow.managerEndTime,
+        managerStartTime: rawRow.managerStartTime,
+        managerTotal: rawRow.managerTotalHours,
     }
 }
