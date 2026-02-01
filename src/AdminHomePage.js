@@ -631,6 +631,7 @@ function AdminHomePage() {
                 <ConfigComponent
                     isOpen={isConfigOpen}
                     onClose={() => setIsConfigOpen(false)}
+                    selectedBranch={selectedBranch}
                 />
             )}
 

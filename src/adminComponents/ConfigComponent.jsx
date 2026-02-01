@@ -7,7 +7,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
 const brandRed = "#E44B4C";
 
-function ConfigComponent({isOpen, onClose}) {
+function ConfigComponent({isOpen, onClose, selectedBranch}) {
     const [isLoading, setIsLoading] = useState(false)
     const [groups, setGroups] = useState([]);
     const [originalGroups, setOriginalGroups] = useState([]);
@@ -143,7 +143,7 @@ function ConfigComponent({isOpen, onClose}) {
 
     const handleSave = () => {
         console.log("Saving only these changes:", changes);
-        updateAvailability(changes).then(r => {
+        updateAvailability(changes, selectedBranch.id).then(r => {
             setOriginalGroups(groups);
             setOriginalDough(doughAvailability);
             setChanges([]);
@@ -230,7 +230,6 @@ function ConfigComponent({isOpen, onClose}) {
                     ))}
                 </Box>
 
-                {/* Fixed Save button at the bottom */}
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",

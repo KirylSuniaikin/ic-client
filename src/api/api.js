@@ -55,7 +55,7 @@ export async function createOrder(order) {
     return await response.json();
 }
 
-export async function updateAvailability(changes) {
+export async function updateAvailability(changes, branchId) {
     console.log("Changes to update:", changes);
 
     const response = await fetch(URL + "/update_availability", {
@@ -64,7 +64,7 @@ export async function updateAvailability(changes) {
             "Content-Type": "application/json",
             // "ngrok-skip-browser-warning": "69420"
         },
-        body: JSON.stringify({changes})
+        body: JSON.stringify({changes, branchId}),
     });
 
     if (!response.ok) {
