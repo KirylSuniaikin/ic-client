@@ -29,6 +29,7 @@ root.render(
                 <Route path="/menu" element={<MenuRoute />} />
                 <Route path="/admin/" element={<AdminHomePage />} />
                 <Route path="/order_status" element={<WatchOrderStatus />} />
+                <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
             </Routes>
         </BrowserRouter>
     </React.StrictMode>

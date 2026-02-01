@@ -22,10 +22,16 @@ export var DEV_BASE_HOST = "http://localhost:8000/api";
 
 export var URL = PROD_BASE_HOST;
 
-export async function getBaseManagementReports(branchNo: number): Promise<IManagementResponse[]> {
-    const res = await fetch(URL + `/base_management?branchNo=${branchNo}`, { headers: { Accept: "application/json" } });
+export async function getBaseManagementReports(branchId: string): Promise<IManagementResponse[]> {
+    const res = await fetch(URL + `/base_management?branchId=${branchId}`, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as IManagementResponse[];
+}
+
+export async function fetchAllBranches(): Promise<IBranch[]> {
+    const res = await fetch(URL + '/branch/fetch_branches', { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as IBranch[];
 }
 
 export async function createReport(payload: {
@@ -73,8 +79,9 @@ export async function getReport(reportId: number ): Promise<ReportTO> {
     return (await res.json()) as ReportTO;
 }
 
-export async function getBranchInfo(branchNo: number): Promise<IBranch> {
-    const res = await fetch(URL + `/branch/get_branch_info?branchNumber=${branchNo}`, {
+export async function getBranchInfo(branchId: string): Promise<IBranch> {
+    console.log("BRANCHID: ", branchId);
+    const res = await fetch(URL + `/branch/get_branch_info?branchId=${branchId}`, {
         method: "GET",
         headers: {"Content-Type": "application/json" },
     })

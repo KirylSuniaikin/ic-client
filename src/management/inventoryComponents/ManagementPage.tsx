@@ -14,11 +14,11 @@ import {ManagementTopBar} from "./ManagementTopBar";
 type Props = {
     isOpen: boolean;
     onClose: () => void;
-    branchNo: number;
+    branchId: string;
     userId: number;
 };
 
-export default function ManagementPage({isOpen, onClose, branchNo, userId}: Props) {
+export default function ManagementPage({isOpen, onClose, branchId, userId}: Props) {
     const [reports, setReports] = useState<IManagementResponse[]>([]);
     const [branch, setBranch] = useState<IBranch>();
     const [error, setError] = useState<string | null>(null);
@@ -60,8 +60,8 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
             setError(null);
             try {
                 const [baseManagementResponse, branchResponse, userResponse] = await Promise.all([
-                    getBaseManagementReports(branchNo),
-                    getBranchInfo(branchNo),
+                    getBaseManagementReports(branchId),
+                    getBranchInfo(branchId),
                     getUser(userId)
                 ]);
                 if (alive) {
@@ -80,7 +80,7 @@ export default function ManagementPage({isOpen, onClose, branchNo, userId}: Prop
         return () => {
             alive = false;
         };
-    }, [branchNo, userId]);
+    }, [branchId, userId]);
 
 
     if (loading) {

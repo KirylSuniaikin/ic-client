@@ -19,7 +19,7 @@ const countries = [
 
 const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
-function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName}) {
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches}) {
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -27,6 +27,9 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
     const [nameError, setNameError] = useState("");
     const [note, setNote] = useState("");
     const [paymentMethod, setPaymentMethod] = useState("Card (Through card machine)");
+    const [selectedBranch, setSelectedBranch] = useState(null);
+    const IS_MULTI_BRANCH_ENABLED =  false;
+
 
     const countryObj = countries.find((c) => c.name === selectedCountry);
 
@@ -66,7 +69,8 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             fullPhone,
             paymentMethod,
             name,
-            note
+            note,
+            selectedBranch?.id || '2e8c35f7-d75e-4442-b496-cbb929842c10'
         );
         onClose?.();
     }
@@ -152,6 +156,24 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                             </MenuItem>
                         ))}
                     </TextField>
+
+                    {IS_MULTI_BRANCH_ENABLED &&
+                        <TextField
+                        select
+                        label="Pick Up Branch"
+                        value={selectedBranch}
+                        onChange={(e) => setSelectedBranch(e.target.value)}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                        InputProps={{ sx: { borderRadius: 4 } }}
+                    >
+                        {branches.map((branch) => (
+                            <MenuItem key={branch.id} value={branch}>
+                                {branch.branchName} (jma)
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                    }
 
                     <TextField
                         label="Add a note to your order (optional)"

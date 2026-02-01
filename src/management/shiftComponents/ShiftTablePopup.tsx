@@ -325,7 +325,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     PaperProps={{sx: {bgcolor: "background.default", display: 'flex', flexDirection: 'column'}}}>
 
                 <TableTopBar onClose={onClose} title={title} handleSave={handleSave} total={Number(formattedCookTotal)}
-                             saving={saving} managerTotal={managerTotal} />
+                             saving={saving} managerTotal={Number(formattedManagerTotal)} />
 
                 {loading ? (
                     <Box sx={{display: "grid", placeItems: "center", flexGrow: 1}}>
