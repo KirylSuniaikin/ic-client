@@ -80,7 +80,8 @@ export async function getReport(reportId: number ): Promise<ReportTO> {
 }
 
 export async function getBranchInfo(branchId: string): Promise<IBranch> {
-    const res = await fetch(URL + `/branch/get_branch_info?branchNumber=${branchId}`, {
+    console.log("BRANCHID: ", branchId);
+    const res = await fetch(URL + `/branch/get_branch_info?branchId=${branchId}`, {
         method: "GET",
         headers: {"Content-Type": "application/json" },
     })

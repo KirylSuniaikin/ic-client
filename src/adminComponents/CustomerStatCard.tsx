@@ -7,9 +7,9 @@ interface StatItem {
     subValue?: string;
 }
 
-export const PlatformStatCard = ({ title, items }: { title: string; items: StatItem[] }) => {
+export const CustomerStatCard = ({ title, items }: { title: string; items: StatItem[] }) => {
     return (
-        <Card variant="outlined" sx={{ mb: 2, borderRadius: 3, borderColor: '#eee', backgroundColor: '#fff', boxShadow: 3, width: '100%' }}>
+        <Card variant="outlined" sx={{ mb: 2, borderRadius: 3, borderColor: '#eee', backgroundColor: '#fff', boxShadow: 3 }}>
             <CardContent sx={{ pb: 2, "&:last-child": { pb: 2 } }}>
                 <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1.5 }}>
                     {title}

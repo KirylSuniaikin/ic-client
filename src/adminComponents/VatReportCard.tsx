@@ -1,9 +1,8 @@
-import {Box, Button, Card, CardContent, CircularProgress, Grid, Typography} from "@mui/material";
+import {Box, Button, Card, CardContent, CircularProgress, Divider, Grid, Paper, Typography} from "@mui/material";
 import React, {useState} from "react";
 import PrintIcon from '@mui/icons-material/Print';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import {getVatStats} from "../management/api/api";
-import BluetoorhPrinterService from '../services/BluetoorhPrinterService';
 
 
 type Stats = {
@@ -33,6 +32,7 @@ export function VatReportCard({branchId}: { branchId: string }) {
     const [startDate, setStartDate] = useState(getFirstOfMonth());
     const [endDate, setEndDate] = useState(getToday());
     const [loading, setLoading] = useState(false);
+    const [reportStats, setReportStats] = useState<Stats | null>(null);
 
     const handleGenerateReport = async () => {
         if (!branchId) return;
@@ -47,30 +47,7 @@ export function VatReportCard({branchId}: { branchId: string }) {
                 });
 
             console.log("Report Data:", stats);
-
-            const reportText =
-                `\n` +
-                `IC PIZZA VAT REPORT\n` +
-                `--------------------\n` +
-                `220026867000002\n` +
-                `Flat/Shop No. 0,\n` +
-                `Building 1284,\n` +
-                `Road/Street 114, HIDD\n` +
-                `Block 101, Bahrain,\n`  +
-                `--------------------\n` +
-                `${startDate} - ${endDate}\n` +
-                `--------------------\n` +
-                `Branch Name: ${stats.branchName}\n` +
-                `Total Orders: ${stats.totalOrders}\n` +
-                `Total: ${(stats.totalRevenue * 0.9).toFixed(3)} BD\n` +
-                `Grand Total: ${stats.totalRevenue.toFixed(3)} BD\n` +
-                `Total VAT: ${(stats.totalRevenue * 0.1).toFixed(3)} BD\n` +
-                `--------------------\n` +
-                `Generated at: ${new Date().toLocaleDateString()}\n` +
-                `\n\n\n`;
-
-            console.log(reportText);
-            await BluetoorhPrinterService.printVatReport(reportText);
+            setReportStats(stats);
 
         } catch (error) {
             console.error("Failed to generate report:", error);
@@ -79,6 +56,17 @@ export function VatReportCard({branchId}: { branchId: string }) {
             setLoading(false);
         }
     };
+
+    const StatRow = ({label, value, bold = false}: {label: string, value: string, bold?: boolean}) => (
+        <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 1}}>
+            <Typography variant="body2" color={bold ? "text.primary" : "text.secondary"} fontWeight={bold ? 600 : 400}>
+                {label}
+            </Typography>
+            <Typography variant="body2" fontWeight={bold ? 700 : 500}>
+                {value}
+            </Typography>
+        </Box>
+    );
 
     return (
         <Card variant="outlined"
@@ -151,9 +139,39 @@ export function VatReportCard({branchId}: { branchId: string }) {
                                 },
                             }}
                         >
-                            {loading ? "Printing..." : "Print"}
+                            Get Report
                         </Button>
                     </Grid>
+
+                    {reportStats && (
+                        <Box sx={{mt: 3, pt: 2, borderTop: '1px dashed #ddd'}}>
+                            <Typography variant="subtitle2" sx={{mb: 2, textAlign: 'center', color: '#E44B4C', fontWeight: 'bold'}}>
+                                REPORT PREVIEW
+                            </Typography>
+
+                            <Paper variant="outlined" sx={{p: 2, bgcolor: '#f9f9f9', borderRadius: 2}}>
+                                <StatRow label="Branch" value={reportStats.branchName} />
+                                <StatRow label="Period" value={`${startDate} — ${endDate}`} />
+                                <StatRow label="Total Orders" value={String(reportStats.totalOrders)} />
+
+                                <Divider sx={{my: 1.5}} />
+
+                                <StatRow label="Net Amount (Total)" value={`${(reportStats.totalRevenue * 0.9).toFixed(3)} BD`} />
+                                <StatRow label="VAT (10%)" value={`${(reportStats.totalRevenue * 0.1).toFixed(3)} BD`} />
+
+                                <Divider sx={{my: 1.5}} />
+
+                                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                    <Typography variant="h6" fontWeight="bold">Grand Total:  </Typography>
+                                    <Typography variant="h6" fontWeight="bold" color="primary">
+                                        {reportStats.totalRevenue.toFixed(3)} BD
+                                    </Typography>
+                                </Box>
+                            </Paper>
+
+
+                        </Box>
+                    )}
                 </Grid>
             </CardContent>
         </Card>

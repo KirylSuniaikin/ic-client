@@ -26,6 +26,7 @@ import {TopProductsTable} from "./TopProductsTable";
 import {PlatformStatCard} from "./PlatformStatCatd";
 import {ProductsTable} from "../management/productsTable/ProductsTable";
 import {VatReportCard} from "./VatReportCard";
+import {CustomerStatCard} from "./CustomerStatCard";
 
 export default function StatisticsComponent({onClose, branchId}) {
     const [dateRange, setDateRange] = useState([
@@ -51,6 +52,15 @@ export default function StatisticsComponent({onClose, branchId}) {
     const handleCloseCalendar = () => {
         setAnchorEl(null);
     };
+
+    function countPercentage(total, number) {
+        if (!total || Number.isNaN(Number(total))) {
+            return 0;
+        }
+
+        // Считаем процент
+        return (Number(number) / Number(total)) * 100;
+    }
 
     const open = Boolean(anchorEl);
     const id = open ? 'date-range-popover' : undefined;
@@ -144,10 +154,7 @@ export default function StatisticsComponent({onClose, branchId}) {
             <Box sx={{
                 p: 1,
                 height: "100vh",
-                // overflow: "hidden",
                 overflowX: 'hidden',
-                // scrollbarWidth: "none",
-                // "&::-webkit-scrollbar": {display: "none"},
                 backgroundColor: "#fbfaf6"
             }}>
                 <Box sx={{
@@ -200,6 +207,17 @@ export default function StatisticsComponent({onClose, branchId}) {
                     "&::-webkit-scrollbar": {display: "none"},
                 }}>
                 {mode === "Performance" && (<>
+                        {rangeStats && (
+                            <Grid item xs={12} md={6}>
+                                    <CustomerStatCard
+                                        title="Customer(Pick Up + Keeta)"
+                                        items={[
+                                            {label: "New Customers", value:  `${rangeStats.newCustomers}(${countPercentage(Number(rangeStats.newCustomers)+Number(rangeStats.oldCustomers), Number(rangeStats.newCustomers))}%)`},
+                                            {label: "Returning", value: `${rangeStats.oldCustomers}(${countPercentage(Number(rangeStats.newCustomers)+Number(rangeStats.oldCustomers), Number(rangeStats.oldCustomers))}%)`}
+                                        ]}
+                                    ></CustomerStatCard>
+                            </Grid>
+                        )}
                             <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
                                 <CardContent>
                                     <Box sx={{mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -247,7 +265,7 @@ export default function StatisticsComponent({onClose, branchId}) {
                                     {rangeStats && (
                                         <>
                                             <Grid container spacing={4}>
-                                                <Grid item xs={12} md={7} lg={8}>
+                                                <Grid item xs={12} >
 
                                                     <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
                                                         Platforms Statistics
@@ -258,8 +276,6 @@ export default function StatisticsComponent({onClose, branchId}) {
                                                         items={[
                                                             { label: "Revenue", value: rangeStats.totalPickUpRevenue, subValue: "BD" },
                                                             { label: "Orders", value: rangeStats.totalPickUpOrders },
-                                                            { label: "New Customers", value: rangeStats.newCustomers },
-                                                            { label: "Returning", value: rangeStats.oldCustomers }
                                                         ]}
                                                     />
 
@@ -303,7 +319,6 @@ export default function StatisticsComponent({onClose, branchId}) {
 
                                             <Box sx={{my: 3, borderBottom: "1px solid #e0e0e0"}}/>
 
-                                            {/* График по часам (на всю ширину снизу) */}
                                             <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
                                                 Revenue By Hour
                                             </Typography>
