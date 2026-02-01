@@ -7,11 +7,18 @@ export var URL = PROD_BASE_HOST;
 export var WS_URL = PROD_SOCKET_URL;
 
 
-export async function fetchBaseAppInfo(userId) {
+export async function fetchBaseAppInfo(userId, branchId) {
     let url = URL + "/get_base_app_info";
+    const queryParams = new URLSearchParams({
+        branchId: '2e8c35f7-d75e-4442-b496-cbb929842c10'
+    });
+
     if (userId) {
-        url += `?userId=${encodeURIComponent(userId)}`;
+        queryParams.append('userId', userId);
     }
+
+    // 3. Склеиваем URL и строку параметров
+    url += `?${queryParams.toString()}`;
     const response = await fetch(url, {
         method: "GET",
         // headers: {
@@ -108,8 +115,8 @@ export async function editOrder(order, orderId) {
 //     }
 // }
 
-export async function getAllActiveOrders() {
-    const response = await fetch(URL + "/get_all_active_orders", {
+export async function getAllActiveOrders(branchId) {
+    const response = await fetch(URL + `/get_all_active_orders?branchId=${branchId}`, {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -127,8 +134,8 @@ export async function getAllActiveOrders() {
     return JSON.parse(text);
 }
 
-export async function getHistory() {
-    const response = await fetch(URL + "/get_history", {
+export async function getHistory(branchId) {
+    const response = await fetch(URL + `/get_history?branchId=${branchId}`, {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -318,16 +325,16 @@ export async function getOrderStatus(orderId) {
 //     }
 // }
 
-export async function updateWorkload({branchNumber, newLevel}) {
+export async function updateWorkload({branchId, newLevel}) {
     try {
-        console.log(newLevel + branchNumber);
+        console.log(newLevel + branchId);
         await fetch(URL + "/branch/update_workload_level", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                branchNumber: Number(branchNumber),
+                branchId: branchId,
                 level: newLevel
             })
         })
@@ -337,9 +344,9 @@ export async function updateWorkload({branchNumber, newLevel}) {
     }
 }
 
-export async function getBaseAdminInfo(branchNumber) {
+export async function getBaseAdminInfo(branchId) {
     try {
-        const response = await fetch(URL + "/branch/get_admin_base_info?branchNumber=" + branchNumber, {
+        const response = await fetch(URL + "/branch/get_admin_base_info?branchId=" + branchId, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",

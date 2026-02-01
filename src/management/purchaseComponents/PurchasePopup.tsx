@@ -11,10 +11,10 @@ type Props = {
     open: boolean;
     onClose: () => void;
     adminId: number;
-    branchNo: number;
+    branchId: string;
 };
 
-export function PurchasePopup({open, onClose, adminId, branchNo}: Props) {
+export function PurchasePopup({open, onClose, adminId, branchId}: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function PurchasePopup({open, onClose, adminId, branchNo}: Props) {
                 const [baseManagementResponse, userResponse, branchResponse] = await Promise.all([
                     fetchPurchaseReports(),
                     getUser(adminId),
-                    getBranchInfo(branchNo),
+                    getBranchInfo(branchId),
                 ]);
                 if (alive) {
                     setPurchaseReports(baseManagementResponse);
@@ -61,7 +61,7 @@ export function PurchasePopup({open, onClose, adminId, branchNo}: Props) {
         return () => {
             alive = false;
         };
-    }, [adminId, branchNo])
+    }, [adminId, branchId]);
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});

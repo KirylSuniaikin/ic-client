@@ -35,6 +35,21 @@ import ManagementPage from "./management/inventoryComponents/ManagementPage";
 import CashPopup from "./components/shiftComponents/CashPopup";
 import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
 
+const availableBranches = [
+    {
+        id: "2e8c35f7-d75e-4442-b496-cbb929842c10",
+        branchName: "Al-Hidd",
+        branchNo: 1,
+        externalId: "IC-PIZZA-AL-HIDD"
+    },
+    {
+        id: "2e8c35f7-d75e-4442-b496-cbb929842c11",
+        branchName: "Saar",
+        externalId: "IC-PIZZA-SAAR",
+        branchNo: 2
+    }
+]
+
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
@@ -62,11 +77,10 @@ function AdminHomePage() {
     const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
-
+    const [selectedBranch, setSelectedBranch] = useState(availableBranches[0]);
 
     const audioRef = useRef(null);
 
-    const branchId = "1";
     const adminId = 1;
 
     const CASH_STAGE_FLOW = useMemo(() => ({
@@ -249,11 +263,9 @@ function AdminHomePage() {
     useEffect(() => {
         if (!newlyUpdatedOrder || !audioRef.current) return;
         const id = normalizeId(String(newlyUpdatedOrder.id));
-        console.log(': ', id);
         const suppressed = suppressedSoundIdsRef.current.has(id);
         if (suppressed) {
             suppressedSoundIdsRef.current.delete(id);
-            console.log(suppressedSoundIdsRef.current);
             localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...suppressedSoundIdsRef.current]));
             console.log(`[EDITED_ORDERS] ID ${id} was removed from localStorage.`);
         } else {
@@ -272,7 +284,7 @@ function AdminHomePage() {
         async function initialize() {
             try {
                 setLoading(true);
-                const response = await getAllActiveOrders();
+                const response = await getAllActiveOrders(selectedBranch.id);
                 try {
                     const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
                     suppressedSoundIdsRef.current = new Set(arr.map(String));
@@ -290,9 +302,9 @@ function AdminHomePage() {
                 stompRef.current = socket;
 
                 socket.onConnect = () => {
-                    console.log('🟢 STOMP connected');
+                    console.log('🟢 STOMP connected for branch: ', selectedBranch.branchName);
 
-                    socket.subscribe('/topic/orders', async (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/orders`, async (frame) => {
                         const newOrder = JSON.parse(frame.body);
                         const id = normalizeId(newOrder?.orderId ?? newOrder?.id ?? newOrder);
 
@@ -328,7 +340,7 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe('/topic/order-updates', async (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/order-updates`, async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
 
                         try {
@@ -354,7 +366,7 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe("/topic/order-paid", (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/order-paid`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         const paidOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
 
@@ -373,7 +385,7 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe("/topic/order-accepted", (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/order-accepted`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         const acceptedOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
                         console.log("[ORDER_ACCEPTED] ", acceptedOrderId);
@@ -387,7 +399,7 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe("/topic/order-cancelled", (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/order-cancelled`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
                         console.log("[ORDER_CANCELLED] ", cancelledOrderId);
@@ -400,7 +412,7 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe("/topic/order-status-updated", (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/order-status-updated`, (frame) => {
                         console.log("[ORDER_STATUS] ", frame);
                         const payload = JSON.parse(frame.body);
                         const orderId = getStringId(payload?.orderId ?? payload?.id);
@@ -421,10 +433,10 @@ function AdminHomePage() {
                         }
                     })
 
-                    socket.subscribe("/topic/admin-base-info", (frame) => {
+                    socket.subscribe(`/topic/${selectedBranch.id}/admin-base-info`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         console.log("[BASE ADMIN INFO CHANGED] ", payload);
-                        if (String(payload.branchNumber) === branchId) {
+                        if (String(payload.branchId) === String(selectedBranch.id)) {
                             console.log("[WORKLOAD_CHANGE] true");
                             onWorkloadChange(payload.level);
                             const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
@@ -453,6 +465,7 @@ function AdminHomePage() {
                     const nextEventStage = EVENT_STAGE_FLOW[response.checklistStage];
                     console.log(nextCashStage, " ", nextEventStage);
                     onWorkloadChange(response.level)
+                    console.log("Stage: ", nextEventStage)
                     setCashStage(nextCashStage);
                     setEventStage(nextEventStage);
                 }
@@ -462,7 +475,7 @@ function AdminHomePage() {
             }
         }
 
-        fetchAdminBaseInfo(Number(branchId));
+        fetchAdminBaseInfo(String(selectedBranch.id));
         initialize();
 
         return () => {
@@ -471,7 +484,7 @@ function AdminHomePage() {
             c?.deactivate?.().catch(() => {
             });
         };
-    }, [CASH_STAGE_FLOW, EVENT_STAGE_FLOW]);
+    }, [CASH_STAGE_FLOW, EVENT_STAGE_FLOW, selectedBranch]);
 
     if (loading) {
         return <PizzaLoader/>;
@@ -539,8 +552,8 @@ function AdminHomePage() {
                     onOpenHistory={() => setIsHistoryOpen(true)}
                     onOpenStatistics={() => setIsStatisticsOpen(true)}
                     onOpenConfig={() => setIsConfigOpen(true)}
-                    onGoToMenu={() => navigate('/menu?isAdmin=true')}
-                    branchNumber={branchId}
+                    onGoToMenu={() => navigate('/menu?isAdmin=true&branchId=' + selectedBranch.id)}
+                    branchId={String(selectedBranch.id)}
                     workloadLevel={workloadLevel}
                     onWorkloadChange={onWorkloadChange}
                     adminId={adminId}
@@ -551,6 +564,9 @@ function AdminHomePage() {
                     shiftStage={eventStage}
                     onShiftStageClick={() => setShiftPopupOpen(true)}
                     onCashClick={() => setCashPopupOpen(true)}
+                    branches={availableBranches}
+                    onBranchChange={setSelectedBranch}
+                    selectedBranch={selectedBranch}
                 />
             )}
             <ShiftPopup
@@ -560,14 +576,14 @@ function AdminHomePage() {
                     console.log(eventStage)
                 }}
                 stage={eventStage}
-                branchId={branchId}
+                branchId={String(selectedBranch.id)}
                 onCashWarning={setCashWarning}
             />
             <CashPopup
                 isOpen={cashPopupOpen}
                 onClose={() => setCashPopupOpen(false)}
                 stage={cashStage}
-                branchId={branchId}
+                branchId={String(selectedBranch.id)}
                 onCashWarning={setCashWarning}
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
@@ -606,6 +622,7 @@ function AdminHomePage() {
             {isHistoryOpen && (
                 <HistoryComponent
                     isOpen={isHistoryOpen}
+                    selectedBranch={selectedBranch}
                     onClose={() => setIsHistoryOpen(false)}
                 />
             )}
@@ -630,7 +647,7 @@ function AdminHomePage() {
                     open={purchasePopupOpen}
                     onClose={() => setPurchasePopupOpen(false)}
                     adminId={adminId}
-                    branchNo={Number(branchId)}
+                    branchId={String(selectedBranch.id)}
                 />
             )}
 
@@ -639,14 +656,14 @@ function AdminHomePage() {
                     isOpen={managementPageOpen}
                     onClose={() => setManagementPageOpen(false)}
                     userId={adminId}
-                    branchNo={Number(branchId)}
+                    branchId={String(selectedBranch.id)}
                 />
             )}
 
             {shiftManagementPageOpen && (
                 <ShiftHomePage open={shiftManagementPageOpen}
                                onClose={() => setShiftManagementPageOpen(false)}
-                               branchNo={Number(branchId)}
+                               branchId={String(selectedBranch.id)}
                 />
             )}
 

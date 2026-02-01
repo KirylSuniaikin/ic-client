@@ -24,6 +24,8 @@ import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
 import {DetroitComboPopup} from "./components/comboComponents/DetroitComboPopup";
 import {UpsellPopup} from "./components/UpSellPopup";
 import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
+import {fetchAllBranches} from "./management/api/api";
+import {KioskBranchSelector} from "./components/KioskBranchSelector";
 
 
 const brandRed = "#E44B4C";
@@ -104,6 +106,7 @@ function HomePage({userParam}) {
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
     const isKiosk = searchParams.get('mode') === 'kiosk';
+    const adminBranchId = searchParams.get('branchId');
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const isAdminConfirmedRef = useRef(false);
     const navigate = useNavigate();
@@ -122,6 +125,11 @@ function HomePage({userParam}) {
     const [pickUpReminder, setPickUpReminder] = useState(false);
     const [pendingOrder, setPendingOrder] = useState(null);
 
+    const [branchSelector, setBranchSelector] = useState(null);
+    const [availableBranches, setAvailableBranches] = useState([]);
+    const BRANCH_KEY = 'kiosk_branch_data';
+    const IS_MULTI_BRANCH_ENABLED = false;
+
     const bestRef = useRef(null);
 
     const {
@@ -133,18 +141,6 @@ function HomePage({userParam}) {
         beverages,
         sauces
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
-
-
-    // useOscillatingAutoScroll(bestRef, {
-    //     bestsellers,
-    //     cycles: 2,
-    //     enabled: !isAdmin && (bestsellers?.length ?? 0) > 1,
-    //     initialDelay: 300,
-    //     onceKey: `autoScroll:${location.pathname}`,
-    //     pxPerSecond: 130,
-    //     runOnce: true,
-    //     onceTtlMs: 30_000,
-    // });
 
     const handleDiscountChange = (item, newDiscount) => {
         const updatedItems = cartItems.map((i) =>
@@ -218,6 +214,22 @@ function HomePage({userParam}) {
                 const baseInfo = await fetchBaseAppInfo(userParam);
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
+                if(IS_MULTI_BRANCH_ENABLED) {
+                console.log("ENV FLAG:", process.env.REACT_APP_ENABLE_MULTI_BRANCH);
+                console.log("IS ENABLED?", process.env.REACT_APP_ENABLE_MULTI_BRANCH === 'true');
+                    const branches = await fetchAllBranches()
+                    setAvailableBranches(branches);
+                    console.log(branches);
+                    if (isKiosk) {
+                        const savedBranch = localStorage.getItem(BRANCH_KEY);
+
+                        if (!savedBranch) {
+                            setBranchSelector(true);
+                        } else {
+                            console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
+                        }
+                    }
+                }
                 if (baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user") {
                     setUsername(baseInfo.userInfo.name)
                 }
@@ -699,6 +711,7 @@ function HomePage({userParam}) {
         deliveryMethod = null,
         paymentMethod = null,
         notes,
+        branchId,
     ) {
         if (!wasCrossSellShown && !isAdmin) {
             setIsCrossSellOpen(true);
@@ -735,7 +748,7 @@ function HomePage({userParam}) {
                 customer_name: customerName,
                 type: "Pick Up",
                 payment_type: paymentMethod,
-                branchNumber: 1,
+                branchId: isKiosk? localStorage.getItem(BRANCH_KEY).id : isAdmin? adminBranchId : branchId,
                 notes: notes,
                 items: items.map(item => {
                     const discount = typeof item.discount === "number" ? item.discount : 0;
@@ -1170,6 +1183,17 @@ function HomePage({userParam}) {
             />
             }
 
+            {branchSelector && <KioskBranchSelector
+                open={branchSelector}
+                branches={availableBranches}
+                onSelect={(branch) => {
+                    console.log(branch ," Saved in local Storage");
+                    localStorage.setItem(BRANCH_KEY, JSON.stringify(branch))
+                    setBranchSelector(false)
+                }}>
+            </KioskBranchSelector>
+            }
+
             {pizzaComboPopupOpen && (
                 <PizzaComboPopup
                     open={true}
@@ -1258,9 +1282,15 @@ function HomePage({userParam}) {
 
             {phonePopupOpen && <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
+                branches={availableBranches}
                 onClose={handleClosePhonePopup}
-                onSave={(tel, paymentMethod, customerName, notes) => {
-                    handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes);
+                onSave={(tel, paymentMethod, customerName, notes, branchId) => {
+                    // if(IS_MULTI_BRANCH_ENABLED) {
+                        handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
+                    // }
+                    // else{
+                    //     handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes);
+                    // }
                 }}
                 phoneNumber={phone.toString()}
                 customerName={username}
@@ -1270,8 +1300,14 @@ function HomePage({userParam}) {
             {adminOrderDetailsPopUp && <AdminOrderDetailsPopUp
                 isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
                 onClose={handleCloseAdminOrderDetailsPopup}
-                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) =>
-                    handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes)
+                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) => {
+                    if(IS_MULTI_BRANCH_ENABLED) {
+                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes, adminBranchId)
+                    }
+                    else{
+                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes)
+                    }
+                }
                 }
                 cartItems={cartItems}
                 setCartItems={setCartItems}

@@ -9,7 +9,7 @@ import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
 
 
-function HistoryComponent({onClose}) {
+function HistoryComponent({onClose, selectedBranch}) {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [error, setError] = useState(null);
@@ -46,7 +46,7 @@ function HistoryComponent({onClose}) {
         async function initialize() {
             try {
                 setLoading(true);
-                const response = await getHistory();
+                const response = await getHistory(selectedBranch.id);
                 setOrders(response.orders);
                 console.log(response);
             } catch (err) {
