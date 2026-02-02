@@ -128,7 +128,7 @@ function HomePage({userParam}) {
     const [branchSelector, setBranchSelector] = useState(null);
     const [availableBranches, setAvailableBranches] = useState([]);
     const BRANCH_KEY = 'kiosk_branch_data';
-    const IS_MULTI_BRANCH_ENABLED = false;
+    // const IS_MULTI_BRANCH_ENABLED = false;
 
     const bestRef = useRef(null);
 
@@ -214,13 +214,15 @@ function HomePage({userParam}) {
                 const baseInfo = await fetchBaseAppInfo(userParam);
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
-                if(IS_MULTI_BRANCH_ENABLED) {
-                console.log("ENV FLAG:", process.env.REACT_APP_ENABLE_MULTI_BRANCH);
-                console.log("IS ENABLED?", process.env.REACT_APP_ENABLE_MULTI_BRANCH === 'true');
+                // if (IS_MULTI_BRANCH_ENABLED) {
+                    // console.log("ENV FLAG:", process.env.REACT_APP_ENABLE_MULTI_BRANCH);
+                    // console.log("IS ENABLED?", process.env.REACT_APP_ENABLE_MULTI_BRANCH === 'true');
                     const branches = await fetchAllBranches()
                     setAvailableBranches(branches);
                     console.log(branches);
+
                     if (isKiosk) {
+                        console.log("It's kiosk")
                         const savedBranch = localStorage.getItem(BRANCH_KEY);
 
                         if (!savedBranch) {
@@ -229,7 +231,7 @@ function HomePage({userParam}) {
                             console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
                         }
                     }
-                }
+                // }
                 if (baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user") {
                     setUsername(baseInfo.userInfo.name)
                 }
@@ -748,7 +750,7 @@ function HomePage({userParam}) {
                 customer_name: customerName,
                 type: "Pick Up",
                 payment_type: paymentMethod,
-                branchId: isKiosk? localStorage.getItem(BRANCH_KEY).id : isAdmin? adminBranchId : branchId,
+                branchId: isKiosk? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin? adminBranchId : branchId,
                 notes: notes,
                 items: items.map(item => {
                     const discount = typeof item.discount === "number" ? item.discount : 0;
@@ -813,6 +815,24 @@ function HomePage({userParam}) {
                     window.ttq.identify({
                         phone_number: "+" + tel
                     });
+                }
+                else if (isKiosk) {
+                    setLoading(true);
+                    setCartItems([]);
+                    response = await createOrder(order)
+                    const SUPPRESS_KEY = 'suppressSoundIds';
+                    const createdId = String(response.id);
+                    console.log("Received id " + createdId);
+                    if (createdId != null) {
+                        try {
+                            const list = [createdId];
+
+                            localStorage.setItem(SUPPRESS_KEY, JSON.stringify(list));
+                            console.log("LocalStorage updated with new suppressed ID: " + createdId);
+                        } catch (e) {
+                        }
+                    }
+                    setLoading(false)
                 }
                 else {
                     let customerResponse = await checkCustomer(order.tel)
@@ -1285,12 +1305,7 @@ function HomePage({userParam}) {
                 branches={availableBranches}
                 onClose={handleClosePhonePopup}
                 onSave={(tel, paymentMethod, customerName, notes, branchId) => {
-                    // if(IS_MULTI_BRANCH_ENABLED) {
                         handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
-                    // }
-                    // else{
-                    //     handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes);
-                    // }
                 }}
                 phoneNumber={phone.toString()}
                 customerName={username}
@@ -1300,14 +1315,10 @@ function HomePage({userParam}) {
             {adminOrderDetailsPopUp && <AdminOrderDetailsPopUp
                 isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
                 onClose={handleCloseAdminOrderDetailsPopup}
-                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) => {
-                    if(IS_MULTI_BRANCH_ENABLED) {
-                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes, adminBranchId)
-                    }
-                    else{
-                        handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes)
-                    }
-                }
+                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) => (
+                    handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes, adminBranchId)
+
+                )
                 }
                 cartItems={cartItems}
                 setCartItems={setCartItems}
