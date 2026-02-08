@@ -1,10 +1,4 @@
-import type {
-    IBranch,
-    IManagementResponse,
-    IUser,
-    ProductTO,
-    ReportTO
-} from "../types/inventoryTypes";
+import type {IBranch, IManagementResponse, IUser, ProductTO, ReportTO} from "../types/inventoryTypes";
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -15,6 +9,7 @@ import {
 import {ConsumptionReportTO} from "../types/consumptionTypes";
 import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
 import {VatStatePayload} from "../types/statTypes";
+import {BlackListCstmr} from "../types/blacklistTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -215,4 +210,31 @@ export async function getVatStats(payload:VatStatePayload ){
 
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return await res.json();
+}
+
+export async function addToBlackList(payload: {telephoneNo: string}){
+    return await fetch(URL + `/blacklist/add`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteFromBlackList(payload:{telephoneNo: string}){
+    return await fetch(URL + `/blacklist/delete`, {
+        method: "DELETE",
+        headers: {"Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function getAllBannedCstmrs(): Promise<BlackListCstmr[]>{
+    const res = await fetch(URL + `/blacklist/get_all`, {
+        method: "GET",
+        headers: {"Content-Type": "application/json" }
+    })
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+
+    return res.json();
 }

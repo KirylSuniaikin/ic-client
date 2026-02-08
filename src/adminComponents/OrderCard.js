@@ -137,7 +137,6 @@ function OrderCard({order,
                    }) {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
-    const paymentType = useState(order.payment_type);
     const [extraSec, setExtraSec] = useState(0);
     useEffect(() => {
         console.info(order)
@@ -251,7 +250,7 @@ function OrderCard({order,
                     </Typography>
                     {!isHistory && (
                         <Typography variant="body2">
-                            <strong>Payment type:</strong> {paymentType}
+                            <strong>Payment type:</strong> {order.payment_type}
                         </Typography>
                     )}
                 </Box>

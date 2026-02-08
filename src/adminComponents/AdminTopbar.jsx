@@ -25,6 +25,7 @@ import {
     PointOfSale as PointOfSaleIcon,
     AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
 
 
 export default function AdminTopbar({
@@ -46,6 +47,7 @@ export default function AdminTopbar({
                                         branches = [],
                                         onBranchChange,
                                         selectedBranch,
+                                        onBlacklistopen,
                                     }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -86,7 +88,8 @@ export default function AdminTopbar({
         {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
         {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
         {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
-        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen}
+        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
+        {label: "Blacklist", icon:<PersonOffIcon fontSize="small" /> , onClick: onBlacklistopen}
     ]
 
     const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];
