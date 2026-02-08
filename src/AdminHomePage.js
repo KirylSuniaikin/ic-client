@@ -34,6 +34,7 @@ import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
 import ManagementPage from "./management/inventoryComponents/ManagementPage";
 import CashPopup from "./components/shiftComponents/CashPopup";
 import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
+import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 
 const availableBranches = [
     {
@@ -78,6 +79,7 @@ function AdminHomePage() {
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
     const [selectedBranch, setSelectedBranch] = useState(availableBranches[0]);
+    const [blacklistOpen, setBlacklistOpen] = useState(false);
 
     const audioRef = useRef(null);
 
@@ -567,6 +569,7 @@ function AdminHomePage() {
                     branches={availableBranches}
                     onBranchChange={setSelectedBranch}
                     selectedBranch={selectedBranch}
+                    onBlacklistopen={() => setBlacklistOpen(true)}
                 />
             )}
             <ShiftPopup
@@ -650,6 +653,10 @@ function AdminHomePage() {
                     adminId={adminId}
                     branchId={String(selectedBranch.id)}
                 />
+            )}
+
+            {blacklistOpen && (
+                <BlacklistHomepage open={blacklistOpen} handleClose={() => setBlacklistOpen(false)}/>
             )}
 
             {managementPageOpen && (

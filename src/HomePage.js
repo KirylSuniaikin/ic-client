@@ -24,8 +24,9 @@ import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
 import {DetroitComboPopup} from "./components/comboComponents/DetroitComboPopup";
 import {UpsellPopup} from "./components/UpSellPopup";
 import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
-import {fetchAllBranches} from "./management/api/api";
+import {fetchAllBranches, getAllBannedCstmrs} from "./management/api/api";
 import {KioskBranchSelector} from "./components/KioskBranchSelector";
+import BlackListSnackBar from "./components/BlackListSnackBar";
 
 
 const brandRed = "#E44B4C";
@@ -81,6 +82,15 @@ function normalizeComboItem(ci) {
     };
 }
 
+function isCustomerBanned(blackList, phoneNumber) {
+    for (let i = 0; i < blackList.length; i++) {
+        if (blackList[i].telephoneNo === phoneNumber) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
     const [extraIngredients, setExtraIngredients] = useState([]);
@@ -128,6 +138,7 @@ function HomePage({userParam}) {
     const [branchSelector, setBranchSelector] = useState(null);
     const [availableBranches, setAvailableBranches] = useState([]);
     const BRANCH_KEY = 'kiosk_branch_data';
+    const [blacklistSnackBarOpen, setBlacklistSnackBarOpen] = useState(false);
     // const IS_MULTI_BRANCH_ENABLED = false;
 
     const bestRef = useRef(null);
@@ -451,7 +462,6 @@ function HomePage({userParam}) {
     }
 
     function handleAddToCart(items, upsellDeclined) {
-        console.log(items);
         const arr = Array.isArray(items) ? items : [items];
 
         const pizzaItem = arr.find(it => it.category === "Pizzas");
@@ -595,7 +605,6 @@ function HomePage({userParam}) {
             return updated;
 
         });
-        console.log(items);
 
         handleClosePizzaPopup();
         handleCloseComboPopup();
@@ -835,6 +844,11 @@ function HomePage({userParam}) {
                     setLoading(false)
                 }
                 else {
+                    let blacklist = await getAllBannedCstmrs()
+                    if(isCustomerBanned(blacklist, order.tel)){
+                        setBlacklistSnackBarOpen(true);
+                        return
+                    }
                     let customerResponse = await checkCustomer(order.tel)
                     console.log(customerResponse.isNewCustomer)
                     if (customerResponse.isNewCustomer === false) {
@@ -845,7 +859,6 @@ function HomePage({userParam}) {
                     }
                 }
                 console.log("Order placed successfully:", response);
-                setCartItems([]);
             } catch (error) {
                 console.error("Error placing order:", error);
             } finally {
@@ -853,6 +866,7 @@ function HomePage({userParam}) {
                 setPhone("")
                 setUsername("")
                 setCartOpen(false);
+                setCartItems([]);
             }
         }
     }
@@ -872,7 +886,7 @@ function HomePage({userParam}) {
             });
             window.ttq.identify({phone_number: "+" + orderData.tel});
             window.fbq('track', 'Purchase', {
-                value: orderData.amount_paid,
+                value: Number(orderData.amount_paid.toFixed(2)),
                 currency: 'BHD',
                 contents: orderData.items.map((item) => ({
                     id: item.id ?? item.name,
@@ -1258,6 +1272,13 @@ function HomePage({userParam}) {
                     photo={comboOfferPhoto}
                     comboPrice={comboPrice}>
                 </UpsellPopup>
+            )}
+
+            {blacklistSnackBarOpen && (
+                <BlackListSnackBar
+                    open={blacklistSnackBarOpen}
+                    onClose={()=> setBlacklistSnackBarOpen(false)}
+                ></BlackListSnackBar>
             )}
 
             {genericPopupOpen && <GenericItemPopupContent
