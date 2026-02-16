@@ -30,7 +30,6 @@ function HistoryComponent({onClose, selectedBranch}) {
     const confirmDelete = async () => {
         if (!orderToDelete) return;
         try {
-            console.log(orderToDelete);
             await deleteOrder(String(orderToDelete.id));
 
             handleRemoveItem(orderToDelete.id);
@@ -48,7 +47,6 @@ function HistoryComponent({onClose, selectedBranch}) {
                 setLoading(true);
                 const response = await getHistory(selectedBranch.id);
                 setOrders(response.orders);
-                console.log(response);
             } catch (err) {
                 setError(err.message);
             } finally {

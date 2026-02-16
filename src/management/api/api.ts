@@ -10,6 +10,7 @@ import {ConsumptionReportTO} from "../types/consumptionTypes";
 import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
 import {VatStatePayload} from "../types/statTypes";
 import {BlackListCstmr} from "../types/blacklistTypes";
+import {BranchBalanceResponse, CashRegisterEventTO, CashUpdateRequest} from "../types/branchBalanceTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -236,5 +237,32 @@ export async function getAllBannedCstmrs(): Promise<BlackListCstmr[]>{
 
     if (!res.ok) throw new Error(`Response: ${res.status}`);
 
+    return res.json();
+}
+
+export async function cashUpdate(payload: CashUpdateRequest){
+    return await fetch(URL + `/branch/cash_update`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function getBranchBalance(branchId: string): Promise<BranchBalanceResponse>{
+    const res = await fetch(URL + `/branch/get_branch_balance?branchId=${branchId}`, {
+        method: "GET",
+    })
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getBranchEvents(branchId: string): Promise<CashRegisterEventTO[]> {
+    const res = await fetch(`${URL}/branch/get_transactions?branchId=${branchId}`, {
+        method: "GET",
+        headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) throw new Error("Failed to fetch history");
     return res.json();
 }

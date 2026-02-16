@@ -47,7 +47,6 @@ export function ShiftHomePage({ open, onClose, branchId }: Props) {
                     getBranchInfo(branchId)
                 ]);
                 if (alive) {
-                    console.log(baseShiftResponse);
                     setShiftReports(baseShiftResponse);
                     setBranch(branchResponse)
                 }

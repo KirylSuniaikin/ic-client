@@ -35,6 +35,7 @@ import ManagementPage from "./management/inventoryComponents/ManagementPage";
 import CashPopup from "./components/shiftComponents/CashPopup";
 import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
 import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
+import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
 
 const availableBranches = [
     {
@@ -80,6 +81,7 @@ function AdminHomePage() {
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
     const [selectedBranch, setSelectedBranch] = useState(availableBranches[0]);
     const [blacklistOpen, setBlacklistOpen] = useState(false);
+    const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
 
     const audioRef = useRef(null);
 
@@ -174,7 +176,6 @@ function AdminHomePage() {
         );
 
     async function confirmExternalOrder(order) {
-        console.log(order);
         const extId = getExtId(order);
         const orderId = normalizeId(order.id);
         if (!extId) {
@@ -294,7 +295,6 @@ function AdminHomePage() {
                     suppressedSoundIdsRef.current = new Set();
                 }
                 setOrders(response.orders);
-                console.log(response.orders);
 
                 if (stompRef.current?.active) {
                     stompRef.current.deactivate().catch(() => {
@@ -459,6 +459,7 @@ function AdminHomePage() {
         async function fetchAdminBaseInfo(branchId) {
             try {
                 const response = await getBaseAdminInfo(branchId);
+                console.log(response);
                 if (!response) {
                     setEventStage("OPEN_SHIFT_EVENT");
                     setCashStage("OPEN_SHIFT_CASH_CHECK");
@@ -471,7 +472,6 @@ function AdminHomePage() {
                     setCashStage(nextCashStage);
                     setEventStage(nextEventStage);
                 }
-                console.log(response);
             } catch (err) {
                 console.error("Ошибка загрузки stage:", err);
             }
@@ -570,6 +570,7 @@ function AdminHomePage() {
                     onBranchChange={setSelectedBranch}
                     selectedBranch={selectedBranch}
                     onBlacklistopen={() => setBlacklistOpen(true)}
+                    onCashRegisterOpen={() => setCashRegisterOpen(true)}
                 />
             )}
             <ShiftPopup
@@ -657,6 +658,10 @@ function AdminHomePage() {
 
             {blacklistOpen && (
                 <BlacklistHomepage open={blacklistOpen} handleClose={() => setBlacklistOpen(false)}/>
+            )}
+
+            {cashRegisterOpen && (
+                <CashRegisterPopup branchId={selectedBranch.id} open={cashRegisterOpen} handleClose={()=> setCashRegisterOpen(false)} branchName={selectedBranch.branchName}/>
             )}
 
             {managementPageOpen && (

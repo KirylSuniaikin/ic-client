@@ -109,9 +109,10 @@ export default function BlacklistHomepage({open, handleClose}: Props) {
                     height: "100dvh",
                     maxHeight: "100dvh",
                     overflow: "hidden",
+                    backgroundColor: "#fbfaf6"
                 }}
             >
-                <BackTopBar title={"BlackListPage"} onClose={handleClose} onAdd={() => setBanDrawerOpen(true)}/>
+                <BackTopBar title={"Black List"} onClose={handleClose} onAdd={() => setBanDrawerOpen(true)}/>
 
                 {loading ? (
                     <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
