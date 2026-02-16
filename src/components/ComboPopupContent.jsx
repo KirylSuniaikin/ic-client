@@ -34,7 +34,6 @@ function ComboPopup({
         setLoading(true);
 
         const defaultItem = group.items.find(i => i.size === "M") || group.items[0];
-        console.log(defaultItem)
         setItem(defaultItem);
         setSelectedSize(defaultItem.size);
 

@@ -57,9 +57,7 @@ export default function StatisticsComponent({onClose, branchId}) {
         if (!total || Number.isNaN(Number(total))) {
             return 0;
         }
-
-        // Считаем процент
-        return (Number(number) / Number(total)) * 100;
+        return ((Number(number) / Number(total)) * 100).toFixed(2);
     }
 
     const open = Boolean(anchorEl);
@@ -265,43 +263,54 @@ export default function StatisticsComponent({onClose, branchId}) {
                                     {rangeStats && (
                                         <>
                                             <Grid container spacing={4}>
-                                                <Grid item xs={12} >
+                                                <Grid item xs={12} md={7} lg={8} >
 
                                                     <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
                                                         Platforms Statistics
                                                     </Typography>
 
-                                                    <PlatformStatCard
-                                                        title="Pick Up"
-                                                        items={[
-                                                            { label: "Revenue", value: rangeStats.totalPickUpRevenue, subValue: "BD" },
-                                                            { label: "Orders", value: rangeStats.totalPickUpOrders },
-                                                        ]}
-                                                    />
+                                                    <Grid container spacing={2}>
 
-                                                    <PlatformStatCard
-                                                        title="Jahez"
-                                                        items={[
-                                                            { label: "Revenue", value: rangeStats.totalJahezRevenue, subValue: "BD" },
-                                                            { label: "Orders", value: rangeStats.totalJahezOrders }
-                                                        ]}
-                                                    />
+                                                        <Grid item xs={12} sm={6}>
+                                                            <PlatformStatCard
+                                                                title="Pick Up"
+                                                                items={[
+                                                                    { label: "Revenue", value: rangeStats.totalPickUpRevenue, subValue: "BD" },
+                                                                    { label: "Orders", value: rangeStats.totalPickUpOrders },
+                                                                ]}
+                                                            />
+                                                        </Grid>
 
-                                                    <PlatformStatCard
-                                                        title="Talabat"
-                                                        items={[
-                                                            { label: "Revenue", value: rangeStats.totalTalabatRevenue, subValue: "BD" },
-                                                            { label: "Orders", value: rangeStats.totalTalabatOrders }
-                                                        ]}
-                                                    />
+                                                        <Grid item xs={12} sm={6}>
+                                                            <PlatformStatCard
+                                                                title="Jahez"
+                                                                items={[
+                                                                    { label: "Revenue", value: rangeStats.totalJahezRevenue, subValue: "BD" },
+                                                                    { label: "Orders", value: rangeStats.totalJahezOrders }
+                                                                ]}
+                                                            />
+                                                        </Grid>
 
-                                                    <PlatformStatCard
-                                                        title="Keeta"
-                                                        items={[
-                                                            { label: "Revenue", value: rangeStats.totalKeetaRevenue, subValue: "BD" },
-                                                            { label: "Orders", value: rangeStats.totalKeetaOrders }
-                                                        ]}
-                                                    />
+                                                        <Grid item xs={12} sm={6}>
+                                                            <PlatformStatCard
+                                                                title="Talabat"
+                                                                items={[
+                                                                    { label: "Revenue", value: rangeStats.totalTalabatRevenue, subValue: "BD" },
+                                                                    { label: "Orders", value: rangeStats.totalTalabatOrders }
+                                                                ]}
+                                                            />
+                                                        </Grid>
+
+                                                        <Grid item xs={12} sm={6}>
+                                                            <PlatformStatCard
+                                                                title="Keeta"
+                                                                items={[
+                                                                    { label: "Revenue", value: rangeStats.totalKeetaRevenue, subValue: "BD" },
+                                                                    { label: "Orders", value: rangeStats.totalKeetaOrders }
+                                                                ]}
+                                                            />
+                                                        </Grid>
+                                                    </Grid>
 
                                                     <Box sx={{ display: { xs: 'block', md: 'none' }, height: 24 }} />
                                                 </Grid>

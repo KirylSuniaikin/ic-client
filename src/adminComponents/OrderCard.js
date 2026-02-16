@@ -138,9 +138,6 @@ function OrderCard({order,
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [extraSec, setExtraSec] = useState(0);
-    useEffect(() => {
-        console.info(order)
-    }, [order])
 
     const createdMs = useMemo(
         () => toEpochMsBahrain(order.order_created),

@@ -1,6 +1,6 @@
 import { Box } from "@mui/material";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef, useLayoutEffect, useState } from "react";
+import { useRef} from "react";
 import MenuItemCardHorizontal from "./MenuItemCardHorizontal";
 import {TextGroup} from "../utils/typography";
 
@@ -16,23 +16,12 @@ export default function SectionRow({
                                        cartItems
                                    }) {
     const containerRef = useRef(null);
-    // const scrollRef = useRef(null);
-    // const [isScrollable, setIsScrollable] = useState(false);
 
-    // Проверяем, длиннее ли контент ширины экрана
-    // useLayoutEffect(() => {
-    //     const el = scrollRef.current;
-    //     if (el) setIsScrollable(el.scrollWidth > window.innerWidth + 20);
-    // }, [section.items]);
-
-    // Привязываем движение к вертикальному скроллу
     const { scrollYProgress } = useScroll({
         target: containerRef,
         offset: ["start end", "end start"],
     });
 
-    // Смещение только если ряд длиннее экрана
-    // const shift = isScrollable ? `${12 + idx * 8}%` : "0%";
     const x = useTransform(scrollYProgress, [0, 1], [`${15 - idx * 2}%`, `-${15 - idx * 2}%`]);
     const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0.9, 1, 1, 0.9]);
 
@@ -40,10 +29,8 @@ export default function SectionRow({
         <Box ref={containerRef} sx={{ pb: isLast ? 1 : 4 }}>
             <TextGroup sx={{ px: 1.5, pb: 1 }}>{section.title}</TextGroup>
 
-            {/* motion.div — просто слой движения, не ломает scroll */}
             <motion.div style={{ x, opacity }}>
                 <Box
-                    // ref={scrollRef}
                     sx={{
                         display: "flex",
                         overflowX: "auto",

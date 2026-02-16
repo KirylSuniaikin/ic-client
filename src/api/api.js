@@ -37,7 +37,6 @@ export async function fetchBaseAppInfo(userId, branchId) {
 }
 
 export async function createOrder(order) {
-    console.log(order);
     const response = await fetch(URL + "/create_order", {
         method: "POST",
         headers: {
@@ -56,8 +55,6 @@ export async function createOrder(order) {
 }
 
 export async function updateAvailability(changes, branchId) {
-    console.log("Changes to update:", changes);
-
     const response = await fetch(URL + "/update_availability", {
         method: "PUT",
         headers: {

@@ -94,6 +94,7 @@ function isCustomerBanned(blackList, phoneNumber) {
 function HomePage({userParam}) {
     const [menuData, setMenuData] = useState([]);
     const [extraIngredients, setExtraIngredients] = useState([]);
+    const [toppings, setToppings] = useState([]);
     const [cartItems, setCartItems] = useState([]);
     const [cartOpen, setCartOpen] = useState(false);
     const [username, setUsername] = useState("");
@@ -139,7 +140,6 @@ function HomePage({userParam}) {
     const [availableBranches, setAvailableBranches] = useState([]);
     const BRANCH_KEY = 'kiosk_branch_data';
     const [blacklistSnackBarOpen, setBlacklistSnackBarOpen] = useState(false);
-    // const IS_MULTI_BRANCH_ENABLED = false;
 
     const bestRef = useRef(null);
 
@@ -225,9 +225,7 @@ function HomePage({userParam}) {
                 const baseInfo = await fetchBaseAppInfo(userParam);
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
-                // if (IS_MULTI_BRANCH_ENABLED) {
-                    // console.log("ENV FLAG:", process.env.REACT_APP_ENABLE_MULTI_BRANCH);
-                    // console.log("IS ENABLED?", process.env.REACT_APP_ENABLE_MULTI_BRANCH === 'true');
+                setToppings(baseInfo.toppings)
                     const branches = await fetchAllBranches()
                     setAvailableBranches(branches);
                     console.log(branches);
@@ -242,7 +240,6 @@ function HomePage({userParam}) {
                             console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
                         }
                     }
-                // }
                 if (baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user") {
                     setUsername(baseInfo.userInfo.name)
                 }
@@ -260,7 +257,6 @@ function HomePage({userParam}) {
 
         if (isEditMode) {
             const rawOrder = localStorage.getItem("orderToEdit");
-            console.log(rawOrder)
             if (rawOrder) {
                 try {
                     const parsed = JSON.parse(rawOrder);
@@ -739,12 +735,10 @@ function HomePage({userParam}) {
             try {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
-                console.log(order)
                 const res = await editOrder(order, orderToEdit.id);
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
                 const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
-                console.log(localStorage.getItem(EDITED_ORDER_ID_KEY));
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
@@ -1199,6 +1193,7 @@ function HomePage({userParam}) {
                 open={pizzaPopupOpen}
                 group={popupGroup}
                 extraIngredients={extraIngredients}
+                toppings={toppings}
                 editItem={editItem}
                 onClose={handleClosePizzaPopup}
                 onAddToCart={handleAddToCart}

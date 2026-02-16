@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useState} from "react";
 import {Modal, Box, Typography, IconButton, Button} from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
