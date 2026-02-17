@@ -879,17 +879,17 @@ function HomePage({userParam}) {
                 value: orderData.amount_paid,
             });
             window.ttq.identify({phone_number: "+" + orderData.tel});
-            window.fbq('track', 'Purchase', {
-                value: Number(orderData.amount_paid.toFixed(2)),
-                currency: 'BHD',
-                contents: orderData.items.map((item) => ({
-                    id: item.id ?? item.name,
-                    quantity: item.quantity,
-                    item_price: item.amount,
-                })),
-                content_type: 'product',
-                order_id: response.id,
-            });
+            // window.fbq('track', 'Purchase', {
+            //     value: Number(orderData.amount_paid.toFixed(2)),
+            //     currency: 'BHD',
+            //     contents: orderData.items.map((item) => ({
+            //         id: item.id ?? item.name,
+            //         quantity: item.quantity,
+            //         item_price: item.amount,
+            //     })),
+            //     content_type: 'product',
+            //     order_id: response.id,
+            // });
 
             setCartItems([]);
             setPendingOrder(null)
