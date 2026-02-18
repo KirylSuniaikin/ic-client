@@ -1111,7 +1111,7 @@ function HomePage({userParam}) {
             )}
             <Box sx={{pt: 1.3, pb: 12}}>
                 {[
-                    {title: "Ramadan", items: ramadan},
+                    {title: "Ramadan Offers", items: ramadan},
                     {title: "Bestsellers", items: bestsellers, isBestSellerBlock: true},
                     {title: "Detroit Brick Pizzas", items: brickPizzas},
                     {title: "Combo Deals", items: combos},
