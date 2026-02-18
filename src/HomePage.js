@@ -27,6 +27,7 @@ import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
 import {fetchAllBranches, getAllBannedCstmrs} from "./management/api/api";
 import {KioskBranchSelector} from "./components/KioskBranchSelector";
 import BlackListSnackBar from "./components/BlackListSnackBar";
+import RamadanPopup from "./components/RamadanPopup";
 
 
 const brandRed = "#E44B4C";
@@ -113,6 +114,7 @@ function HomePage({userParam}) {
     const [error, setError] = useState(null);
     const [editMode, setEditMode] = useState(false)
     const [closedPopup, setClosedPopupOpen] = useState(false);
+    const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
 
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -150,7 +152,8 @@ function HomePage({userParam}) {
         pizzas,
         sides,
         beverages,
-        sauces
+        sauces,
+        ramadan
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
     const handleDiscountChange = (item, newDiscount) => {
@@ -420,7 +423,12 @@ function HomePage({userParam}) {
                 setPopupGroup(item);
                 setDetroitComboPopupOpen(true);
             }
-        } else {
+        }
+        else if (item.category === "Ramadan") {
+            setPopupGroup(item);
+            setRamadanPopupOpen(true);
+        }
+        else {
             setPopupGroup(item);
             setGenericPopupOpen(true);
         }
@@ -1103,6 +1111,7 @@ function HomePage({userParam}) {
             )}
             <Box sx={{pt: 1.3, pb: 12}}>
                 {[
+                    {title: "Ramadan", items: ramadan},
                     {title: "Bestsellers", items: bestsellers, isBestSellerBlock: true},
                     {title: "Detroit Brick Pizzas", items: brickPizzas},
                     {title: "Combo Deals", items: combos},
@@ -1163,7 +1172,8 @@ function HomePage({userParam}) {
                 isAdmin &&
                 !pizzaComboPopupOpen &&
                 !detroitComboPopupOpen &&
-                !upsellPopupOpen && (
+                !upsellPopupOpen &&
+                !ramadanPopupOpen &&(
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -1238,6 +1248,10 @@ function HomePage({userParam}) {
                     isEditMode={editMode}
                     removeFromCart={removeFromCart}
                 />
+            )}
+
+            {ramadanPopupOpen && (
+                <RamadanPopup open={ramadanPopupOpen} onClose={() => setRamadanPopupOpen(false)} onAddToCart={handleAddToCart} group={ramadan[0]}/>
             )}
 
             {detroitComboPopupOpen && (
@@ -1357,7 +1371,7 @@ function HomePage({userParam}) {
                 <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
             )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && !ramadanPopupOpen && cartItems.length > 0 &&
                 <Box
                     onClick={handleOpenCart}
                     sx={{
