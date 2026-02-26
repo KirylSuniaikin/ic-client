@@ -24,6 +24,7 @@ function MenuItemCardHorizontal({
                                 }) {
     const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
     const { name, price, photo, is_best_seller } = defaultItem;
+    const is_ramadan = defaultItem.category === "Ramadan";
     const displayPrice = `${price}`;
     const [selected, setSelected] = useState(false);
     const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
@@ -97,6 +98,27 @@ function MenuItemCardHorizontal({
                         }}
                     >
                         Bestseller
+                    </Box>
+                )}
+
+                {is_ramadan && (
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "#E44B4C",
+                            color: "#fff",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            px: 1.2,
+                            py: 0.3,
+                            borderRadius: "999px",
+                            zIndex: 2,
+                            letterSpacing: 0.5,
+                        }}
+                    >
+                        25 min
                     </Box>
                 )}
 
