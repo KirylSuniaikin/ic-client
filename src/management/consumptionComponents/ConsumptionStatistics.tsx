@@ -6,6 +6,10 @@ import { getDaysInMonth } from "date-fns";
 import {Box, Card, CardContent, InputAdornment, TextField, Typography} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 
+type Props = {
+    branchId: number
+}
+
 function parseYearMonthFromTitle(title: string): { year: number; month: number } | null {
     const m = title.trim().toLowerCase().match(/^([a-z]{3})-(\d{2})/);
     if (!m) return null;
@@ -34,7 +38,7 @@ type Row = {
     usagePerShift: number;
 };
 
-export function  ConsumptionStatistics() {
+export function  ConsumptionStatistics({branchId}: Props) {
     const [report, setReport] = useState<ConsumptionReportTO | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
@@ -44,7 +48,7 @@ export function  ConsumptionStatistics() {
     useEffect(() => {
         (async () => {
             try {
-                const r = await fetchLatestConsumptionReport();
+                const r = await fetchLatestConsumptionReport(branchId.toString());
                 setReport(r);
             } catch (e: any) {
                 setErr(e?.message ?? "Failed to load");

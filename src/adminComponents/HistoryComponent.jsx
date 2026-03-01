@@ -3,7 +3,6 @@ import {deleteOrder, getHistory} from "../api/api";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import OrderCard from "./OrderCard";
 import {Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Typography} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import {Masonry} from "@mui/lab";
 import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 
@@ -34,7 +33,7 @@ function HistoryComponent({onClose, selectedBranch}) {
 
             handleRemoveItem(orderToDelete.id);
         } catch (err) {
-            console.error("Ошибка удаления заказа", err);
+            console.error("Failed to delete the order", err);
         } finally {
             setDeleteDialogOpen(false);
             setOrderToDelete(null);

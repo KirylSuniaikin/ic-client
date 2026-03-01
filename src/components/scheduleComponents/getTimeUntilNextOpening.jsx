@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import {workingHours} from "./workingHours";
+import {ramadanHours, workingHours} from "./workingHours";
 import duration from "dayjs/plugin/duration";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -13,8 +13,9 @@ export function getTimeUntilNextOpening() {
     const dayIndexToName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     if (dayIndexToName[now.day()] === "Monday") {
-        const [tuesdayStart] = workingHours["Tuesday"];
-        const [startHour, startMinute] = tuesdayStart.split(":").map(Number);
+        const [firstShift] = ramadanHours["Tuesday"];
+        const [start] = firstShift;
+        const [startHour, startMinute] = start.split(":").map(Number);
 
         const nextOpen = now.add(1, "day").hour(startHour).minute(startMinute).second(0);
         const diff = nextOpen.diff(now);
@@ -29,10 +30,11 @@ export function getTimeUntilNextOpening() {
 
     for (let i = 0; i < 7; i++) {
         const checkDay = (now.day() + i) % 7;
-        const hours = workingHours[dayIndexToName[checkDay]];
+        const hours = ramadanHours[dayIndexToName[checkDay]];
         if (!hours) continue;
 
-        const [start] = hours;
+        const [firstShift] = hours;
+        const [start] = firstShift;
         const startHour = +start.split(":")[0];
         const startMinute = +start.split(":")[1];
 

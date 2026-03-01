@@ -14,13 +14,12 @@ import {ManagementTopBar} from "./ManagementTopBar";
 type Props = {
     isOpen: boolean;
     onClose: () => void;
-    branchId: string;
-    userId: number;
+    branch: IBranch;
+    user: IUser;
 };
 
-export default function ManagementPage({isOpen, onClose, branchId, userId}: Props) {
+export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
     const [reports, setReports] = useState<IManagementResponse[]>([]);
-    const [branch, setBranch] = useState<IBranch>();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [inventoryPopup, setInventoryPopup] = useState<
@@ -30,7 +29,6 @@ export default function ManagementPage({isOpen, onClose, branchId, userId}: Prop
             reportId?: number;
         }>
     ({open: false, mode: "new"});
-    const [admin, setAdmin] = useState<IUser>();
 
     function handleCreateReportClick() {
         setInventoryPopup({open: true, mode: "new"});
@@ -59,16 +57,11 @@ export default function ManagementPage({isOpen, onClose, branchId, userId}: Prop
             setLoading(true);
             setError(null);
             try {
-                const [baseManagementResponse, branchResponse, userResponse] = await Promise.all([
-                    getBaseManagementReports(branchId),
-                    getBranchInfo(branchId),
-                    getUser(userId)
+                const [baseManagementResponse] = await Promise.all([
+                    getBaseManagementReports(branch.id.toString()),
                 ]);
                 if (alive) {
                     setReports(baseManagementResponse);
-                    setBranch(branchResponse);
-                    console.log(branchResponse);
-                    setAdmin(userResponse);
                 }
             } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
@@ -80,7 +73,7 @@ export default function ManagementPage({isOpen, onClose, branchId, userId}: Prop
         return () => {
             alive = false;
         };
-    }, [branchId, userId]);
+    }, [branch]);
 
 
     if (loading) {
@@ -141,7 +134,7 @@ export default function ManagementPage({isOpen, onClose, branchId, userId}: Prop
                     mode={inventoryPopup.mode}
                     reportId={inventoryPopup.reportId}
                     branch={branch}
-                    author={admin}
+                    author={user}
                     onClose={handleCloseInventoryPopup}
                     onSaved={(report) => {
                         setReports(prev => upsertReport(prev, report));

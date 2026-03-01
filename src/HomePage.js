@@ -231,7 +231,6 @@ function HomePage({userParam}) {
                 setToppings(baseInfo.toppings)
                     const branches = await fetchAllBranches()
                     setAvailableBranches(branches);
-                    console.log(branches);
 
                     if (isKiosk) {
                         console.log("It's kiosk")

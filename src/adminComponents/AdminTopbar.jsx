@@ -25,7 +25,10 @@ import {
     AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
+import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import {StaffRoles} from "../management/types/authTypes";
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 
 
 export default function AdminTopbar({
@@ -48,7 +51,10 @@ export default function AdminTopbar({
                                         onBranchChange,
                                         selectedBranch,
                                         onBlacklistopen,
-                                        onCashRegisterOpen
+                                        onCashRegisterOpen,
+                                        role,
+                                        logout,
+                                        userName
                                     }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -82,7 +88,7 @@ export default function AdminTopbar({
         }
     }
 
-    const items = [
+    const managerItems = [
         {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
         {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
         {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
@@ -91,8 +97,19 @@ export default function AdminTopbar({
         {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
         {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
         {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen},
-        {label: "Blacklist", icon:<PersonOffIcon fontSize="small" /> , onClick: onBlacklistopen}
+        {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
+        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
     ]
+
+    const cookItems = [
+        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
+        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
+        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
+        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
+        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+    ]
+
+    const items = role === StaffRoles.COOK ? cookItems : managerItems;
 
     const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];
 
@@ -137,15 +154,43 @@ export default function AdminTopbar({
                 zIndex: 10
             }}
         >
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "9999px",
+                    padding: "6px 16px",
+                    width: "fit-content",
+                    height: "40px"
+                }}
+            >
+                <PersonOutlineIcon sx={{ fontSize: "1.2rem", color: "#555" }} />
+                <Typography
+                    sx={{
+                        textTransform: "capitalize",
+                        fontSize: "1rem",
+                        fontWeight: 500,
+                        color: "#333",
+                        lineHeight: 1
+                    }}
+                >
+                    {userName}
+                </Typography>
+            </Box>
+
             <Box sx={{flexGrow: 1}}/>
 
             <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
 
-                <BranchSelectorComponent
-                    branches={branches}
-                    onBranchChange={onBranchChange}
-                    selectedBranch={selectedBranch}
-                ></BranchSelectorComponent>
+                {role === StaffRoles.SUPER_MANAGER && (
+                    <BranchSelectorComponent
+                        branches={branches}
+                        onBranchChange={onBranchChange}
+                        selectedBranch={selectedBranch}
+                    ></BranchSelectorComponent>
+                )}
 
                 <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
                     <InputLabel>Workload</InputLabel>
@@ -229,7 +274,10 @@ export default function AdminTopbar({
                     {isMobile && (
                         <>
                             <Box
-                                onClick={() => { handleMenuClose(); onCashClick(cashStage); }}
+                                onClick={() => {
+                                    handleMenuClose();
+                                    onCashClick(cashStage);
+                                }}
                                 sx={{
                                     display: "flex",
                                     alignItems: "center",
@@ -251,12 +299,15 @@ export default function AdminTopbar({
                                     {getCashStage(cashStage)}
                                 </Typography>
                                 <Box sx={{display: "flex", alignItems: "center"}}>
-                                    <PointOfSaleIcon fontSize="small" />
+                                    <PointOfSaleIcon fontSize="small"/>
                                 </Box>
                             </Box>
 
                             <Box
-                                onClick={() => { handleMenuClose(); onShiftStageClick(shiftStage); }}
+                                onClick={() => {
+                                    handleMenuClose();
+                                    onShiftStageClick(shiftStage);
+                                }}
                                 sx={{
                                     display: "flex",
                                     alignItems: "center",
@@ -267,7 +318,7 @@ export default function AdminTopbar({
                                     fontWeight: 500,
                                     fontFamily: "Baloo Bhaijaan 2",
                                     color: "#333",
-                                    borderBottom: "1px solid #f0f0f0" ,
+                                    borderBottom: "1px solid #f0f0f0",
                                     cursor: "pointer",
                                     "&:hover": {
                                         backgroundColor: "#fff5f5",
@@ -278,7 +329,7 @@ export default function AdminTopbar({
                                     {getShiftStage(shiftStage)}
                                 </Typography>
                                 <Box sx={{display: "flex", alignItems: "center"}}>
-                                    <AccessTimeIcon fontSize="small" />
+                                    <AccessTimeIcon fontSize="small"/>
                                 </Box>
                             </Box>
                         </>

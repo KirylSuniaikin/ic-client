@@ -1,3 +1,5 @@
+import {authFetch} from "../management/api/api";
+
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 export var PROD_SOCKET_URL = "https://icpizza-back.onrender.com/ws";
@@ -17,7 +19,6 @@ export async function fetchBaseAppInfo(userId, branchId) {
         queryParams.append('userId', userId);
     }
 
-    // 3. Склеиваем URL и строку параметров
     url += `?${queryParams.toString()}`;
     const response = await fetch(url, {
         method: "GET",
@@ -55,7 +56,7 @@ export async function createOrder(order) {
 }
 
 export async function updateAvailability(changes, branchId) {
-    const response = await fetch(URL + "/update_availability", {
+    const response = await authFetch(URL + "/update_availability", {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -74,7 +75,7 @@ export async function updateAvailability(changes, branchId) {
 export async function editOrder(order, orderId) {
     const url = `${URL}/edit_order`;
 
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -90,30 +91,8 @@ export async function editOrder(order, orderId) {
     return await response.json();
 }
 
-// export async function updatePaymentType(orderId, newPaymentType) {
-//     try {
-//         const res = await fetch(`${URL}/update_payment_type`, {
-//             method: "PUT",
-//             headers: {
-//                 "Content-Type": "application/json",
-//                 // "ngrok-skip-browser-warning": "69420"
-//             },
-//             body: JSON.stringify({
-//                 order_id: orderId,
-//                 payment_type: newPaymentType
-//             })
-//         });
-//
-//         if (!res.ok) throw new Error(`Error: ${res.status}`);
-//         const data = await res.json();
-//         console.log("Payment type updated", data);
-//     } catch (error) {
-//         console.error("Failed to update payment type:", error);
-//     }
-// }
-
 export async function getAllActiveOrders(branchId) {
-    const response = await fetch(URL + `/get_all_active_orders?branchId=${branchId}`, {
+    const response = await authFetch(URL + `/get_all_active_orders?branchId=${branchId}`, {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -132,7 +111,7 @@ export async function getAllActiveOrders(branchId) {
 }
 
 export async function getHistory(branchId) {
-    const response = await fetch(URL + `/get_history?branchId=${branchId}`, {
+    const response = await authFetch(URL + `/get_history?branchId=${branchId}`, {
         method: "GET",
         // headers: {
         //     "ngrok-skip-browser-warning": "69420"
@@ -145,19 +124,16 @@ export async function getHistory(branchId) {
     if (text.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
-    console.log(text);
-
     return JSON.parse(text);
 }
 
-export async function fetchStatistics(startDate, finishDate, certainDate) {
-    const url = `${URL}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}`;
+export async function fetchStatistics(startDate, finishDate, certainDate, branchId) {
+    const url = `${URL}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}&branchId=${branchId}`;
 
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
-            // "ngrok-skip-browser-warning": "69420"
         }
     });
 
@@ -170,7 +146,7 @@ export async function fetchStatistics(startDate, finishDate, certainDate) {
 
 export async function sendShiftEvent({type, datetime, branch_id, cash_amount = null, prep_plan = null}) {
     try {
-        const response = await fetch(URL + "/branch/send_shift_event", {
+        const response = await authFetch(URL + "/branch/send_shift_event", {
 
             method: "POST",
             headers: {
@@ -199,25 +175,9 @@ export async function sendShiftEvent({type, datetime, branch_id, cash_amount = n
 
 }
 
-// export async function fetchLastStage(branchId) {
-//     const url = `${URL}/get_last_stage?branchId=${encodeURIComponent(branchId)}`;
-//     const response = await fetch(url, {
-//         method: "GET",
-//         headers: {
-//             // "ngrok-skip-browser-warning": "69420"
-//         }
-//     });
-//     if (!response.ok) {
-//         throw new Error(`Ошибка: ${response.status}`);
-//     }
-//
-//     const data = await response.json();
-//     return data.type || null;
-// }
-
 export async function deleteOrder(orderId) {
     const url = `${URL}/delete_order?orderId=${encodeURIComponent(orderId)}`;
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
         method: "DELETE",
         headers: {
             // "ngrok-skip-browser-warning": "69420"
@@ -230,7 +190,7 @@ export async function deleteOrder(orderId) {
 
 export async function sendOrderPayment({orderId, amount, type, branchId}) {
     try {
-        const response = await fetch(URL + "/order_payment", {
+        const response = await authFetch(URL + "/order_payment", {
 
             method: "POST",
             headers: {
@@ -260,7 +220,7 @@ export async function sendOrderPayment({orderId, amount, type, branchId}) {
 export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, reason}) {
     try {
         console.log(jahezOrderId);
-        const response = await fetch(URL + "/status_update", {
+        const response = await authFetch(URL + "/status_update", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -289,7 +249,7 @@ export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, rea
 
 export async function getOrderStatus(orderId) {
     try {
-        const response = await fetch(URL + "/order_status?order_id=" + orderId, {
+        const response = await authFetch(URL + "/order_status?order_id=" + orderId, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -306,26 +266,9 @@ export async function getOrderStatus(orderId) {
     }
 }
 
-// export async function fetchWorkload(branchNumber) {
-//     try{
-//         const response = await fetch(URL + "/branch/get_workload_level?branchNumber=" + branchNumber, {
-//             method: "GET",
-//             headers: {
-//                 "Content-Type": "application/json",
-//             }
-//         })
-//
-//         return await response.json();
-//     }catch(error) {
-//         console.error("Failed to fetch workload", error);
-//         return { error: true, message: "Connection error" };
-//     }
-// }
-
 export async function updateWorkload({branchId, newLevel}) {
     try {
-        console.log(newLevel + branchId);
-        await fetch(URL + "/branch/update_workload_level", {
+        await authFetch(URL + "/branch/update_workload_level", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
@@ -343,7 +286,7 @@ export async function updateWorkload({branchId, newLevel}) {
 
 export async function getBaseAdminInfo(branchId) {
     try {
-        const response = await fetch(URL + "/branch/get_admin_base_info?branchId=" + branchId, {
+        const response = await authFetch(URL + "/branch/get_admin_base_info?branchId=" + branchId, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
