@@ -11,15 +11,14 @@ type Props = {
     open: boolean;
     onClose: () => void;
     adminId: number;
-    branchId: string;
+    branch: IBranch;
 };
 
-export function PurchasePopup({open, onClose, adminId, branchId}: Props) {
+export function PurchasePopup({open, onClose, adminId, branch}: Props) {
     const [purchaseReports, setPurchaseReports] = useState<BasePurchaseResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>();
-    const [branch, setBranch] = useState<IBranch>();
     const [purchasePopup, setPurchasePopup] = useState<{
         open: boolean;
         mode: "new" | "edit";
@@ -40,15 +39,13 @@ export function PurchasePopup({open, onClose, adminId, branchId}: Props) {
             setLoading(true);
             setError(null);
             try {
-                const [baseManagementResponse, userResponse, branchResponse] = await Promise.all([
-                    fetchPurchaseReports(),
+                const [baseManagementResponse, userResponse] = await Promise.all([
+                    fetchPurchaseReports(branch.id.toString()),
                     getUser(adminId),
-                    getBranchInfo(branchId),
                 ]);
                 if (alive) {
                     setPurchaseReports(baseManagementResponse);
                     setAdmin(userResponse);
-                    setBranch(branchResponse);
                 }
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Failed to load";
@@ -61,7 +58,7 @@ export function PurchasePopup({open, onClose, adminId, branchId}: Props) {
         return () => {
             alive = false;
         };
-    }, [adminId, branchId]);
+    }, [adminId]);
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});

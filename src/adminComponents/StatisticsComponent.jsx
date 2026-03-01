@@ -27,8 +27,9 @@ import {PlatformStatCard} from "./PlatformStatCatd";
 import {ProductsTable} from "../management/productsTable/ProductsTable";
 import {VatReportCard} from "./VatReportCard";
 import {CustomerStatCard} from "./CustomerStatCard";
+import {StaffRoles} from "../management/types/authTypes";
 
-export default function StatisticsComponent({onClose, branchId}) {
+export default function StatisticsComponent({onClose, branchId, role}) {
     const [dateRange, setDateRange] = useState([
         {
             startDate: startOfDay(new Date()),
@@ -77,7 +78,7 @@ export default function StatisticsComponent({onClose, branchId}) {
             const end = formatInTimeZone(currentRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
             const retentionDate = formatInTimeZone(currentSelectedDate, 'Asia/Bahrain', 'yyyy-MM-dd');
 
-            const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'));
+            const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'), branchId.toString());
             setGlobalStats({
                 arpu: response.ARPU,
                 uniqueClients: response.unique_customers_all_time,
@@ -128,7 +129,7 @@ export default function StatisticsComponent({onClose, branchId}) {
     }, [loadStats]);
 
     const [retentionAnchorEl, setRetentionAnchorEl] = useState(null);
-    const [mode, setMode] = useState("Performance");
+    const [mode, setMode] = useState(role === StaffRoles.SUPER_MANAGER ? "Performance" : "Consumption");
     const retentionOpen = Boolean(retentionAnchorEl);
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
 
@@ -190,7 +191,9 @@ export default function StatisticsComponent({onClose, branchId}) {
                             },
                         }}
                     >
-                        <ToggleButton value="Performance">Performance</ToggleButton>
+                        {role === StaffRoles.SUPER_MANAGER && (
+                            <ToggleButton value="Performance">Performance</ToggleButton>
+                        )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
                         <ToggleButton value="Reports">Reports</ToggleButton>
@@ -479,7 +482,7 @@ export default function StatisticsComponent({onClose, branchId}) {
                                 rows={doughUsage.doughUsage}
                             />
                             <Box sx={{mt: 1}}></Box>
-                            <ConsumptionStatistics/>
+                            <ConsumptionStatistics branchId={branchId}/>
                         </Box>
                     </>
                 )}

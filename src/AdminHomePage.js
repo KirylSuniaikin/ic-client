@@ -36,21 +36,8 @@ import CashPopup from "./components/shiftComponents/CashPopup";
 import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
 import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
-
-const availableBranches = [
-    {
-        id: "2e8c35f7-d75e-4442-b496-cbb929842c10",
-        branchName: "Al-Hidd",
-        branchNo: 1,
-        externalId: "IC-PIZZA-AL-HIDD"
-    },
-    {
-        id: "2e8c35f7-d75e-4442-b496-cbb929842c11",
-        branchName: "Saar",
-        externalId: "IC-PIZZA-SAAR",
-        branchNo: 2
-    }
-]
+import {useAuth} from "./management/security/AuthProvider";
+import {fetchAllBranches, getBranchInfo} from "./management/api/api";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -79,13 +66,13 @@ function AdminHomePage() {
     const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
-    const [selectedBranch, setSelectedBranch] = useState(availableBranches[0]);
+    const {username, branchId, userId,role,  logout} = useAuth();
+    const [availableBranches, setAvailableBranches] = useState(null);
+    const [selectedBranch, setSelectedBranch] = useState(null);
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
 
     const audioRef = useRef(null);
-
-    const adminId = 1;
 
     const CASH_STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_CASH_CHECK: "CLOSE_SHIFT_CASH_CHECK",
@@ -209,11 +196,35 @@ function AdminHomePage() {
             setOrders(prev => prev.filter(o => normalizeId(o.id) !== normalizeId(order.id)));
             setCancelReason("");
         } catch (e) {
-            console.error("[Cancel] failed:", e?.message || e);
+            console.error("[CANCEL] failed:", e?.message || e);
         } finally {
             setConfirmingCancel(false);
         }
     }
+
+    useEffect(() => {
+        async function initBranches() {
+            try {
+                if (branchId!=="NONE") {
+                    const branchInfo = await getBranchInfo(branchId);
+                    setAvailableBranches([branchInfo]);
+                    setSelectedBranch(branchInfo);
+                } else {
+                    const allBranches = await fetchAllBranches();
+                    setAvailableBranches(allBranches);
+
+                    if (allBranches.length > 0) {
+                        setSelectedBranch(allBranches[0]);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch branches:", err);
+                setError("Failed to fetch branches");
+            }
+        }
+
+        initBranches();
+    }, [branchId]);
 
     useEffect(() => {
         audioRef.current = new Audio(alertSound);
@@ -284,6 +295,8 @@ function AdminHomePage() {
     }, [newlyUpdatedOrder, audioRef, setActiveAlertOrderEdit]);
 
     useEffect(() => {
+        if (!selectedBranch) return
+
         async function initialize() {
             try {
                 setLoading(true);
@@ -438,7 +451,7 @@ function AdminHomePage() {
                     socket.subscribe(`/topic/${selectedBranch.id}/admin-base-info`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         console.log("[BASE ADMIN INFO CHANGED] ", payload);
-                        if (String(payload.branchId) === String(selectedBranch.id)) {
+                        if (String(payload.branchId) === selectedBranch.id) {
                             console.log("[WORKLOAD_CHANGE] true");
                             onWorkloadChange(payload.level);
                             const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
@@ -477,7 +490,7 @@ function AdminHomePage() {
             }
         }
 
-        fetchAdminBaseInfo(String(selectedBranch.id));
+        fetchAdminBaseInfo(selectedBranch.id);
         initialize();
 
         return () => {
@@ -555,10 +568,10 @@ function AdminHomePage() {
                     onOpenStatistics={() => setIsStatisticsOpen(true)}
                     onOpenConfig={() => setIsConfigOpen(true)}
                     onGoToMenu={() => navigate('/menu?isAdmin=true&branchId=' + selectedBranch.id)}
-                    branchId={String(selectedBranch.id)}
+                    branchId={selectedBranch.id}
                     workloadLevel={workloadLevel}
                     onWorkloadChange={onWorkloadChange}
-                    adminId={adminId}
+                    adminId={userId}
                     onPurchaseOpen={() => setPurchasePopupOpen(true)}
                     onManagementPageOpen={() => setManagementPageOpen(true)}
                     cashStage={cashStage}
@@ -571,6 +584,9 @@ function AdminHomePage() {
                     selectedBranch={selectedBranch}
                     onBlacklistopen={() => setBlacklistOpen(true)}
                     onCashRegisterOpen={() => setCashRegisterOpen(true)}
+                    role={role}
+                    logout={logout}
+                    userName={username}
                 />
             )}
             <ShiftPopup
@@ -580,14 +596,14 @@ function AdminHomePage() {
                     console.log(eventStage)
                 }}
                 stage={eventStage}
-                branchId={String(selectedBranch.id)}
+                branchId={selectedBranch.id}
                 onCashWarning={setCashWarning}
             />
             <CashPopup
                 isOpen={cashPopupOpen}
                 onClose={() => setCashPopupOpen(false)}
                 stage={cashStage}
-                branchId={String(selectedBranch.id)}
+                branchId={selectedBranch.id}
                 onCashWarning={setCashWarning}
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
@@ -643,7 +659,8 @@ function AdminHomePage() {
                 <StatisticsComponent
                     isOpen={isStatisticsOpen}
                     onClose={() => setIsStatisticsOpen(false)}
-                    branchId={String(selectedBranch.id)}
+                    branchId={selectedBranch.id}
+                    role={role}
                 />
             )}
 
@@ -651,32 +668,42 @@ function AdminHomePage() {
                 <PurchasePopup
                     open={purchasePopupOpen}
                     onClose={() => setPurchasePopupOpen(false)}
-                    adminId={adminId}
-                    branchId={String(selectedBranch.id)}
+                    adminId={userId}
+                    branch={selectedBranch}
                 />
             )}
 
             {blacklistOpen && (
-                <BlacklistHomepage open={blacklistOpen} handleClose={() => setBlacklistOpen(false)}/>
+                <BlacklistHomepage
+                    open={blacklistOpen}
+                    handleClose={() => setBlacklistOpen(false)}
+                />
             )}
 
             {cashRegisterOpen && (
-                <CashRegisterPopup branchId={selectedBranch.id} open={cashRegisterOpen} handleClose={()=> setCashRegisterOpen(false)} branchName={selectedBranch.branchName}/>
+                <CashRegisterPopup
+                    open={cashRegisterOpen}
+                    handleClose={()=> setCashRegisterOpen(false)}
+                    branch={selectedBranch}
+                />
             )}
 
             {managementPageOpen && (
                 <ManagementPage
                     isOpen={managementPageOpen}
                     onClose={() => setManagementPageOpen(false)}
-                    userId={adminId}
-                    branchId={String(selectedBranch.id)}
+                    user={{
+                        userName: username,
+                        id: userId
+                    }}
+                    branch={selectedBranch}
                 />
             )}
 
             {shiftManagementPageOpen && (
                 <ShiftHomePage open={shiftManagementPageOpen}
                                onClose={() => setShiftManagementPageOpen(false)}
-                               branchId={String(selectedBranch.id)}
+                               branch={selectedBranch}
                 />
             )}
 

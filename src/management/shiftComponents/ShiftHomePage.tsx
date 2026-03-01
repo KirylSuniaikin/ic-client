@@ -11,11 +11,10 @@ import {ShiftReportTopBar} from "./ShiftReportTopBar";
 type Props = {
     open: boolean;
     onClose: () => void;
-    branchId: string;
+    branch: IBranch;
 }
 
-export function ShiftHomePage({ open, onClose, branchId }: Props) {
-    const [branch, setBranch] = useState<IBranch>();
+export function ShiftHomePage({ open, onClose, branch }: Props) {
     const [shiftReports, setShiftReports] = useState<BaseShiftResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -42,13 +41,11 @@ export function ShiftHomePage({ open, onClose, branchId }: Props) {
             setLoading(true);
             setError(null);
             try{
-                const [baseShiftResponse, branchResponse] = await Promise.all([
-                    fetchShiftReports(),
-                    getBranchInfo(branchId)
+                const [baseShiftResponse] = await Promise.all([
+                    fetchShiftReports(branch.id.toString()),
                 ]);
                 if (alive) {
                     setShiftReports(baseShiftResponse);
-                    setBranch(branchResponse)
                 }
             }
             catch (e: unknown) {
@@ -61,7 +58,7 @@ export function ShiftHomePage({ open, onClose, branchId }: Props) {
             }
         })();
         return () => {alive = false;};
-    }, [branchId]);
+    }, [branch]);
 
     function handleCreateShiftReportClick() {
         setShiftTableOpen({open: true, mode: "new"});

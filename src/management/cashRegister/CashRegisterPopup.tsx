@@ -7,19 +7,19 @@ import {CashUpdateType} from "../types/branchBalanceTypes";
 import CashInputDrawer from "./CashInputDrawer";
 import ErrorSnackbar from "../../adminComponents/ErrorSnackbar";
 import TransactionDetailsTable from "./TransactionDetailsTable";
+import {IBranch} from "../types/inventoryTypes";
 
 type Props = {
-    branchId: string;
+    branch: IBranch;
     open: boolean;
     handleClose: () => void;
-    branchName: string;
 }
 
 const cardBg = "#FFFFFF";
 const buttonBg = "#F0F0F0";
 const brandBlack = "#000000";
 
-export default function CashRegisterPopup({branchId, open, handleClose, branchName}: Props) {
+export default function CashRegisterPopup({branch, open, handleClose}: Props) {
     const [balance, setBalance] = useState<number>(0);
     const [loading, setLoading] = useState<boolean>(true);
     const [errorSnackbarOpen, setErrorSnackbarOpen] = useState(false);
@@ -41,7 +41,7 @@ export default function CashRegisterPopup({branchId, open, handleClose, branchNa
 
         const fetchBalance = async () => {
             try {
-                const response = await getBranchBalance(branchId);
+                const response = await getBranchBalance(branch.id.toString());
                 if (isMounted) {
                     setBalance(response.branchBalance || 0);
                 }
@@ -57,7 +57,7 @@ export default function CashRegisterPopup({branchId, open, handleClose, branchNa
         return () => {
             isMounted = false;
         };
-    }, [branchId, open]);
+    }, [branch, open]);
 
     const formattedBalance = new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
@@ -70,7 +70,7 @@ export default function CashRegisterPopup({branchId, open, handleClose, branchNa
 
     const handleSubmit = async (amount: number, type: CashUpdateType, note: string) => {
         setLoading(true);
-        const resp = await cashUpdate({amount: amount, branchId: branchId, cashUpdateType: type, note: note});
+        const resp = await cashUpdate({amount: amount, branchId: branch.id.toString(), cashUpdateType: type, note: note});
         const data = await resp.json();
         if (resp.ok) {
             setBalance(data.branchBalance)
@@ -111,7 +111,7 @@ export default function CashRegisterPopup({branchId, open, handleClose, branchNa
                         <CardContent>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
-                                    Cash Balance ({branchName})
+                                    Cash Balance ({branch.branchName})
                                 </Typography>
 
                                 <Button
@@ -197,7 +197,7 @@ export default function CashRegisterPopup({branchId, open, handleClose, branchNa
             <ErrorSnackbar open={errorSnackbarOpen} message={errorMessage} severity="error"
                            handleClose={() => setErrorSnackbarOpen(false)}/>
 
-            <TransactionDetailsTable branchId={branchId} open={historyOpen} onClose={() => setHistoryOpen(false)}
+            <TransactionDetailsTable branchId={branch.id.toString()} open={historyOpen} onClose={() => setHistoryOpen(false)}
             />
         </>
     );
