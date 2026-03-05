@@ -46,7 +46,7 @@ const CATEGORY_ORDER = [
 ];
 
 export function sortItemsByCategory(items) {
-    if (!items || !items.length) return 0;
+    if (!items || !items.length) return [];
 
     return [...items].sort((a, b) => {
         const aIndex = CATEGORY_ORDER.indexOf(a.category);
