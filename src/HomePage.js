@@ -28,6 +28,7 @@ import {fetchAllBranches, getAllBannedCstmrs} from "./management/api/api";
 import {KioskBranchSelector} from "./components/KioskBranchSelector";
 import BlackListSnackBar from "./components/BlackListSnackBar";
 import RamadanPopup from "./components/RamadanPopup";
+import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
 
 
 const brandRed = "#E44B4C";
@@ -115,6 +116,7 @@ function HomePage({userParam}) {
     const [editMode, setEditMode] = useState(false)
     const [closedPopup, setClosedPopupOpen] = useState(false);
     const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
+    const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
 
     const [searchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -1172,7 +1174,8 @@ function HomePage({userParam}) {
                 !pizzaComboPopupOpen &&
                 !detroitComboPopupOpen &&
                 !upsellPopupOpen &&
-                !ramadanPopupOpen &&(
+                !ramadanPopupOpen &&
+                ! ramadanInfoPopupOpen && (
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -1250,7 +1253,12 @@ function HomePage({userParam}) {
             )}
 
             {ramadanPopupOpen && (
-                <RamadanPopup open={ramadanPopupOpen} onClose={() => setRamadanPopupOpen(false)} onAddToCart={handleAddToCart} group={ramadan[0]}/>
+                <RamadanPopup open={ramadanPopupOpen}
+                              onClose={() => {
+                                  setRamadanPopupOpen(false)
+                                  setRamadanInfoPopupOpen(true)
+                              }}
+                              onAddToCart={handleAddToCart} group={ramadan[0]}/>
             )}
 
             {detroitComboPopupOpen && (
@@ -1297,6 +1305,12 @@ function HomePage({userParam}) {
                 crossSellItems={getGeneralCrossSellItems()}
                 extraIngredients={extraIngredients}
             />
+            }
+
+            {ramadanInfoPopupOpen &&
+                <RamadanInfoPopup
+                    open={ramadanInfoPopupOpen}
+                    onClose={() => setRamadanInfoPopupOpen(false)}/>
             }
 
             {isCrossSellOpen && <CrossSellPopup
@@ -1366,11 +1380,13 @@ function HomePage({userParam}) {
                 />
             }
 
+
+
             {!isAdmin && showOrderConfirmed && (
                 <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
             )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && !ramadanPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && !ramadanPopupOpen && !ramadanInfoPopupOpen && cartItems.length > 0 &&
                 <Box
                     onClick={handleOpenCart}
                     sx={{
