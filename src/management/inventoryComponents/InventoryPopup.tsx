@@ -122,8 +122,8 @@ export default function InventoryPopup({
             minWidth: 140
         },
         {
-            field: "kitchenQuantity",
-            headerName: "Kitchen Quantity",
+            field: "storageQuantity",
+            headerName: "Storage Quantity",
             width: 140,
             editable: true,
             type: "number",
@@ -132,8 +132,8 @@ export default function InventoryPopup({
             valueFormatter: fmt3,
         },
         {
-        field: "storageQuantity",
-            headerName: "Storage Quantity",
+            field: "kitchenQuantity",
+            headerName: "Kitchen Quantity",
             width: 140,
             editable: true,
             type: "number",
