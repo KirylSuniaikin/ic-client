@@ -10,8 +10,8 @@ export const workingHours = {
 
 export const ramadanHours = {
     "Sunday": null,
-    "Monday": null,
-    "Tuesday": [["15:30", "18:30"], ["20:30", "03:30"]],
+    "Monday": [["15:30", "18:30"], ["20:30", "03:30"]],
+    "Tuesday": null,
     "Wednesday": [["15:30", "18:30"], ["20:30", "03:30"]],
     "Thursday": [["15:30", "17:30"], ["20:30", "03:30"]],
     "Friday": [["15:30", "18:30"], ["20:30", "03:30"]],
