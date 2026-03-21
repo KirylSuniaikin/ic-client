@@ -13,7 +13,7 @@ export function getTimeUntilNextOpening() {
     const dayIndexToName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     if (dayIndexToName[now.day()] === "Monday") {
-        const [firstShift] = ramadanHours["Tuesday"];
+        const [firstShift] = workingHours["Tuesday"];
         const [start] = firstShift;
         const [startHour, startMinute] = start.split(":").map(Number);
 
@@ -30,7 +30,7 @@ export function getTimeUntilNextOpening() {
 
     for (let i = 0; i < 7; i++) {
         const checkDay = (now.day() + i) % 7;
-        const hours = ramadanHours[dayIndexToName[checkDay]];
+        const hours = workingHours[dayIndexToName[checkDay]];
         if (!hours) continue;
 
         const [firstShift] = hours;
