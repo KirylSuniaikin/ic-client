@@ -28,6 +28,10 @@ import {fetchAllBranches, getAllBannedCstmrs} from "./management/api/api";
 import {KioskBranchSelector} from "./components/KioskBranchSelector";
 import BlackListSnackBar from "./components/BlackListSnackBar";
 import RamadanPopup from "./components/RamadanPopup";
+import {UnavailablePopup} from "./components/UnavailablePopup";
+import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
+import * as React from "react";
+import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
 import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
 
 
@@ -52,7 +56,6 @@ function parseItemNote(desc) {
             note += (note ? " " : "") + text;
         }
     }
-    console.log(note)
     return note.trim();
 }
 
@@ -67,7 +70,6 @@ function parseExtraIngr(desc) {
             .filter(s => s.length > 0);
         extras.push(...ingr);
     }
-    console.log(extras)
     return extras;
 }
 
@@ -93,7 +95,7 @@ function isCustomerBanned(blackList, phoneNumber) {
     return false;
 }
 
-function HomePage({userParam}) {
+function HomePage({userParam, recommendedIds, giftId}) {
     const [menuData, setMenuData] = useState([]);
     const [extraIngredients, setExtraIngredients] = useState([]);
     const [toppings, setToppings] = useState([]);
@@ -118,7 +120,9 @@ function HomePage({userParam}) {
     const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
     const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
 
-    const [searchParams] = useSearchParams();
+    const [unavailableItems, setUnavailableItems] = useState([]);
+
+    const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
     const isKiosk = searchParams.get('mode') === 'kiosk';
     const adminBranchId = searchParams.get('branchId');
@@ -139,11 +143,19 @@ function HomePage({userParam}) {
     const [comboPrice, setComboPrice] = useState(null);
     const [pickUpReminder, setPickUpReminder] = useState(false);
     const [pendingOrder, setPendingOrder] = useState(null);
+    const [unavailablePopupOpen, setUnavailablePopupOpen] = useState(false);
+    const [baguettePizzaPopupOpen,setBaguettePizzaPopupOpen]= useState(false);
 
     const [branchSelector, setBranchSelector] = useState(null);
     const [availableBranches, setAvailableBranches] = useState([]);
     const BRANCH_KEY = 'kiosk_branch_data';
     const [blacklistSnackBarOpen, setBlacklistSnackBarOpen] = useState(false);
+
+    const [isSDoughAvailable, setSDoughAvailable] = useState(false);
+    const [isMDoughAvailable, setMDoughAvailable] = useState(false);
+
+    const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
 
     const bestRef = useRef(null);
 
@@ -155,7 +167,8 @@ function HomePage({userParam}) {
         sides,
         beverages,
         sauces,
-        ramadan
+        ramadan,
+        pizzaBaguettes
     } = groupItemsByCategory(groupAvailableItemsByName(menuData));
 
     const handleDiscountChange = (item, newDiscount) => {
@@ -231,19 +244,43 @@ function HomePage({userParam}) {
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
                 setToppings(baseInfo.toppings)
-                    const branches = await fetchAllBranches()
-                    setAvailableBranches(branches);
+                setSDoughAvailable(baseInfo.isSDoughAvailable)
+                setMDoughAvailable(baseInfo.isMDoughAvailable)
+                const branches = await fetchAllBranches()
+                setAvailableBranches(branches);
 
-                    if (isKiosk) {
-                        console.log("It's kiosk")
-                        const savedBranch = localStorage.getItem(BRANCH_KEY);
+                if (isKiosk) {
+                    const savedBranch = localStorage.getItem(BRANCH_KEY);
 
-                        if (!savedBranch) {
-                            setBranchSelector(true);
-                        } else {
-                            console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
-                        }
+                    if (!savedBranch) {
+                        setBranchSelector(true);
+                    } else {
+                        console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
                     }
+                }
+                let productsToAdd = []
+                let giftItem = null
+
+                if (recommendedIds && recommendedIds.length > 0) {
+                    const targetIds = recommendedIds[0].split(",").map(id => parseInt(id, 10));
+
+                    productsToAdd = Object.values(baseInfo.menu).filter(item => targetIds.includes(item.id));
+                }
+
+                if (giftId) {
+                    const targetGiftId = parseInt(giftId, 10)
+                    giftItem = Object.values(baseInfo.menu).find(item => item.id === targetGiftId);
+                }
+
+                addWhatsappItems(productsToAdd, giftItem);
+
+                if (searchParams.has('recommended_items') || searchParams.has('gift')) {
+                    searchParams.delete('recommended_items');
+                    searchParams.delete('gift');
+
+                    setSearchParams(searchParams, {replace: true});
+                }
+
                 if (baseInfo.userInfo && baseInfo.userInfo.name && baseInfo.userInfo.name !== "Unknown user") {
                     setUsername(baseInfo.userInfo.name)
                 }
@@ -264,7 +301,6 @@ function HomePage({userParam}) {
             if (rawOrder) {
                 try {
                     const parsed = JSON.parse(rawOrder);
-                    console.log(parsed);
                     if (Array.isArray(parsed.items)) {
                         const normalized = parsed.items.map(item => {
                             const discount = item.discountAmount && item.quantity
@@ -374,7 +410,6 @@ function HomePage({userParam}) {
     }
 
     function openPizzaComboEditPopup(item) {
-        console.log(item)
         setEditItem(item)
         setEditMode(true)
         const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
@@ -383,7 +418,6 @@ function HomePage({userParam}) {
     }
 
     function openDetroitComboEditPopup(item) {
-        console.log(item)
         setEditItem(item)
         setEditMode(true)
         const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
@@ -399,6 +433,68 @@ function HomePage({userParam}) {
             }
         });
         return sameItems;
+    }
+
+    function addWhatsappItems(productsToAdd, giftProduct){
+        const {availableItems, unavailableItems} = productsToAdd.reduce((acc, item) => {
+            if(item.available){
+                acc.availableItems.push(item);
+            }
+            else{
+                acc.unavailableItems.push(item);
+            }
+            return acc;
+        },
+        {availableItems: [], unavailableItems: []}
+        );
+
+        let validGift = null;
+        if(giftProduct) {
+            if (!giftProduct.available) {
+                unavailableItems.push(giftProduct);
+            } else {
+                validGift = giftProduct
+            }
+        }
+
+        const finalCartItems = [];
+
+        if (availableItems.length > 0) {
+            const cartItems = availableItems.map(item => ({
+                id: item.id,
+                name: item.name,
+                size: item.size ? item.size : "",
+                category: item.category,
+                photo: item.photo,
+                amount: item.price,
+                quantity: 1,
+            }));
+
+            finalCartItems.push(...cartItems);
+        }
+
+        if (validGift !== null) {
+            finalCartItems.push({
+                id: validGift.id,
+                name: validGift.name,
+                size: validGift.size,
+                category: validGift.category,
+                quantity: 1,
+                photo: validGift.photo,
+                amount: validGift.price,
+                discount: 100,
+                // price: validGift.price,
+            });
+        }
+
+        if(finalCartItems.length > 0) {
+            handleAddToCart(finalCartItems, true);
+        }
+
+        if (unavailableItems.length > 0) {
+            setUnavailableItems(unavailableItems.map(item => (item.name)));
+            setUnavailablePopupOpen(true)
+        }
     }
 
     const handleOpenCart = () => {
@@ -429,33 +525,36 @@ function HomePage({userParam}) {
             setPopupGroup(item);
             setRamadanPopupOpen(true);
         }
+        else if (item.category === "Baguette Pizzas") {
+            setPopupGroup(item);
+            setBaguettePizzaPopupOpen(true);
+        }
         else {
             setPopupGroup(item);
             setGenericPopupOpen(true);
         }
     };
 
-    const handleClosePizzaPopup = () => {
-        setPizzaPopupOpen(false)
-        setPopupGroup(null)
-        setEditMode(false)
-    };
+    function handleClosePizzaPopup() {
+        setPizzaPopupOpen(false);
+        setPopupGroup(null);
+        setEditMode(false);
+    }
 
-    const handleClosePizzaComboPopup = () => {
-        setPizzaComboPopupOpen(false)
-        setPopupGroup(null)
+    function handleClosePizzaComboPopup() {
+        setPizzaComboPopupOpen(false);
+        setPopupGroup(null);
     }
 
     const handleCloseDetroitComboPopup = () => {
         setDetroitComboPopupOpen(false)
         setPopupGroup(null)
-        console.log(popupGroup)
     }
 
-    const handleCloseComboPopup = () => {
+    function handleCloseComboPopup() {
         setComboPopupOpen(false);
         setPopupGroup(null);
-    };
+    }
 
     const handleCloseGenericPopup = () => {
         setGenericPopupOpen(false);
@@ -498,7 +597,10 @@ function HomePage({userParam}) {
             const updated = [...prev];
 
             arr.forEach(item => {
-                const idx = updated.findIndex(it => it.name === item.name);
+                const idx = updated.findIndex(it =>
+                    it.name === item.name &&
+                    (it.discount || 0) === (item.discount || 0)
+                );
 
                 if (idx === -1) {
                     updated.push({...item});
@@ -577,7 +679,6 @@ function HomePage({userParam}) {
                             ...existing,
                             quantity: existing.quantity + item.quantity,
                         };
-                        console.log("Updated:", existing.quantity, existing.amount);
                         return;
                     }
 
@@ -646,6 +747,12 @@ function HomePage({userParam}) {
 
     function handleChangeQuantity(item, newQty) {
         if (newQty < 1) return;
+
+        if (!isAdmin && item.discount === 100 && newQty > item.quantity) {
+            console.warn("Nice try! It's a gift order u cant encrease it's amount!");
+            return;
+        }
+
         setCartItems(prev =>
             prev.map(it => (it === item ? {...it, quantity: newQty} : it))
         );
@@ -688,6 +795,7 @@ function HomePage({userParam}) {
                 const discountAmount = item.amount * (discount / 100) * item.quantity;
 
                 return {
+                    id: item.id,
                     name: item.name,
                     quantity: item.quantity,
                     amount: item.amount,
@@ -699,6 +807,7 @@ function HomePage({userParam}) {
                     discount_amount: parseFloat(discountAmount.toFixed(3)),
                     comboItems: item.comboItems
                         ? item.comboItems.map(ci => ({
+                            id: ci.id,
                             name: ci.name,
                             category: ci.category,
                             size: ci.size || "",
@@ -770,6 +879,7 @@ function HomePage({userParam}) {
                     const discountedAmount = item.amount * (1 - discount / 100);
 
                     return {
+                        id: item.id,
                         name: item.name,
                         quantity: item.quantity,
                         amount: parseFloat(discountedAmount.toFixed(3)),
@@ -781,6 +891,7 @@ function HomePage({userParam}) {
                         discount_amount: parseFloat(discountAmount.toFixed(3)),
                         comboItems: item.comboItems
                             ? item.comboItems.map(ci => ({
+                                id: ci.id,
                                 name: ci.name,
                                 category: ci.category,
                                 size: ci.size || "",
@@ -863,6 +974,8 @@ function HomePage({userParam}) {
                 }
                 console.log("Order placed successfully:", response);
             } catch (error) {
+                setErrorMessage(error.message);
+                setErrorSnackBarOpen(true)
                 console.error("Error placing order:", error);
             } finally {
                 await localStorage.removeItem("orderToEdit")
@@ -913,6 +1026,8 @@ function HomePage({userParam}) {
             }
 
         } catch (error) {
+            setErrorMessage(error.message);
+            setErrorSnackBarOpen(true)
             console.error("Error processing order:", error);
         } finally {
             setLoading(false);
@@ -933,14 +1048,12 @@ function HomePage({userParam}) {
     function handleUpsellAccept(item, type) {
         if (type === "pizza") {
             const pizzaCombos = menuData.filter((m) => m.name === "Pizza Combo");
-            console.log(pizzaCombos);
             if (pizzaCombos.length > 0) {
                 setPopupGroup(pizzaCombos);
                 setPizzaComboPopupOpen(true);
             }
         } else if (type === "brick") {
             const detroitCombo = menuData.filter((m) => m.name === "Detroit Combo");
-            console.log(detroitCombo);
             if (detroitCombo) {
                 setPopupGroup(detroitCombo);
                 setDetroitComboPopupOpen(true);
@@ -1021,67 +1134,7 @@ function HomePage({userParam}) {
                     >
                         <Fab
                             size="medium"
-                            onClick={() => window.open("https://www.talabat.com/bahrain/ic-pizza", "_blank")}
-                            sx={{
-                                p: 0,
-                                minHeight: "unset",
-                                minWidth: "unset",
-                                width: 40,
-                                height: 40,
-                                borderRadius: "50%",
-                                backgroundColor: "transparent",
-                                boxShadow: "none",
-                                "&:hover": {
-                                    backgroundColor: "transparent",
-                                },
-                            }}
-                        >
-                            <Box
-                                component="img"
-                                src="/talabat-logo.png"
-                                alt="Talabat"
-                                sx={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    borderRadius: "50%",
-                                    display: "block",
-                                }}
-                            />
-                        </Fab>
-
-                        <Fab
-                            size="medium"
-                            onClick={() => window.open("https://jahez.link/Sh08ob21hSb", "_blank")}
-                            sx={{
-                                p: 0,
-                                minHeight: "unset",
-                                minWidth: "unset",
-                                width: 40,
-                                height: 40,
-                                borderRadius: "50%",
-                                boxShadow: "none",
-
-                            }}
-                        >
-                            <Box
-                                component="img"
-                                src="/jahez-logo.png"
-                                alt="Jahez"
-                                sx={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "contain",
-                                    borderRadius: "50%",
-                                    display: "block",
-                                    padding: "3px"
-                                }}
-                            />
-                        </Fab>
-
-                        <Fab
-                            size="medium"
-                            onClick={() => window.open("https://url-eu.mykeeta.com/sjDeu4Mz", "_blank")}
+                            onClick={() => window.open("https://url-eu.mykeeta.com/4creMhXz", "_blank")}
                             sx={{
                                 p: 0,
                                 minHeight: "unset",
@@ -1114,6 +1167,7 @@ function HomePage({userParam}) {
                 {[
                     {title: "Ramadan Offers", items: ramadan},
                     {title: "Bestsellers", items: bestsellers, isBestSellerBlock: true},
+                    {title: "Baguette Pizzas", items: pizzaBaguettes},
                     {title: "Detroit Brick Pizzas", items: brickPizzas},
                     {title: "Combo Deals", items: combos},
                     {title: "Pizzas", items: pizzas},
@@ -1212,6 +1266,8 @@ function HomePage({userParam}) {
                 crossSellItems={getGeneralCrossSellItems()}
                 removeFromCart={removeFromCart}
                 isEditMode={editMode}
+                isSDoughAvailable={isSDoughAvailable}
+                isMDoughAvailable={isMDoughAvailable}
             />
             }
 
@@ -1219,7 +1275,7 @@ function HomePage({userParam}) {
                 open={comboPopupOpen}
                 group={popupGroup}
                 uniquePizzas={pizzas}
-                onClose={handleCloseComboPopup}
+                onClose={() => handleCloseComboPopup}
                 onAddToCart={handleAddToCart}
             />
             }
@@ -1249,6 +1305,8 @@ function HomePage({userParam}) {
                     editItem={editItem}
                     isEditMode={editMode}
                     removeFromCart={removeFromCart}
+                    isSDoughAvailable={isSDoughAvailable}
+                    isMDoughAvailable={isMDoughAvailable}
                 />
             )}
 
@@ -1297,6 +1355,13 @@ function HomePage({userParam}) {
                 ></BlackListSnackBar>
             )}
 
+            {unavailablePopupOpen && (
+                <UnavailablePopup
+                    open={unavailablePopupOpen}
+                    onClose={() => setUnavailablePopupOpen(false)}
+                    unavailableItems={unavailableItems}/>
+            )}
+
             {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
                 group={popupGroup}
@@ -1319,6 +1384,19 @@ function HomePage({userParam}) {
                 onClose={() => setIsCrossSellOpen(false)}
                 onAddToCart={handleAddToCart}
                 onCheckout={handleCheckout}
+            />
+            }
+
+            {baguettePizzaPopupOpen && <BaguettePizzaPopup
+                open={baguettePizzaPopupOpen}
+                onClose={() => {
+                    setPopupGroup(null);
+                    setBaguettePizzaPopupOpen(false)
+                }}
+                onAddToCart={handleAddToCart}
+                crossSellItems={getFinalCrossSell()}
+                removeFromCart={removeFromCart}
+                menuItem={popupGroup.items[0]}
             />
             }
 
@@ -1386,7 +1464,7 @@ function HomePage({userParam}) {
                 <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
             )}
 
-            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && !ramadanPopupOpen && !ramadanInfoPopupOpen && cartItems.length > 0 &&
+            {!adminOrderDetailsPopUp && !phonePopupOpen && !cartOpen && !pizzaPopupOpen && !genericPopupOpen && !comboPopupOpen && !closedPopup && !pizzaComboPopupOpen && !detroitComboPopupOpen && !upsellPopupOpen && !ramadanPopupOpen && !unavailablePopupOpen &&cartItems.length > 0 && !baguettePizzaPopupOpen &&
                 <Box
                     onClick={handleOpenCart}
                     sx={{
@@ -1438,6 +1516,13 @@ function HomePage({userParam}) {
                     </Badge>
                 </Box>
             }
+
+            <ErrorSnackbar
+                open={errorSnackBarOpen}
+                message={errorMessage}
+                severity="error"
+                handleClose={() => setErrorSnackBarOpen(false)}
+            />
         </Box>
     );
 }

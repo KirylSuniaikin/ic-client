@@ -14,7 +14,9 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 function MenuRoute() {
     const [searchParams] = useSearchParams();
     const userId = searchParams.get('user');
-    return <HomePage userParam={userId}/>;
+    const recommendedIds = searchParams.getAll('recommended_items');
+    const giftId = searchParams.get('gift');
+    return <HomePage userParam={userId} recommendedIds={recommendedIds} giftId={giftId}/>;
 }
 
 function WatchOrderStatus() {

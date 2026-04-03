@@ -97,7 +97,6 @@ function CartItemHorizontal({
         >
             {item.category === "Pizzas" && <IconButton
                 onClick={() => {
-                    console.log(item)
                     openPizzaEditPopUp(item)
                 }}
 
@@ -293,6 +292,7 @@ function CartItemHorizontal({
                     ))}
                 </ToggleButtonGroup>
                 }
+                {(100 !== item.discount || isAdmin) && (
                 <Box
                     sx={{
                         backgroundColor: brandGray,
@@ -356,6 +356,7 @@ function CartItemHorizontal({
                         +
                     </Button>
                 </Box>
+                )}
             </Box>
         </Box>
     );

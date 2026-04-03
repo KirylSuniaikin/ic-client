@@ -1,11 +1,8 @@
 import React, {useEffect, useState} from "react";
-import {Box, Typography, Switch, Button, Fab} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import {Box, Typography, Switch, Button} from "@mui/material";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
 import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
-
-const brandRed = "#E44B4C";
 
 function ConfigComponent({isOpen, onClose, selectedBranch}) {
     const [isLoading, setIsLoading] = useState(false)
@@ -142,7 +139,6 @@ function ConfigComponent({isOpen, onClose, selectedBranch}) {
     };
 
     const handleSave = () => {
-        console.log("Saving only these changes:", changes);
         updateAvailability(changes, selectedBranch.id).then(r => {
             setOriginalGroups(groups);
             setOriginalDough(doughAvailability);
@@ -154,110 +150,72 @@ function ConfigComponent({isOpen, onClose, selectedBranch}) {
     if (isLoading) return <PizzaLoader/>;
 
     return (
-        <>
+        <Box sx={{ position: "relative", height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
+
+            <BackTopBar onClose={onClose} title="Config" />
+
             <Box
                 sx={{
-                    gap: 1,
-                    backgroundColor: "#fbfaf6",
-                    // minHeight: '100vh',
-                    // width: '100%'
-                }}>
-                <BackTopBar
-                    onClose={onClose}
-                    title="Config"
-                />
-            </Box>
-            <Box sx={{p: 0, position: "relative", height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6"
-            }}>
-                <Box
-                    sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        p: 2,
-                        pb: 0,
-                        "&::-webkit-scrollbar": {
-                            display: "none"
-                        }
-                    }}
-                >
-                    <Typography variant="h5" sx={{mt: 1, mb: 2, fontWeight: "bold"}}>
-                        Dough Availability
-                    </Typography>
-                    {Object.entries(doughAvailability).map(([size, enabled]) => (
-                        <Box
-                            key={size}
-                            sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                borderBottom: "1px solid #eee",
-                                py: 1,
-                            }}
-                        >
-                            <Typography variant="body1" sx={{fontWeight: 500}}>
-                                {size}
-                            </Typography>
-                            <Switch
-                                checked={enabled}
-                                onChange={() => handleToggleDough(size)}
-                                color="primary"
-                            />
-                        </Box>
-                    ))}
-                    <Typography variant="h5" sx={{mt: 4, mb: 2, fontWeight: "bold"}}>
-                        Menu Availability
-                    </Typography>
-                    {groups.map(group => (
-                        <Box
-                            key={group.name}
-                            sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                borderBottom: "1px solid #eee",
-                                py: 1,
-                            }}
-                        >
-                            <Typography variant="body1" sx={{fontWeight: 500}}>
-                                {group.name}
-                            </Typography>
-                            <Switch
-                                checked={group.enabled}
-                                onChange={() => handleToggleGroup(group.name)}
-                                color="primary"
-                            />
-                        </Box>
-                    ))}
-                </Box>
+                    flex: 1,
+                    overflowY: "auto",
+                    p: 2,
+                    pb: 0,
+                    "&::-webkit-scrollbar": { display: "none" }
+                }}
+            >
+                <Typography variant="h5" sx={{ mt: 1, mb: 2, fontWeight: "bold" }}>
+                    Dough Availability
+                </Typography>
+                {Object.entries(doughAvailability).map(([size, enabled]) => (
+                    <Box key={size} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", py: 1 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{size}</Typography>
+                        <Switch checked={enabled} onChange={() => handleToggleDough(size)} color="primary" />
+                    </Box>
+                ))}
 
-                <Box
-                    sx={{
-                        borderTop: "1px solid #eee",
-                        p: 2,
-                    }}
-                >
-                    <Button
-                        variant="contained"
-                        fullWidth
-                        disabled={isSaveDisabled}
-                        onClick={handleSave}
-                        sx={{
-                            backgroundColor: isSaveDisabled ? "#ccc" : brandRed,
-                            color: "#fff",
-                            textTransform: "none",
-                            fontSize: "20px",
-                            borderRadius: 8,
-                            height: "100%",
-                            "&:hover": {
-                                backgroundColor: isSaveDisabled ? "#ccc" : "#d23c3d"
-                            }
-                        }}
-                    >
-                        Save
-                    </Button>
-                </Box>
+                <Typography variant="h5" sx={{ mt: 4, mb: 2, fontWeight: "bold" }}>
+                    Menu Availability
+                </Typography>
+                {groups.map(group => (
+                    <Box key={group.name} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", py: 1 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{group.name}</Typography>
+                        <Switch checked={group.enabled} onChange={() => handleToggleGroup(group.name)} color="primary" />
+                    </Box>
+                ))}
             </Box>
-        </>
+
+            <Box
+                sx={{
+                    position: "fixed",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    p: 2,
+                    backgroundColor: "#fff",
+                    borderTop: "1px solid #eee",
+                    zIndex: 1301,
+                }}
+            >
+                <Button
+                    onClick={handleSave}
+                    variant="contained"
+                    fullWidth
+                    disabled={isSaveDisabled}
+                    sx={{
+                        backgroundColor: "#E44B4C",
+                        borderRadius: "999px",
+                        textTransform: "none",
+                        fontWeight: "bold",
+                        py: 1.25,
+                        fontSize: "1rem",
+                        '&:hover': {
+                            backgroundColor: '#c63b3c',
+                        },
+                    }}>
+                    Save
+                </Button>
+            </Box>
+        </Box>
     );
 }
 

@@ -37,6 +37,7 @@ export default function BanCstmrDrawer({open, onClose, onSubmit}: Props) {
                     fullWidth
                     variant="outlined"
                     value={telephone}
+                    placeholder="example: 97311111111"
                     onChange={(e) => setTelephone(e.target.value)}
                     sx={{ mb: 3,
                         '& .MuiOutlinedInput-root': {

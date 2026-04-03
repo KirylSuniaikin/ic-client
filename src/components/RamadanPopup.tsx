@@ -49,7 +49,6 @@ export default function RamadanPopup({open, group, onAddToCart, onClose}: Props)
     const [quantity, setQuantity] = useState(1);
 
     useEffect(() => {
-        console.log(group)
         if (open && group.items.length > 0) {
             const sizes = Array.from(new Set(group.items.map((i) => i.size)));
             const order = ["S", "L"];
@@ -115,7 +114,6 @@ export default function RamadanPopup({open, group, onAddToCart, onClose}: Props)
     };
 
     const handleAddToCart = () => {
-        console.log(selectedItem)
         if (!selectedItem) return;
         if (totalSelected !== currentLimit) return; // Защита
 

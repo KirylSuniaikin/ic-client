@@ -6,7 +6,7 @@ import {
     ToggleButtonGroup,
     ToggleButton,
 } from "@mui/material";
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
 
@@ -24,7 +24,9 @@ export function PizzaComboPopup({
                                     selectedPizza,
                                     editItem,
                                     isEditMode,
-                                    removeFromCart
+                                    removeFromCart,
+                                    isSDoughAvailable,
+                                    isMDoughAvailable,
                                 }) {
     const [selectedSize, setSelectedSize] = useState(() => {
         if(isEditMode){
@@ -108,8 +110,21 @@ export function PizzaComboPopup({
     const [editorItems, setEditorItems] = useState([]);
     const [editorTarget, setEditorTarget] = useState(null);
 
-    const sizeItem = comboGroup.find((i) => i.size === selectedSize);
+    const sizeItem = comboGroup?.find((i) => i.size === selectedSize);
     const basePrice = sizeItem ? sizeItem.price : 0;
+
+    const showDoughSelector =
+        (selectedSize === "M" && isSDoughAvailable) ||
+        (selectedSize === "L" && isMDoughAvailable)
+
+    useEffect(() => {
+        if (selectedSize === "S" || showDoughSelector === false) {
+            setPizza({...pizza,
+                size: selectedSize,
+                dough: "Traditional"
+            })
+        }
+    }, [selectedSize, showDoughSelector]);
 
     function findPizzaBySize(
         pizzas,
@@ -282,6 +297,7 @@ export function PizzaComboPopup({
                             }
                             description={description}
                             setDescription={setDescription}
+                            showDoughSelector={showDoughSelector}
                         />
                         <ItemCard
                             item={drink.item}
@@ -324,7 +340,7 @@ export function PizzaComboPopup({
                             fullWidth
                         >
                             {comboGroup
-                                .filter((c) => c.available===true)
+                                ?.filter((c) => c.available===true)
                                 .map((c) => (
                                 <ToggleButton
                                     key={c.size}

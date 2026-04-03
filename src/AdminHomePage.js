@@ -205,7 +205,7 @@ function AdminHomePage() {
     useEffect(() => {
         async function initBranches() {
             try {
-                if (branchId!=="NONE") {
+                if (branchId!=="NONE" && role!=="SUPER_MANAGER") {
                     const branchInfo = await getBranchInfo(branchId);
                     setAvailableBranches([branchInfo]);
                     setSelectedBranch(branchInfo);
@@ -371,7 +371,6 @@ function AdminHomePage() {
                         } catch (e) {
                             console.warn("⚠️ Auto print error:", e);
                         }
-                        console.log('♻️ Updated order', updatedOrder);
                         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
                         setNewlyUpdatedOrder(updatedOrder);
 
@@ -385,7 +384,6 @@ function AdminHomePage() {
                         const payload = JSON.parse(frame.body);
                         const paidOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
 
-                        console.log('️💸 Paid orderId', paidOrderId);
                         setOrders(prev =>
                             prev.map(o =>
                                 getStringId(o) === paidOrderId
@@ -403,7 +401,6 @@ function AdminHomePage() {
                     socket.subscribe(`/topic/${selectedBranch.id}/order-accepted`, (frame) => {
                         const payload = JSON.parse(frame.body);
                         const acceptedOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
-                        console.log("[ORDER_ACCEPTED] ", acceptedOrderId);
                         stopSound()
                         setActiveAlertOrder(null);
 
@@ -450,9 +447,7 @@ function AdminHomePage() {
 
                     socket.subscribe(`/topic/${selectedBranch.id}/admin-base-info`, (frame) => {
                         const payload = JSON.parse(frame.body);
-                        console.log("[BASE ADMIN INFO CHANGED] ", payload);
                         if (String(payload.branchId) === selectedBranch.id) {
-                            console.log("[WORKLOAD_CHANGE] true");
                             onWorkloadChange(payload.level);
                             const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
                             const nextEventStage = EVENT_STAGE_FLOW[payload.checklistStage] || payload.checklistStage;
@@ -472,16 +467,13 @@ function AdminHomePage() {
         async function fetchAdminBaseInfo(branchId) {
             try {
                 const response = await getBaseAdminInfo(branchId);
-                console.log(response);
                 if (!response) {
                     setEventStage("OPEN_SHIFT_EVENT");
                     setCashStage("OPEN_SHIFT_CASH_CHECK");
                 } else {
                     const nextCashStage = CASH_STAGE_FLOW[response.cashStage];
                     const nextEventStage = EVENT_STAGE_FLOW[response.checklistStage];
-                    console.log(nextCashStage, " ", nextEventStage);
                     onWorkloadChange(response.level)
-                    console.log("Stage: ", nextEventStage)
                     setCashStage(nextCashStage);
                     setEventStage(nextEventStage);
                 }

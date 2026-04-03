@@ -22,6 +22,7 @@ export interface AuthContextType {
     role: StaffRoles | null;
     logout: () => void;
     login: (token: string) => void;
+    isAuthLoading: boolean;
 }
 
 export enum StaffRoles {

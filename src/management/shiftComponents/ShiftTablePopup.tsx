@@ -1,5 +1,5 @@
 import {IBranch} from "../types/inventoryTypes";
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import dayjs from "dayjs";
 import {BaseShiftResponse, ShiftInfoTO, ShiftRow} from "../types/shiftTypes";
 import {
@@ -37,6 +37,8 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const isDataLoaded = useRef(false);
 
     function TimeEditCell(props: TimeEditCellProps) {
         const { id, field, value, api, hasFocus } = props;
@@ -127,8 +129,15 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
     useEffect(() => {
         let cancelled = false;
 
-        if (!open) return;
+        if (!open){
+            isDataLoaded.current = false;
+            return;
+        }
         if (!branch) return;
+
+        if(isDataLoaded.current){
+            return;
+        }
 
         (async () => {
             try {
@@ -144,6 +153,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
 
                                 .toLowerCase()
                         );
+                        isDataLoaded.current = true;
                     }
                 } else {
                     if (shiftReportId === undefined) {
@@ -164,6 +174,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                 managerTotalHours: x.managerTotal,
                             }))
                         );
+                        isDataLoaded.current = true;
                     }
                 }
             } catch (e: any) {
@@ -195,7 +206,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
                     shifts: rowsToSave
                 });
-                console.log("[SHIFT REPORT] Created new shift report: {}", report);
                 onSaved(report);
             } else {
                 const report: BaseShiftResponse = await editShiftReport({
@@ -205,7 +215,6 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
                     shifts: rowsToSave
                 })
-                console.log("[SHIFT REPORT] Edited shift report: {}", report);
                 onSaved(report);
             }
             onClose();
@@ -247,7 +256,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
 
 
 
-    const columns: GridColDef<ShiftRow>[] = [
+    const columns = useMemo<GridColDef<ShiftRow>[]>(() => [
         {
             field: "shiftDate",
             headerName: "Shift Date",
@@ -316,7 +325,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                 return value != null ? Number(value).toFixed(2) : "";
             },
         },
-    ];
+    ], []);
 
 
     return (

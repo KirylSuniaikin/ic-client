@@ -12,7 +12,8 @@ export function ItemCard ({ item,
                               onDoughChange,
                               onCrustChange,
                               description,
-                              setDescription
+                              setDescription,
+                              showDoughSelector,
                             }) {
 
     if (!item) {
@@ -110,7 +111,7 @@ export function ItemCard ({ item,
 
             {item.category === "Pizzas" && (
                 <Box sx={{ mt: 2 }}>
-                    {item.size !== "S" && (
+                    {showDoughSelector && (
                         <>
                             <ToggleButtonGroup
                                 exclusive
