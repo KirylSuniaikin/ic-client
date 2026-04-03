@@ -22,7 +22,14 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
 
     function getFinalPriceOnPopup() {
-        return (menuItem.price * quantity).toFixed(2);
+        let price = 0;
+        crossSellItems.forEach((item => {
+            const count = crossSellMap[item.name];
+            if (count) {
+                price += item.price * count;
+            }
+        }))
+        return (menuItem.price * quantity + price).toFixed(2);
     }
 
     function increaseQuantityOnCrossSell(name: string) {

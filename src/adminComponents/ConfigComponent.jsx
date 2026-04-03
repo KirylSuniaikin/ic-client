@@ -150,7 +150,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch}) {
     if (isLoading) return <PizzaLoader/>;
 
     return (
-        <Box sx={{ position: "relative", height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
+        <Box sx={{height: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
 
             <BackTopBar onClose={onClose} title="Config" />
 
@@ -159,7 +159,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch}) {
                     flex: 1,
                     overflowY: "auto",
                     p: 2,
-                    pb: 0,
+                    pb: 4,
                     "&::-webkit-scrollbar": { display: "none" }
                 }}
             >
@@ -186,14 +186,9 @@ function ConfigComponent({isOpen, onClose, selectedBranch}) {
 
             <Box
                 sx={{
-                    position: "fixed",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
                     p: 2,
                     backgroundColor: "#fff",
                     borderTop: "1px solid #eee",
-                    zIndex: 1301,
                 }}
             >
                 <Button
