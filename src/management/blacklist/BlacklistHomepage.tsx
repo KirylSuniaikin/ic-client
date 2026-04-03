@@ -103,13 +103,15 @@ export default function BlacklistHomepage({open, handleClose}: Props) {
                 open={open}
                 onClose={handleClose}
                 fullScreen
-                sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    height: "100dvh",
-                    maxHeight: "100dvh",
-                    overflow: "hidden",
-                    backgroundColor: "#fbfaf6"
+                PaperProps={{
+                    sx: {
+                        display: "flex",
+                        flexDirection: "column",
+                        height: "100dvh",
+                        maxHeight: "100dvh",
+                        overflow: "hidden",
+                        backgroundColor: "#fbfaf6"
+                    }
                 }}
             >
                 <BackTopBar title={"Black List"} onClose={handleClose} onAdd={() => setBanDrawerOpen(true)}/>

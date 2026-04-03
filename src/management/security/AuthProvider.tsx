@@ -10,6 +10,7 @@ export function AuthProvider ({ children }:{children:React.ReactNode}) {
     const [userId, setUserId] = useState<number>(null);
     const [username, setUsername] = useState<string>(null);
     const [role, setRole] = useState<StaffRoles>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
     useEffect(() => {
         const token = localStorage.getItem('jwt_token');
@@ -33,6 +34,12 @@ export function AuthProvider ({ children }:{children:React.ReactNode}) {
                 setUsername(null);
                 setUserId(null);
             }
+            finally {
+                setIsAuthLoading(false);
+            }
+        }
+        else{
+            setIsAuthLoading(false);
         }
     }, []);
 
@@ -57,7 +64,7 @@ export function AuthProvider ({ children }:{children:React.ReactNode}) {
     };
 
     return (
-        <AuthContext.Provider value={{ branchId, username, userId, role, logout, login }}>
+        <AuthContext.Provider value={{ branchId, username, userId, role, logout, login, isAuthLoading }}>
             {children}
         </AuthContext.Provider>
     );

@@ -49,7 +49,20 @@ export async function createOrder(order) {
 
 
     if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        let errorMessage = "Something went wrong placing an order.";
+
+        try {
+            const errorData = await response.json();
+
+            if (errorData && errorData.message) {
+                errorMessage = errorData.message;
+            }
+        } catch (e) {
+            const textError = await response.text();
+            if (textError) errorMessage = textError;
+        }
+
+        throw new Error(errorMessage);
     }
 
     return await response.json();
@@ -102,7 +115,6 @@ export async function getAllActiveOrders(branchId) {
         throw new Error(`Ошибка: ${response.status}`);
     }
     const text = await response.text();
-    console.log(text)
     if (text.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }

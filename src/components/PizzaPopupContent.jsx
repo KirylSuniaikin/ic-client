@@ -13,6 +13,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
 import PizzaLoader from "./loadingAnimations/PizzaLoader";
 import {ToppingsScroll} from "./ToppingsScroll";
+import {BetterTogetherComponent} from "./BetterTogetherComponent";
 
 
 const brandRed = "#E44B4C";
@@ -43,7 +44,9 @@ function PizzaPopup({
                         crossSellItems = [],
                         removeFromCart,
                         isEditMode,
-                        toppings = []
+                        toppings = [],
+                        isSDoughAvailable,
+                        isMDoughAvailable,
                     }) {
     const [loading, setLoading] = useState(true);
     const [item, setItem] = useState(null);
@@ -55,7 +58,7 @@ function PizzaPopup({
     const [crossSellMap, setSelectedCrossSellItems] = useState({});
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState([])
-    const toppingUpdateAvailble= false
+    const toppingUpdateAvailble = false
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -94,7 +97,6 @@ function PizzaPopup({
         }
         setLoading(true);
         if (isEditMode && editItem) {
-            console.log("editItem", editItem);
             setItem(editItem);
             setSelectedSize(editItem.size);
             setSelectedDough(editItem.isThinDough ? "Thin" : "Traditional");
@@ -122,11 +124,15 @@ function PizzaPopup({
         setLoading(false);
     }, [open, group, isEditMode, editItem]);
 
+    const showDoughSelector =
+        (selectedSize === "M" && isSDoughAvailable) ||
+        (selectedSize === "L" && isMDoughAvailable)
+
     useEffect(() => {
-        if (selectedSize === "S") {
+        if (selectedSize === "S" || showDoughSelector === false) {
             setSelectedDough("Traditional");
         }
-    }, [selectedSize]);
+    }, [selectedSize, showDoughSelector]);
 
     const matchedItem = group.items.find(it => it.size === selectedSize);
     const basePrice = matchedItem ? matchedItem.price : 0;
@@ -227,7 +233,6 @@ function PizzaPopup({
                 });
             }
         }))
-        console.log(products);
         removeFromCart(item.name, item.amount, item.quantity);
         onAddToCart?.(products);
         onClose?.();
@@ -254,6 +259,7 @@ function PizzaPopup({
             }
         });
     }
+
     if (loading) return <PizzaLoader/>;
     return (
         <Modal open={open} onClose={onClose}>
@@ -297,12 +303,14 @@ function PizzaPopup({
                             display: "none"
                         }
                     }}>
-                    <Box sx={{width: "100%", height: {
+                    <Box sx={{
+                        width: "100%", height: {
                             xs: 360,
                             sm: 720,
                             md: 700,
                             lg: 420
-                        }, overflow: "hidden"}}>
+                        }, overflow: "hidden"
+                    }}>
                         <img
                             src={item.photo}
                             alt={item.name}
@@ -328,6 +336,7 @@ function PizzaPopup({
                             setSelectedDough={setSelectedDough}
                             quantity={quantity}
                             setQuantity={setQuantity}
+                            showDoughSelector={showDoughSelector}
                         />
 
                         <TextField
@@ -532,174 +541,22 @@ function PizzaPopup({
                             })}
                         </Box>
 
-                        {toppingUpdateAvailble &&
-                            <>
-                                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                Toppings
-                                </Typography>
-
-                                <ToppingsScroll
-                                    toppings={toppings}
-                                    selectedToppings={selectedToppings}
-                                    onUpdateSelectedToppings={setSelectedToppings}
-                                />
-                            </>}
-
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            Better together
+                            Toppings
                         </Typography>
 
-                        <Box
-                            sx={{
-                                display: "flex",
-                                overflowX: "auto",
-                                gap: 1,
-                                mb: 2,
-                                py: 1,
-                                px: 0.2,
-                                scrollSnapType: "x mandatory",
-                                scrollbarWidth: "none",
-                                "&::-webkit-scrollbar": {
-                                    display: "none"
-                                }
-                            }}
-                        >
-                            {crossSellItems.map((item) => {
-                                const active = crossSellMap[item.name] != null;
-                                return (
-                                    <Box
-                                        key={item.name}
-                                        onClick={() => {
-                                            if (!active) {
-                                                increaseQuantityOnCrossSell(item.name);
-                                            }
-                                        }}
-                                        sx={{
-                                            width: 140,
-                                            flexShrink: 0,
-                                            textAlign: "center",
-                                            p: 2,
-                                            borderRadius: 4,
-                                            cursor: "pointer",
-                                            fontSize: "13px",
-                                            color: "#000",
-                                            boxShadow: active
-                                                ? `0 0 0 2px ${brandRed}`
-                                                : "0 1px 3px rgba(0,0,0,0.25)",
-                                            border: "none",
-                                            "&:hover": {
-                                                boxShadow: active
-                                                    ? `0 0 0 2px ${brandRed}`
-                                                    : "0 2px 5px rgba(0,0,0,0.2)"
-                                            }
-                                        }}
-                                    >
-                                        {item.photo ? (
-                                            <img
-                                                src={item.photo}
-                                                alt={item.name}
-                                                style={{
-                                                    maxWidth: "100%",
-                                                    height: 120,
-                                                    objectFit: "contain"
-                                                }}
-                                            />
-                                        ) : (
-                                            <Box
-                                                sx={{
-                                                    width: "100%",
-                                                    height: 60,
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    backgroundColor: "#f9f9f9"
-                                                }}
-                                            />
-                                        )}
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                fontWeight: "bold",
-                                                mt: 1,
-                                                overflowWrap: "break-word",
-                                                wordWrap: "break-word",
-                                                whiteSpace: "normal",
-                                                lineHeight: 1.2
-                                            }}
-                                        >
-                                            {item.name}
-                                        </Typography>
-                                        {!active &&
-                                            <Typography variant="body2" sx={{mt: 1.2}}>
-                                                +{item.price}
-                                            </Typography>
-                                        }
-                                        {active &&
-                                            <Box
-                                                sx={{
-                                                    backgroundColor: brandGray,
-                                                    borderRadius: 8,
-                                                    p: "4px",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    gap: "4px",
-                                                    height: 30,
-                                                    mt: 1.1,
-                                                    maxWidth: "130px",
-                                                }}
-                                            >
-                                                <Button
-                                                    onClick={() => decreaseQuantityOnCrossSell(item.name)}
-                                                    sx={{
-                                                        minWidth: 36,
-                                                        height: 26,
-                                                        backgroundColor: "transparent",
-                                                        color: "#666",
-                                                        fontSize: "16px",
-                                                        textTransform: "none",
-                                                        borderRadius: 8,
-                                                        p: 0,
-                                                        "&:hover": {
-                                                            backgroundColor: "rgba(0,0,0,0.1)"
-                                                        }
-                                                    }}
-                                                >
-                                                    –
-                                                </Button>
-                                                <Box sx={{
-                                                    minWidth: 22,
-                                                    textAlign: "center",
-                                                    fontSize: "15px",
-                                                    color: "#666"
-                                                }}>
-                                                    {crossSellMap[item.name]}
-                                                </Box>
-                                                <Button
-                                                    onClick={() => increaseQuantityOnCrossSell(item.name)}
-                                                    sx={{
-                                                        minWidth: 36,
-                                                        height: 26,
-                                                        backgroundColor: "transparent",
-                                                        color: "#666",
-                                                        fontSize: "16px",
-                                                        textTransform: "none",
-                                                        borderRadius: 8,
-                                                        p: 0,
-                                                        "&:hover": {
-                                                            backgroundColor: "rgba(0,0,0,0.1)"
-                                                        }
-                                                    }}
-                                                >
-                                                    +
-                                                </Button>
-                                            </Box>
-                                        }
+                        <ToppingsScroll
+                            toppings={toppings}
+                            selectedToppings={selectedToppings}
+                            onUpdateSelectedToppings={setSelectedToppings}
+                        />
 
-                                    </Box>
-                                );
-                            })}
-                        </Box>
+                        <BetterTogetherComponent
+                            betterTogether={crossSellItems}
+                            selectedItems={crossSellMap}
+                            increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
+                            decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
+                        />
 
                         {!isEditMode &&
                             <Box>
@@ -802,12 +659,13 @@ function PizzaPopup({
     );
 }
 
-function TogglesWithQuantity({
+export function TogglesWithQuantity({
                                  selectedSize,
                                  selectedDough,
                                  setSelectedDough,
                                  quantity,
-                                 setQuantity
+                                 setQuantity,
+                                 showDoughSelector,
                              }) {
     const groupSx = {
         backgroundColor: brandGray,
@@ -913,7 +771,7 @@ function TogglesWithQuantity({
                 </Button>
             </Box>
 
-            {selectedSize !== "S" && (
+            {showDoughSelector && (
                 <ToggleButtonGroup
                     exclusive
                     value={selectedDough}

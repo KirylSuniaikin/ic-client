@@ -27,7 +27,7 @@ function MenuItemCardHorizontal({
     const displayPrice = `${price}`;
     const [selected, setSelected] = useState(false);
     const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
-    const cartItem = cartItems.find(i => i.name === name);
+    const cartItem = cartItems.find(i => i.name === name && (i.discount || 0) === 0);
 
     const handleClick = () => {
         if (isSimpleGroup) {

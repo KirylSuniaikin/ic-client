@@ -35,7 +35,6 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
 
     useEffect(() => {
         if (phoneNumber !== "") {
-            console.log("Phone number from props:", phoneNumber);
             const matchedCountry = countries.find((c) => phoneNumber.startsWith(c.code));
             if (matchedCountry) {
                 setSelectedCountry(matchedCountry.name);
@@ -43,7 +42,6 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             }
         }
         if (customerName !== "") {
-            console.log("Customer name from props:", customerName);
             setName(customerName);
         }
     }, [customerName, phoneNumber]);

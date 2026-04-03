@@ -26,14 +26,14 @@ export function isWithinWorkingHours() {
         return now.isAfter(startTime) && now.isBefore(endTime);
     };
 
-    const currentDayHours = ramadanHours[dayNames[now.day()]] || [];
+    const currentDayHours = workingHours[dayNames[now.day()]] || [];
     if(currentDayHours ===null) return false;
     const isOpenToday = currentDayHours.some(interval => checkInterval(now, interval));
 
     if (isOpenToday) return true;
 
     const prevDayIndex = (now.day() + 6) % 7;
-    const prevDayHours = ramadanHours[dayNames[prevDayIndex]] || [];
+    const prevDayHours = workingHours[dayNames[prevDayIndex]] || [];
     const yesterday = now.subtract(1, "day");
 
     const isOpenFromYesterday = prevDayHours.some(interval => checkInterval(yesterday, interval));

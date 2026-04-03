@@ -1,5 +1,5 @@
 import {IBranch, IUser, ProductTO} from "../types/inventoryTypes";
-import React, {useCallback, useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -62,6 +62,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         targetPrice: false,
         productName: false,
     });
+    const isDataLoadedRef = useRef<boolean>(false);
     const vendorByName = useMemo(() => new Map(vendors.map(v => [String(v.vendorName).toLowerCase(), v] as const)), [vendors]);
 
     const [title, setTitle] = useState<string>("");
@@ -77,7 +78,12 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) {
+            isDataLoadedRef.current = false;
+            return;
+        }
+
+        if(isDataLoadedRef.current) return;
         let alive = true;
         (async () => {
             try {
@@ -92,11 +98,11 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     setTitle(`${dayjs().format("MMM-YY")}-BH-${adminResponse.userName}`.toLowerCase());
                     setReportDate(dayjs().format("YYYY-MM-DD"));
                     setRows([mkEmptyRow()]);
+                    isDataLoadedRef.current = true
                     setDirty(false);
                 } else {
                     if (!purchaseId) throw new Error("purchaseId is required for edit");
                     const rep: PurchaseTO = await getPurchaseReport({id: purchaseId});
-                    console.log("rep", rep);
                     if (!alive) return;
                     setTitle(rep.title);
                     setReportDate(rep.purchaseDate);
@@ -110,6 +116,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         vendorName: x.vendorName,
                     })));
                     setDirty(false);
+                    isDataLoadedRef.current = true
                 }
             } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
@@ -142,7 +149,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const isOverTarget = useCallback((row: PurchaseRow) => {
         const unit   = unitFromRow(row);
         const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
-        console.log("HL", unit.toString(), target.toString());
         return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
     }, [productById, unitFromRow, isDecFinite]);
 
@@ -201,9 +207,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         const vendorSelected = ((row?.vendorName ?? "") !== "");
 
                         if (!vendorSelected) {
-                            console.log("[LOOKING FOR VENDOR]")
                             const v = vendorByName.get(top);
-                            console.log(v)
                             if (v) {
                                 await api.updateRows([
                                     {
@@ -228,7 +232,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                 ));
                             }
                         }
-                        console.log(row)
                     }
 
                     queueMicrotask(() => { try { api.stopCellEditMode({ id, field: "productId" }); } catch {} });
@@ -392,7 +395,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             setSaving(true);
             setError(null);
 
-            console.log(rows)
 
             try {
                 const api: any = apiRef.current;
@@ -416,7 +418,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             } catch {
                 gridRows = rows;
             }
-            console.log("[gridRows]", gridRows);
 
             const invalidMap = validateRows(gridRows);
             setInvalid(invalidMap);
@@ -448,8 +449,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
             const lines = readyRows.map(toPayloadLine);
 
-            console.log('[gridRows]', lines);
-
             let totalDecimal = new Decimal(0);
             for (const r of readyRows) {
                 try {
@@ -466,17 +465,14 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 purchaseDate: reportDate,
                 purchaseProducts: lines as any,
             };
-            console.log("[payload]", base);
 
             try {
                 if (mode === "new") {
                     const newReport: BasePurchaseResponse = await createPurchaseReport(base);
-                    console.log(newReport);
                     onSaved?.(newReport);
                 } else {
                     if (purchaseId == null) throw new Error("purchaseId is required in edit mode");
                     const newReport: BasePurchaseResponse = await editPurchaseReport({id: purchaseId, ...(base as any)} as EditPurchasePayload);
-                    console.log(newReport);
                     onSaved?.(newReport);
                 }
 

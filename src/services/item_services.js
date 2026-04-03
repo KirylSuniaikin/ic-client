@@ -1,5 +1,6 @@
 export function groupItemsByCategory(groups) {
     const bestsellers = groups.filter(x => x.is_best_seller === true);
+    const pizzaBaguettes = groups.filter(x => x.category === 'Baguette Pizzas');
     const brickPizzas = groups.filter(x => x.category === 'Brick Pizzas');
     const combos = groups.filter(x => x.category === 'Combo Deals');
     const pizzas = groups.filter(x => x.category === 'Pizzas');
@@ -15,6 +16,7 @@ export function groupItemsByCategory(groups) {
         sides,
         beverages,
         sauces,
-        ramadan
+        ramadan,
+        pizzaBaguettes
     };
 }

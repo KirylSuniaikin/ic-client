@@ -3,7 +3,7 @@ import {
     InventoryRow, IUser,
     ReportTO
 } from "../types/inventoryTypes";
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/mapper";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {createReport, editReport, fetchProducts, getReport} from "../api/api";
@@ -43,6 +43,7 @@ export default function InventoryPopup({
     const [error, setError] = useState<string | null>(null);
     const [title, setTitle] = useState<string>("");
     const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
+    const isDataLoadedRef = useRef<boolean>(false);
 
     const fmt3: GridValueFormatter = (value: any) =>
         value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
@@ -56,7 +57,12 @@ export default function InventoryPopup({
     };
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) {
+            isDataLoadedRef.current = false;
+            return;
+        }
+
+        if (isDataLoadedRef.current) return;
         let alive = true;
 
         if (mode === "new" && !Number.isFinite(branch.branchNo)) {
@@ -81,12 +87,17 @@ export default function InventoryPopup({
                     const products = await fetchProducts();
                     const data = products.filter(p => p.isInventory).map(mapProductToRow);
                     setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase());
-                    if (alive) setRows(data);
+                    if (alive) {
+                        isDataLoadedRef.current = true
+                        setRows(data);
+                    }
                 } else {
                     const rep: ReportTO = await getReport(reportId!);
-                    console.log("Received report! ", rep);
                     setTitle(rep.title as string);
-                    if (alive) setRows(normalizeReportPayload(rep));
+                    if (alive) {
+                        isDataLoadedRef.current = true
+                        setRows(normalizeReportPayload(rep));
+                    }
                 }
             } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
@@ -98,7 +109,7 @@ export default function InventoryPopup({
         return () => {
             alive = false;
         };
-    }, [open, mode, reportId, author, branch]);
+    }, [open, mode, reportId, author?.id, branch?.id]);
 
     const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -210,7 +221,6 @@ export default function InventoryPopup({
                     finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
-                console.log(report);
                 onSaved(report);
             } else {
                 const report: IManagementResponse = await editReport({
@@ -222,7 +232,6 @@ export default function InventoryPopup({
                     finalPrice: Number(total),
                     inventoryProducts: inventoryProducts,
                 });
-                console.log(report);
                 onSaved(report);
             }
             onClose();
