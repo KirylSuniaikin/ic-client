@@ -41,7 +41,6 @@ const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
 
 export default function RamadanPopup({open, group, onAddToCart, onClose}: Props) {
-    const [selectedMiniPizzas, setSelectedMiniPizzas] = useState<MiniPizza[]>([]);
     const [note, setNote] = useState("");
     const [selectedItem, setSelectedItem] = useState<MenuItem>(group[0]);
     const [selectedSize, setSelectedSize] = useState<string>("");

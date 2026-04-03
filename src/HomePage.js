@@ -32,6 +32,7 @@ import {UnavailablePopup} from "./components/UnavailablePopup";
 import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
 import * as React from "react";
 import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
+import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
 
 
 const brandRed = "#E44B4C";
@@ -117,6 +118,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
     const [editMode, setEditMode] = useState(false)
     const [closedPopup, setClosedPopupOpen] = useState(false);
     const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
+    const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
 
     const [unavailableItems, setUnavailableItems] = useState([]);
 
@@ -1226,7 +1228,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 !pizzaComboPopupOpen &&
                 !detroitComboPopupOpen &&
                 !upsellPopupOpen &&
-                !ramadanPopupOpen &&(
+                !ramadanPopupOpen &&
+                ! ramadanInfoPopupOpen && (
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -1308,7 +1311,12 @@ function HomePage({userParam, recommendedIds, giftId}) {
             )}
 
             {ramadanPopupOpen && (
-                <RamadanPopup open={ramadanPopupOpen} onClose={() => setRamadanPopupOpen(false)} onAddToCart={handleAddToCart} group={ramadan[0]}/>
+                <RamadanPopup open={ramadanPopupOpen}
+                              onClose={() => {
+                                  setRamadanPopupOpen(false)
+                                  setRamadanInfoPopupOpen(true)
+                              }}
+                              onAddToCart={handleAddToCart} group={ramadan[0]}/>
             )}
 
             {detroitComboPopupOpen && (
@@ -1362,6 +1370,12 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 crossSellItems={getGeneralCrossSellItems()}
                 extraIngredients={extraIngredients}
             />
+            }
+
+            {ramadanInfoPopupOpen &&
+                <RamadanInfoPopup
+                    open={ramadanInfoPopupOpen}
+                    onClose={() => setRamadanInfoPopupOpen(false)}/>
             }
 
             {isCrossSellOpen && <CrossSellPopup
@@ -1443,6 +1457,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     }
                 />
             }
+
+
 
             {!isAdmin && showOrderConfirmed && (
                 <OrderConfirmed open={true} onClose={() => setShowOrderConfirmed(false)}/>
