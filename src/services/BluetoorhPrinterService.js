@@ -175,7 +175,7 @@ class BluetoothPrinterService {
             `${ESC}!\x38`,
             "IC PIZZA\n",
             LF,
-            `${ESC}!\x24`,
+            `${ESC}!\x38`,
             `Order #${
                 order.order_type === "Jahez"
                     ? order.external_id

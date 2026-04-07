@@ -214,7 +214,8 @@ function AdminHomePage() {
                     setAvailableBranches(allBranches);
 
                     if (allBranches.length > 0) {
-                        setSelectedBranch(allBranches[0]);
+                        const targetBranch = allBranches.find(b => b.branchNo === 1);
+                        setSelectedBranch(targetBranch || allBranches[0]);
                     }
                 }
             } catch (err) {
@@ -510,7 +511,6 @@ function AdminHomePage() {
                 o.id === orderId ? {...o, isPaid: true} : o
             )
         );
-        console.log(orders);
     };
 
     return (
@@ -605,9 +605,18 @@ function AdminHomePage() {
                              pl: 1,
                              backgroundColor: "#fbfaf6",
                              minHeight: '100vh',
-                             width: '100%'
+                             width: '100%',
+                             display: 'grid',
+                             gridTemplateColumns: {
+                                 xs: 'repeat(1, 1fr)',
+                                 sm: 'repeat(2, 1fr)',
+                                 md: 'repeat(3, 1fr)',
+                                 lg: 'repeat(4, 1fr)'
+                             },
+                             gap: 1,
+                             alignItems: 'flex-start'
                          }}>
-                    <Masonry columns={{xs: 1, sm: 2, md: 3, lg: 4}} spacing={1} sequential>
+                    {/*<Masonry columns={{xs: 1, sm: 2, md: 3, lg: 4}} spacing={1} sequential>*/}
                         {sortedOrders.map((order) => (
                             <OrderCard key={order.id} order={order}
                                        onReadyClick={(order) => {
@@ -627,7 +636,7 @@ function AdminHomePage() {
                                        }}
                             />
                         ))}
-                    </Masonry>
+                    {/*</Masonry>*/}
                 </Box>
             }
 

@@ -214,12 +214,12 @@ function OrderCard({order,
                             <PrintIcon sx={{ fontSize: 26, color: "#E44B4C" }} />
                         </Box>
 
-                        <Typography variant="h6" component="div">
+                        <Typography variant="h4" component="div" fontWeight={900}>
                             Order:{" "}
                             {order.order_type === "Jahez" ||  order.order_type === "Keeta" ||  order.order_type === "Talabat" ? order.external_id : order.order_no}{" "}
                             <Typography
                                 component="span"
-                                sx={{ fontSize: 14, color: "text.secondary" }}
+                                sx={{ fontSize: 14, color: "text.secondary", fontWeight: 600 }}
                             >
                                 ({order?.order_type?.toUpperCase()})
                             </Typography>

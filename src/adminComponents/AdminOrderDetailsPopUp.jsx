@@ -258,7 +258,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                 />
             </Box>
 
-            {/* sticky CTA */}
             <Box
                 sx={{
                     position: "fixed",

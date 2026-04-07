@@ -112,7 +112,7 @@ export default function AdminTopbar({
 
     const items = role === StaffRoles.COOK ? cookItems : managerItems;
 
-    const levels = ["IDLE", "BUSY", "CROWDED", "OVERLOADED"];
+    const levels = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
 
     const getWorkloadData = (workload) => {
         switch (workload) {
@@ -122,8 +122,14 @@ export default function AdminTopbar({
                 return "+10"
             case "CROWDED":
                 return "+20"
-            case "OVERLOADED":
+            case "RUSH":
                 return "+30"
+            case "HEAVY_RUSH":
+                return "+40"
+            case "SLAMMED":
+                return "+50"
+            case "OVERLOADED":
+                return "+60"
             default:
                 return ""
         }

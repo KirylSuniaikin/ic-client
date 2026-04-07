@@ -185,7 +185,15 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     />
                 </Box>
 
-                <Box sx={{ borderTop: "1px solid #eee", p: 2 }}>
+                <Box sx={{
+                    position: "sticky",
+                    bottom: 0,
+                    bgcolor: "#fff",
+                    borderTop: "1px solid #eee",
+                    p: 2,
+                    zIndex: 10
+                }}
+                >
                     <Button
                         fullWidth
                         variant="contained"
