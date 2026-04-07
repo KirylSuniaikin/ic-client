@@ -38,6 +38,7 @@ export async function fetchBaseAppInfo(userId, branchId) {
 }
 
 export async function createOrder(order) {
+    console.log(order);
     const response = await fetch(URL + "/create_order", {
         method: "POST",
         headers: {

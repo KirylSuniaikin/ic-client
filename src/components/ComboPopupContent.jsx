@@ -168,6 +168,7 @@ function ComboPopup({
     function handleAdd() {
         if (!canAdd) return;
         onAddToCart?.({
+            id: item.id,
             name: item.name,
             size: selectedSize,
             category: item.category,

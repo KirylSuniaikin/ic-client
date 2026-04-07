@@ -90,6 +90,7 @@ export function DetroitComboPopup({
         if (!brick?.item || !drink?.item || !sauce?.item) return;
 
         const orderItem = {
+            id: comboGroup.id,
             amount: basePrice,
             category: "Combo Deals",
             name: "Detroit Combo",
@@ -101,6 +102,7 @@ export function DetroitComboPopup({
             quantity: 1,
             comboItems: [
                 {
+                    id: brick.item.id,
                     category: "Brick Pizzas",
                     name: brick.item.name,
                     isGarlicCrust: false,
@@ -108,6 +110,7 @@ export function DetroitComboPopup({
                     quantity: 1,
                 },
                 {
+                    id: drink.item.id,
                     category: "Beverages",
                     name: drink.item.name,
                     size: "",
@@ -116,6 +119,7 @@ export function DetroitComboPopup({
                     quantity: 1,
                 },
                 {
+                    id: sauce.item.id,
                     category: "Sauces",
                     name: sauce.item.name,
                     size: "",

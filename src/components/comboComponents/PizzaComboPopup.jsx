@@ -179,6 +179,7 @@ export function PizzaComboPopup({
         if (!pizza?.item || !drink?.item || !sauce?.item) return;
 
         const orderItem = {
+            id: sizeItem.id,
             amount: basePrice,
             category: "Combo Deals",
             name: "Pizza Combo",
@@ -191,6 +192,7 @@ export function PizzaComboPopup({
             size: selectedSize,
             comboItems: [
                 {
+                    id: pizza.item.id,
                     category: "Pizzas",
                     name: pizza.item.name,
                     size: selectedSize,
@@ -200,6 +202,7 @@ export function PizzaComboPopup({
                     quantity: 1,
                 },
                 {
+                    id: drink.item.id,
                     category: "Beverages",
                     name: drink.item.name,
                     size: "",
@@ -208,6 +211,7 @@ export function PizzaComboPopup({
                     quantity: 1,
                 },
                 {
+                    id: sauce.item.id,
                     category: "Sauces",
                     name: sauce.item.name,
                     size: "",
