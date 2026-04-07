@@ -45,6 +45,18 @@ const CATEGORY_ORDER = [
     "Beverages",
 ];
 
+export function formatExternalId(id) {
+    if (!id) return "—";
+
+    const strId = String(id);
+
+    if (strId.length <= 4) {
+        return strId;
+    }
+
+    return `${strId.substring(strId.length - 4)}`;
+}
+
 export function sortItemsByCategory(items) {
     if (!items || !items.length) return [];
 
@@ -214,12 +226,13 @@ function OrderCard({order,
                             <PrintIcon sx={{ fontSize: 26, color: "#E44B4C" }} />
                         </Box>
 
-                        <Typography variant="h4" component="div" fontWeight={900}>
-                            Order:{" "}
-                            {order.order_type === "Jahez" ||  order.order_type === "Keeta" ||  order.order_type === "Talabat" ? order.external_id : order.order_no}{" "}
+                        <Typography component="span" fontWeight={600}>
+                            <Typography variant="h4" component="div" fontWeight={900}>
+                                #{order.order_type === "Jahez" ||  order.order_type === "Keeta" ||  order.order_type === "Talabat" ? formatExternalId(order.external_id) : order.order_no}{" "}
+                            </Typography>
                             <Typography
                                 component="span"
-                                sx={{ fontSize: 14, color: "text.secondary", fontWeight: 600 }}
+                                sx={{ fontSize: 14, color: "text.secondary" }}
                             >
                                 ({order?.order_type?.toUpperCase()})
                             </Typography>

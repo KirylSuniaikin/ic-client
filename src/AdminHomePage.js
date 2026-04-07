@@ -601,8 +601,8 @@ function AdminHomePage() {
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
                 <Box sx=
                          {{
-                             pt: 1,
-                             pl: 1,
+                             p: 1,
+                             boxSizing: 'border-box',
                              backgroundColor: "#fbfaf6",
                              minHeight: '100vh',
                              width: '100%',
@@ -616,7 +616,6 @@ function AdminHomePage() {
                              gap: 1,
                              alignItems: 'flex-start'
                          }}>
-                    {/*<Masonry columns={{xs: 1, sm: 2, md: 3, lg: 4}} spacing={1} sequential>*/}
                         {sortedOrders.map((order) => (
                             <OrderCard key={order.id} order={order}
                                        onReadyClick={(order) => {
@@ -636,7 +635,6 @@ function AdminHomePage() {
                                        }}
                             />
                         ))}
-                    {/*</Masonry>*/}
                 </Box>
             }
 

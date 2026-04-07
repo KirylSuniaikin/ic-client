@@ -1,4 +1,5 @@
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
+import {formatExternalId} from "../adminComponents/OrderCard";
 
 class BluetoothPrinterService {
     constructor() {
@@ -176,9 +177,9 @@ class BluetoothPrinterService {
             "IC PIZZA\n",
             LF,
             `${ESC}!\x38`,
-            `Order #${
-                order.order_type === "Jahez"
-                    ? order.external_id
+            `#${
+                order.order_type !== "Pick Up"
+                    ? formatExternalId(order.external_id)
                     : order.order_no
             }\n`,
             `${ESC}!\x08`,
