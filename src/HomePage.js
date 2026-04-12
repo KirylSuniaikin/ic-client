@@ -762,8 +762,9 @@ function HomePage({userParam, recommendedIds, giftId}) {
         const sameItems = getSameItems(item.name)
         const matched = sameItems ? sameItems.find(it => it.size === newSize) : null;
         const newBasePrice = matched ? matched.price : (item.sizes?.[newSize] || item.price || 0);
+        const newId = matched ? matched.id : item.id;
         setCartItems(prev =>
-            prev.map(it => (it === item ? {...it, amount: newBasePrice, size: newSize} : it))
+            prev.map(it => (it === item ? {...it, id: newId, amount: newBasePrice, size: newSize} : it))
         );
     }
 

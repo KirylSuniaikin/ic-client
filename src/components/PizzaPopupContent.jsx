@@ -209,8 +209,10 @@ function PizzaPopup({
         let isThinDoughVal = selectedDough !== "Traditional";
         let isGarlicCrustVal = selectedIngr.includes("garlic crust");
 
+        const currentVariant = matchedItem || item;
+
         const products = [{
-            ...item,
+            ...currentVariant,
             name: item.name,
             size: selectedSize,
             category: item.category,

@@ -91,6 +91,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 const [ps, vs, adminResponse] = await Promise.all([fetchProducts(), fetchVendors(), getUser(userId)]);
                 if (!alive) return;
                 setProducts(ps.filter(p => p.isPurchasable === true));
+                console.log(ps);
                 setVendors(vs);
                 setAdmin(adminResponse)
 
