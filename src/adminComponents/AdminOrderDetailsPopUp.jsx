@@ -260,11 +260,12 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
 
             <Box
                 sx={{
-                    position: "fixed",
-                    left: 0, right: 0, bottom: 0,
-                    p: 2,
+                    position: "sticky",
+                    bottom: 0,
                     bgcolor: "#fff",
-                    borderTop: `1px solid ${grayBorder}`
+                    borderTop: "1px solid #eee",
+                    p: 2,
+                    zIndex: 10
                 }}
             >
                 <Button
