@@ -75,6 +75,7 @@ function parseExtraIngr(desc) {
 
 function normalizeComboItem(ci) {
     return {
+        id: ci?.id,
         name: ci?.name ?? "",
         category: ci?.category ?? "",
         size: ci?.size ?? "",
