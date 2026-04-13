@@ -614,7 +614,8 @@ function AdminHomePage() {
                                  lg: 'repeat(4, 1fr)'
                              },
                              gap: 1,
-                             alignItems: 'flex-start'
+                             gridAutoRows: 'max-content',
+                             // alignItems: 'flex-start'
                          }}>
                         {sortedOrders.map((order) => (
                             <OrderCard key={order.id} order={order}
