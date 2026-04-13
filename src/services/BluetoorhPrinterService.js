@@ -175,6 +175,10 @@ class BluetoothPrinterService {
             alignLeft,
             `${ESC}!\x38`,
             "IC PIZZA\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
             LF,
             `${ESC}!\x38`,
             `#${
@@ -202,7 +206,11 @@ class BluetoothPrinterService {
             "Flat/Shop No. 0,\n",
             "Building 1284,\n",
             "Road/Street 114, HIDD\n",
-            "Block 101, Bahrain",
+            "Block 101, Bahrain\n",
+            "\n",
+            "\n",
+            "\n",
+            "\n",
             LF + LF + LF
         ].join("");
 
