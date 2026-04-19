@@ -86,17 +86,13 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
             <Box
                 sx={{
                     position: "absolute",
-                    top: { xs: "3%", md: "5%" },
-                    bottom: { xs: "0%", md: "auto" },
-                    left: { xs: "0%", md: "50%" },
-                    transform: { md: "translateX(-50%)" },
+                    top: "3%",
+                    bottom: "0%",
                     width: {xs: "100%", md: 400},
                     maxHeight: "97vh",
                     bgcolor: "#fff",
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    borderBottomLeftRadius: { md: 16 },
-                    borderBottomRightRadius: { md: 16 },
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
@@ -128,13 +124,13 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                     }}>
                     <Box sx={{
                         width: "100%",
-                        height: { xs: 250, md: 300 },
+                        height: { xs: 250, sm: 400, md: 300 },
                         overflow: "hidden"
                     }}>
                         <img
                             src={menuItem.photo}
                             alt={menuItem.name}
-                            style={{width: "100%", height: "100%", objectFit: "cover"}}
+                            style={{width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#fff"}}
                         />
                     </Box>
 

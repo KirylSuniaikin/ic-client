@@ -196,6 +196,7 @@ function OrderCard({order,
             border: '2px solid',
             borderRadius: 3,
             borderColor: cardBorderColor,
+            alignSelf: 'flex-start',
             backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#fbaa66' :"#fff",
             boxShadow: 3
         }}>
@@ -324,14 +325,13 @@ function OrderCard({order,
                                             borderRadius: 4
                                         }}
                                     onClick={() => {
+                                        onOvenClick?.(order);
                                         updateOrderStatus({
                                             orderId: order.id,
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Oven",
                                             reason: null
-                                        }).then(() => {
-                                            onOvenClick?.(order)
-                                        })
+                                        }).catch(console.error);
                                     }}
                                 >
                                     OVEN
@@ -351,14 +351,13 @@ function OrderCard({order,
                                             borderRadius: 4
                                         }}
                                     onClick={() => {
+                                        onReadyClick?.(order);
                                         updateOrderStatus({
                                             orderId: order.id,
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Ready",
                                             reason: null
-                                        }).then(() => {
-                                            onReadyClick?.(order)
-                                        })
+                                        }).catch(console.error);
                                     }}
                                 >
                                     READY
@@ -377,15 +376,13 @@ function OrderCard({order,
                                             borderRadius: 4
                                         }}
                                     onClick={() => {
+                                        onPickedUpClick?.(order);
                                         updateOrderStatus({
                                             orderId: order.id,
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Picked Up",
                                             reason: null
-                                        })
-                                            .then(() => {
-                                                onPickedUpClick?.(order)
-                                            })
+                                        }).catch(console.error);
                                     }}
                                 >
                                     PICKED UP

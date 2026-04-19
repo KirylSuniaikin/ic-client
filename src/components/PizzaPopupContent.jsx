@@ -101,9 +101,9 @@ function PizzaPopup({
             setSelectedSize(editItem.size);
             setSelectedDough(editItem.isThinDough ? "Thin" : "Traditional");
             setQuantity(editItem.quantity)
-            setSelectedToppings(editItem.toppings)
-            setSelectedIngr(editItem.extraIngredients)
-            setNote(editItem.note)
+            setSelectedToppings(editItem.toppings || [])
+            setSelectedIngr(editItem.extraIngredients || [])
+            setNote(editItem.note || "")
         } else if (group) {
             const defaultItem = group.items.find(i => i.size === "M") || group.items[0];
             setItem(defaultItem);
@@ -139,12 +139,12 @@ function PizzaPopup({
 
     const ingrsForSize = extraIngredients.filter(ing => ing.size === selectedSize);
 
-    const extraCost = selectedIngr.reduce((sum, ingrName) => {
+    const extraCost = (selectedIngr || []).reduce((sum, ingrName) => {
         const found = ingrsForSize.find(i => i.name === ingrName);
         return found ? sum + found.price : sum;
     }, 0);
 
-    const toppingCost = selectedToppings.reduce((sum, ingrName) => {
+    const toppingCost = (selectedToppings || []).reduce((sum, ingrName) => {
         const found = toppings.find(i => i.name === ingrName);
         return found ? sum + found.price : sum;
     }, 0);
@@ -225,9 +225,11 @@ function PizzaPopup({
             description: getDesc(),
             amount: finalPizzaPricePerItem
         }];
+        // console.log(crossSellMap)
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
             if (count) {
+                // console.log(item);
                 products.push({
                     ...item,
                     quantity: count,
@@ -270,6 +272,8 @@ function PizzaPopup({
                     position: "absolute",
                     top: "3%",
                     bottom: "0%",
+                    left: "50%",
+                    transform: "translateX(-50%)",
                     width: {xs: "100%", md: 400},
                     maxHeight: "97vh",
                     bgcolor: "#fff",
@@ -544,7 +548,7 @@ function PizzaPopup({
                         </Box>
 
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            Toppings
+                            Drizzles
                         </Typography>
 
                         <ToppingsScroll

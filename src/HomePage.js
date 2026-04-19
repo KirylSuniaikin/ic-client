@@ -18,6 +18,7 @@ import PizzaLoader from "./components/loadingAnimations/PizzaLoader";
 import CrossSellPopup from "./components/CrossSellPopup";
 import {groupAvailableItemsByName} from "./utils/menu_service";
 import {isWithinWorkingHours} from "./components/scheduleComponents/isWithinWorkingHours";
+import {imageMap} from "./utils/imageMap";
 import ClosedPopup from "./components/scheduleComponents/ClosedPopup";
 import {TextButton, TextGroup, TextTitle} from "./utils/typography";
 import {PizzaComboPopup} from "./components/comboComponents/PizzaComboPopup";
@@ -312,13 +313,17 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
                             return {
                                 ...item,
+                                photo: imageMap[item.name] || item.photo,
                                 quantity: item.quantity || 1,
                                 discount,
                                 amount: originalAmount,
                                 note: parseItemNote(item.description),
                                 extraIngredients: parseExtraIngr(item.description),
                                 comboItems: Array.isArray(item.comboItemTO)
-                                    ? item.comboItemTO.map(normalizeComboItem)
+                                    ? item.comboItemTO.map(ci => ({
+                                        ...normalizeComboItem(ci),
+                                        photo: imageMap[ci.name] || ci.photo
+                                    }))
                                     : []
                             };
                         });

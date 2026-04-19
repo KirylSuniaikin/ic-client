@@ -1,4 +1,5 @@
 import {authFetch} from "../management/api/api";
+import {imageMap, mapOrderImages, mapOrdersImages} from "../utils/imageMap";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -22,9 +23,7 @@ export async function fetchBaseAppInfo(userId, branchId) {
     url += `?${queryParams.toString()}`;
     const response = await fetch(url, {
         method: "GET",
-        // headers: {
-        //     "ngrok-skip-browser-warning": "69420"
-        // }
+
     });
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
@@ -34,7 +33,28 @@ export async function fetchBaseAppInfo(userId, branchId) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
 
-    return JSON.parse(text);
+    const data = JSON.parse(text);
+
+    if (data.menu) {
+        data.menu = data.menu.map(item => ({
+            ...item,
+            photo: imageMap[item.name] || item.photo
+        }));
+    }
+    if (data.extraIngr) {
+        data.extraIngr = data.extraIngr.map(item => ({
+            ...item,
+            photo: imageMap[item.name] || item.photo
+        }));
+    }
+    if (data.toppings) {
+        data.toppings = data.toppings.map(item => ({
+            ...item,
+            photo: imageMap[item.name] || item.photo
+        }));
+    }
+
+    return data;
 }
 
 export async function createOrder(order) {
@@ -74,7 +94,6 @@ export async function updateAvailability(changes, branchId) {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
-            // "ngrok-skip-browser-warning": "69420"
         },
         body: JSON.stringify({changes, branchId}),
     });
@@ -120,7 +139,7 @@ export async function getAllActiveOrders(branchId) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
 
-    return JSON.parse(text);
+    return mapOrdersImages(JSON.parse(text));
 }
 
 export async function getHistory(branchId) {
@@ -137,7 +156,7 @@ export async function getHistory(branchId) {
     if (text.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
-    return JSON.parse(text);
+    return mapOrdersImages(JSON.parse(text));
 }
 
 export async function fetchStatistics(startDate, finishDate, certainDate, branchId) {
@@ -272,7 +291,7 @@ export async function getOrderStatus(orderId) {
             const data = await response.json();
             return {error: true, message: data.message || "Order not found"};
         }
-        return await response.json();
+        return mapOrderImages(await response.json());
     } catch (error) {
         console.error("Failed to get order", error);
         return {error: true, message: "Connection error"};
