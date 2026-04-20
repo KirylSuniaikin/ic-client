@@ -1,5 +1,5 @@
-import {useEffect, useMemo, useRef, useState} from "react";
-import OrderCard, {renderItemDetails, sortItemsByCategory} from "./adminComponents/OrderCard";
+import { useEffect, useMemo, useRef, useState } from "react";
+import OrderCard, { renderItemDetails, sortItemsByCategory } from "./adminComponents/OrderCard";
 import {
     Alert,
     Box,
@@ -9,7 +9,7 @@ import {
     Snackbar, TextField,
     Typography
 } from '@mui/material';
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
     getAllActiveOrders, getBaseAdminInfo,
     updateOrderStatus,
@@ -23,21 +23,21 @@ import StatisticsComponent from "./adminComponents/StatisticsComponent";
 import AdminTopbar from "./adminComponents/AdminTopbar";
 import ShiftPopup from "./components/shiftComponents/ShiftPopup";
 import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
-import {Masonry} from "@mui/lab";
+import { Masonry } from "@mui/lab";
 import PaymentPopup from "./adminComponents/PaymentPopup";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from "@mui/icons-material/Cancel";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import BluetoothPrinterService from "./services/BluetoorhPrinterService";
-import {socket} from "./api/socket";
-import {PurchasePopup} from "./management/purchaseComponents/PurchasePopup";
+import { socket } from "./api/socket";
+import { PurchasePopup } from "./management/purchaseComponents/PurchasePopup";
 import ManagementPage from "./management/inventoryComponents/ManagementPage";
 import CashPopup from "./components/shiftComponents/CashPopup";
-import {ShiftHomePage} from "./management/shiftComponents/ShiftHomePage";
+import { ShiftHomePage } from "./management/shiftComponents/ShiftHomePage";
 import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
-import {useAuth} from "./management/security/AuthProvider";
-import {fetchAllBranches, getBranchInfo} from "./management/api/api";
+import { useAuth } from "./management/security/AuthProvider";
+import { fetchAllBranches, getBranchInfo } from "./management/api/api";
 
 function AdminHomePage() {
     const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ function AdminHomePage() {
     const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
     const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
-    const {username, branchId, userId,role,  logout} = useAuth();
+    const { username, branchId, userId, role, logout } = useAuth();
     const [availableBranches, setAvailableBranches] = useState(null);
     const [selectedBranch, setSelectedBranch] = useState(null);
     const [blacklistOpen, setBlacklistOpen] = useState(false);
@@ -98,7 +98,7 @@ function AdminHomePage() {
     const handleMarkInOven = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? {...o, status: "Oven"} : o
+                o.id === orderId ? { ...o, status: "Oven" } : o
             )
         );
     }
@@ -136,7 +136,7 @@ function AdminHomePage() {
     const handleMarkReady = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? {...o, status: "Ready"} : o
+                o.id === orderId ? { ...o, status: "Ready" } : o
             )
         );
     };
@@ -171,7 +171,7 @@ function AdminHomePage() {
         }
         setConfirmingAccept(true);
         try {
-            await updateOrderStatus({orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted"});
+            await updateOrderStatus({ orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted" });
             setActiveAlertOrder(null);
         } catch (e) {
             setError(e)
@@ -205,7 +205,7 @@ function AdminHomePage() {
     useEffect(() => {
         async function initBranches() {
             try {
-                if (branchId!=="NONE" && role!=="SUPER_MANAGER") {
+                if (branchId !== "NONE" && role !== "SUPER_MANAGER") {
                     const branchInfo = await getBranchInfo(branchId);
                     setAvailableBranches([branchInfo]);
                     setSelectedBranch(branchInfo);
@@ -261,7 +261,7 @@ function AdminHomePage() {
                 lock = await navigator.wakeLock?.request("screen");
                 document.addEventListener("visibilitychange", () => {
                     if (document.visibilityState === "visible") req();
-                }, {once: true});
+                }, { once: true });
             } catch {
             }
         }
@@ -333,7 +333,7 @@ function AdminHomePage() {
 
                         const suppressed = suppressedSoundIdsRef.current.has(id);
                         console.log(`[WS] ID ${id} is suppressed? ${suppressed}`);
-                        if("Keeta" !== newOrder.order_type) {
+                        if ("Keeta" !== newOrder.order_type) {
                             try {
                                 await BluetoothPrinterService.printOrder(newOrder);
                                 console.log("🖨️ Auto print success");
@@ -352,12 +352,17 @@ function AdminHomePage() {
 
                         socket.publish({
                             destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: newOrder.id}),
+                            body: JSON.stringify({ orderId: newOrder.id }),
                         });
                     });
 
                     socket.subscribe(`/topic/${selectedBranch.id}/order-updates`, async (frame) => {
                         const updatedOrder = JSON.parse(frame.body);
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({ orderId: updatedOrder.id }),
+                        });
 
                         try {
                             const arr = JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) || '[]');
@@ -366,19 +371,13 @@ function AdminHomePage() {
                             suppressedSoundIdsRef.current = new Set();
                         }
 
-                        try {
-                            await BluetoothPrinterService.printOrder(updatedOrder);
-                            console.log("🖨️ Auto print success");
-                        } catch (e) {
-                            console.warn("⚠️ Auto print error:", e);
-                        }
+                        // Do not await the printer here, so we don't delay the STOMP ack!
+                        BluetoothPrinterService.printOrder(updatedOrder)
+                            .then(() => console.log("🖨️ Auto print success"))
+                            .catch(e => console.warn("⚠️ Auto print error:", e));
+
                         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
                         setNewlyUpdatedOrder(updatedOrder);
-
-                        socket.publish({
-                            destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: updatedOrder.id}),
-                        });
                     });
 
                     socket.subscribe(`/topic/${selectedBranch.id}/order-paid`, (frame) => {
@@ -388,14 +387,14 @@ function AdminHomePage() {
                         setOrders(prev =>
                             prev.map(o =>
                                 getStringId(o) === paidOrderId
-                                    ? {...o, isPaid: true}
+                                    ? { ...o, isPaid: true }
                                     : o
                             )
                         );
 
                         socket.publish({
                             destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: paidOrderId}),
+                            body: JSON.stringify({ orderId: paidOrderId }),
                         });
                     })
 
@@ -408,7 +407,7 @@ function AdminHomePage() {
 
                         socket.publish({
                             destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: acceptedOrderId}),
+                            body: JSON.stringify({ orderId: acceptedOrderId }),
                         });
                     })
 
@@ -421,12 +420,11 @@ function AdminHomePage() {
                         setOrders(prev => prev.filter(o => getStringId(o) !== cancelledOrderId));
                         socket.publish({
                             destination: '/app/orders/ack',
-                            body: JSON.stringify({orderId: cancelledOrderId}),
+                            body: JSON.stringify({ orderId: cancelledOrderId }),
                         });
                     })
 
                     socket.subscribe(`/topic/${selectedBranch.id}/order-status-updated`, (frame) => {
-                        console.log("[ORDER_STATUS] ", frame);
                         const payload = JSON.parse(frame.body);
                         const orderId = getStringId(payload?.orderId ?? payload?.id);
                         const status = payload.status;
@@ -439,12 +437,17 @@ function AdminHomePage() {
                             setOrders(prev =>
                                 prev.map(o =>
                                     getStringId(o) === orderId
-                                        ? {...o, status: status}
+                                        ? { ...o, status: status }
                                         : o
                                 )
                             );
                         }
-                    })
+
+                        socket.publish({
+                            destination: '/app/orders/ack',
+                            body: JSON.stringify({ orderId: orderId }),
+                        });
+                    });
 
                     socket.subscribe(`/topic/${selectedBranch.id}/admin-base-info`, (frame) => {
                         const payload = JSON.parse(frame.body);
@@ -495,7 +498,7 @@ function AdminHomePage() {
     }, [CASH_STAGE_FLOW, EVENT_STAGE_FLOW, selectedBranch]);
 
     if (loading) {
-        return <PizzaLoader/>;
+        return <PizzaLoader />;
     }
 
     if (error) return <div>Error: {error}</div>;
@@ -508,7 +511,7 @@ function AdminHomePage() {
     const handlePaymentSuccess = (orderId) => {
         setOrders((prev) =>
             prev.map((o) =>
-                o.id === orderId ? {...o, isPaid: true} : o
+                o.id === orderId ? { ...o, isPaid: true } : o
             )
         );
     };
@@ -539,10 +542,10 @@ function AdminHomePage() {
                             fontSize: "1rem",
                         }}
                     >
-                        Cash mismatch! <br/>
+                        Cash mismatch! <br />
                         <strong>Expected: </strong>
-                        <span style={{color: "#E44B4C", fontWeight: 700}}>
-                                {cashWarning.expected} BD
+                        <span style={{ color: "#E44B4C", fontWeight: 700 }}>
+                            {cashWarning.expected} BD
                         </span>
                     </Alert>
                 </Box>
@@ -600,42 +603,42 @@ function AdminHomePage() {
             />
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
                 <Box sx=
-                         {{
-                             p: 1,
-                             boxSizing: 'border-box',
-                             backgroundColor: "#fbfaf6",
-                             minHeight: '100vh',
-                             width: '100%',
-                             display: 'grid',
-                             gridTemplateColumns: {
-                                 xs: 'repeat(1, 1fr)',
-                                 sm: 'repeat(2, 1fr)',
-                                 md: 'repeat(3, 1fr)',
-                                 lg: 'repeat(4, 1fr)'
-                             },
-                             gap: 1,
-                             gridAutoRows: 'max-content',
-                             // alignItems: 'flex-start'
-                         }}>
-                        {sortedOrders.map((order) => (
-                            <OrderCard key={order.id} order={order}
-                                       onReadyClick={(order) => {
-                                           handleMarkReady(order.id)
-                                       }}
+                    {{
+                        p: 1,
+                        boxSizing: 'border-box',
+                        backgroundColor: "#fbfaf6",
+                        minHeight: '100vh',
+                        width: '100%',
+                        display: 'grid',
+                        gridTemplateColumns: {
+                            xs: 'repeat(1, 1fr)',
+                            sm: 'repeat(2, 1fr)',
+                            md: 'repeat(3, 1fr)',
+                            lg: 'repeat(4, 1fr)'
+                        },
+                        gap: 1,
+                        gridAutoRows: 'max-content',
+                        // alignItems: 'flex-start'
+                    }}>
+                    {sortedOrders.map((order) => (
+                        <OrderCard key={order.id} order={order}
+                            onReadyClick={(order) => {
+                                handleMarkReady(order.id)
+                            }}
 
-                                       onPayClick={(order) => {
-                                           setSelectedOrder(order);
-                                           setPaymentDialogOpen(true);
+                            onPayClick={(order) => {
+                                setSelectedOrder(order);
+                                setPaymentDialogOpen(true);
 
-                                       }}
-                                       onPickedUpClick={(order) => {
-                                           handleRemoveItem(order.id)
-                                       }}
-                                       onOvenClick={(order) => {
-                                           handleMarkInOven(order.id)
-                                       }}
-                            />
-                        ))}
+                            }}
+                            onPickedUpClick={(order) => {
+                                handleRemoveItem(order.id)
+                            }}
+                            onOvenClick={(order) => {
+                                handleMarkInOven(order.id)
+                            }}
+                        />
+                    ))}
                 </Box>
             }
 
@@ -683,7 +686,7 @@ function AdminHomePage() {
             {cashRegisterOpen && (
                 <CashRegisterPopup
                     open={cashRegisterOpen}
-                    handleClose={()=> setCashRegisterOpen(false)}
+                    handleClose={() => setCashRegisterOpen(false)}
                     branch={selectedBranch}
                 />
             )}
@@ -702,15 +705,15 @@ function AdminHomePage() {
 
             {shiftManagementPageOpen && (
                 <ShiftHomePage open={shiftManagementPageOpen}
-                               onClose={() => setShiftManagementPageOpen(false)}
-                               branch={selectedBranch}
+                    onClose={() => setShiftManagementPageOpen(false)}
+                    branch={selectedBranch}
                 />
             )}
 
             <Snackbar
                 open={Boolean(activeAlertOrder)}
-                anchorOrigin={{vertical: "top", horizontal: "center"}}
-                sx={{zIndex: 1300}}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{ zIndex: 1300 }}
             >
                 <Paper
                     elevation={3}
@@ -724,14 +727,14 @@ function AdminHomePage() {
                         maxWidth: 600,
                     }}
                 >
-                    <Box sx={{display: "flex", flexDirection: "column", gap: 2}}>
-                        <Box sx={{flexGrow: 1}}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <Box sx={{ flexGrow: 1 }}>
                             {activeAlertOrder &&
-                            <Typography variant="subtitle1" sx={{fontWeight: 600}}>
-                                {activeAlertOrder.order_type === "Jahez" ? "Jahez Order" :
-                                    activeAlertOrder.order_type === "Keeta" ? "Keeta Order" :
-                                        "New Order"}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
-                            </Typography>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                                    {activeAlertOrder.order_type === "Jahez" ? "Jahez Order" :
+                                        activeAlertOrder.order_type === "Keeta" ? "Keeta Order" :
+                                            "New Order"}: {activeAlertOrder?.order_no ?? getId(activeAlertOrder)}
+                                </Typography>
                             }
 
                             <Typography variant="body2">
@@ -739,13 +742,13 @@ function AdminHomePage() {
                             </Typography>
                         </Box>
 
-                        {getExtId(activeAlertOrder) && activeAlertOrder.order_type==="Jahez" ? (
+                        {getExtId(activeAlertOrder) && activeAlertOrder.order_type === "Jahez" ? (
                             <>
                                 <Box>
                                     {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
                                         <Box
                                             key={idx}
-                                            sx={{mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0"}}
+                                            sx={{ mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0" }}
                                         >
                                             <Typography variant="body2">
                                                 {item.quantity}x <strong>{item.name}</strong>
@@ -753,7 +756,7 @@ function AdminHomePage() {
                                                     <Typography
                                                         component="span"
                                                         variant="body2"
-                                                        sx={{ml: 1, fontStyle: "italic"}}
+                                                        sx={{ ml: 1, fontStyle: "italic" }}
                                                     >
                                                         ({item.size})
                                                     </Typography>
@@ -763,11 +766,11 @@ function AdminHomePage() {
                                         </Box>
                                     ))}
                                 </Box>
-                                <Box sx={{display: "flex", gap: 2, mt: 1}}>
+                                <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
 
                                     <Button
                                         variant="outlined"
-                                        startIcon={<CheckCircleIcon/>}
+                                        startIcon={<CheckCircleIcon />}
                                         onClick={() => {
                                             confirmExternalOrder(activeAlertOrder)
                                             if (audioRef.current) {
@@ -790,7 +793,7 @@ function AdminHomePage() {
 
                                     <Button
                                         variant="outlined"
-                                        startIcon={<CancelIcon/>}
+                                        startIcon={<CancelIcon />}
                                         onClick={() => setCancelDialogOpen(true)}
                                         sx={{
                                             borderRadius: 4,
@@ -815,9 +818,9 @@ function AdminHomePage() {
                                     setActiveAlertOrder(null);
                                 }}
                                 size="medium"
-                                sx={{color: colorRed}}
+                                sx={{ color: colorRed }}
                             >
-                                <CloseIcon/>
+                                <CloseIcon />
                             </IconButton>
                         )}
                     </Box>
@@ -826,8 +829,8 @@ function AdminHomePage() {
 
             <Snackbar
                 open={Boolean(activeAlertOrderEdit)}
-                anchorOrigin={{vertical: "top", horizontal: "center"}}
-                sx={{zIndex: 1300}}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{ zIndex: 1300 }}
             >
                 <Paper
                     elevation={3}
@@ -844,8 +847,8 @@ function AdminHomePage() {
                         maxWidth: 600,
                     }}
                 >
-                    <Box sx={{flexGrow: 1}}>
-                        <Typography variant="subtitle1" sx={{fontWeight: 600}}>
+                    <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                             Order {activeAlertOrderEdit?.order_no} was edited
                         </Typography>
                     </Box>
@@ -858,9 +861,9 @@ function AdminHomePage() {
                             setActiveAlertOrderEdit(null);
                         }}
                         size="medium"
-                        sx={{color: colorRed}}
+                        sx={{ color: colorRed }}
                     >
-                        <CloseIcon/>
+                        <CloseIcon />
                     </IconButton>
                 </Paper>
             </Snackbar>
@@ -881,11 +884,11 @@ function AdminHomePage() {
                     },
                 }}
             >
-                <Box sx={{display: "flex", justifyContent: "center", py: 1}}>
-                    <Box sx={{width: 36, height: 4, borderRadius: 999, abgcolor: "grey.400"}}/>
+                <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                    <Box sx={{ width: 36, height: 4, borderRadius: 999, abgcolor: "grey.400" }} />
                 </Box>
 
-                <Typography variant="h6" sx={{textAlign: "center", fontWeight: 600, mb: 2}}>
+                <Typography variant="h6" sx={{ textAlign: "center", fontWeight: 600, mb: 2 }}>
                     Cancel Order
                 </Typography>
 

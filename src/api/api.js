@@ -251,7 +251,6 @@ export async function sendOrderPayment({orderId, amount, type, branchId}) {
 
 export async function updateOrderStatus({orderId, jahezOrderId, orderStatus, reason}) {
     try {
-        console.log(jahezOrderId);
         const response = await authFetch(URL + "/status_update", {
             method: "POST",
             headers: {
