@@ -4,11 +4,12 @@ import {
     Typography,
     Button,
     ToggleButtonGroup,
-    ToggleButton,
+    ToggleButton, Fab,
 } from "@mui/material";
 import React, {useEffect, useState} from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
+import CloseIcon from "@mui/icons-material/Close";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -249,6 +250,20 @@ export function PizzaComboPopup({
                         flexDirection: "column",
                     }}
                 >
+                    <Fab
+                        size="small"
+                        onClick={onClose}
+                        sx={{
+                            position: "absolute",
+                            top: 16,
+                            right: 16,
+                            color: brandRed,
+                            backgroundColor: "#fff",
+                            zIndex: 9999
+                        }}
+                    >
+                        <CloseIcon/>
+                    </Fab>
                     <Box sx={{
                         flex: 1,
                         overflowY: "auto",

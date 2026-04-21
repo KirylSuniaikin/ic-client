@@ -51,6 +51,7 @@ export default function PaymentPopup({
         if (open && order) {
             setSelectedType(null);
             setSplitMode(false);
+            setCashMode(false);
             setPayers([{
                 id: mkId(),
                 type: "cash",
