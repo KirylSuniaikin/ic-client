@@ -169,6 +169,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                     helperText={phoneError || ""}
                     sx={fieldSx}
                     InputProps={{ sx: { borderRadius: 4 } }}
+                    inputProps={{ autoComplete: "off", name: `phone-${Math.random()}` }}
                 />
 
                 {/* Name (optional) */}
@@ -179,6 +180,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                     onChange={(e) => setCustomerName(e.target.value)}
                     sx={fieldSx}
                     InputProps={{ sx: { borderRadius: 4 } }}
+                    inputProps={{ autoComplete: "off", name: `name-${Math.random()}` }}
                 />
 
                 {/* Delivery Method */}

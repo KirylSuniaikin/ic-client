@@ -2,7 +2,7 @@ import {MenuItem} from "../management/types/menuTypes";
 import {Box, Button, Fab, Modal, TextField, Typography} from "@mui/material";
 import React, {useState} from "react";
 import {BetterTogetherComponent} from "./BetterTogetherComponent";
-import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import CloseIcon from "@mui/icons-material/Close";
 
 type BaguettePizzaPopupProps = {
     menuItem: MenuItem;

@@ -7,6 +7,8 @@ import {
 import React, {useState} from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
+import CloseIcon from "@mui/icons-material/Close";
+import { Fab } from "@mui/material";
 
 const brandRed = "#E44B4C";
 
@@ -156,6 +158,20 @@ export function DetroitComboPopup({
                         flexDirection: "column",
                     }}
                 >
+                    <Fab
+                        size="small"
+                        onClick={onClose}
+                        sx={{
+                            position: "absolute",
+                            top: 16,
+                            right: 16,
+                            color: brandRed,
+                            backgroundColor: "#fff",
+                            zIndex: 9999
+                        }}
+                    >
+                        <CloseIcon/>
+                    </Fab>
                     <Box sx={{
                         flex: 1,
                         overflowY: "auto",
