@@ -67,17 +67,33 @@ function HistoryComponent({onClose, selectedBranch}) {
     );
 
     return (
-        <div className="p-4 max-w-4xl mx-auto">
+        <div 
+            className="p-4 max-w-4xl mx-auto"
+            style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100dvh',
+                overflow: 'hidden'
+            }}
+        >
             <Box sx={{
                 gap: 1,
+                flexShrink: 0,
             }}>
                 <BackTopBar
                     onClose={onClose}
                     title="Order History"
                 />
             </Box>
-            <Box sx={{ pt: 1, pl: 1, backgroundColor: "#fbfaf6", minHeight: '100vh',
-                width: '100%' }}>
+            <Box sx={{ 
+                pt: 1, 
+                pl: 1, 
+                backgroundColor: "#fbfaf6", 
+                flex: 1,
+                overflowY: 'auto',
+                overscrollBehaviorY: 'contain',
+                width: '100%' 
+            }}>
             <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
                 {sortedOrders.map((order) => (
                     <OrderCard key={order.id} order={order} onReadyClick={handleRemoveItem} isHistory={true} onDeleteClick={() => {handleDeleteClick(order)}}/>

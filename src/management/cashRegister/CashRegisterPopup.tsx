@@ -120,9 +120,11 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
                                         textTransform: 'none',
                                         fontWeight: 600,
                                         fontSize: '0.9rem',
-                                        color: '#007AFF',
+                                        color: "text.secondary",
                                         minWidth: 'auto',
                                         padding: '4px 8px',
+                                        backgroundColor: buttonBg,
+                                        borderRadius: 8,
                                     }}
                                 >
                                     Details &gt;
