@@ -134,16 +134,14 @@ export default function StatisticsComponent({onClose, branchId, role}) {
     const retentionId = retentionOpen ? 'retention-date-popover' : undefined;
 
     return (
-        <>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
             {loading && (
                 <Box sx={{position: 'fixed', top: 64, right: 16, zIndex: 1500}}>
                     <CircularProgress size={24}/>
                 </Box>
             )}
 
-            <Box sx={{
-                gap: 1,
-            }}>
+            <Box sx={{ flexShrink: 0 }}>
                 <BackTopBar
                     onClose={onClose}
                     title="Statistics"
@@ -151,9 +149,11 @@ export default function StatisticsComponent({onClose, branchId, role}) {
             </Box>
 
             <Box sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
                 p: 1,
-                height: "100vh",
-                overflowX: 'hidden',
                 backgroundColor: "#fbfaf6"
             }}>
                 <Box sx={{
@@ -202,7 +202,7 @@ export default function StatisticsComponent({onClose, branchId, role}) {
                 <Box sx={{
                     flex: 1,
                     overflowY: "auto",
-                    overflowX: "hidden",
+                    overscrollBehaviorY: 'contain',
                     p: 1,
                     scrollbarWidth: "none",
                     "&::-webkit-scrollbar": {display: "none"},
@@ -493,8 +493,8 @@ export default function StatisticsComponent({onClose, branchId, role}) {
                 {mode === "Pricing" && (
                     <ProductsTable/>
                 )}
+                </Box>
             </Box>
-            </Box>
-        </>
+        </Box>
     );
 }

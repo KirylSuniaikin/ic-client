@@ -24,7 +24,9 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
                 datetime: new Date().toISOString(),
                 branch_id: branchId,
                 cash_amount: parseFloat(cash),
-                prep_plan: null,
+                prep_plan: stage === "OPEN_SHIFT_CASH_CHECK" ?
+                    "Open Shift Cash Check" : stage === "CLOSE_SHIFT_CASH_CHECK" ?
+                        "Close Shift Cash Check" : null,
             });
 
             if (data?.cashWarning) {

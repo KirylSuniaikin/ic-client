@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
     Dialog,
     Box,
-    Typography,
     CircularProgress,
     Table,
     TableBody,
@@ -13,7 +12,7 @@ import {
     Paper,
     Chip
 } from "@mui/material";
-import { BackTopBar } from "../consumptionComponents/BackTopBar"; // Твой компонент заголовка
+import { BackTopBar } from "../consumptionComponents/BackTopBar";
 import { getBranchEvents } from "../api/api";
 import { CashRegisterEventTO, CashUpdateType } from "../types/branchBalanceTypes";
 
@@ -23,6 +22,9 @@ type Props = {
     onClose: () => void;
 };
 
+const brandGray = "#f3f3f3";
+
+
 const styles = {
     cashIn: {
         bg: "rgba(52, 199, 89, 0.12)",
@@ -31,6 +33,10 @@ const styles = {
     cashOut: {
         bg: "rgba(255, 59, 48, 0.12)",
         text: "#c41c00",
+    },
+    cashCheck:{
+        bg: brandGray,
+        text: "#000",
     }
 };
 
@@ -85,19 +91,18 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                             <TableBody>
                                 {events.map((row) => {
                                     const isIncome = row.type === CashUpdateType.CASH_IN;
-                                    const style = isIncome ? styles.cashIn : styles.cashOut;
+                                    const isCheck = row.type === CashUpdateType.CLOSE_SHIFT_CASH_CHECK || row.type === CashUpdateType.OPEN_SHIFT_CASH_CHECK;
+                                    const style = isCheck ? styles.cashCheck : isIncome ? styles.cashIn : styles.cashOut;
 
                                     return (
                                         <TableRow
                                             key={row.id}
                                             sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                                         >
-                                            {/* Дата */}
                                             <TableCell component="th" scope="row" sx={{ color: '#333', fontSize: '0.9rem' }}>
                                                 {formatDate(row.date)}
                                             </TableCell>
 
-                                            {/* Сумма с цветным фоном */}
                                             <TableCell>
                                                 <Box
                                                     sx={{
@@ -105,17 +110,16 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                                                         color: style.text,
                                                         py: 0.5,
                                                         px: 1.5,
-                                                        borderRadius: 2, // Скругленный чип
+                                                        borderRadius: 2,
                                                         display: 'inline-block',
                                                         fontWeight: 'bold',
                                                         fontSize: '0.9rem'
                                                     }}
                                                 >
-                                                    {isIncome ? '+' : '-'}{row.amount}
+                                                    {!isCheck ? (isIncome ? '+' : '-') : ''}{row.amount}
                                                 </Box>
                                             </TableCell>
 
-                                            {/* Заметка */}
                                             <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
                                                 {row.notes || "—"}
                                             </TableCell>
