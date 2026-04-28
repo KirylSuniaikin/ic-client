@@ -24,7 +24,7 @@ function CartPopup({
     const totalPrice = items.reduce((acc, i) => {
         const discount = i.discount || 0;
         const discountedPrice = i.amount * (1 - discount / 100);
-        return acc + discountedPrice * i.quantity;
+        return acc + discountedPrice * i.quantity * 1.1;
     }, 0).toFixed(2);
     const tel = useState(null);
 
@@ -118,17 +118,36 @@ function CartPopup({
                 <Box
                     sx={{
                         flexShrink: 0,
-                        height: 56,
-                        borderTop: "1px solid #eee",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        px: 2
+                        px: 3,
+                        py: 2,
+                        borderTop: "1px solid #eee",
                     }}
                 >
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: "#000", ml: 1.5 }}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ color: "#000" }}>
+                        Total + VAT
+                    </Typography>
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: "#000" }}>
                         {totalPrice}
                     </Typography>
+                </Box>
+
+                <Box
+                    sx={{
+                        flexShrink: 0,
+                        height: 56,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        px: 2,
+                        pb: 2
+                    }}
+                >
+                    {/*<Typography variant="h6" fontWeight="bold" sx={{ color: "#000", ml: 1.5 }}>*/}
+                    {/*    {totalPrice}*/}
+                    {/*</Typography>*/}
 
                     <Button
                         variant="contained"
@@ -142,7 +161,7 @@ function CartPopup({
                             textTransform: "none",
                             fontWeight: "bold",
                             borderRadius: 4,
-                            width: 240,
+                            width: '100%',
                             "&:hover": {
                                 backgroundColor: brandRed
                             }
