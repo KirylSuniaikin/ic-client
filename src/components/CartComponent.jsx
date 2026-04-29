@@ -24,7 +24,7 @@ function CartPopup({
     const totalPrice = items.reduce((acc, i) => {
         const discount = i.discount || 0;
         const discountedPrice = i.amount * (1 - discount / 100);
-        return acc + discountedPrice * i.quantity * 1.1;
+        return acc + discountedPrice * i.quantity;
     }, 0).toFixed(2);
     const tel = useState(null);
 
@@ -126,8 +126,8 @@ function CartPopup({
                         borderTop: "1px solid #eee",
                     }}
                 >
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ color: "#000" }}>
-                        Total + VAT
+                    <Typography variant="subtitle1" color="text.secondary" sx={{ color: "#000" }}>
+                        Total(VAT incl.)
                     </Typography>
                     <Typography variant="h6" fontWeight="bold" sx={{ color: "#000" }}>
                         {totalPrice}

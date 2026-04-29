@@ -830,7 +830,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 items.reduce((acc, item) => {
                     const discount = typeof item.discount === "number" ? item.discount : 0;
                     const discountedPrice = item.amount * (1 - discount / 100);
-                    return acc + discountedPrice * item.quantity * 1.1;
+                    return acc + discountedPrice * item.quantity;
                 }, 0).toFixed(3)
             )
         }
@@ -914,7 +914,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     items.reduce((acc, item) => {
                         const discount = typeof item.discount === "number" ? item.discount : 0;
                         const discountedPrice = item.amount * (1 - discount / 100);
-                        return acc + discountedPrice * item.quantity * 1.1;
+                        return acc + discountedPrice * item.quantity;
                     }, 0).toFixed(3)
                 ),
             };
