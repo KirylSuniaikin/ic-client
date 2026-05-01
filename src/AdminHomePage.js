@@ -74,6 +74,11 @@ function AdminHomePage() {
 
     const audioRef = useRef(null);
 
+    const currentUser = useMemo(() => ({
+        userName: username,
+        id: userId
+    }), [username, userId]);
+
     const CASH_STAGE_FLOW = useMemo(() => ({
         OPEN_SHIFT_CASH_CHECK: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
@@ -691,14 +696,11 @@ function AdminHomePage() {
                 />
             )}
 
-            {managementPageOpen && (
+            {managementPageOpen && selectedBranch && currentUser.id && (
                 <ManagementPage
                     isOpen={managementPageOpen}
                     onClose={() => setManagementPageOpen(false)}
-                    user={{
-                        userName: username,
-                        id: userId
-                    }}
+                    user={currentUser}
                     branch={selectedBranch}
                 />
             )}

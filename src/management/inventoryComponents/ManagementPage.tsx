@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
 import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
 import {

@@ -44,6 +44,9 @@ export default function InventoryPopup({
     const [title, setTitle] = useState<string>("");
     const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
     const isDataLoadedRef = useRef<boolean>(false);
+    // const dataGridRows = useMemo(() => {
+    //     return rows.map((r) => ({ id: r.productId, ...r }));
+    // }, [rows]);
 
     const fmt3: GridValueFormatter = (value: any) =>
         value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
@@ -63,6 +66,9 @@ export default function InventoryPopup({
         }
 
         if (isDataLoadedRef.current) return;
+        if (!author?.id) {
+            return;
+        }
         let alive = true;
 
         if (mode === "new" && !Number.isFinite(branch.branchNo)) {
@@ -213,6 +219,7 @@ export default function InventoryPopup({
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
             if (mode === "new") {
+                console.log(inventoryProducts)
                 const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",
@@ -325,14 +332,15 @@ export default function InventoryPopup({
                         </Box>
 
                         <Box sx={{flex: 1, minHeight: 0}}>
-                            <DataGrid rows={rows.map((r) => ({id: r.productId, ...r}))}
+                            <DataGrid rows={rows}
+                                      getRowId={(row) => row.productId}
                                       columns={columns}
                                       disableRowSelectionOnClick
                                       processRowUpdate={processRowUpdate}
                                       editMode="row"
                                       onFilterModelChange={setFilterModel}
                                       filterModel={filterModel}
-                                      onRowEditStop={() => setRows((r) => [...r])}
+                                      // onRowEditStop={() => setRows((r) => [...r])}
                                       onProcessRowUpdateError={(err) => setError(String(err))}
                             />
                         </Box>

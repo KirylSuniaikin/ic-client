@@ -6,7 +6,7 @@ import {getClosingTime} from "../getClosingTime";
 
 const useClosingAlarm = (audioAllowed) => {
     const playedRef = useRef(false);
-    const [audioRef] = useState(new Audio(alertSound));
+    const [audioRef] = useState(() => new Audio(alertSound));
 
     useEffect(() => {
         if (!audioAllowed) return;
