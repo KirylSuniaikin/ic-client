@@ -278,7 +278,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         },
         {
             field: "price",
-            headerName: "Target Price(kg/unit)",
+            headerName: "Price per kg/unit",
             width: 160,
             editable: false,
             sortable: true,
