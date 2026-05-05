@@ -41,19 +41,6 @@ export async function fetchBaseAppInfo(userId, branchId) {
             photo: imageMap[item.name] || item.photo
         }));
     }
-    if (data.extraIngr) {
-        data.extraIngr = data.extraIngr.map(item => ({
-            ...item,
-            photo: imageMap[item.name] || item.photo
-        }));
-    }
-    if (data.toppings) {
-        data.toppings = data.toppings.map(item => ({
-            ...item,
-            photo: imageMap[item.name] || item.photo
-        }));
-    }
-
     return data;
 }
 
