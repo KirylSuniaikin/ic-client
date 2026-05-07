@@ -76,14 +76,6 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
     }, [branch]);
 
 
-    if (loading) {
-        return (
-            <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
-                <CircularProgress/>
-            </Box>
-        );
-    }
-
     return (
         <>
             <Dialog fullScreen
@@ -101,8 +93,11 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
                     onNewClick={handleCreateReportClick}
                 />
                 <Container maxWidth="lg" sx={{py: 3, backgroundColor: "#fbfaf6"}}>
-
-                    {reports.length === 0 ? (
+                    {loading ? (
+                        <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
+                            <CircularProgress/>
+                        </Box>
+                    ) : reports.length === 0 ? (
                         <Box
                             sx={{
                                 p: 3,

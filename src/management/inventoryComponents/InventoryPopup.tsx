@@ -3,7 +3,7 @@ import {
     InventoryRow, IUser,
     ReportTO
 } from "../types/inventoryTypes";
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/mapper";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {createReport, editReport, fetchProducts, getReport} from "../api/api";
@@ -92,9 +92,9 @@ export default function InventoryPopup({
                 if (mode === "new") {
                     const products = await fetchProducts();
                     const data = products.filter(p => p.isInventory).map(mapProductToRow);
-                    setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase());
                     if (alive) {
-                        isDataLoadedRef.current = true
+                        isDataLoadedRef.current = true;
+                        setTitle((dateFormatter() + "-" + branch.branchName + "-" + author.userName).toLowerCase());
                         setRows(data);
                     }
                 } else {
@@ -219,7 +219,6 @@ export default function InventoryPopup({
             const inventoryProducts = rows.map(rowToPayloadNumber);
             setSaving(true);
             if (mode === "new") {
-                console.log(inventoryProducts)
                 const report: IManagementResponse = await createReport({
                     title: title,
                     type: "INVENTORY",
@@ -280,7 +279,7 @@ export default function InventoryPopup({
                 <Box flex={1}/>
                 <Typography>Total: <b>{total}</b></Typography>
                 <Button variant="contained"
-                        disabled={!dirty || saving}
+                        disabled={dirty.size === 0 || saving}
                         sx={{bgcolor: "#E44B4C", "&:hover": {bgcolor: "#c93d3e"}, borderRadius: 4}}
                         onClick={handleSave}
                 >
