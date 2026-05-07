@@ -4,6 +4,7 @@ import {
     Typography,Drawer, Box, TextField
 } from "@mui/material";
 import {sendShiftEvent} from "../../api/api";
+import type { ShiftEventType } from '../../types/orderTypes';
 
 type Props = {
     isOpen: boolean;
@@ -20,7 +21,8 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
         try {
             onClose();
             const data = await sendShiftEvent({
-                type: stage,
+                // stage prop is typed as string; cast to ShiftEventType to match API contract
+                type: stage as ShiftEventType,
                 datetime: new Date().toISOString(),
                 branch_id: branchId,
                 cash_amount: parseFloat(cash),
@@ -29,8 +31,15 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
                         "Close Shift Cash Check" : null,
             });
 
-            if (data?.cashWarning) {
-                onCashWarning(data.cashWarning);
+            const cashWarning =
+                data !== null &&
+                typeof data === 'object' &&
+                'cashWarning' in data &&
+                typeof (data as Record<string, unknown>).cashWarning === 'string'
+                    ? (data as Record<string, unknown>).cashWarning as string
+                    : null;
+            if (cashWarning) {
+                onCashWarning(cashWarning);
                 setTimeout(() => onCashWarning(null), 5000);
             } else {
                 onCashWarning(null);
