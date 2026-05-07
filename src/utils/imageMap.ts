@@ -1,5 +1,6 @@
 export const imageMap: Record<string, string> = {
   "Pepperoni": "/menuImages/Pepperoni-Pizza.webp",
+    "Marinara Sauce": "/menuImages/Marinara-Sauce.webp",
   "Hot Honey Sauce": "/menuImages/Hot-Honey-Sauce.webp",
   "Cheesy Garlic Baguette": "/menuImages/Garlic-Baguette.webp",
   "Coca Cola Zero": "/menuImages/Cola-Zero.webp",
