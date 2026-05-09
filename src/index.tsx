@@ -1,0 +1,52 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import {BrowserRouter, Routes, Route, useSearchParams, Navigate} from 'react-router-dom';
+import HomePage from './HomePage';
+import AdminHomePage from "./AdminHomePage";
+import {CssBaseline} from "@mui/material";
+import {OrderStatusPage} from "./OrderStatusPage";
+import {AuthPage} from "./AuthPage";
+import {AuthProvider} from "./management/security/AuthProvider";
+import {ProtectedRoute} from "./management/security/ProtectedRoute";
+
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Root element not found');
+const root = ReactDOM.createRoot(rootElement);
+
+function MenuRoute(): JSX.Element {
+    const [searchParams] = useSearchParams();
+    const userId = searchParams.get('user');
+    const recommendedIds = searchParams.getAll('recommended_items');
+    const giftId = searchParams.get('gift');
+    return <HomePage userParam={userId} recommendedIds={recommendedIds} giftId={giftId}/>;
+}
+
+function WatchOrderStatus(): JSX.Element {
+    const [searchParams] = useSearchParams();
+    const orderId = searchParams.get('order_id');
+    console.log("[ORDER ID FROM URL]" + orderId);
+    return <OrderStatusPage orderId={orderId}></OrderStatusPage>;
+}
+
+root.render(
+    <React.StrictMode>
+        <CssBaseline/>
+        <BrowserRouter>
+            <AuthProvider>
+                <Routes>
+                    <Route path="/" element={<Navigate to="/menu"/>}/>
+                    <Route path="/menu" element={<MenuRoute/>}/>
+                    <Route path="/admin/*" element={
+                        <ProtectedRoute>
+                            <AdminHomePage/>
+                        </ProtectedRoute>
+                    }
+                    />
+                    <Route path="/order_status" element={<WatchOrderStatus/>}/>
+                    <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
+                    <Route path="/auth" element={<AuthPage/>}/>
+                </Routes>
+            </AuthProvider>
+        </BrowserRouter>
+    </React.StrictMode>
+);

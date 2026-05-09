@@ -1,6 +1,6 @@
 import {useAuth} from "./AuthProvider";
 import {Navigate, useLocation} from "react-router-dom";
-import PizzaLoader from "../../components/loadingAnimations/PizzaLoader.jsx";
+import PizzaLoader from "../../components/loadingAnimations/PizzaLoader";
 
 export function ProtectedRoute({children}: {children: JSX.Element}) {
     const { branchId, isAuthLoading } = useAuth();
