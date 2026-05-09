@@ -496,7 +496,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                 rows={(doughUsage as Record<string, unknown>).doughUsage as import('../management/types/statTypes').DoughUsageTO[]}
                             />
                             <Box sx={{mt: 1}}></Box>
-                            <ConsumptionStatistics branchId={Number(branchId)}/>
+                            <ConsumptionStatistics branchId={branchId.toString()}/>
                         </Box>
                     </>
                 )}

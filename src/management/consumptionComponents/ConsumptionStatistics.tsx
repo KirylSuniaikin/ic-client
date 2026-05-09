@@ -7,7 +7,7 @@ import {Box, Card, CardContent, InputAdornment, TextField, Typography} from "@mu
 import SearchIcon from "@mui/icons-material/Search";
 
 type Props = {
-    branchId: number
+    branchId: string
 }
 
 function parseYearMonthFromTitle(title: string): { year: number; month: number } | null {
