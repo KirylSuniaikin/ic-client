@@ -620,7 +620,6 @@ function AdminHomePage(): JSX.Element {
                         isOpen={shiftPopupOpen}
                         onClose={() => {
                             setShiftPopupOpen(false);
-                            console.log(eventStage)
                         }}
                         stage={eventStage}
                         branchId={String(selectedBranch.id)}

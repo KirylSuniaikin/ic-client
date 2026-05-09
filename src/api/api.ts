@@ -12,6 +12,7 @@ import type {
     Statistics,
     WorkloadLevel,
 } from '../types/orderTypes';
+import {OrderStatusData} from "../OrderStatusPage";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -61,7 +62,6 @@ export async function fetchBaseAppInfo(
 }
 
 export async function createOrder(order: unknown): Promise<Order> {
-    console.log(order);
     const response = await fetch(URL + "/create_order", {
         method: "POST",
         headers: {
@@ -293,7 +293,7 @@ export async function updateOrderStatus(payload: UpdateOrderStatusPayload): Prom
     }
 }
 
-export async function getOrderStatus(orderId: string): Promise<Order | { error: true; message: string }> {
+export async function getOrderStatus(orderId: string): Promise<OrderStatusData | { error: true; message: string }> {
     try {
         const response = await authFetch(URL + "/order_status?order_id=" + orderId, {
             method: "GET",

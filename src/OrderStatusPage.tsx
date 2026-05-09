@@ -7,16 +7,19 @@ import kitchenPhaseAnimation from "./components/loadingAnimations/kitchen_phase_
 import Lottie from "lottie-react";
 import readyAnimation from "./components/loadingAnimations/ready-animation.json";
 import {connectSocket, socket} from "./api/socket";
+import {StompSubscription} from "@stomp/stompjs";
 
 // The order status endpoint returns a shape with camelCase field names
 // distinct from the main Order type (which uses snake_case).
-type OrderStatusData = {
-    orderStatus?: string;
-    orderNumber?: number;
-    orderCreated?: string;
-    estimationTime?: number;
+export type OrderStatusData = {
+    id: number;
+    orderStatus: string;
+    orderNumber: number;
+    orderCreated: string;
+    estimationTime: number;
     error?: boolean;
     message?: string;
+    branchId: string;
 };
 
 interface OrderStatusPageProps {
@@ -24,7 +27,17 @@ interface OrderStatusPageProps {
 }
 
 export function OrderStatusPage({ orderId }: OrderStatusPageProps): JSX.Element {
-    const [order, setOrder] = useState<OrderStatusData>({});
+    const [order, setOrder] = useState<OrderStatusData>({
+        id: 0,
+        branchId: null,
+        error: false,
+        estimationTime: 0,
+        message: "",
+        orderCreated: "",
+        orderNumber: 0,
+        orderStatus: ""
+    });
+    const [branchId, setBranchId] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [remaining, setRemaining] = useState<number | undefined>();
 
@@ -36,7 +49,15 @@ export function OrderStatusPage({ orderId }: OrderStatusPageProps): JSX.Element 
     useEffect(() => {
         async function fetchStatus() {
             const data = await getOrderStatus(orderId ?? "");
-            setOrder(data as OrderStatusData);
+            console.log("received data")
+
+            if ("error" in data && data.error) {
+                return;
+            }
+            const orderData = data as OrderStatusData;
+
+            setOrder(orderData);
+            setBranchId(orderData.branchId);
             setLoading(false);
         }
         fetchStatus();
@@ -62,26 +83,34 @@ export function OrderStatusPage({ orderId }: OrderStatusPageProps): JSX.Element 
     }, [order]);
 
     useEffect(() => {
-        connectSocket(()=> {
-            socket.subscribe("/topic/order-status-updated", (frame) => {
-                const payload = JSON.parse(frame.body);
+        if (!branchId) return;
 
-                const eventId   = Number(payload.id ?? payload.orderId ?? payload);
-                const currentId = Number(currentIdRef.current);
-                const status = payload.status;
-                console.log("[Order status updated]", status);
-                if(eventId === currentId){
-                    console.log("[ORDER STATUS UPDATE] " + payload.id);
-                    setOrder((prev) => ({ ...prev, orderStatus: status }));
+        console.log("Updating subscription")
+
+        let subscription: StompSubscription | undefined;
+
+        connectSocket(() => {
+            subscription = socket.subscribe(
+                `/topic/${branchId}/order-status-updated`,
+                (frame) => {
+                    const payload = JSON.parse(frame.body);
+                    const eventId = Number(payload.id ?? payload.orderId ?? payload);
+                    const currentId = Number(currentIdRef.current);
+                    if (eventId === currentId) {
+                        setOrder((prev) => ({ ...prev, orderStatus: payload.status }));
+                    }
+                    socket.publish({
+                        destination: '/app/orders/ack',
+                        body: JSON.stringify({ orderId: Number(payload.id) }),
+                    });
                 }
+            );
+        });
 
-                socket.publish({
-                    destination: '/app/orders/ack',
-                    body: JSON.stringify({orderId: Number(payload.id)}),
-                });
-            })
-        })
-    }, []);
+        return () => {
+            subscription?.unsubscribe();
+        };
+    }, [branchId]);
 
     if (order?.error) {
         return (
