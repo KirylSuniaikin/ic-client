@@ -23,7 +23,6 @@ import StatisticsComponent from "./adminComponents/StatisticsComponent";
 import AdminTopbar from "./adminComponents/AdminTopbar";
 import ShiftPopup from "./components/shiftComponents/ShiftPopup";
 import useClosingAlarm from "./components/shiftComponents/hooks/useClosingAlarm";
-import { Masonry } from "@mui/lab";
 import PaymentPopup from "./adminComponents/PaymentPopup";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -38,53 +37,55 @@ import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
 import { useAuth } from "./management/security/AuthProvider";
 import { fetchAllBranches, getBranchInfo } from "./management/api/api";
+import type { Order, WorkloadLevel, ShiftEventType } from "./types/orderTypes";
+import type { IBranch } from "./management/types/inventoryTypes";
 
-function AdminHomePage() {
+function AdminHomePage(): JSX.Element {
     const [loading, setLoading] = useState(true);
-    const [orders, setOrders] = useState([]);
-    const [error, setError] = useState(null);
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false)
     const navigate = useNavigate();
-    const [activeAlertOrder, setActiveAlertOrder] = useState(null);
-    const [newlyAddedOrder, setNewlyAddedOrder] = useState(null);
+    const [activeAlertOrder, setActiveAlertOrder] = useState<Order | null>(null);
+    const [newlyAddedOrder, setNewlyAddedOrder] = useState<Order | null>(null);
     const [shiftPopupOpen, setShiftPopupOpen] = useState(false);
     const [cashPopupOpen, setCashPopupOpen] = useState(false);
-    const [cashWarning, setCashWarning] = useState(null);
+    const [cashWarning, setCashWarning] = useState<string | null>(null);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-    const [selectedOrder, setSelectedOrder] = useState(null);
-    const [newlyUpdatedOrder, setNewlyUpdatedOrder] = useState(null);
-    const [activeAlertOrderEdit, setActiveAlertOrderEdit] = useState(null);
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [newlyUpdatedOrder, setNewlyUpdatedOrder] = useState<Order | null>(null);
+    const [activeAlertOrderEdit, setActiveAlertOrderEdit] = useState<Order | null>(null);
     const [confirmingAccept, setConfirmingAccept] = useState(false);
     const [confirmingCancel, setConfirmingCancel] = useState(false);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
-    const [workloadLevel, setWorkloadLevel] = useState("IDLE");
+    const [workloadLevel, setWorkloadLevel] = useState<WorkloadLevel>("IDLE");
     const [purchasePopupOpen, setPurchasePopupOpen] = useState(false);
     const [managementPageOpen, setManagementPageOpen] = useState(false);
-    const [cashStage, setCashStage] = useState("OPEN_SHIFT_CASH_CHECK");
-    const [eventStage, setEventStage] = useState("OPEN_SHIFT_EVENT");
+    const [cashStage, setCashStage] = useState<ShiftEventType>("OPEN_SHIFT_CASH_CHECK");
+    const [eventStage, setEventStage] = useState<ShiftEventType>("OPEN_SHIFT_EVENT");
     const [shiftManagementPageOpen, setShiftManagementPageOpen] = useState(false);
     const { username, branchId, userId, role, logout } = useAuth();
-    const [availableBranches, setAvailableBranches] = useState(null);
-    const [selectedBranch, setSelectedBranch] = useState(null);
+    const [availableBranches, setAvailableBranches] = useState<IBranch[] | null>(null);
+    const [selectedBranch, setSelectedBranch] = useState<IBranch | null>(null);
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
 
-    const audioRef = useRef(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const currentUser = useMemo(() => ({
         userName: username,
         id: userId
     }), [username, userId]);
 
-    const CASH_STAGE_FLOW = useMemo(() => ({
+    const CASH_STAGE_FLOW = useMemo<Record<string, ShiftEventType>>(() => ({
         OPEN_SHIFT_CASH_CHECK: "CLOSE_SHIFT_CASH_CHECK",
         CLOSE_SHIFT_CASH_CHECK: "OPEN_SHIFT_CASH_CHECK"
     }), [])
 
-    const EVENT_STAGE_FLOW = useMemo(() => ({
+    const EVENT_STAGE_FLOW = useMemo<Record<string, ShiftEventType>>(() => ({
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "OPEN_SHIFT_EVENT"
     }), [])
@@ -94,13 +95,13 @@ function AdminHomePage() {
     useClosingAlarm(true);
 
 
-    const handleRemoveItem = (orderIdToRemove) => {
+    const handleRemoveItem = (orderIdToRemove: string): void => {
         setOrders(prev => {
             return prev.filter(o => o.id !== orderIdToRemove);
         });
     }
 
-    const handleMarkInOven = (orderId) => {
+    const handleMarkInOven = (orderId: string): void => {
         setOrders((prev) =>
             prev.map((o) =>
                 o.id === orderId ? { ...o, status: "Oven" } : o
@@ -108,11 +109,11 @@ function AdminHomePage() {
         );
     }
 
-    const onWorkloadChange = (newLevel) => {
+    const onWorkloadChange = (newLevel: WorkloadLevel): void => {
         setWorkloadLevel(newLevel);
     }
 
-    const toLongOrNull = (v) => {
+    const toLongOrNull = (v: unknown): number | null => {
         if (v == null) return null;
         if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : null;
         if (typeof v === "string") {
@@ -123,22 +124,26 @@ function AdminHomePage() {
         return null;
     };
 
-    const stopSound = () => {
+    const stopSound = (): void => {
         if (!audioRef.current) return;
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
     };
 
-    const getId = (o) => {
-        toLongOrNull(
-            (o && (o.orderNo ?? o.id ?? o.orderId)) ?? null
+    const getId = (o: unknown): number | null => {
+        const obj = o as { orderNo?: unknown; id?: unknown; orderId?: unknown } | null;
+        return toLongOrNull(
+            (obj && (obj.orderNo ?? obj.id ?? obj.orderId)) ?? null
         );
     }
 
-    const getStringId = (o) => String(o?.id ?? o?.orderId ?? o?.order_no ?? o ?? "");
+    const getStringId = (o: unknown): string => {
+        const obj = o as { id?: unknown; orderId?: unknown; order_no?: unknown } | null;
+        return String(obj?.id ?? obj?.orderId ?? obj?.order_no ?? o ?? "");
+    }
 
 
-    const handleMarkReady = (orderId) => {
+    const handleMarkReady = (orderId: string): void => {
         setOrders((prev) =>
             prev.map((o) =>
                 o.id === orderId ? { ...o, status: "Ready" } : o
@@ -155,19 +160,19 @@ function AdminHomePage() {
     }, []);
 
     const SUPPRESS_KEY = 'suppressSoundIds';
-    const normalizeId = (x) => String(x);
+    const normalizeId = (x: unknown): string => String(x);
 
-    const suppressedSoundIdsRef = useRef(new Set());
-    const stompRef = useRef(null);
+    const suppressedSoundIdsRef = useRef(new Set<string>());
+    const stompRef = useRef<typeof socket | null>(null);
 
     const EDITED_ORDER_ID_KEY = 'editedOrderId';
 
-    const getExtId = (o) =>
+    const getExtId = (o: Order | null): number | null =>
         toLongOrNull(
-            (o && (o.jahezOrderId ?? o.jahez_id ?? o.externalId ?? o.external_id)) ?? null
+            (o && (o.jahezOrderId ?? o.external_id)) ?? null
         );
 
-    async function confirmExternalOrder(order) {
+    async function confirmExternalOrder(order: Order): Promise<void> {
         const extId = getExtId(order);
         const orderId = normalizeId(order.id);
         if (!extId) {
@@ -176,23 +181,25 @@ function AdminHomePage() {
         }
         setConfirmingAccept(true);
         try {
-            await updateOrderStatus({ orderId: orderId, jahezOrderId: extId, orderStatus: "Accepted" });
+            // orderStatus "Accepted" is not in the OrderStatus union — cast to pass existing logic unchanged
+            await updateOrderStatus({ orderId: orderId, jahezOrderId: String(extId), orderStatus: "Accepted" as Order['status'], reason: null });
             setActiveAlertOrder(null);
         } catch (e) {
-            setError(e)
-            console.error("[Confirm] failed:", e?.message || e);
+            setError(String(e))
+            console.error("[Confirm] failed:", e instanceof Error ? e.message : e);
         } finally {
             setConfirmingAccept(false);
         }
     }
 
-    async function handleCancel(order) {
+    async function handleCancel(order: Order | null): Promise<void> {
+        if (!order) return;
         if (!cancelReason || !cancelReason.trim()) console.log("[Cancel] no cancel reason");
         setConfirmingCancel(true);
         try {
             await updateOrderStatus({
                 orderId: normalizeId(order.id),
-                jahezOrderId: getExtId(order),
+                jahezOrderId: getExtId(order) !== null ? String(getExtId(order)) : null,
                 orderStatus: "Cancelled",
                 reason: cancelReason.trim()
             });
@@ -201,17 +208,17 @@ function AdminHomePage() {
             setOrders(prev => prev.filter(o => normalizeId(o.id) !== normalizeId(order.id)));
             setCancelReason("");
         } catch (e) {
-            console.error("[CANCEL] failed:", e?.message || e);
+            console.error("[CANCEL] failed:", e instanceof Error ? e.message : e);
         } finally {
             setConfirmingCancel(false);
         }
     }
 
     useEffect(() => {
-        async function initBranches() {
+        async function initBranches(): Promise<void> {
             try {
                 if (branchId !== "NONE" && role !== "SUPER_MANAGER") {
-                    const branchInfo = await getBranchInfo(branchId);
+                    const branchInfo = await getBranchInfo(branchId ?? "");
                     setAvailableBranches([branchInfo]);
                     setSelectedBranch(branchInfo);
                 } else {
@@ -259,9 +266,9 @@ function AdminHomePage() {
     }, [newlyAddedOrder, audioRef, setActiveAlertOrder]);
 
     useEffect(() => {
-        let lock;
+        let lock: WakeLockSentinel | undefined;
 
-        async function req() {
+        async function req(): Promise<void> {
             try {
                 lock = await navigator.wakeLock?.request("screen");
                 document.addEventListener("visibilitychange", () => {
@@ -303,17 +310,19 @@ function AdminHomePage() {
     useEffect(() => {
         if (!selectedBranch) return
 
-        async function initialize() {
+        async function initialize(): Promise<void> {
             try {
                 setLoading(true);
-                const response = await getAllActiveOrders(selectedBranch.id);
+                // IBranch.id is numeric; String() coerces to match the string parameter
+                const response = await getAllActiveOrders(String(selectedBranch!.id));
                 try {
-                    const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
+                    const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]') as unknown[];
                     suppressedSoundIdsRef.current = new Set(arr.map(String));
                 } catch {
                     suppressedSoundIdsRef.current = new Set();
                 }
-                setOrders(response.orders);
+                // Runtime response wraps orders in an object; cast to access .orders
+                setOrders((response as unknown as { orders: Order[] }).orders ?? response);
 
                 if (stompRef.current?.active) {
                     stompRef.current.deactivate().catch(() => {
@@ -323,14 +332,14 @@ function AdminHomePage() {
                 stompRef.current = socket;
 
                 socket.onConnect = () => {
-                    console.log('🟢 STOMP connected for branch: ', selectedBranch.branchName);
+                    console.log('🟢 STOMP connected for branch: ', selectedBranch!.branchName);
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/orders`, async (frame) => {
-                        const newOrder = JSON.parse(frame.body);
-                        const id = normalizeId(newOrder?.orderId ?? newOrder?.id ?? newOrder);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/orders`, async (frame) => {
+                        const newOrder = JSON.parse(frame.body) as Order;
+                        const id = normalizeId(newOrder?.id ?? newOrder);
 
                         try {
-                            const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]');
+                            const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]') as unknown[];
                             suppressedSoundIdsRef.current = new Set(arr.map(String));
                         } catch {
                             suppressedSoundIdsRef.current = new Set();
@@ -361,8 +370,8 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/order-updates`, async (frame) => {
-                        const updatedOrder = JSON.parse(frame.body);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/order-updates`, async (frame) => {
+                        const updatedOrder = JSON.parse(frame.body) as Order;
 
                         socket.publish({
                             destination: '/app/orders/ack',
@@ -370,7 +379,7 @@ function AdminHomePage() {
                         });
 
                         try {
-                            const arr = JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) || '[]');
+                            const arr = JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) || '[]') as unknown[];
                             suppressedSoundIdsRef.current = new Set(arr.map(String));
                         } catch {
                             suppressedSoundIdsRef.current = new Set();
@@ -385,8 +394,8 @@ function AdminHomePage() {
                         setNewlyUpdatedOrder(updatedOrder);
                     });
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/order-paid`, (frame) => {
-                        const payload = JSON.parse(frame.body);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/order-paid`, (frame) => {
+                        const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                         const paidOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
 
                         setOrders(prev =>
@@ -403,8 +412,8 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/order-accepted`, (frame) => {
-                        const payload = JSON.parse(frame.body);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/order-accepted`, (frame) => {
+                        const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                         const acceptedOrderId = getStringId(payload?.orderId ?? payload?.id ?? payload);
                         stopSound()
                         setActiveAlertOrder(null);
@@ -416,8 +425,8 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/order-cancelled`, (frame) => {
-                        const payload = JSON.parse(frame.body);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/order-cancelled`, (frame) => {
+                        const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                         const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
                         console.log("[ORDER_CANCELLED] ", cancelledOrderId);
                         stopSound()
@@ -429,8 +438,8 @@ function AdminHomePage() {
                         });
                     })
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/order-status-updated`, (frame) => {
-                        const payload = JSON.parse(frame.body);
+                    socket.subscribe(`/topic/${selectedBranch!.id}/order-status-updated`, (frame) => {
+                        const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown; status?: string };
                         const orderId = getStringId(payload?.orderId ?? payload?.id);
                         const status = payload.status;
 
@@ -442,7 +451,7 @@ function AdminHomePage() {
                             setOrders(prev =>
                                 prev.map(o =>
                                     getStringId(o) === orderId
-                                        ? { ...o, status: status }
+                                        ? { ...o, status: status as Order['status'] }
                                         : o
                                 )
                             );
@@ -454,12 +463,17 @@ function AdminHomePage() {
                         });
                     });
 
-                    socket.subscribe(`/topic/${selectedBranch.id}/admin-base-info`, (frame) => {
-                        const payload = JSON.parse(frame.body);
-                        if (String(payload.branchId) === selectedBranch.id) {
+                    socket.subscribe(`/topic/${selectedBranch!.id}/admin-base-info`, (frame) => {
+                        const payload = JSON.parse(frame.body) as {
+                            branchId: unknown;
+                            level: WorkloadLevel;
+                            cashStage: string;
+                            checklistStage: string;
+                        };
+                        if (String(payload.branchId) === String(selectedBranch!.id)) {
                             onWorkloadChange(payload.level);
-                            const nextCashStage = CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage;
-                            const nextEventStage = EVENT_STAGE_FLOW[payload.checklistStage] || payload.checklistStage;
+                            const nextCashStage = (CASH_STAGE_FLOW[payload.cashStage] || payload.cashStage) as ShiftEventType;
+                            const nextEventStage = (EVENT_STAGE_FLOW[payload.checklistStage] || payload.checklistStage) as ShiftEventType;
                             setCashStage(nextCashStage);
                             setEventStage(nextEventStage);
                         }
@@ -473,16 +487,20 @@ function AdminHomePage() {
             }
         }
 
-        async function fetchAdminBaseInfo(branchId) {
+        async function fetchAdminBaseInfo(bid: string): Promise<void> {
             try {
-                const response = await getBaseAdminInfo(branchId);
+                const response = await getBaseAdminInfo(bid);
                 if (!response) {
                     setEventStage("OPEN_SHIFT_EVENT");
                     setCashStage("OPEN_SHIFT_CASH_CHECK");
                 } else {
-                    const nextCashStage = CASH_STAGE_FLOW[response.cashStage];
-                    const nextEventStage = EVENT_STAGE_FLOW[response.checklistStage];
-                    onWorkloadChange(response.level)
+                    // AdminBaseInfo has [key: string]: unknown — access dynamic keys safely
+                    const resp = response as Record<string, unknown>;
+                    const nextCashStage = (CASH_STAGE_FLOW[String(resp['cashStage'] ?? '')] ||
+                        String(resp['cashStage'] ?? '')) as ShiftEventType;
+                    const nextEventStage = (EVENT_STAGE_FLOW[String(resp['checklistStage'] ?? '')] ||
+                        String(resp['checklistStage'] ?? '')) as ShiftEventType;
+                    onWorkloadChange(resp['level'] as WorkloadLevel)
                     setCashStage(nextCashStage);
                     setEventStage(nextEventStage);
                 }
@@ -491,7 +509,7 @@ function AdminHomePage() {
             }
         }
 
-        fetchAdminBaseInfo(selectedBranch.id);
+        fetchAdminBaseInfo(String(selectedBranch.id));
         initialize();
 
         return () => {
@@ -509,17 +527,24 @@ function AdminHomePage() {
     if (error) return <div>Error: {error}</div>;
 
     const sortedOrders = [...orders].sort(
-        (a, b) => new Date(a.order_created) - new Date(b.order_created)
+        (a, b) => new Date(a.order_created).getTime() - new Date(b.order_created).getTime()
     );
 
 
-    const handlePaymentSuccess = (orderId) => {
+    const handlePaymentSuccess = (orderId: string): void => {
         setOrders((prev) =>
             prev.map((o) =>
                 o.id === orderId ? { ...o, isPaid: true } : o
             )
         );
     };
+
+    // HistoryComponent and ConfigComponent expect SelectedBranch with id: string
+    // IBranch.id is number at runtime but the API routes use it as a path segment
+    // Cast branch to the expected shape — logic is unchanged
+    const branchForComponents = selectedBranch
+        ? { ...selectedBranch, id: String(selectedBranch.id) }
+        : null;
 
     return (
 
@@ -550,7 +575,7 @@ function AdminHomePage() {
                         Cash mismatch! <br />
                         <strong>Expected: </strong>
                         <span style={{ color: "#E44B4C", fontWeight: 700 }}>
-                            {cashWarning.expected} BD
+                            {cashWarning} BD
                         </span>
                     </Alert>
                 </Box>
@@ -561,17 +586,17 @@ function AdminHomePage() {
                 order={selectedOrder}
                 onPaymentSuccess={handlePaymentSuccess}
             />
-            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && !managementPageOpen && (
+            {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen && !managementPageOpen && selectedBranch && (
 
                 <AdminTopbar
                     onOpenHistory={() => setIsHistoryOpen(true)}
                     onOpenStatistics={() => setIsStatisticsOpen(true)}
                     onOpenConfig={() => setIsConfigOpen(true)}
                     onGoToMenu={() => navigate('/menu?isAdmin=true&branchId=' + selectedBranch.id)}
-                    branchId={selectedBranch.id}
+                    branchId={String(selectedBranch.id)}
                     workloadLevel={workloadLevel}
                     onWorkloadChange={onWorkloadChange}
-                    adminId={userId}
+                    adminId={userId ?? 0}
                     onPurchaseOpen={() => setPurchasePopupOpen(true)}
                     onManagementPageOpen={() => setManagementPageOpen(true)}
                     cashStage={cashStage}
@@ -579,33 +604,36 @@ function AdminHomePage() {
                     shiftStage={eventStage}
                     onShiftStageClick={() => setShiftPopupOpen(true)}
                     onCashClick={() => setCashPopupOpen(true)}
-                    branches={availableBranches}
+                    branches={availableBranches ?? undefined}
                     onBranchChange={setSelectedBranch}
                     selectedBranch={selectedBranch}
                     onBlacklistopen={() => setBlacklistOpen(true)}
                     onCashRegisterOpen={() => setCashRegisterOpen(true)}
                     role={role}
                     logout={logout}
-                    userName={username}
+                    userName={username ?? ""}
                 />
             )}
-            <ShiftPopup
-                isOpen={shiftPopupOpen}
-                onClose={() => {
-                    setShiftPopupOpen(false);
-                    console.log(eventStage)
-                }}
-                stage={eventStage}
-                branchId={selectedBranch.id}
-                onCashWarning={setCashWarning}
-            />
-            <CashPopup
-                isOpen={cashPopupOpen}
-                onClose={() => setCashPopupOpen(false)}
-                stage={cashStage}
-                branchId={selectedBranch.id}
-                onCashWarning={setCashWarning}
-            />
+            {selectedBranch && (
+                <>
+                    <ShiftPopup
+                        isOpen={shiftPopupOpen}
+                        onClose={() => {
+                            setShiftPopupOpen(false);
+                            console.log(eventStage)
+                        }}
+                        stage={eventStage}
+                        branchId={String(selectedBranch.id)}
+                    />
+                    <CashPopup
+                        isOpen={cashPopupOpen}
+                        onClose={() => setCashPopupOpen(false)}
+                        stage={cashStage}
+                        branchId={String(selectedBranch.id)}
+                        onCashWarning={setCashWarning}
+                    />
+                </>
+            )}
             {!isHistoryOpen && !isConfigOpen && !isStatisticsOpen &&
                 <Box sx=
                     {{
@@ -630,7 +658,7 @@ function AdminHomePage() {
                             onReadyClick={(order) => {
                                 handleMarkReady(order.id)
                             }}
-
+                            onDeleteClick={() => {}}
                             onPayClick={(order) => {
                                 setSelectedOrder(order);
                                 setPaymentDialogOpen(true);
@@ -647,36 +675,34 @@ function AdminHomePage() {
                 </Box>
             }
 
-            {isHistoryOpen && (
+            {isHistoryOpen && branchForComponents && (
                 <HistoryComponent
-                    isOpen={isHistoryOpen}
-                    selectedBranch={selectedBranch}
+                    selectedBranch={branchForComponents}
                     onClose={() => setIsHistoryOpen(false)}
                 />
             )}
 
-            {isConfigOpen && (
+            {isConfigOpen && branchForComponents && (
                 <ConfigComponent
                     isOpen={isConfigOpen}
                     onClose={() => setIsConfigOpen(false)}
-                    selectedBranch={selectedBranch}
+                    selectedBranch={branchForComponents}
                 />
             )}
 
-            {isStatisticsOpen && (
+            {isStatisticsOpen && selectedBranch && (
                 <StatisticsComponent
-                    isOpen={isStatisticsOpen}
                     onClose={() => setIsStatisticsOpen(false)}
-                    branchId={selectedBranch.id}
+                    branchId={String(selectedBranch.id)}
                     role={role}
                 />
             )}
 
-            {purchasePopupOpen && (
+            {purchasePopupOpen && selectedBranch && (
                 <PurchasePopup
                     open={purchasePopupOpen}
                     onClose={() => setPurchasePopupOpen(false)}
-                    adminId={userId}
+                    adminId={userId ?? 0}
                     branch={selectedBranch}
                 />
             )}
@@ -688,7 +714,7 @@ function AdminHomePage() {
                 />
             )}
 
-            {cashRegisterOpen && (
+            {cashRegisterOpen && selectedBranch && (
                 <CashRegisterPopup
                     open={cashRegisterOpen}
                     handleClose={() => setCashRegisterOpen(false)}
@@ -700,12 +726,12 @@ function AdminHomePage() {
                 <ManagementPage
                     isOpen={managementPageOpen}
                     onClose={() => setManagementPageOpen(false)}
-                    user={currentUser}
+                    user={currentUser as { userName: string | null; id: number }}
                     branch={selectedBranch}
                 />
             )}
 
-            {shiftManagementPageOpen && (
+            {shiftManagementPageOpen && selectedBranch && (
                 <ShiftHomePage open={shiftManagementPageOpen}
                     onClose={() => setShiftManagementPageOpen(false)}
                     branch={selectedBranch}
@@ -744,10 +770,10 @@ function AdminHomePage() {
                             </Typography>
                         </Box>
 
-                        {getExtId(activeAlertOrder) && activeAlertOrder.order_type === "Jahez" ? (
+                        {getExtId(activeAlertOrder) && activeAlertOrder?.order_type === "Jahez" ? (
                             <>
                                 <Box>
-                                    {sortItemsByCategory(activeAlertOrder.items).map((item, idx) => (
+                                    {sortItemsByCategory(activeAlertOrder!.items).map((item, idx) => (
                                         <Box
                                             key={idx}
                                             sx={{ mb: 1.5, pl: 1, borderLeft: "2px solid #e0e0e0" }}
@@ -774,7 +800,7 @@ function AdminHomePage() {
                                         variant="outlined"
                                         startIcon={<CheckCircleIcon />}
                                         onClick={() => {
-                                            confirmExternalOrder(activeAlertOrder)
+                                            if (activeAlertOrder) confirmExternalOrder(activeAlertOrder)
                                             if (audioRef.current) {
                                                 audioRef.current.pause();
                                                 audioRef.current.currentTime = 0;

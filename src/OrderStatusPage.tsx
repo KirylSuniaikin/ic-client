@@ -8,10 +8,25 @@ import Lottie from "lottie-react";
 import readyAnimation from "./components/loadingAnimations/ready-animation.json";
 import {connectSocket, socket} from "./api/socket";
 
-export function OrderStatusPage({orderId}) {
-    const [order, setOrder] = useState({});
+// The order status endpoint returns a shape with camelCase field names
+// distinct from the main Order type (which uses snake_case).
+type OrderStatusData = {
+    orderStatus?: string;
+    orderNumber?: number;
+    orderCreated?: string;
+    estimationTime?: number;
+    error?: boolean;
+    message?: string;
+};
+
+interface OrderStatusPageProps {
+    orderId: string | null;
+}
+
+export function OrderStatusPage({ orderId }: OrderStatusPageProps): JSX.Element {
+    const [order, setOrder] = useState<OrderStatusData>({});
     const [loading, setLoading] = useState(true);
-    const [remaining, setRemaining] = useState();
+    const [remaining, setRemaining] = useState<number | undefined>();
 
     const currentIdRef = useRef(orderId);
     useEffect(() => {
@@ -20,8 +35,8 @@ export function OrderStatusPage({orderId}) {
 
     useEffect(() => {
         async function fetchStatus() {
-            const data = await getOrderStatus(orderId);
-            setOrder(data);
+            const data = await getOrderStatus(orderId ?? "");
+            setOrder(data as OrderStatusData);
             setLoading(false);
         }
         fetchStatus();
@@ -79,11 +94,11 @@ export function OrderStatusPage({orderId}) {
         );
     }
 
-    const minutes = Math.floor(remaining / 60);
-    const seconds = remaining % 60;
+    const minutes = Math.floor((remaining ?? 0) / 60);
+    const seconds = (remaining ?? 0) % 60;
 
     const formattedTime =
-        remaining > 0
+        remaining !== undefined && remaining > 0
             ? `${minutes}:${seconds.toString().padStart(2, "0")}`
             : "0:00";
 
@@ -136,7 +151,8 @@ export function OrderStatusPage({orderId}) {
             {order.orderStatus === "Kitchen Phase" && (
                 <Box sx={{ mt: 1 }}>
                     <Lottie
-                        animationData={kitchenPhaseAnimation}
+                        // cast is needed because JSON modules are typed as `unknown` per global.d.ts
+                        animationData={kitchenPhaseAnimation as object}
                         loop
                         autoplay
                         style={{ width: 260, height: 260 }}
@@ -146,7 +162,8 @@ export function OrderStatusPage({orderId}) {
             {order.orderStatus === "Ready" && (
                 <Box sx={{ mt: 1 }}>
                     <Lottie
-                        animationData={readyAnimation}
+                        // cast is needed because JSON modules are typed as `unknown` per global.d.ts
+                        animationData={readyAnimation as object}
                         loop={true}
                         autoplay
                         style={{ width: 260, height: 260 }}
@@ -172,7 +189,7 @@ export function OrderStatusPage({orderId}) {
             )}
 
             {order.orderStatus !== "Ready" && (
-                remaining > 0 ? (
+                remaining !== undefined && remaining > 0 ? (
                     <Typography variant="body1" sx={{mt: 1 }}>
                         Will be ready in{" "}
                         <Typography
@@ -194,7 +211,7 @@ export function OrderStatusPage({orderId}) {
                             mt: 2,
                         }}
                     >
-                        We’re working hard to get your order out as soon as possible 🙏🍕
+                        We're working hard to get your order out as soon as possible 🙏🍕
                     </Typography>
                 )
             )}

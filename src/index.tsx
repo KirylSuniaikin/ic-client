@@ -9,9 +9,11 @@ import {AuthPage} from "./AuthPage";
 import {AuthProvider} from "./management/security/AuthProvider";
 import {ProtectedRoute} from "./management/security/ProtectedRoute";
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('Root element not found');
+const root = ReactDOM.createRoot(rootElement);
 
-function MenuRoute() {
+function MenuRoute(): JSX.Element {
     const [searchParams] = useSearchParams();
     const userId = searchParams.get('user');
     const recommendedIds = searchParams.getAll('recommended_items');
@@ -19,7 +21,7 @@ function MenuRoute() {
     return <HomePage userParam={userId} recommendedIds={recommendedIds} giftId={giftId}/>;
 }
 
-function WatchOrderStatus() {
+function WatchOrderStatus(): JSX.Element {
     const [searchParams] = useSearchParams();
     const orderId = searchParams.get('order_id');
     console.log("[ORDER ID FROM URL]" + orderId);
@@ -27,9 +29,9 @@ function WatchOrderStatus() {
 }
 
 root.render(
-    <React.StrictMode sx={{scrollbarWidth: "none", "&::-webkit-scrollbar": {display: "none"}}}>
+    <React.StrictMode>
         <CssBaseline/>
-        <BrowserRouter sx={{scrollbarWidth: "none", "&::-webkit-scrollbar": {display: "none"}}}>
+        <BrowserRouter>
             <AuthProvider>
                 <Routes>
                     <Route path="/" element={<Navigate to="/menu"/>}/>

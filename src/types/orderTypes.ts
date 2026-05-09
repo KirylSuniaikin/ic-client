@@ -127,3 +127,16 @@ export type UpdateOrderStatusPayload = {
 };
 
 export type Statistics = Record<string, unknown>;
+
+export type CreateOrderRequest = {
+  items: import('../management/types/menuTypes').CartItem[];
+  tel: string;
+  customer_name: string | null;
+  delivery_method: string | null;
+  payment_type: string | null;
+  address: string;
+  notes: string;
+  order_type: string;
+  branch_id: string;
+  amount_paid: number;
+};

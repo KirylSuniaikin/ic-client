@@ -10,6 +10,10 @@ type MenuGroup = {
 };
 
 export function groupItemsByName(data: MenuItem[]): Group[] {
+    if (!data || !Array.isArray(data)) {
+        return [];
+    }
+
     const map = new Map<string, MenuGroup>();
 
     data.forEach(item => {
@@ -30,6 +34,10 @@ export function groupItemsByName(data: MenuItem[]): Group[] {
 
 
 export function groupAvailableItemsByName(data: MenuItem[]): Group[] {
+    if (!data || !Array.isArray(data)) {
+        return [];
+    }
+
     const map = new Map<string, MenuGroup>();
 
     data.forEach(item => {

@@ -34,11 +34,21 @@ import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
 import * as React from "react";
 import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
 import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
+import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from './management/types/menuTypes';
+import type { BaseAppInfoResponse } from './types/orderTypes';
+import type { IBranch } from './management/types/inventoryTypes';
 
+interface HomePageProps {
+    userParam: string | null;
+    recommendedIds: string[];
+    giftId: string | null;
+}
+
+type PopupGroup = Group | MenuItem | MenuItem[] | null;
 
 const brandRed = "#E44B4C";
 
-function parseItemNote(desc) {
+function parseItemNoteOuter(desc: string): string {
     let note = "";
 
     const hasParentheses = /\(.*?\)/.test(desc);
@@ -60,21 +70,31 @@ function parseItemNote(desc) {
     return note.trim();
 }
 
-function parseExtraIngr(desc) {
-    const extras = [];
+function parseExtraIngrOuter(desc: string): string[] {
+    const extras: string[] = [];
     const regex = /\((.*?)\)/g;
     let match;
     while ((match = regex.exec(desc)) !== null) {
         const ingr = match[1]
             .split("+")
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0);
         extras.push(...ingr);
     }
     return extras;
 }
 
-function normalizeComboItem(ci) {
+function normalizeComboItem(ci: Partial<CartItem> & { id?: number; description?: string }): {
+    id: number | undefined;
+    name: string;
+    category: string;
+    size: string;
+    quantity: number;
+    isGarlicCrust: boolean;
+    isThinDough: boolean;
+    note: string;
+    extraIngredients: string[];
+} {
     return {
         id: ci?.id,
         name: ci?.name ?? "",
@@ -83,12 +103,12 @@ function normalizeComboItem(ci) {
         quantity: ci?.quantity ?? 1,
         isGarlicCrust: !!ci?.isGarlicCrust,
         isThinDough: !!ci?.isThinDough,
-        note: parseItemNote(ci?.description),
-        extraIngredients: parseExtraIngr(ci?.description)
+        note: parseItemNoteOuter(ci?.description ?? ""),
+        extraIngredients: parseExtraIngrOuter(ci?.description ?? "")
     };
 }
 
-function isCustomerBanned(blackList, phoneNumber) {
+function isCustomerBanned(blackList: Array<{ telephoneNo: string }>, phoneNumber: string): boolean {
     for (let i = 0; i < blackList.length; i++) {
         if (blackList[i].telephoneNo === phoneNumber) {
             return true;
@@ -97,11 +117,11 @@ function isCustomerBanned(blackList, phoneNumber) {
     return false;
 }
 
-function HomePage({userParam, recommendedIds, giftId}) {
-    const [menuData, setMenuData] = useState([]);
-    const [extraIngredients, setExtraIngredients] = useState([]);
-    const [toppings, setToppings] = useState([]);
-    const [cartItems, setCartItems] = useState([]);
+function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Element {
+    const [menuData, setMenuData] = useState<MenuItem[]>([]);
+    const [extraIngredients, setExtraIngredients] = useState<ExtraIngr[]>([]);
+    const [toppings, setToppings] = useState<Topping[]>([]);
+    const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [cartOpen, setCartOpen] = useState(false);
     const [username, setUsername] = useState("");
     const [phone, setPhone] = useState("");
@@ -111,18 +131,18 @@ function HomePage({userParam, recommendedIds, giftId}) {
     const [pizzaComboPopupOpen, setPizzaComboPopupOpen] = useState(false);
     const [detroitComboPopupOpen, setDetroitComboPopupOpen] = useState(false);
     const [genericPopupOpen, setGenericPopupOpen] = useState(false);
-    const [popupGroup, setPopupGroup] = useState(null);
-    const [editItem, setEditItem] = useState(null);
+    const [popupGroup, setPopupGroup] = useState<PopupGroup>(null);
+    const [editItem, setEditItem] = useState<CartItem | null>(null);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [editMode, setEditMode] = useState(false)
     const [closedPopup, setClosedPopupOpen] = useState(false);
     const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
     const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
 
-    const [unavailableItems, setUnavailableItems] = useState([]);
+    const [unavailableItems, setUnavailableItems] = useState<string[]>([]);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -138,18 +158,18 @@ function HomePage({userParam, recommendedIds, giftId}) {
     const finalCrossSell = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"]
 
     const [upsellPopupOpen, setUpsellPopupOpen] = useState(false);
-    const [upsellItem, setUpsellItem] = useState(null);
-    const [upsellType, setUpsellType] = useState(null);
-    const [pendingItems, setPendingItems] = useState(null);
-    const [comboOfferPhoto, setComboOfferPhoto] = useState(null);
-    const [comboPrice, setComboPrice] = useState(null);
+    const [upsellItem, setUpsellItem] = useState<CartItem | null>(null);
+    const [upsellType, setUpsellType] = useState<string | null>(null);
+    const [pendingItems, setPendingItems] = useState<CartItem | CartItem[] | null>(null);
+    const [comboOfferPhoto, setComboOfferPhoto] = useState<string | null>(null);
+    const [comboPrice, setComboPrice] = useState<number | null>(null);
     const [pickUpReminder, setPickUpReminder] = useState(false);
-    const [pendingOrder, setPendingOrder] = useState(null);
+    const [pendingOrder, setPendingOrder] = useState<unknown>(null);
     const [unavailablePopupOpen, setUnavailablePopupOpen] = useState(false);
     const [baguettePizzaPopupOpen,setBaguettePizzaPopupOpen]= useState(false);
 
-    const [branchSelector, setBranchSelector] = useState(null);
-    const [availableBranches, setAvailableBranches] = useState([]);
+    const [branchSelector, setBranchSelector] = useState<boolean | null>(null);
+    const [availableBranches, setAvailableBranches] = useState<IBranch[]>([]);
     const BRANCH_KEY = 'kiosk_branch_data';
     const [blacklistSnackBarOpen, setBlacklistSnackBarOpen] = useState(false);
 
@@ -159,8 +179,10 @@ function HomePage({userParam, recommendedIds, giftId}) {
     const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
 
-    const bestRef = useRef(null);
+    const bestRef = useRef<HTMLDivElement | null>(null);
 
+    // groupItemsByCategory expects GroupWithMeta[] (has category + is_best_seller);
+    // groupAvailableItemsByName returns Group[] typed but runtime objects carry those fields
     const {
         bestsellers,
         brickPizzas,
@@ -171,13 +193,13 @@ function HomePage({userParam, recommendedIds, giftId}) {
         sauces,
         ramadan,
         pizzaBaguettes
-    } = groupItemsByCategory(groupAvailableItemsByName(menuData));
+    } = groupItemsByCategory(groupAvailableItemsByName(menuData) as Parameters<typeof groupItemsByCategory>[0]);
 
-    const handleDiscountChange = (item, newDiscount) => {
+    const handleDiscountChange = (item: CartItem, newDiscount: number): void => {
         const updatedItems = cartItems.map((i) =>
             i === item ? {...i, discount: newDiscount} : i
         );
-        setCartItems(updatedItems);
+        setCartItems(updatedItems as CartItem[]);
     };
     const FB_PIXEL_ID = '1717861405707714';
     const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
@@ -185,64 +207,82 @@ function HomePage({userParam, recommendedIds, giftId}) {
     useEffect(() => {
         if (!window.fbq) {
             (function (f, b, e, v, n, t, s) {
-                if (f.fbq) return;
-                n = f.fbq = function () {
-                    n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+                // Facebook Pixel SDK snippet — uses dynamic property assignment on window
+                if ((f as Record<string, unknown>)['fbq']) return;
+                n = (f as Record<string, unknown>)['fbq'] = function () {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (n as any).callMethod ? (n as any).callMethod.apply(n, arguments) : (n as any).queue.push(arguments);
                 };
-                if (!f._fbq) f._fbq = n;
-                n.push = n;
-                n.loaded = !0;
-                n.version = '2.0';
-                n.queue = [];
-                t = b.createElement(e);
-                t.async = !0;
-                t.src = v;
-                s = b.getElementsByTagName(e)[0];
-                s.parentNode.insertBefore(t, s);
-            })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+                if (!(f as Record<string, unknown>)['_fbq']) (f as Record<string, unknown>)['_fbq'] = n;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (n as any).push = n;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (n as any).loaded = !0;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (n as any).version = '2.0';
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (n as any).queue = [];
+                t = (b as Document).createElement(e as string) as unknown as typeof t;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (t as any).async = !0;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (t as any).src = v;
+                s = (b as Document).getElementsByTagName(e as string)[0];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (s as any).parentNode.insertBefore(t, s);
+            })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js', undefined, undefined, undefined);
         }
 
-        window.fbq('init', FB_PIXEL_ID);
-        window.fbq('track', 'PageView');
+        window.fbq?.('init', FB_PIXEL_ID);
+        window.fbq?.('track', 'PageView');
 
         if (!window.ttq) {
             (function (w, d, t) {
-                w.TiktokAnalyticsObject = t;
-                const ttq = w[t] = w[t] || [];
-                ttq.methods = [
+                // TikTok Pixel SDK snippet — uses dynamic method assignment
+                (w as Record<string, unknown>)['TiktokAnalyticsObject'] = t;
+                const ttq = (w as Record<string, unknown>)[t] = (w as Record<string, unknown>)[t] || [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (ttq as any).methods = [
                     "page", "track", "identify", "instances", "debug", "on", "off",
                     "once", "ready", "alias", "group", "enableCookie", "disableCookie",
                     "holdConsent", "revokeConsent", "grantConsent"
                 ];
-                ttq.setAndDefer = function (t, e) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (ttq as any).setAndDefer = function (t: Record<string, unknown>, e: string) {
                     t[e] = function () {
-                        t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (t as any).push([e].concat(Array.prototype.slice.call(arguments, 0)));
                     };
                 };
-                for (let i = 0; i < ttq.methods.length; i++) {
-                    ttq.setAndDefer(ttq, ttq.methods[i]);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (let i = 0; i < (ttq as any).methods.length; i++) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (ttq as any).setAndDefer(ttq, (ttq as any).methods[i]);
 
                 }
 
-                ttq.load = function (e, n) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (ttq as any).load = function (e: string, n: unknown) {
                     const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
-                    const script = d.createElement("script");
+                    const script = (d as Document).createElement("script");
                     script.type = "text/javascript";
                     script.async = true;
                     script.src = `${r}?sdkid=${e}&lib=${t}`;
-                    const f = d.getElementsByTagName("script")[0];
-                    f.parentNode.insertBefore(script, f);
+                    const f = (d as Document).getElementsByTagName("script")[0];
+                    f.parentNode?.insertBefore(script, f);
                 };
 
-                ttq.load(TT_PIXEL_ID);
-                ttq.page();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (ttq as any).load(TT_PIXEL_ID);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (ttq as any).page();
             })(window, document, 'ttq');
         }
 
-        async function load() {
+        async function load(): Promise<void> {
             try {
                 setLoading(true);
-                const baseInfo = await fetchBaseAppInfo(userParam);
+                const baseInfo = await fetchBaseAppInfo(userParam, '2e8c35f7-d75e-4442-b496-cbb929842c10');
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr)
                 setToppings(baseInfo.toppings)
@@ -260,21 +300,21 @@ function HomePage({userParam, recommendedIds, giftId}) {
                         console.log("Kiosk initialized for branch:", JSON.parse(savedBranch).branchName);
                     }
                 }
-                let productsToAdd = []
-                let giftItem = null
+                let productsToAdd: MenuItem[] = []
+                let giftItem: MenuItem | null | undefined = null
 
                 if (recommendedIds && recommendedIds.length > 0) {
-                    const targetIds = recommendedIds[0].split(",").map(id => parseInt(id, 10));
+                    const targetIds = recommendedIds[0].split(",").map((id: string) => parseInt(id, 10));
 
-                    productsToAdd = Object.values(baseInfo.menu).filter(item => targetIds.includes(item.id));
+                    productsToAdd = Object.values(baseInfo.menu).filter((item: MenuItem) => targetIds.includes(item.id));
                 }
 
                 if (giftId) {
                     const targetGiftId = parseInt(giftId, 10)
-                    giftItem = Object.values(baseInfo.menu).find(item => item.id === targetGiftId);
+                    giftItem = Object.values(baseInfo.menu).find((item: MenuItem) => item.id === targetGiftId);
                 }
 
-                addWhatsappItems(productsToAdd, giftItem);
+                addWhatsappItems(productsToAdd, giftItem ?? null);
 
                 if (searchParams.has('recommended_items') || searchParams.has('gift')) {
                     searchParams.delete('recommended_items');
@@ -290,7 +330,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     setPhone(baseInfo.userInfo.phone);
                 }
             } catch (err) {
-                setError(err.message);
+                setError((err as Error).message);
             } finally {
                 setLoading(false);
             }
@@ -302,7 +342,16 @@ function HomePage({userParam, recommendedIds, giftId}) {
             const rawOrder = localStorage.getItem("orderToEdit");
             if (rawOrder) {
                 try {
-                    const parsed = JSON.parse(rawOrder);
+                    const parsed = JSON.parse(rawOrder) as {
+                        items: Array<{
+                            discountAmount?: number;
+                            amount: number;
+                            quantity: number;
+                            description: string;
+                            comboItemTO?: Array<Partial<CartItem> & { description?: string }>;
+                            [key: string]: unknown;
+                        }>;
+                    };
                     if (Array.isArray(parsed.items)) {
                         const normalized = parsed.items.map(item => {
                             const discount = item.discountAmount && item.quantity
@@ -313,21 +362,22 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
                             return {
                                 ...item,
-                                photo: imageMap[item.name] || item.photo,
+                                photo: imageMap[(item.name as string)] || item.photo,
                                 quantity: item.quantity || 1,
                                 discount,
                                 amount: originalAmount,
-                                note: parseItemNote(item.description),
-                                extraIngredients: parseExtraIngr(item.description),
+                                note: parseItemNoteOuter(item.description),
+                                extraIngredients: parseExtraIngrOuter(item.description),
                                 comboItems: Array.isArray(item.comboItemTO)
-                                    ? item.comboItemTO.map(ci => ({
+                                    ? item.comboItemTO.map((ci: Partial<CartItem> & { description?: string }) => ({
                                         ...normalizeComboItem(ci),
-                                        photo: imageMap[ci.name] || ci.photo
+                                        photo: imageMap[(ci.name as string)] || (ci as Record<string, unknown>)['photo']
                                     }))
                                     : []
                             };
                         });
-                        setCartItems(normalized);
+                        // normalized items are partial CartItem shapes from localStorage; cast via unknown
+                        setCartItems(normalized as unknown as CartItem[]);
                     }
                 } catch (e) {
                     console.error("Error:", e);
@@ -338,7 +388,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
     }, []);
 
 
-    function parseItemNote(desc) {
+    function parseItemNote(desc: string): string {
         let note = "";
 
         const hasParentheses = /\(.*?\)/.test(desc);
@@ -361,15 +411,15 @@ function HomePage({userParam, recommendedIds, giftId}) {
         return note.trim();
     }
 
-    function parseExtraIngr(desc) {
-        const extras = [];
+    function parseExtraIngr(desc: string): string[] {
+        const extras: string[] = [];
         const regex = /\((.*?)\)/g;
         let match;
         while ((match = regex.exec(desc)) !== null) {
             const ingr = match[1]
                 .split("+")
-                .map(s => s.trim())
-                .filter(s => s.length > 0);
+                .map((s: string) => s.trim())
+                .filter((s: string) => s.length > 0);
             extras.push(...ingr);
         }
         console.log(extras)
@@ -379,7 +429,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
     const totalPrice = cartItems
         ? cartItems.reduce((acc, i) => {
-            const discount = i.discount || 0;
+            const discount = (i as CartItem & { discount?: number }).discount || 0;
             const discountedPrice = i.amount * (1 - discount / 100);
             return acc + discountedPrice * i.quantity;
         }, 0).toFixed(2)
@@ -394,46 +444,46 @@ function HomePage({userParam, recommendedIds, giftId}) {
     if (loading) return <PizzaLoader/>;
     if (error) return <div>Error: {error}</div>;
 
-    function getGeneralCrossSellItems() {
+    function getGeneralCrossSellItems(): MenuItem[] {
         return generalCrossSell
-            .map(name => menuData.find(item => item.name === name && item.available))
-            .filter(Boolean);
+            .map((name: string) => menuData.find((item: MenuItem) => item.name === name && item.available))
+            .filter(Boolean) as MenuItem[];
     }
 
-    function getFinalCrossSell() {
+    function getFinalCrossSell(): MenuItem[] {
         return finalCrossSell
-            .map(name => menuData.find(item => item.name === name && item.available))
-            .filter(Boolean);
+            .map((name: string) => menuData.find((item: MenuItem) => item.name === name && item.available))
+            .filter(Boolean) as MenuItem[];
     }
 
-    function openPizzaEditPopUp(item) {
+    function openPizzaEditPopUp(item: CartItem): void {
         setEditItem(item)
         setEditMode(true)
         setPizzaPopupOpen(true)
-        setPopupGroup(pizzas.find(group =>
-            group.items.some(i => i.name === item.name)
-        ))
+        setPopupGroup(pizzas.find((group: Group) =>
+            group.items.some((i: MenuItem) => i.name === item.name)
+        ) ?? null)
     }
 
-    function openPizzaComboEditPopup(item) {
+    function openPizzaComboEditPopup(item: CartItem): void {
         setEditItem(item)
         setEditMode(true)
-        const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+        const comboVariants = menuData.filter((m: MenuItem) => m.name === item.name && m.category === "Combo Deals");
         setPopupGroup(comboVariants);
         setPizzaComboPopupOpen(true)
     }
 
-    function openDetroitComboEditPopup(item) {
+    function openDetroitComboEditPopup(item: CartItem): void {
         setEditItem(item)
         setEditMode(true)
-        const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+        const comboVariants = menuData.filter((m: MenuItem) => m.name === item.name && m.category === "Combo Deals");
         setPopupGroup(comboVariants);
         setDetroitComboPopupOpen(true)
     }
 
-    function getSameItems(item_name) {
-        const sameItems = [];
-        menuData.forEach(item => {
+    function getSameItems(item_name: string): MenuItem[] {
+        const sameItems: MenuItem[] = [];
+        menuData.forEach((item: MenuItem) => {
             if (item.name === item_name) {
                 sameItems.push(item);
             }
@@ -441,8 +491,11 @@ function HomePage({userParam, recommendedIds, giftId}) {
         return sameItems;
     }
 
-    function addWhatsappItems(productsToAdd, giftProduct){
-        const {availableItems, unavailableItems} = productsToAdd.reduce((acc, item) => {
+    function addWhatsappItems(productsToAdd: MenuItem[], giftProduct: MenuItem | null): void {
+        const {availableItems, unavailableItems: unavItems} = productsToAdd.reduce<{
+            availableItems: MenuItem[];
+            unavailableItems: MenuItem[];
+        }>((acc, item) => {
             if(item.available){
                 acc.availableItems.push(item);
             }
@@ -454,19 +507,19 @@ function HomePage({userParam, recommendedIds, giftId}) {
         {availableItems: [], unavailableItems: []}
         );
 
-        let validGift = null;
+        let validGift: MenuItem | null = null;
         if(giftProduct) {
             if (!giftProduct.available) {
-                unavailableItems.push(giftProduct);
+                unavItems.push(giftProduct);
             } else {
                 validGift = giftProduct
             }
         }
 
-        const finalCartItems = [];
+        const finalCartItems: CartItem[] = [];
 
         if (availableItems.length > 0) {
-            const cartItems = availableItems.map(item => ({
+            const items = availableItems.map((item: MenuItem) => ({
                 id: item.id,
                 name: item.name,
                 size: item.size ? item.size : "",
@@ -476,10 +529,12 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 quantity: 1,
             }));
 
-            finalCartItems.push(...cartItems);
+            // WhatsApp items are partial CartItem shapes; cast via unknown since they don't have all fields
+            finalCartItems.push(...items as unknown as CartItem[]);
         }
 
         if (validGift !== null) {
+            // gift item is a partial CartItem shape; cast via unknown since not all fields are present
             finalCartItems.push({
                 id: validGift.id,
                 name: validGift.name,
@@ -489,49 +544,49 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 photo: validGift.photo,
                 amount: validGift.price,
                 discount: 100,
-                // price: validGift.price,
-            });
+            } as unknown as CartItem);
         }
 
         if(finalCartItems.length > 0) {
             handleAddToCart(finalCartItems, true);
         }
 
-        if (unavailableItems.length > 0) {
-            setUnavailableItems(unavailableItems.map(item => (item.name)));
+        if (unavItems.length > 0) {
+            setUnavailableItems(unavItems.map((item: MenuItem) => (item.name)));
             setUnavailablePopupOpen(true)
         }
     }
 
-    const handleOpenCart = () => {
+    const handleOpenCart = (): void => {
         if (!isWithinWorkingHours() && !isAdmin) {
             setClosedPopupOpen(true);
         } else {
             setCartOpen(true);
         }
     };
-    const handleCloseCart = () => setCartOpen(false);
+    const handleCloseCart = (): void => setCartOpen(false);
 
-    const handleOpenPopup = (item) => {
-        if (item.category === "Pizzas") {
+    const handleOpenPopup = (item: Group | MenuItem, _menuItem?: MenuItem): void => {
+        const menuItem = item as MenuItem;
+        if (menuItem.category === "Pizzas") {
             setPopupGroup(item);
             setPizzaPopupOpen(true);
-        } else if (item.category === "Combo Deals") {
-            if (item.name === "Pizza Combo") {
-                const comboVariants = menuData.filter(m => m.name === item.name && m.category === "Combo Deals");
+        } else if (menuItem.category === "Combo Deals") {
+            if (menuItem.name === "Pizza Combo") {
+                const comboVariants = menuData.filter((m: MenuItem) => m.name === menuItem.name && m.category === "Combo Deals");
                 setPopupGroup(comboVariants);
                 setPizzaComboPopupOpen(true);
-            } else if (item.name === "Detroit Combo") {
+            } else if (menuItem.name === "Detroit Combo") {
 
                 setPopupGroup(item);
                 setDetroitComboPopupOpen(true);
             }
         }
-        else if (item.category === "Ramadan") {
+        else if (menuItem.category === "Ramadan") {
             setPopupGroup(item);
             setRamadanPopupOpen(true);
         }
-        else if (item.category === "Baguette Pizzas") {
+        else if (menuItem.category === "Baguette Pizzas") {
             setPopupGroup(item);
             setBaguettePizzaPopupOpen(true);
         }
@@ -541,46 +596,46 @@ function HomePage({userParam, recommendedIds, giftId}) {
         }
     };
 
-    function handleClosePizzaPopup() {
+    function handleClosePizzaPopup(): void {
         setPizzaPopupOpen(false);
         setPopupGroup(null);
         setEditMode(false);
     }
 
-    function handleClosePizzaComboPopup() {
+    function handleClosePizzaComboPopup(): void {
         setPizzaComboPopupOpen(false);
         setPopupGroup(null);
     }
 
-    const handleCloseDetroitComboPopup = () => {
+    const handleCloseDetroitComboPopup = (): void => {
         setDetroitComboPopupOpen(false)
         setPopupGroup(null)
     }
 
-    function handleCloseComboPopup() {
+    function handleCloseComboPopup(): void {
         setComboPopupOpen(false);
         setPopupGroup(null);
     }
 
-    const handleCloseGenericPopup = () => {
+    const handleCloseGenericPopup = (): void => {
         setGenericPopupOpen(false);
         setPopupGroup(null);
     }
 
-    const handleClosePhonePopup = () => {
+    const handleClosePhonePopup = (): void => {
         setPhonePopupOpen(false);
     }
 
-    function handleAddToCart(items, upsellDeclined) {
+    function handleAddToCart(items: CartItem | CartItem[], upsellDeclined?: boolean): void {
         const arr = Array.isArray(items) ? items : [items];
 
-        const pizzaItem = arr.find(it => it.category === "Pizzas");
-        const brickItem = arr.find(it => it.category === "Brick Pizzas");
+        const pizzaItem = arr.find((it: CartItem) => it.category === "Pizzas");
+        const brickItem = arr.find((it: CartItem) => it.category === "Brick Pizzas");
 
         if (pizzaItem && !upsellDeclined) {
-            const combo = menuData.find(it => it.name === "Pizza Combo" && it.size === pizzaItem.size)
-            setComboOfferPhoto(combo.photo)
-            setComboPrice(combo.price)
+            const combo = menuData.find((it: MenuItem) => it.name === "Pizza Combo" && it.size === pizzaItem.size)
+            setComboOfferPhoto(combo?.photo ?? null)
+            setComboPrice(combo?.price ?? null)
             setPendingItems(items)
             setUpsellItem(pizzaItem);
             setUpsellType("pizza");
@@ -589,9 +644,9 @@ function HomePage({userParam, recommendedIds, giftId}) {
         }
 
         if (brickItem && !upsellDeclined) {
-            const combo = menuData.find(it => it.name === "Detroit Combo")
-            setComboOfferPhoto(combo.photo)
-            setComboPrice(combo.price)
+            const combo = menuData.find((it: MenuItem) => it.name === "Detroit Combo")
+            setComboOfferPhoto(combo?.photo ?? null)
+            setComboPrice(combo?.price ?? null)
             setPendingItems(items)
             setUpsellItem(brickItem);
             setUpsellType("brick");
@@ -602,10 +657,11 @@ function HomePage({userParam, recommendedIds, giftId}) {
         setCartItems(prev => {
             const updated = [...prev];
 
-            arr.forEach(item => {
-                const idx = updated.findIndex(it =>
+            arr.forEach((item: CartItem) => {
+                const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
+                const idx = updated.findIndex((it: CartItem) =>
                     it.name === item.name &&
-                    (it.discount || 0) === (item.discount || 0)
+                    ((it as CartItem & { discount?: number }).discount || 0) === (typedItem.discount || 0)
                 );
 
                 if (idx === -1) {
@@ -613,7 +669,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     return;
                 }
 
-                const existing = updated[idx];
+                const existing = updated[idx] as CartItem & { discount?: number; comboItems?: CartItem[] };
 
                 if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
                     updated[idx] = {
@@ -626,9 +682,9 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 if (item.category === "Combo Deals" && item.name === "Detroit Combo") {
                     console.log("[LOG]Started to compare Detroit Combo");
                     const sameComboItems =
-                        existing.comboItems[0].name === item.comboItems[0].name &&
-                        existing.comboItems[1].name === item.comboItems[1].name &&
-                        existing.comboItems[2].name === item.comboItems[2].name;
+                        existing.comboItems?.[0]?.name === typedItem.comboItems?.[0]?.name &&
+                        existing.comboItems?.[1]?.name === typedItem.comboItems?.[1]?.name &&
+                        existing.comboItems?.[2]?.name === typedItem.comboItems?.[2]?.name;
 
                     if (sameComboItems) {
                         updated[idx] = {
@@ -648,11 +704,11 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     }
 
                     const sameComboItems =
-                        existing.comboItems[0].name === item.comboItems[0].name &&
-                        existing.comboItems[0].isGarlicCrust === item.comboItems[0].isGarlicCrust &&
-                        existing.comboItems[0].isThinDough === item.comboItems[0].isThinDough &&
-                        existing.comboItems[1].name === item.comboItems[1].name &&
-                        existing.comboItems[2].name === item.comboItems[2].name;
+                        existing.comboItems?.[0]?.name === typedItem.comboItems?.[0]?.name &&
+                        (existing.comboItems?.[0] as CartItem & { isGarlicCrust?: boolean })?.isGarlicCrust === (typedItem.comboItems?.[0] as CartItem & { isGarlicCrust?: boolean })?.isGarlicCrust &&
+                        (existing.comboItems?.[0] as CartItem & { isThinDough?: boolean })?.isThinDough === (typedItem.comboItems?.[0] as CartItem & { isThinDough?: boolean })?.isThinDough &&
+                        existing.comboItems?.[1]?.name === typedItem.comboItems?.[1]?.name &&
+                        existing.comboItems?.[2]?.name === typedItem.comboItems?.[2]?.name;
 
                     if (sameComboItems) {
                         updated[idx] = {
@@ -666,11 +722,13 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 }
 
                 if (item.category === "Pizzas") {
+                    const typedExisting = existing as CartItem & { isThinDough?: boolean; isGarlicCrust?: boolean };
+                    const typedNew = item as CartItem & { isThinDough?: boolean; isGarlicCrust?: boolean };
                     const baseChanged =
                         existing.description !== item.description ||
                         existing.size !== item.size ||
-                        existing.isThinDough !== item.isThinDough ||
-                        existing.isGarlicCrust !== item.isGarlicCrust;
+                        typedExisting.isThinDough !== typedNew.isThinDough ||
+                        typedExisting.isGarlicCrust !== typedNew.isGarlicCrust;
 
                     if (baseChanged) {
                         updated.push({...item});
@@ -693,8 +751,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
                         return;
                     }
 
-                    const allExtrasMatch = existingExtras.every(ingredient =>
-                        newExtras.some(it => it.name === ingredient.name)
+                    const allExtrasMatch = existingExtras.every((ingredient: ExtraIngr) =>
+                        newExtras.some((it: ExtraIngr) => it.name === ingredient.name)
                     );
 
                     if (!allExtrasMatch) {
@@ -720,18 +778,19 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
         handleClosePizzaPopup();
         handleCloseComboPopup();
-        if (items[0]) {
-            window.ttq.track('AddToCart', {
-                content_id: items[0].name,
+        const firstItem = arr[0] as CartItem & { price?: number; id?: number };
+        if (firstItem) {
+            window.ttq?.track('AddToCart', {
+                content_id: firstItem.name,
                 content_type: 'product',
-                value: items[0].price,
+                value: firstItem.price,
                 currency: 'BHD'
             });
-            window.fbq('track', 'AddToCart', {
-                content_ids: [items[0].id ?? items[0].name],
-                content_name: items[0].name,
+            window.fbq?.('track', 'AddToCart', {
+                content_ids: [firstItem.id ?? firstItem.name],
+                content_name: firstItem.name,
                 content_type: 'product',
-                value: items[0].price,
+                value: firstItem.price,
                 currency: 'BHD',
             });
         }
@@ -739,81 +798,84 @@ function HomePage({userParam, recommendedIds, giftId}) {
         setPendingItems(null);
     }
 
-    function removeFromCart(name, amount, quantity) {
+    function removeFromCart(name: string, amount: number, quantity: number): void {
         setCartItems(prev =>
-            prev.filter(item =>
+            prev.filter((item: CartItem) =>
                 !(item.name === name && item.amount === amount && item.quantity === quantity)
             )
         );
     }
 
-    function handleRemoveItemFromCart(item) {
-        setCartItems(prev => prev.filter(it => it !== item));
+    function handleRemoveItemFromCart(item: CartItem): void {
+        setCartItems(prev => prev.filter((it: CartItem) => it !== item));
     }
 
-    function handleChangeQuantity(item, newQty) {
+    function handleChangeQuantity(item: CartItem, newQty: number): void {
         if (newQty < 1) return;
 
-        if (!isAdmin && item.discount === 100 && newQty > item.quantity) {
+        const typedItem = item as CartItem & { discount?: number };
+        if (!isAdmin && typedItem.discount === 100 && newQty > item.quantity) {
             console.warn("Nice try! It's a gift order u cant encrease it's amount!");
             return;
         }
 
         setCartItems(prev =>
-            prev.map(it => (it === item ? {...it, quantity: newQty} : it))
+            prev.map((it: CartItem) => (it === item ? {...it, quantity: newQty} : it))
         );
     }
 
-    function handleChangeSize(item, newSize) {
+    function handleChangeSize(item: CartItem, newSize: string): void {
         const sameItems = getSameItems(item.name)
-        const matched = sameItems ? sameItems.find(it => it.size === newSize) : null;
-        const newBasePrice = matched ? matched.price : (item.sizes?.[newSize] || item.price || 0);
-        const newId = matched ? matched.id : item.id;
+        const matched = sameItems ? sameItems.find((it: MenuItem) => it.size === newSize) : null;
+        const typedItem = item as CartItem & { sizes?: Record<string, number>; price?: number; id?: number };
+        const newBasePrice = matched ? matched.price : (typedItem.sizes?.[newSize] || typedItem.price || 0);
+        const newId = matched ? matched.id : typedItem.id;
         setCartItems(prev =>
-            prev.map(it => (it === item ? {...it, id: newId, amount: newBasePrice, size: newSize} : it))
+            prev.map((it: CartItem) => (it === item ? {...it, id: newId, amount: newBasePrice, size: newSize} : it))
         );
     }
 
-    const handleCloseAdminOrderDetailsPopup = () => {
+    const handleCloseAdminOrderDetailsPopup = (): void => {
         setAdminOrderDetailsPopUpOpen(false);
     }
 
 
     const buildOrderTO = (
-        orderToEdit,
-        tel,
-        customer_name,
-        delivery_method,
-        payment_type,
-        items,
-        notes
-    ) => {
+        orderToEdit: Record<string, unknown>,
+        tel: string,
+        customer_name: string | null,
+        delivery_method: string | null,
+        payment_type: string | null,
+        items: CartItem[],
+        notes: string
+    ): unknown => {
         return {
-            id: orderToEdit.id,
-            order_no: orderToEdit.order_no,
+            id: orderToEdit['id'],
+            order_no: orderToEdit['order_no'],
             tel,
             customer_name: customer_name,
             delivery_method: delivery_method,
             payment_type: payment_type,
-            address: orderToEdit.address,
+            address: orderToEdit['address'],
             notes: notes,
-            items: items.map(item => {
-                const discount = typeof item.discount === "number" ? item.discount : 0;
+            items: items.map((item: CartItem) => {
+                const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
+                const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
                 const discountAmount = item.amount * (discount / 100) * item.quantity;
 
                 return {
-                    id: item.id,
+                    id: typedItem.id,
                     name: item.name,
                     quantity: item.quantity,
                     amount: item.amount,
                     size: item.size || "",
                     category: item.category,
                     description: item.description || "",
-                    isGarlicCrust: item.isGarlicCrust || false,
-                    isThinDough: item.isThinDough || false,
+                    isGarlicCrust: (item as CartItem & { isGarlicCrust?: boolean }).isGarlicCrust || false,
+                    isThinDough: (item as CartItem & { isThinDough?: boolean }).isThinDough || false,
                     discount_amount: parseFloat(discountAmount.toFixed(3)),
-                    comboItems: item.comboItems
-                        ? item.comboItems.map(ci => ({
+                    comboItems: typedItem.comboItems
+                        ? typedItem.comboItems.map((ci: CartItem & { id?: number; isGarlicCrust?: boolean; isThinDough?: boolean }) => ({
                             id: ci.id,
                             name: ci.name,
                             category: ci.category,
@@ -828,7 +890,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
             }),
             amount_paid: parseFloat(
                 items.reduce((acc, item) => {
-                    const discount = typeof item.discount === "number" ? item.discount : 0;
+                    const typedItem = item as CartItem & { discount?: number };
+                    const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
                     const discountedPrice = item.amount * (1 - discount / 100);
                     return acc + discountedPrice * item.quantity;
                 }, 0).toFixed(3)
@@ -837,14 +900,14 @@ function HomePage({userParam, recommendedIds, giftId}) {
     };
 
     async function handleCheckout(
-        items,
-        tel,
-        customerName = null,
-        deliveryMethod = null,
-        paymentMethod = null,
-        notes,
-        branchId,
-    ) {
+        items: CartItem[],
+        tel: string,
+        customerName: string | null,
+        deliveryMethod: string | null,
+        paymentMethod: string | null,
+        notes: string,
+        branchId?: string | null,
+    ): Promise<void> {
         if (!wasCrossSellShown && !isAdmin) {
             setIsCrossSellOpen(true);
             setWasCrossSellShown(true);
@@ -858,9 +921,9 @@ function HomePage({userParam, recommendedIds, giftId}) {
         } else if (isAdmin && isEditMode) {
             setLoading(true);
             try {
-                const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit"))
+                const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit") ?? "{}") as Record<string, unknown>;
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
-                const res = await editOrder(order, orderToEdit.id);
+                const res = await editOrder(order, String(orderToEdit['id']));
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
                 const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
@@ -880,24 +943,25 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 payment_type: paymentMethod,
                 branchId: isKiosk? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin? adminBranchId : branchId,
                 notes: notes,
-                items: items.map(item => {
-                    const discount = typeof item.discount === "number" ? item.discount : 0;
+                items: items.map((item: CartItem) => {
+                    const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
+                    const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
                     const discountAmount = item.amount * (discount / 100) * item.quantity;
                     const discountedAmount = item.amount * (1 - discount / 100);
 
                     return {
-                        id: item.id,
+                        id: typedItem.id,
                         name: item.name,
                         quantity: item.quantity,
                         amount: parseFloat(discountedAmount.toFixed(3)),
                         size: item.size || "",
                         category: item.category,
                         description: item.description || "",
-                        isGarlicCrust: item.isGarlicCrust || false,
-                        isThinDough: item.isThinDough || false,
+                        isGarlicCrust: (item as CartItem & { isGarlicCrust?: boolean }).isGarlicCrust || false,
+                        isThinDough: (item as CartItem & { isThinDough?: boolean }).isThinDough || false,
                         discount_amount: parseFloat(discountAmount.toFixed(3)),
-                        comboItems: item.comboItems
-                            ? item.comboItems.map(ci => ({
+                        comboItems: typedItem.comboItems
+                            ? typedItem.comboItems.map((ci: CartItem & { id?: number; isGarlicCrust?: boolean; isThinDough?: boolean }) => ({
                                 id: ci.id,
                                 name: ci.name,
                                 category: ci.category,
@@ -912,7 +976,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 }),
                 amount_paid: parseFloat(
                     items.reduce((acc, item) => {
-                        const discount = typeof item.discount === "number" ? item.discount : 0;
+                        const typedItem = item as CartItem & { discount?: number };
+                        const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
                         const discountedPrice = item.amount * (1 - discount / 100);
                         return acc + discountedPrice * item.quantity;
                     }, 0).toFixed(3)
@@ -940,9 +1005,10 @@ function HomePage({userParam, recommendedIds, giftId}) {
                         } catch (e) {
                         }
                     }
-                    setLoading(false)
-                    navigate("/admin/")
-                    window.ttq.identify({
+                    setLoading(false);
+                    navigate("/admin/");
+                    // ttq.identify is accessed via index signature since it's under [key: string]: unknown
+                    (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({
                         phone_number: "+" + tel
                     });
                 }
@@ -971,8 +1037,8 @@ function HomePage({userParam, recommendedIds, giftId}) {
                         return
                     }
                     let customerResponse = await checkCustomer(order.tel)
-                    console.log(customerResponse.isNewCustomer)
-                    if (customerResponse.isNewCustomer === false) {
+                    console.log((customerResponse as Record<string, unknown>)?.['isNewCustomer'])
+                    if ((customerResponse as Record<string, unknown>)?.['isNewCustomer'] === false) {
                         await executeOrderCreation(order)
                     } else {
                         setPendingOrder(order)
@@ -981,7 +1047,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 }
                 console.log("Order placed successfully:", response);
             } catch (error) {
-                setErrorMessage(error.message);
+                setErrorMessage((error as Error).message);
                 setErrorSnackBarOpen(true)
                 console.error("Error placing order:", error);
             } finally {
@@ -995,30 +1061,21 @@ function HomePage({userParam, recommendedIds, giftId}) {
     }
 
 
-    const executeOrderCreation = async (orderData) => {
+    const executeOrderCreation = async (orderData: unknown): Promise<void> => {
         try {
             setLoading(true);
 
             const response = await createOrder(orderData);
 
-            window.ttq.track('PlaceAnOrder', {
+            const typedOrder = orderData as { amount_paid: number; tel: string; items: Array<{ id?: number; name: string; quantity: number; amount: number }> };
+            window.ttq?.track('PlaceAnOrder', {
                 content_id: "PlaceAnOrder",
                 order_id: response.id,
                 currency: 'BHD',
-                value: orderData.amount_paid,
+                value: typedOrder.amount_paid,
             });
-            window.ttq.identify({phone_number: "+" + orderData.tel});
-            // window.fbq('track', 'Purchase', {
-            //     value: Number(orderData.amount_paid.toFixed(2)),
-            //     currency: 'BHD',
-            //     contents: orderData.items.map((item) => ({
-            //         id: item.id ?? item.name,
-            //         quantity: item.quantity,
-            //         item_price: item.amount,
-            //     })),
-            //     content_type: 'product',
-            //     order_id: response.id,
-            // });
+            // ttq.identify is accessed via index signature since it's under [key: string]: unknown
+            (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({phone_number: "+" + typedOrder.tel});
 
             setCartItems([]);
             setPendingOrder(null)
@@ -1033,7 +1090,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
             }
 
         } catch (error) {
-            setErrorMessage(error.message);
+            setErrorMessage((error as Error).message);
             setErrorSnackBarOpen(true)
             console.error("Error processing order:", error);
         } finally {
@@ -1041,9 +1098,9 @@ function HomePage({userParam, recommendedIds, giftId}) {
         }
     };
 
-    function handleUpsellDecline() {
+    function handleUpsellDecline(): void {
         if (upsellItem) {
-            handleAddToCart(pendingItems, true);
+            handleAddToCart(pendingItems as CartItem[], true);
         }
         setUpsellPopupOpen(false);
         setComboOfferPhoto(null);
@@ -1052,15 +1109,15 @@ function HomePage({userParam, recommendedIds, giftId}) {
         setUpsellType(null);
     }
 
-    function handleUpsellAccept(item, type) {
+    function handleUpsellAccept(item: CartItem | null, type: string | null): void {
         if (type === "pizza") {
-            const pizzaCombos = menuData.filter((m) => m.name === "Pizza Combo");
+            const pizzaCombos = menuData.filter((m: MenuItem) => m.name === "Pizza Combo");
             if (pizzaCombos.length > 0) {
                 setPopupGroup(pizzaCombos);
                 setPizzaComboPopupOpen(true);
             }
         } else if (type === "brick") {
-            const detroitCombo = menuData.filter((m) => m.name === "Detroit Combo");
+            const detroitCombo = menuData.filter((m: MenuItem) => m.name === "Detroit Combo");
             if (detroitCombo) {
                 setPopupGroup(detroitCombo);
                 setDetroitComboPopupOpen(true);
@@ -1204,12 +1261,13 @@ function HomePage({userParam, recommendedIds, giftId}) {
                                         WebkitOverflowScrolling: "touch",
                                     }}
                                 >
-                                    {section.items.map(group => (
+                                    {section.items.map((group: Group) => (
                                         <Box
                                             key={group.name}
                                             sx={{flex: "0 0 auto", scrollSnapAlign: "start", mb: 0.5}}>
                                             <MenuItemCardHorizontal
-                                                group={group}
+                                                // Runtime Group always carries `category` from menu_service; cast to satisfy MenuItemCardHorizontal
+                                                group={group as import('./components/MenuItemCardHorizontal').GroupWithCategory}
                                                 onSelect={handleOpenPopup}
                                                 isBestSellerBlock={section.isBestSellerBlock}
                                                 handleRemoveItemFromCart={handleRemoveItemFromCart}
@@ -1264,7 +1322,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
             {pizzaPopupOpen && <PizzaPopup
                 open={pizzaPopupOpen}
-                group={popupGroup}
+                group={popupGroup as Group}
                 extraIngredients={extraIngredients}
                 toppings={toppings}
                 editItem={editItem}
@@ -1280,7 +1338,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
             {comboPopupOpen && <ComboPopup
                 open={comboPopupOpen}
-                group={popupGroup}
+                group={popupGroup as Group}
                 uniquePizzas={pizzas}
                 onClose={() => handleCloseComboPopup}
                 onAddToCart={handleAddToCart}
@@ -1288,22 +1346,21 @@ function HomePage({userParam, recommendedIds, giftId}) {
             }
 
             {branchSelector && <KioskBranchSelector
-                open={branchSelector}
+                open={!!branchSelector}
                 branches={availableBranches}
-                onSelect={(branch) => {
+                onSelect={(branch: IBranch) => {
                     console.log(branch ," Saved in local Storage");
                     localStorage.setItem(BRANCH_KEY, JSON.stringify(branch))
                     setBranchSelector(false)
-                }}>
-            </KioskBranchSelector>
+                }}
+            />
             }
 
             {pizzaComboPopupOpen && (
                 <PizzaComboPopup
                     open={true}
                     onClose={handleClosePizzaComboPopup}
-                    comboGroup={popupGroup}
-                    extraIngredients={extraIngredients}
+                    comboGroup={popupGroup as MenuItem[]}
                     pizzas={pizzas}
                     drinks={beverages}
                     sauces={sauces}
@@ -1330,7 +1387,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 <DetroitComboPopup
                     open={true}
                     onClose={handleCloseDetroitComboPopup}
-                    combo={popupGroup}
+                    combo={popupGroup as Group | MenuItem[]}
                     bricks={brickPizzas}
                     drinks={beverages}
                     sauces={sauces}
@@ -1339,20 +1396,20 @@ function HomePage({userParam, recommendedIds, giftId}) {
                     editItem={editItem}
                     isEditMode={editMode}
                     removeFromCart={removeFromCart}
-                >
-                </DetroitComboPopup>
+                />
             )}
 
             {upsellPopupOpen && (
                 <UpsellPopup
                     open={true}
+                    onClose={() => setUpsellPopupOpen(false)}
                     upsellItem={upsellItem}
-                    upsellType={upsellType}
+                    upsellType={upsellType ?? ""}
                     onAccept={handleUpsellAccept}
                     onDecline={handleUpsellDecline}
-                    photo={comboOfferPhoto}
-                    comboPrice={comboPrice}>
-                </UpsellPopup>
+                    photo={comboOfferPhoto ?? undefined}
+                    comboPrice={comboPrice ?? 0}
+                />
             )}
 
             {blacklistSnackBarOpen && (
@@ -1371,7 +1428,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
             {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
-                group={popupGroup}
+                group={popupGroup as Group}
                 onClose={handleCloseGenericPopup}
                 onAddToCart={handleAddToCart}
                 crossSellItems={getGeneralCrossSellItems()}
@@ -1390,7 +1447,10 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 crossSellItems={getFinalCrossSell()}
                 onClose={() => setIsCrossSellOpen(false)}
                 onAddToCart={handleAddToCart}
-                onCheckout={handleCheckout}
+                onCheckout={() => {
+                    // CrossSellPopup calls onCheckout with no args; handleCheckout uses wasCrossSellShown flag
+                    handleCheckout(cartItems, phone, null, null, null, "", null);
+                }}
             />
             }
 
@@ -1403,7 +1463,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                 onAddToCart={handleAddToCart}
                 crossSellItems={getFinalCrossSell()}
                 removeFromCart={removeFromCart}
-                menuItem={popupGroup.items[0]}
+                menuItem={(popupGroup as Group).items[0]}
             />
             }
 
@@ -1430,9 +1490,10 @@ function HomePage({userParam, recommendedIds, giftId}) {
 
             {phonePopupOpen && <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
-                branches={availableBranches}
+                // IBranch.id is number but ClientInfoPopup.Branch.id is string; map to string-id shape
+                branches={availableBranches.map(b => ({ ...b, id: String(b.id) }))}
                 onClose={handleClosePhonePopup}
-                onSave={(tel, paymentMethod, customerName, notes, branchId) => {
+                onSave={(tel: string, paymentMethod: string, customerName: string, notes: string, branchId: string) => {
                         handleCheckout(cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
                 }}
                 phoneNumber={phone.toString()}
@@ -1443,7 +1504,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
             {adminOrderDetailsPopUp && <AdminOrderDetailsPopUp
                 isAdminOrderDetailsPopUpOpen={adminOrderDetailsPopUp}
                 onClose={handleCloseAdminOrderDetailsPopup}
-                onSave={(phone, customerName, deliveryMethod, paymentMethod, notes) => (
+                onSave={(phone: string, customerName: string, deliveryMethod: string, paymentMethod: string, notes: string) => (
                     handleCheckout(cartItems, phone, customerName, deliveryMethod, paymentMethod, notes, adminBranchId)
 
                 )
@@ -1498,7 +1559,7 @@ function HomePage({userParam, recommendedIds, giftId}) {
                         },
                     }}
                 >
-                    {totalPrice && totalPrice !== 0 && <Box sx={{flexGrow: 1, textAlign: "center"}}>
+                    {totalPrice && totalPrice !== "0.00" && <Box sx={{flexGrow: 1, textAlign: "center"}}>
                         <TextButton sx={{fontWeight: 600, color: "#000", fontSize: "1.1rem"}}>
                             {totalPrice} BHD
                         </TextButton>
