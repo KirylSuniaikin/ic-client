@@ -35,7 +35,6 @@ import * as React from "react";
 import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
 import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
 import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from './management/types/menuTypes';
-import type { BaseAppInfoResponse } from './types/orderTypes';
 import type { IBranch } from './management/types/inventoryTypes';
 
 interface HomePageProps {
@@ -1143,20 +1142,24 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 >
                     <Box
                         component="video"
-                        src="/videos/header-vid.mp4"
+                        src={isKiosk ? "/videos/header_vid_2.mp4" : "/videos/header-vid.mp4"}
                         autoPlay
                         muted
                         loop
                         playsInline
+                        preload="auto"
+                        poster="/images/header_poster.jpg"
+                        aria-hidden="true"
+                        disablePictureInPicture
                         sx={{
                             position: "absolute",
-                            display: "block",
                             top: 0,
                             left: 0,
                             width: "100%",
                             height: "100%",
                             objectFit: "cover",
-                            zIndex: 0
+                            zIndex: 0,
+                            pointerEvents: "none",
                         }}
                     />
                     <Box
