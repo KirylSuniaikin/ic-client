@@ -29,6 +29,7 @@ import {ProductsTable} from "../management/productsTable/ProductsTable";
 import {VatReportCard} from "./VatReportCard";
 import {CustomerStatCard} from "./CustomerStatCard";
 import {StaffRoles} from "../management/types/authTypes";
+import {StaffSummaryContent} from "../management/shiftComponents/StaffSummaryContent";
 import type { Statistics } from '../types/orderTypes';
 
 interface DateRangeState {
@@ -211,6 +212,9 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
                         <ToggleButton value="Reports">Reports</ToggleButton>
+                        {(role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER) && (
+                            <ToggleButton value="Shifts">Shifts</ToggleButton>
+                        )}
                     </ToggleButtonGroup>
                 </Box>
                 <Box sx={{
@@ -506,6 +510,10 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
 
                 {mode === "Pricing" && (
                     <ProductsTable/>
+                )}
+
+                {mode === "Shifts" && (
+                    <StaffSummaryContent branchId={branchId} />
                 )}
                 </Box>
             </Box>

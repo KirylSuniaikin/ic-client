@@ -9,5 +9,7 @@ export function toShiftInfoTO(rawRow: ShiftRow): ShiftInfoTO {
         managerEndTime: rawRow.managerEndTime,
         managerStartTime: rawRow.managerStartTime,
         managerTotal: rawRow.managerTotalHours,
+        cookStaffIds: rawRow.cookStaffIds,
+        managerStaffIds: rawRow.managerStaffIds,
     }
 }

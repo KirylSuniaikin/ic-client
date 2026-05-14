@@ -7,7 +7,7 @@ import {
     VendorTO
 } from "../types/purchaseTypes";
 import {ConsumptionReportTO} from "../types/consumptionTypes";
-import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
+import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, MonthlyShiftReport, ShiftReportTO, StaffOption} from "../types/shiftTypes";
 import {VatStatePayload} from "../types/statTypes";
 import {BlackListCstmr} from "../types/blacklistTypes";
 import {BranchBalanceResponse, CashRegisterEventTO, CashUpdateRequest} from "../types/branchBalanceTypes";
@@ -17,7 +17,7 @@ export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 
 
-export var URL = PROD_BASE_HOST;
+export var URL = DEV_BASE_HOST;
 
 export async function authFetch(url: string, headersWithoutAuth: RequestInit): Promise<Response> {
     const token = localStorage.getItem("jwt_token");
@@ -288,6 +288,28 @@ export async function getBranchEvents(branchId: string): Promise<CashRegisterEve
         headers: { 'Content-Type': 'application/json' }
     });
     if (!res.ok) throw new Error("Failed to fetch history");
+    return res.json();
+}
+
+export async function getMonthlyShiftReport(
+    branchId: string,
+    yearMonth: string
+): Promise<MonthlyShiftReport> {
+    const params = new URLSearchParams({ branchId, yearMonth });
+    const res = await authFetch(URL + `/shift_monthly_report?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getStaffByBranch(branchId: string): Promise<StaffOption[]> {
+    const res = await authFetch(URL + `/staff_by_branch?branchId=${branchId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
 
