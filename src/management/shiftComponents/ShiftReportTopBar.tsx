@@ -1,12 +1,15 @@
 import {AppBar, Box, Button, IconButton, Toolbar, Typography} from "@mui/material";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 
+type Props = {
+    onClose?: () => void;
+    onNewClick?: () => void;
+};
 
 export function ShiftReportTopBar({
-                                      onClose = () => {
-                                      }, onNewClick = () => {
-    }
-                                  }) {
+    onClose = () => {},
+    onNewClick = () => {},
+}: Props) {
     return (
         <AppBar elevation={0} color="inherit" sx={{
             borderBottom: 1, borderColor: "divider", bgcolor: "#fbfaf6"
@@ -33,5 +36,5 @@ export function ShiftReportTopBar({
                 </Button>
             </Toolbar>
         </AppBar>
-    )
+    );
 }

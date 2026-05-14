@@ -21,6 +21,8 @@ export type ShiftInfoTO = {
     managerStartTime: string;
     managerEndTime: string;
     managerTotal: number;
+    cookStaffIds: number[];
+    managerStaffIds: number[];
 };
 
 export type EditShiftReportTO = {
@@ -49,4 +51,31 @@ export type ShiftRow = {
     managerStartTime: string | null;
     managerEndTime: string | null;
     managerTotalHours: number | null;
+    cookStaffIds: number[];
+    managerStaffIds: number[];
 }
+
+export type StaffOption = {
+    id: number;
+    username: string;
+    role: string;
+};
+
+export type StaffShiftSummary = {
+    staffId: number;
+    username: string;
+    role: string;
+    pricePerHour: number | null;
+    regularHours: number;
+    overtimeHours: number;
+    totalHours: number;
+    regularCost: number | null;
+    overtimeCost: number | null;
+    totalCost: number | null;
+};
+
+export type MonthlyShiftReport = {
+    yearMonth: string;
+    branchNo: number;
+    summaries: StaffShiftSummary[];
+};
