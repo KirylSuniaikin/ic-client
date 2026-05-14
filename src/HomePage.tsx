@@ -1142,7 +1142,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 >
                     <Box
                         component="video"
-                        src="/videos/header-vid.mp4"
+                        src={isKiosk ? "/videos/header_vid_2.mp4" : "/videos/header-vid.mp4"}
                         autoPlay
                         muted
                         loop
