@@ -1,60 +1,70 @@
+// GET /api/get_shift_reports list item
 export type BaseShiftResponse = {
     id: number;
     title: string;
     branchNo: number;
-    cookTotalHours: number;
-    managerTotalHours: number;
-}
+    totalHours: number;
+};
 
+// Inbound: one shift entry from GET /api/get_shift_report
+export type ShiftEntryTO = {
+    id: number;
+    shiftDate: string;               // "YYYY-MM-DD"
+    startTime: string | null;        // "HH:mm" or null
+    endTime: string | null;
+    totalHours: number | null;
+    staffId: number;
+    staffUsername: string;
+};
+
+// Outbound: one row in POST create and PUT edit
+export type ShiftEntryPayload = {
+    shiftDate: string;               // "YYYY-MM-DD"
+    startTime: string | null;
+    endTime: string | null;
+    totalHours: number | null;
+    staffId: number;                 // non-nullable; validate before mapping
+};
+
+// UI-only DataGrid row
+export type ShiftRow = {
+    id: string;                      // client-only DataGrid key
+    shiftDate: string;               // "YYYY-MM-DD"
+    startTime: string | null;
+    endTime: string | null;
+    totalHours: number | null;       // computed; never edited directly
+    staffId: number | null;          // null until contributor is selected
+};
+
+// POST /api/create_shift_report body
 export type CreateShiftReportTO = {
     title: string;
     totalHours: number;
     branchNo: number;
-    shifts: ShiftInfoTO[]
-}
-
-export type ShiftInfoTO = {
-    shiftDate: string;
-    cookStartTime: string;
-    cookEndTime: string;
-    cookTotal: number;
-    managerStartTime: string;
-    managerEndTime: string;
-    managerTotal: number;
-    cookStaffIds: number[];
-    managerStaffIds: number[];
+    shifts: ShiftEntryPayload[];
 };
 
+// PUT /api/edit_shift_report body
 export type EditShiftReportTO = {
     id: number;
     title: string;
     totalHours: number;
+    creationTimeStamp: string;       // "YYYY-MM-DD" --- required by backend contract
     branchNo: number;
-    shifts: ShiftInfoTO[]
-}
+    shifts: ShiftEntryPayload[];
+};
 
+// GET /api/get_shift_report response
 export type ShiftReportTO = {
     id: number;
     title: string;
-    cookTotalHours: number;
-    managerTotalHours: number;
+    totalHours: number;
+    creationTimeStamp: string;       // "YYYY-MM-DD"
     branchNo: number;
-    shifts: ShiftInfoTO[]
-}
+    shifts: ShiftEntryTO[];
+};
 
-export type ShiftRow = {
-    id: string;
-    shiftDate: string;
-    cookStartTime: string | null;
-    cookEndTime: string | null;
-    cookTotalHours: number | null;
-    managerStartTime: string | null;
-    managerEndTime: string | null;
-    managerTotalHours: number | null;
-    cookStaffIds: number[];
-    managerStaffIds: number[];
-}
-
+// Unchanged --- keep exactly as-is
 export type StaffOption = {
     id: number;
     username: string;

@@ -8,6 +8,7 @@ import {
     Dialog,
     IconButton,
     MenuItem,
+    Paper,
     Select,
     SelectChangeEvent,
     Table,
@@ -21,7 +22,6 @@ import {
     Typography,
 } from "@mui/material";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
-import AddIcon from "@mui/icons-material/Add";
 import type { IBranch } from "../types/inventoryTypes";
 import type {
     AccountingCategoryTO,
@@ -38,7 +38,7 @@ import {
 } from "../api/api";
 import { useAuth } from "../security/AuthProvider";
 import { StaffRoles } from "../types/authTypes";
-import {dateFormatter} from "../mappers/dateFormatter";
+import { dateFormatter } from "../mappers/dateFormatter";
 
 type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT";
 
@@ -49,6 +49,27 @@ const ACCOUNT_LABELS: Record<AccountSource, string> = {
 };
 
 const ACCOUNT_OPTIONS: AccountSource[] = ["DEBIT_CARD", "CASH", "CORPORATE_ACCOUNT"];
+
+// Pill styles mirroring TransactionDetailsTable
+const amountStyles = {
+    credit: {
+        bg: "rgba(52, 199, 89, 0.12)",
+        text: "#008a00",
+    },
+    debit: {
+        bg: "rgba(255, 59, 48, 0.12)",
+        text: "#c41c00",
+    },
+};
+
+const noUnderlineSx = {
+    "& .MuiInput-underline:before": { borderBottom: "none" },
+    "& .MuiInput-underline:after": { borderBottom: "none" },
+    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
+    "&:before": { borderBottom: "none" },
+    "&:after": { borderBottom: "none" },
+    "&:hover:not(.Mui-disabled):before": { borderBottom: "none" },
+};
 
 type EntryRow = {
     _key: string;
@@ -116,13 +137,13 @@ type Props = {
 };
 
 export function AccountingReportPopup({
-    open,
-    mode,
-    reportId,
-    branch,
-    onClose,
-    onSaved,
-}: Props): JSX.Element {
+                                          open,
+                                          mode,
+                                          reportId,
+                                          branch,
+                                          onClose,
+                                          onSaved,
+                                      }: Props): JSX.Element {
     const { role, username } = useAuth();
     const isSuperManager = role === StaffRoles.SUPER_MANAGER;
 
@@ -269,12 +290,17 @@ export function AccountingReportPopup({
     const BRAND = "#E44B4C";
 
     return (
-        <Dialog fullScreen open={open} onClose={onClose} PaperProps={{ sx: { backgroundColor: "#fbfaf6" } }}>
+        <Dialog
+            fullScreen
+            open={open}
+            onClose={onClose}
+            sx={{ "& .MuiDialog-paper": { backgroundColor: "#fff" } }}
+        >
             <AppBar
                 elevation={0}
                 color="inherit"
                 position="sticky"
-                sx={{ borderBottom: 1, borderColor: "divider", backgroundColor: "#fbfaf6" }}
+                sx={{ borderBottom: 1, borderColor: "divider", backgroundColor: "#fff" }}
             >
                 <Toolbar sx={{ gap: 1 }}>
                     <IconButton edge="start" onClick={onClose} size="small" aria-label="close">
@@ -336,35 +362,41 @@ export function AccountingReportPopup({
                         <CircularProgress />
                     </Box>
                 ) : (
-                    <TableContainer>
-                        <Table size="small" stickyHeader>
-                            <TableHead>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{ borderRadius: 4,
+                            overflow: "hidden",
+                            overflowX: "auto",
+                            WebkitOverflowScrolling: "touch"
+                        }}
+                    >
+                        <Table size="small" stickyHeader aria-label="accounting entries">
+                            <TableHead sx={{ bgcolor: "#fff" }}>
                                 <TableRow>
-                                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Amount</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Account</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                                    <TableCell sx={{ fontWeight: 700}}>Contributor</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
                                     {isSuperManager && (
-                                        <TableCell sx={{ fontWeight: 700 }}>Balance</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
                                     )}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {computedRows.map((row) => {
-                                    const isExpense = row.type === "DEBIT";
-                                    const accentColor = isExpense ? "#ff0000" : "#00ff0a";
-                                    const textColor = isExpense ? "#ff0000" : "#00ff0a";
-
-                                    const accentCellSx = {
-                                        backgroundColor: accentColor,
-                                        color: textColor,
-                                    };
+                                    const isCredit = row.type === "CREDIT";
+                                    const pill = isCredit ? amountStyles.credit : amountStyles.debit;
+                                    const hasAmount = row.amount !== "" && !isNaN(parseFloat(row.amount));
 
                                     return (
-                                        <TableRow key={row._key}>
+                                        <TableRow
+                                            key={row._key}
+                                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                                        >
                                             {/* Date */}
                                             <TableCell sx={{ minWidth: 130 }}>
                                                 <TextField
@@ -375,7 +407,7 @@ export function AccountingReportPopup({
                                                     }
                                                     size="small"
                                                     variant="standard"
-                                                    sx={{ width: 130 }}
+                                                    sx={{ width: 130, ...noUnderlineSx }}
                                                 />
                                             </TableCell>
 
@@ -391,61 +423,119 @@ export function AccountingReportPopup({
                                                     }
                                                     size="small"
                                                     variant="standard"
-                                                    sx={{ width: 110 }}
+                                                    sx={{ width: 110, ...noUnderlineSx }}
                                                 >
                                                     <MenuItem value="CREDIT">Credit</MenuItem>
                                                     <MenuItem value="DEBIT">Debit</MenuItem>
                                                 </Select>
                                             </TableCell>
 
-                                            {/* Amount */}
-                                            <TableCell sx={{ minWidth: 100, ...accentCellSx }}>
-                                                <TextField
-                                                    type="number"
-                                                    value={row.amount}
-                                                    onChange={(e) =>
-                                                        updateRow(row._key, { amount: e.target.value })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    inputProps={{ min: 0, step: "0.001" }}
-                                                    sx={{ width: 100 }}
-                                                />
+                                            {/* Amount — soft pill like TransactionDetailsTable */}
+                                            <TableCell sx={{ minWidth: 130 }}>
+                                                <Box
+                                                    sx={{
+                                                        backgroundColor: pill.bg,
+                                                        color: pill.text,
+                                                        py: 0.5,
+                                                        px: 1.5,
+                                                        borderRadius: 2,
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        fontWeight: "bold",
+                                                        fontSize: "0.9rem",
+                                                    }}
+                                                >
+                                                    <Box component="span" sx={{ mr: 0.5 }}>
+                                                        {hasAmount ? (isCredit ? "+" : "−") : ""}
+                                                    </Box>
+                                                    <TextField
+                                                        type="number"
+                                                        value={row.amount}
+                                                        onChange={(e) =>
+                                                            updateRow(row._key, { amount: e.target.value })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        placeholder="0"
+                                                        inputProps={{ min: 0, step: "0.001" }}
+                                                        sx={{
+                                                            width: 80,
+                                                            "& .MuiInput-underline:before, & .MuiInput-underline:after, & .MuiInput-underline:hover:not(.Mui-disabled):before": {
+                                                                borderBottom: "none",
+                                                            },
+                                                            "& input": {
+                                                                color: pill.text,
+                                                                fontWeight: "bold",
+                                                                fontSize: "0.9rem",
+                                                                padding: 0,
+                                                            },
+                                                        }}
+                                                    />
+                                                </Box>
                                             </TableCell>
 
                                             {/* Description */}
-                                            <TableCell sx={{ minWidth: 160, ...accentCellSx }}>
-                                                <TextField
-                                                    value={row.note}
-                                                    onChange={(e) =>
-                                                        updateRow(row._key, { note: e.target.value })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    placeholder="Note"
-                                                    sx={{ width: 160 }}
-                                                />
+                                            <TableCell sx={{ minWidth: 160 }}>
+                                                <Box sx={{
+                                                    backgroundColor: pill.bg,
+                                                    color: pill.text,
+                                                    py: 0.5,
+                                                    px: 1.5,
+                                                    borderRadius: 2,
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    fontWeight: "bold",
+                                                    fontSize: "0.9rem",
+                                                }}>
+                                                    <TextField
+                                                        value={row.note}
+                                                        onChange={(e) =>
+                                                            updateRow(row._key, { note: e.target.value })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        placeholder="—"
+                                                        sx={{
+                                                            width: 160,
+                                                            ...noUnderlineSx,
+                                                            "& input": { fontSize: "0.85rem", color: pill.text, fontWeight: "bold", padding: 0 },
+                                                            "& input::placeholder": { color: pill.text, opacity: 0.5 },
+                                                        }}
+                                                    />
+                                                </Box>
                                             </TableCell>
 
                                             {/* Account */}
-                                            <TableCell sx={{ minWidth: 150, ...accentCellSx }}>
-                                                <Select
-                                                    value={row.account}
-                                                    onChange={(e: SelectChangeEvent) =>
-                                                        updateRow(row._key, {
-                                                            account: e.target.value as AccountSource,
-                                                        })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    sx={{ width: 150 }}
-                                                >
-                                                    {ACCOUNT_OPTIONS.map((opt) => (
-                                                        <MenuItem key={opt} value={opt}>
-                                                            {ACCOUNT_LABELS[opt]}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
+                                            <TableCell sx={{ minWidth: 150 }}>
+                                                <Box sx={{
+                                                    backgroundColor: pill.bg,
+                                                    color: pill.text,
+                                                    py: 0.5,
+                                                    px: 1.5,
+                                                    borderRadius: 2,
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    fontWeight: "bold",
+                                                    fontSize: "0.9rem",
+                                                }}>
+                                                    <Select
+                                                        value={row.account}
+                                                        onChange={(e: SelectChangeEvent) =>
+                                                            updateRow(row._key, {
+                                                                account: e.target.value as AccountSource,
+                                                            })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        sx={{ fontSize: "0.9rem", color: pill.text, fontWeight: "bold", ...noUnderlineSx }}
+                                                    >
+                                                        {ACCOUNT_OPTIONS.map((opt) => (
+                                                            <MenuItem key={opt} value={opt}>
+                                                                {ACCOUNT_LABELS[opt]}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                </Box>
                                             </TableCell>
 
                                             {/* Category */}
@@ -460,7 +550,7 @@ export function AccountingReportPopup({
                                                     size="small"
                                                     variant="standard"
                                                     displayEmpty
-                                                    sx={{ width: 150 }}
+                                                    sx={{ width: 150, fontSize: "0.9rem", ...noUnderlineSx }}
                                                 >
                                                     <MenuItem value="" disabled>
                                                         <Typography color="text.secondary" variant="body2">
@@ -475,11 +565,12 @@ export function AccountingReportPopup({
                                                 </Select>
                                             </TableCell>
 
+                                            {/* Contributor */}
                                             <TableCell sx={{ minWidth: 160 }}>
                                                 <Typography
                                                     variant="body2"
-                                                    sx={{ width: 160 }}
-                                                    color='text.secondary'
+                                                    sx={{ width: 160, fontSize: "0.85rem" }}
+                                                    color="text.secondary"
                                                 >
                                                     {row.contributorName ?? username}
                                                 </Typography>
@@ -488,16 +579,41 @@ export function AccountingReportPopup({
                                             {/* Running balance (SUPER_MANAGER only) */}
                                             {isSuperManager && (
                                                 <TableCell sx={{ minWidth: 100 }}>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {row.runningBalance != null
-                                                            ? row.runningBalance.toFixed(3)
-                                                            : "?"}
-                                                    </Typography>
+                                                    <Box sx={{
+                                                        backgroundColor: "#e2e874",
+                                                        py: 0.5,
+                                                        px: 1.5,
+                                                        borderRadius: 2,
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        fontWeight: "bold",
+                                                        fontSize: "0.9rem",
+                                                    }}>
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{ fontSize: "0.85rem", fontWeight: "bold", color: "#5a5e00" }}
+                                                        >
+                                                            {row.runningBalance != null
+                                                                ? row.runningBalance.toFixed(3)
+                                                                : "?"}
+                                                        </Typography>
+                                                    </Box>
                                                 </TableCell>
                                             )}
                                         </TableRow>
                                     );
                                 })}
+                                {computedRows.length === 0 && (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={isSuperManager ? 8 : 7}
+                                            align="center"
+                                            sx={{ py: 3, color: "text.secondary" }}
+                                        >
+                                            No entries yet — click “Add” to create one
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </TableContainer>

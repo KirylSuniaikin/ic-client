@@ -1,15 +1,14 @@
-import {ShiftInfoTO, ShiftRow} from "../types/shiftTypes";
+import type { ShiftRow, ShiftEntryPayload } from "../types/shiftTypes";
 
-export function toShiftInfoTO(rawRow: ShiftRow): ShiftInfoTO {
-    return {
-        shiftDate: rawRow.shiftDate,
-        cookEndTime: rawRow.cookEndTime,
-        cookStartTime: rawRow.cookStartTime,
-        cookTotal: rawRow.cookTotalHours,
-        managerEndTime: rawRow.managerEndTime,
-        managerStartTime: rawRow.managerStartTime,
-        managerTotal: rawRow.managerTotalHours,
-        cookStaffIds: rawRow.cookStaffIds,
-        managerStaffIds: rawRow.managerStaffIds,
+export function toShiftEntryPayload(row: ShiftRow): ShiftEntryPayload {
+    if (row.staffId === null) {
+        throw new Error("Row " + row.id + " has no contributor assigned");
     }
+    return {
+        shiftDate: row.shiftDate,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        totalHours: row.totalHours,
+        staffId: row.staffId,
+    };
 }

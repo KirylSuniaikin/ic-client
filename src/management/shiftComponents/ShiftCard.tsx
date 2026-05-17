@@ -17,7 +17,7 @@ export function ShiftCard({report, onEditClick}: Props) {
                         {report.title}
                     </Typography>
                 }
-                subheader={`Total cook hours: ${report.cookTotalHours.toFixed(3)} h, Total management hours: ${report.managerTotalHours.toFixed(3)} h`}
+                subheader={"Total: " + report.totalHours.toFixed(3) + " hrs"}
                 action={
                     <Button
                         size="small"
@@ -31,7 +31,7 @@ export function ShiftCard({report, onEditClick}: Props) {
                             px: 2,
                             borderColor: BRAND,
                             color: BRAND,
-                            "&:hover": { borderColor: BRAND, backgroundColor: `${BRAND}14` },
+                            "&:hover": { borderColor: BRAND, backgroundColor: BRAND + "14" },
                         }}
                     >
                         Edit

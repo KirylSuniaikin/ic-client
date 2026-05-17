@@ -1,4 +1,4 @@
-import {Box, Button, IconButton, Stack, Typography} from "@mui/material";
+import {Box, Button, Dialog, IconButton, Stack, TextField, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import React from "react";
 
@@ -7,38 +7,36 @@ type Props = {
     onClose: () => void;
     title: string;
     handleSave: () => void;
-    total: number;
-    managerTotal: number;
     saving: boolean;
+    onAddNewRow: () => void;
 }
-export function TableTopBar({ title, handleSave, onClose, total, saving, managerTotal }: Props) {
+export function TableTopBar({ title, handleSave, onClose, saving, onAddNewRow }: Props) {
     return (
-    <Stack direction="row" gap={2} alignItems="center" sx={{p: 2, borderBottom: 1, borderColor: "divider"}}>
-        <IconButton onClick={onClose}>
-            <CloseIcon/>
-        </IconButton>
-        <Typography
-            variant="body1"
-            sx={{
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-            }}
-        >
-            {title}
-        </Typography>
-        <Box flex={1}/>
-        <Typography>Cook: <b>{total}</b>, Mngr: <b>{managerTotal}</b></Typography>
-
-
-        <Button variant="contained"
-                sx={{bgcolor: "#E44B4C", "&:hover": {bgcolor: "#c93d3e"}, borderRadius: 4}}
-                onClick={handleSave}
-        >
-            {saving ? "Saving..." : "Save"}
-        </Button>
-    </Stack>
+            <Stack direction="row" gap={2} alignItems="center" sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+                <IconButton onClick={onClose}>
+                    <CloseIcon />
+                </IconButton>
+                <TextField
+                    value={title}
+                    variant="standard"
+                    size="small"
+                    sx={{ minWidth: 180, fontWeight: 700 }}
+                    inputProps={{ style: { fontWeight: 700, fontSize: "1.1rem" } }}
+                />
+                <Box flex={1} />
+                <Button
+                    variant="contained"
+                    onClick={() => onAddNewRow}
+                    sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                >
+                    Add
+                </Button>
+                <Button variant="contained"
+                        sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                        onClick={handleSave}
+                >
+                    {saving ? "Saving..." : "Save"}
+                </Button>
+            </Stack>
     )
 }

@@ -1,40 +1,42 @@
-import React, { useEffect, useState } from "react";
-import { Alert, Box, CircularProgress } from "@mui/material";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import React, {useEffect, useState} from "react";
+import {
+    Alert,
+    Box,
+    CircularProgress,
+    Paper,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    TextField,
+    Typography,
+} from "@mui/material";
 import dayjs from "dayjs";
-import { getMonthlyShiftReport } from "../api/api";
-import type { MonthlyShiftReport } from "../types/shiftTypes";
+import {getMonthlyShiftReport} from "../api/api";
+import type {MonthlyShiftReport} from "../types/shiftTypes";
 
 type Props = {
     branchId: string;
 };
 
-const columns: GridColDef[] = [
-    { field: "username", headerName: "Staff", flex: 1, minWidth: 120 },
-    { field: "role", headerName: "Role", width: 130 },
-    {
-        field: "totalHours",
-        headerName: "Total Hrs",
-        type: "number",
-        width: 100,
-        renderCell: (params) => {
-            const {totalHours, regularHours, overtimeHours} = params.row;
+const pillSx = {
+    bg: "rgba(0,0,0,0.06)",
+    text: "#333",
+};
 
-            if(overtimeHours === 0) return totalHours.toFixed(2);
+const costPillSx = {
+    bg: "rgba(52, 199, 89, 0.12)",
+    text: "#008a00",
+};
 
-            return `${totalHours.toFixed(2)}(${regularHours.toFixed(2)} + ${overtimeHours.toFixed(2)})`
-        }
-    },
-    {
-        field: "totalCost",
-        headerName: "Total Cost",
-        type: "number",
-        width: 120,
-        valueFormatter: (value: number | null) => (value == null ? "—" : value.toFixed(3)),
-    },
-];
+const overtimePillSx = {
+    bg: "rgba(255, 59, 48, 0.12)",
+    text: "#c41c00",
+};
 
-export function StaffSummaryContent({ branchId }: Props): JSX.Element {
+export function StaffSummaryContent({branchId}: Props): JSX.Element {
     const [yearMonth, setYearMonth] = useState<string>(dayjs().format("YYYY-MM"));
     const [report, setReport] = useState<MonthlyShiftReport | null>(null);
     const [loading, setLoading] = useState(false);
@@ -49,45 +51,144 @@ export function StaffSummaryContent({ branchId }: Props): JSX.Element {
                 const data = await getMonthlyShiftReport(branchId, yearMonth);
                 if (alive) setReport(data);
             } catch (e: unknown) {
-                const msg = e instanceof Error ? e.message : "Failed to load";
-                if (alive) setError(msg);
+                if (alive) setError(e instanceof Error ? e.message : "Failed to load");
             } finally {
                 if (alive) setLoading(false);
             }
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [branchId, yearMonth]);
 
-    const rows = (report?.summaries ?? []).map((s, i) => ({ id: s.staffId ?? i, ...s }));
+    const rows = report?.summaries ?? [];
 
     return (
-        <Box sx={{ p: 2 }}>
-            <Box sx={{ mb: 2 }}>
-                <input
+        <Box sx={{p: 2, backgroundColor: "#fff", minHeight: "100%"}}>
+            <Box sx={{mb: 2}}>
+                <TextField
                     type="month"
                     value={yearMonth}
                     onChange={(e) => setYearMonth(e.target.value)}
-                    style={{ padding: "8px", fontSize: "16px", borderRadius: 8, border: "1px solid #e0e0e0" }}
+                    size="small"
+                    variant="outlined"
+                    sx={{"& .MuiOutlinedInput-root": {borderRadius: 2}}}
                 />
             </Box>
 
-            {loading && (
-                <Box sx={{ display: "grid", placeItems: "center", minHeight: 200 }}>
-                    <CircularProgress />
+            {error && <Alert severity="error" sx={{mb: 2}}>{error}</Alert>}
+
+            {loading ? (
+                <Box sx={{display: "grid", placeItems: "center", minHeight: 200}}>
+                    <CircularProgress/>
                 </Box>
-            )}
+            ) : (
+                <TableContainer
+                    component={Paper}
+                    elevation={0}
+                    sx={{
+                        borderRadius: 4,
+                        overflowX: "auto",
+                        WebkitOverflowScrolling: "touch",
+                        border: "1px solid rgba(0,0,0,0.08)",
+                    }}
+                >
+                    <Table size="small" aria-label="staff summary" sx={{minWidth: 480}}>
+                        <TableHead sx={{bgcolor: "#fafafa"}}>
+                            <TableRow>
+                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Staff</TableCell>
+                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Role</TableCell>
+                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
+                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Cost</TableCell>
+                            </TableRow>
+                        </TableHead>
 
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                        <TableBody>
+                            {rows.map((s, i) => {
+                                const hasOvertime = (s.overtimeHours ?? 0) > 0;
 
-            {!loading && !error && (
-                <DataGrid
-                    rows={rows}
-                    columns={columns}
-                    autoHeight
-                    disableRowSelectionOnClick
-                    pageSizeOptions={[10, 25, 50]}
-                    initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                />
+                                return (
+                                    <TableRow
+                                        key={s.staffId ?? i}
+                                        sx={{"&:last-child td, &:last-child th": {border: 0}}}
+                                    >
+                                        {/* Staff */}
+                                        <TableCell sx={{color: "#333", fontSize: "0.9rem"}}>
+                                            {s.username}
+                                        </TableCell>
+
+                                        {/* Role */}
+                                        <TableCell>
+                                            <Box sx={{
+                                                backgroundColor: pillSx.bg,
+                                                color: pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                fontWeight: "bold",
+                                                fontSize: "0.85rem",
+                                            }}>
+                                                {s.role}
+                                            </Box>
+                                        </TableCell>
+
+                                        {/* Total Hours */}
+                                        <TableCell>
+                                            <Box sx={{
+                                                backgroundColor: pillSx.bg,
+                                                color: pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 0.5,
+                                                fontWeight: "bold",
+                                                fontSize: "0.9rem",
+                                            }}>
+                                                {s.totalHours?.toFixed(2)}
+                                                {hasOvertime && (
+                                                    <Typography component="span" sx={{
+                                                        fontSize: "0.78rem",
+                                                        opacity: 0.75,
+                                                        fontWeight: "normal"
+                                                    }}>
+                                                        ({s.regularHours?.toFixed(2)} + {s.overtimeHours?.toFixed(2)} OT)
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </TableCell>
+
+                                        {/* Total Cost */}
+                                        <TableCell>
+                                            <Box sx={{
+                                                backgroundColor: s.totalCost != null ? costPillSx.bg : pillSx.bg,
+                                                color: s.totalCost != null ? costPillSx.text : pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                fontWeight: "bold",
+                                                fontSize: "0.9rem",
+                                            }}>
+                                                {s.totalCost != null ? s.totalCost.toFixed(3) : "—"}
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+
+                            {rows.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} align="center" sx={{py: 3, color: "text.secondary"}}>
+                                        No data for this period
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             )}
         </Box>
     );

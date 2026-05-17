@@ -1,7 +1,8 @@
 import {IBranch} from "../types/inventoryTypes";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import dayjs from "dayjs";
-import {BaseShiftResponse, ShiftInfoTO, ShiftRow, StaffOption} from "../types/shiftTypes";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+import {BaseShiftResponse, ShiftRow, StaffOption} from "../types/shiftTypes";
 import {
     createShiftReport,
     editShiftReport,
@@ -10,23 +11,28 @@ import {
 } from "../api/api";
 import {
     Alert,
+    AppBar,
     Box,
-    Chip,
+    Button,
     CircularProgress,
     Dialog,
+    IconButton,
     MenuItem,
+    Paper,
     Select,
-    SelectChangeEvent,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
     TextField,
+    Toolbar,
+    Typography,
 } from "@mui/material";
+import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import {toShiftEntryPayload} from "../mappers/shiftMapper";
 import {TableTopBar} from "./TableTopBar";
-import {toShiftInfoTO} from "../mappers/shiftMapper";
-import {
-    DataGrid,
-    GridColDef,
-    GridRenderEditCellParams,
-} from "@mui/x-data-grid";
-import customParseFormat from "dayjs/plugin/customParseFormat";
 
 dayjs.extend(customParseFormat);
 
@@ -37,108 +43,63 @@ type Props = {
     branch: IBranch;
     onClose: () => void;
     onSaved?: (report: BaseShiftResponse) => void;
+};
+
+const BRAND = "#E44B4C";
+
+const noUnderlineSx = {
+    "& .MuiInput-underline:before": {borderBottom: "none"},
+    "& .MuiInput-underline:after": {borderBottom: "none"},
+    "& .MuiInput-underline:hover:not(.Mui-disabled):before": {borderBottom: "none"},
+    "&:before": {borderBottom: "none"},
+    "&:after": {borderBottom: "none"},
+    "&:hover:not(.Mui-disabled):before": {borderBottom: "none"},
+};
+
+const pillSx = {
+    bg: "rgba(0,0,0,0.06)",
+    text: "#333",
+};
+
+function newRow(): ShiftRow {
+    return {
+        id: `new-${Date.now()}-${Math.random()}`,
+        shiftDate: dayjs().format("YYYY-MM-DD"),
+        startTime: null,
+        endTime: null,
+        totalHours: null,
+        staffId: null,
+    };
 }
 
-type TimeEditCellProps = GridRenderEditCellParams<ShiftRow, string | null>;
+function calculateTotalHours(row: ShiftRow): ShiftRow {
+    if (!row.startTime || !row.endTime) return {...row, totalHours: null};
+    const start = dayjs(row.startTime, "HH:mm");
+    const end = dayjs(row.endTime, "HH:mm");
+    if (!start.isValid() || !end.isValid()) return {...row, totalHours: null};
+    let diff = end.diff(start, "minute");
+    if (diff < 0) diff += 24 * 60;
+    return {...row, totalHours: Number((diff / 60).toFixed(3))};
+}
 
 export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onClose}: Props) {
-    const [title, setTitle] = useState<string>("");
-    const [reportDate, setReportDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
+    const [title, setTitle] = useState("");
     const [rows, setRows] = useState<ShiftRow[]>([]);
     const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [creationTimeStamp, setCreationTimeStamp] = useState("");
 
     const isDataLoaded = useRef(false);
 
-    const cookOptions = useMemo(
-        () => staffOptions.filter(s => s.role === "COOK"),
-        [staffOptions]
-    );
-
-    const managerOptions = useMemo(
-        () => staffOptions.filter(s => s.role === "MANAGER" || s.role === "SUPER_MANAGER"),
-        [staffOptions]
-    );
-
-    function TimeEditCell(props: TimeEditCellProps) {
-        const { id, field, value, api, hasFocus } = props;
-        const inputRef = React.useRef<HTMLInputElement | null>(null);
-
-        React.useEffect(() => {
-            if (hasFocus && inputRef.current) {
-                inputRef.current.focus();
-                inputRef.current.select?.();
-            }
-        }, [hasFocus]);
-
-        return (
-            <div style={{ width: '100%', height: '100%' }} onClick={(e) => e.stopPropagation()}>
-                <TextField
-                    type="time"
-                    size="small"
-                    fullWidth
-                    inputRef={inputRef}
-                    value={value ?? ""}
-                    inputProps={{ step: 300 }}
-                    sx={{
-                        '& fieldset': { border: 'none' },
-                        height: '100%',
-                    }}
-                    onChange={(e) => {
-                        const timeStr = e.target.value || null;
-                        api.setEditCellValue({ id, field, value: timeStr });
-                    }}
-                />
-            </div>
-        );
-    }
-
-    function buildInitialRowsForMonth() {
-        const startOfMonth = dayjs(reportDate).startOf("month");
-        const endOfMonth = dayjs(reportDate).endOf("month");
-
-        const initialRows: ShiftRow[] = [];
-        let d = startOfMonth;
-
-        while (d.isBefore(endOfMonth) || d.isSame(endOfMonth, "day")) {
-            if (d.day() !== 0) {
-                const dateStr = d.format("YYYY-MM-DD");
-                initialRows.push({
-                    id: dateStr,
-                    shiftDate: dateStr,
-                    cookStartTime: null,
-                    cookEndTime: null,
-                    cookTotalHours: null,
-                    managerStartTime: null,
-                    managerEndTime: null,
-                    managerTotalHours: null,
-                    cookStaffIds: [],
-                    managerStaffIds: [],
-                });
-            }
-            d = d.add(1, "day");
-        }
-        return initialRows;
-    }
-
-    const cookTotal = useMemo(
-        () => rows.reduce((acc, r) => acc + (r.cookTotalHours ?? 0), 0),
+    const totalHours = useMemo(
+        () => rows.reduce((acc, r) => acc + (r.totalHours ?? 0), 0),
         [rows]
     );
-
-    const managerTotal = useMemo(
-        () => rows.reduce((acc, r) => acc + (r.managerTotalHours ?? 0), 0),
-        [rows]
-    );
-
-    const formattedCookTotal = useMemo(() => cookTotal.toFixed(3), [cookTotal]);
-    const formattedManagerTotal = useMemo(() => managerTotal.toFixed(3), [managerTotal]);
 
     useEffect(() => {
         let cancelled = false;
-
         if (!open) {
             isDataLoaded.current = false;
             return;
@@ -155,278 +116,244 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                 if (!cancelled) setStaffOptions(staff);
 
                 if (mode === "new") {
-                    const initialRows = buildInitialRowsForMonth();
                     if (!cancelled) {
-                        setRows(initialRows);
-                        setTitle(`${dayjs(reportDate).format("MMM-YY")}-BH-${branch.branchName}`.toLowerCase());
+                        setRows([newRow()]);
+                        setTitle(`${dayjs().format("MMM-YY")}-BH-${branch.branchName}`.toLowerCase());
                         isDataLoaded.current = true;
                     }
                 } else {
-                    if (shiftReportId === undefined) throw Error("Shift report ID is required");
+                    if (shiftReportId === undefined) throw new Error("Shift report ID is required");
                     const resp = await getShiftReport({id: shiftReportId});
                     if (!cancelled) {
                         setTitle(resp.title);
+                        setCreationTimeStamp(resp.creationTimeStamp);
                         setRows(
-                            resp.shifts.map((x, i) => ({
+                            resp.shifts.map((entry, i) => ({
                                 id: `r-${i}`,
-                                shiftDate: x.shiftDate,
-                                cookStartTime: x.cookStartTime ? x.cookStartTime.slice(0, 5) : null,
-                                cookEndTime: x.cookEndTime ? x.cookEndTime.slice(0, 5) : null,
-                                cookTotalHours: x.cookTotal,
-                                managerStartTime: x.managerStartTime ? x.managerStartTime.slice(0, 5) : null,
-                                managerEndTime: x.managerEndTime ? x.managerEndTime.slice(0, 5) : null,
-                                managerTotalHours: x.managerTotal,
-                                cookStaffIds: x.cookStaffIds ?? [],
-                                managerStaffIds: x.managerStaffIds ?? [],
+                                shiftDate: entry.shiftDate,
+                                startTime: entry.startTime ? entry.startTime.slice(0, 5) : null,
+                                endTime: entry.endTime ? entry.endTime.slice(0, 5) : null,
+                                totalHours: entry.totalHours,
+                                staffId: entry.staffId,
                             }))
                         );
                         isDataLoaded.current = true;
                     }
                 }
             } catch (e: unknown) {
-                if (!cancelled) {
-                    const msg = e instanceof Error ? e.message : "Load failed";
-                    console.error("[SHIFT REPORT] load error", e);
-                    setError(msg);
-                }
+                if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
             } finally {
                 if (!cancelled) setLoading(false);
             }
         })();
 
-        return () => { cancelled = true; };
-    }, [open, mode, shiftReportId, branch, reportDate]);
+        return () => {
+            cancelled = true;
+        };
+    }, [open, mode, shiftReportId, branch]);
 
-    function updateStaffIds(rowId: string, field: "cookStaffIds" | "managerStaffIds", ids: number[]) {
-        setRows(prev => prev.map(r => r.id === rowId ? { ...r, [field]: ids } : r));
+    function updateRow(id: string, patch: Partial<ShiftRow>) {
+        setRows(prev =>
+            prev.map(r => {
+                if (r.id !== id) return r;
+                return calculateTotalHours({...r, ...patch});
+            })
+        );
     }
 
-    const handleSave = async () => {
+    const handleSave = async (): Promise<void> => {
+        if (rows.some(r => r.staffId === null)) {
+            setError("All rows must have a contributor selected.");
+            return;
+        }
+        setSaving(true);
+        setError(null);
         try {
-            setSaving(true);
-            setError(null);
-            const rowsToSave: ShiftInfoTO[] = rows.map((row) => toShiftInfoTO(row));
+            const rowsToSave = rows.map(toShiftEntryPayload);
+            let report: BaseShiftResponse;
             if (mode === "new") {
-                const report: BaseShiftResponse = await createShiftReport({
-                    title,
-                    branchNo: branch.branchNo,
-                    totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
-                    shifts: rowsToSave,
-                });
-                onSaved(report);
+                report = await createShiftReport({title, branchNo: branch.branchNo, totalHours, shifts: rowsToSave});
             } else {
-                const report: BaseShiftResponse = await editShiftReport({
-                    title,
+                report = await editShiftReport({
                     id: shiftReportId!,
+                    title,
                     branchNo: branch.branchNo,
-                    totalHours: Number(formattedCookTotal) + Number(formattedManagerTotal),
-                    shifts: rowsToSave,
+                    totalHours,
+                    creationTimeStamp,
+                    shifts: rowsToSave
                 });
-                onSaved(report);
             }
+            onSaved?.(report);
             onClose();
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : "Save failed";
-            setError(msg);
+            setError(e instanceof Error ? e.message : "Save failed");
         } finally {
             setSaving(false);
         }
     };
 
-    function calculateTotalHours(row: ShiftRow): ShiftRow {
-        const calcDuration = (startStr: string | null | undefined, endStr: string | null | undefined): number | null => {
-            if (!startStr || !endStr) return null;
-            const start = dayjs(startStr, "HH:mm");
-            const end = dayjs(endStr, "HH:mm");
-            if (!start.isValid() || !end.isValid()) return null;
-            let diffInMinutes = end.diff(start, "minute");
-            if (diffInMinutes < 0) diffInMinutes += 24 * 60;
-            return Number((diffInMinutes / 60).toFixed(3));
-        };
-
-        return {
-            ...row,
-            cookTotalHours: calcDuration(row.cookStartTime, row.cookEndTime),
-            managerTotalHours: calcDuration(row.managerStartTime, row.managerEndTime),
-        };
-    }
-
-    function makeStaffSelectCell(
-        options: StaffOption[],
-        field: "cookStaffIds" | "managerStaffIds",
-        isMgr: boolean
-    ): GridColDef<ShiftRow>["renderCell"] {
-        return (params) => {
-            const numericValue: number[] = params.row[field] ?? [];
-            const stringValue = numericValue.map(String);
-
-            const handleChange = (e: SelectChangeEvent<string[]>) => {
-                const selected = (e.target.value as string[]).map(Number);
-                updateStaffIds(String(params.row.id), field, selected);
-            };
-
-            return (
-                <Select<string[]>
-                    multiple
-                    displayEmpty
-                    value={stringValue}
-                    onChange={handleChange}
-                    renderValue={(selected) =>
-                        selected.length === 0 ? (
-                            <Box sx={{ color: "text.disabled", fontSize: "0.85rem" }}>
-                                {isMgr ? "Managers…" : "Cooks…"}
-                            </Box>
-                        ) : (
-                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                                {selected.map((sid) => {
-                                    const staff = options.find((s) => String(s.id) === sid);
-                                    return (
-                                        <Chip
-                                            key={sid}
-                                            label={staff?.username ?? sid}
-                                            size="small"
-                                            sx={isMgr ? { bgcolor: "#ffe5e5" } : undefined}
-                                        />
-                                    );
-                                })}
-                            </Box>
-                        )
-                    }
-                    onClick={(e) => e.stopPropagation()}
-                    size="small"
-                    sx={{ width: "100%", "& fieldset": { border: "none" } }}
-                >
-                    {options.map((s) => (
-                        <MenuItem key={s.id} value={String(s.id)}>
-                            {s.username}
-                        </MenuItem>
-                    ))}
-                </Select>
-            );
-        };
-    }
-
-    const columns = useMemo<GridColDef<ShiftRow>[]>(() => [
-        {
-            field: "shiftDate",
-            headerName: "Shift Date",
-            width: 120,
-            renderCell: (params) => {
-                const value = params.row.shiftDate;
-                if (!value) return "";
-                return dayjs(value).isValid() ? dayjs(value).format("DD.MM.YYYY") : String(value);
-            },
-        },
-        {
-            field: "cookStartTime",
-            headerName: "Cook Start",
-            width: 110,
-            editable: true,
-            renderCell: (params) => <span>{params.row.cookStartTime ?? ""}</span>,
-            renderEditCell: (params) => <TimeEditCell {...params} />,
-        },
-        {
-            field: "cookEndTime",
-            headerName: "Cook End",
-            width: 110,
-            editable: true,
-            renderCell: (params) => <span>{params.row.cookEndTime ?? ""}</span>,
-            renderEditCell: (params) => <TimeEditCell {...params} />,
-        },
-        {
-            field: "cookTotalHours",
-            headerName: "Cook Hrs",
-            width: 100,
-            renderCell: (params) => {
-                const value = params.row.cookTotalHours;
-                return value != null ? Number(value).toFixed(2) : "";
-            },
-        },
-        {
-            field: "cookStaffIds",
-            headerName: "Cooks",
-            width: 220,
-            renderCell: makeStaffSelectCell(cookOptions, "cookStaffIds", false),
-        },
-        {
-            field: "managerStartTime",
-            headerName: "Mgr Start",
-            width: 110,
-            editable: true,
-            cellClassName: "manager-cell",
-            headerClassName: "manager-cell-header",
-            renderCell: (params) => <span>{params.row.managerStartTime ?? ""}</span>,
-            renderEditCell: (params) => <TimeEditCell {...params} />,
-        },
-        {
-            field: "managerEndTime",
-            headerName: "Mgr End",
-            width: 110,
-            cellClassName: "manager-cell",
-            headerClassName: "manager-cell-header",
-            editable: true,
-            renderCell: (params) => <span>{params.row.managerEndTime ?? ""}</span>,
-            renderEditCell: (params) => <TimeEditCell {...params} />,
-        },
-        {
-            field: "managerTotalHours",
-            headerName: "Mgr Hrs",
-            cellClassName: "manager-cell",
-            headerClassName: "manager-cell-header",
-            width: 100,
-            renderCell: (params) => {
-                const value = params.row.managerTotalHours;
-                return value != null ? Number(value).toFixed(2) : "";
-            },
-        },
-        {
-            field: "managerStaffIds",
-            headerName: "Managers",
-            width: 220,
-            cellClassName: "manager-cell",
-            headerClassName: "manager-cell-header",
-            renderCell: makeStaffSelectCell(managerOptions, "managerStaffIds", true),
-        },
-    ], [cookOptions, managerOptions]);
-
     return (
-        <>
-            <Dialog fullScreen open={open} onClose={onClose}
-                    PaperProps={{sx: {bgcolor: "background.default", display: "flex", flexDirection: "column"}}}>
+        <Dialog
+            fullScreen
+            open={open}
+            onClose={onClose}
+            sx={{"& .MuiDialog-paper": {backgroundColor: "#fff"}}}
+        >
+            <TableTopBar
+                onClose={onClose}
+                title={title}
+                handleSave={handleSave}
+                saving={saving}
+                onAddNewRow={() => setRows(prev => [...prev, newRow()])}
+            />
 
-                <TableTopBar onClose={onClose} title={title} handleSave={handleSave} total={Number(formattedCookTotal)}
-                             saving={saving} managerTotal={Number(formattedManagerTotal)} />
+            <Box sx={{p: 2}}>
+                {error && (
+                    <Alert severity="error" sx={{mb: 2}} onClose={() => setError(null)}>
+                        {error}
+                    </Alert>
+                )}
 
                 {loading ? (
-                    <Box sx={{display: "grid", placeItems: "center", flexGrow: 1}}>
+                    <Box sx={{display: "grid", placeItems: "center", minHeight: 200}}>
                         <CircularProgress/>
                     </Box>
-                ) : error ? (
-                    <Box sx={{p: 2, flexGrow: 1}}>
-                        <Alert severity="error">{error}</Alert>
-                    </Box>
                 ) : (
-                    <Box sx={{flexGrow: 1, p: 1, height: "calc(100vh - 64px)"}}>
-                        <DataGrid
-                            rows={rows}
-                            columns={columns}
-                            getRowId={(row) => row.id}
-                            processRowUpdate={(newRow) => {
-                                const updatedRow = calculateTotalHours(newRow);
-                                setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));
-                                return updatedRow;
-                            }}
-                            disableRowSelectionOnClick
-                            sx={{
-                                height: "100%",
-                                width: "100%",
-                                "& .manager-cell": { backgroundColor: "#fff5f5" },
-                                "& .manager-cell-header": { backgroundColor: "#fff5f5" },
-                            }}
-                        />
-                    </Box>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{
+                            borderRadius: 4,
+                            overflow: "hidden",
+                            overflowX: "auto",
+                            WebkitOverflowScrolling: "touch"
+                        }}
+                    >
+                        <Table size="small" aria-label="shift entries">
+                            <TableHead sx={{bgcolor: "#fff"}}>
+                                <TableRow>
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Shift Date</TableCell>
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Name</TableCell>
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Start Time</TableCell>
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>End Time</TableCell>
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
+                                </TableRow>
+                            </TableHead>
+
+                            <TableBody>
+                                {rows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        sx={{"&:last-child td, &:last-child th": {border: 0}}}
+                                    >
+                                        {/* Shift Date */}
+                                        <TableCell sx={{minWidth: 150}}>
+                                            <TextField
+                                                type="date"
+                                                value={row.shiftDate}
+                                                onChange={(e) => updateRow(row.id, {shiftDate: e.target.value})}
+                                                size="small"
+                                                variant="standard"
+                                                sx={{width: 140, ...noUnderlineSx}}
+                                            />
+                                        </TableCell>
+
+                                        {/* Contributor — pill select */}
+                                        <TableCell sx={{minWidth: 190}}>
+                                            <Box sx={{
+                                                backgroundColor: pillSx.bg,
+                                                color: pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                fontWeight: "bold",
+                                                fontSize: "0.9rem",
+                                            }}>
+                                                <Select
+                                                    displayEmpty
+                                                    value={row.staffId ?? ""}
+                                                    onChange={(e) => updateRow(row.id, {staffId: Number(e.target.value)})}
+                                                    size="small"
+                                                    variant="standard"
+                                                    sx={{
+                                                        fontSize: "0.9rem",
+                                                        fontWeight: "bold",
+                                                        color: pillSx.text,
+                                                        minWidth: 150,
+                                                        ...noUnderlineSx,
+                                                    }}
+                                                >
+                                                    <MenuItem value="" disabled>
+                                                        <Typography color="text.secondary"
+                                                                    variant="body2">Select…</Typography>
+                                                    </MenuItem>
+                                                    {staffOptions.map((s) => (
+                                                        <MenuItem key={s.id} value={s.id}>{s.username}</MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </Box>
+                                        </TableCell>
+
+                                        {/* Start Time */}
+                                        <TableCell sx={{minWidth: 100}}>
+                                            <TextField
+                                                type="time"
+                                                value={row.startTime ?? ""}
+                                                onChange={(e) => updateRow(row.id, {startTime: e.target.value || null})}
+                                                size="small"
+                                                variant="standard"
+                                                inputProps={{step: 300}}
+                                                sx={{width: 120, ...noUnderlineSx}}
+                                            />
+                                        </TableCell>
+
+                                        {/* End Time */}
+                                        <TableCell sx={{minWidth: 100}}>
+                                            <TextField
+                                                type="time"
+                                                value={row.endTime ?? ""}
+                                                onChange={(e) => updateRow(row.id, {endTime: e.target.value || null})}
+                                                size="small"
+                                                variant="standard"
+                                                inputProps={{step: 300}}
+                                                sx={{width: 120, ...noUnderlineSx}}
+                                            />
+                                        </TableCell>
+
+                                        {/* Total Hours — pill (read-only, computed) */}
+                                        <TableCell sx={{minWidth: 120}}>
+                                            <Box sx={{
+                                                backgroundColor: pillSx.bg,
+                                                color: pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                fontWeight: "bold",
+                                                fontSize: "0.9rem",
+                                                minWidth: 60,
+                                            }}>
+                                                {row.totalHours != null ? `${row.totalHours.toFixed(3)} h` : "—"}
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+
+                                {rows.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={5} align="center" sx={{py: 3, color: "text.secondary"}}>
+                                            No entries yet — click "Add" to create one
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
                 )}
-            </Dialog>
-        </>
+            </Box>
+        </Dialog>
     );
 }
