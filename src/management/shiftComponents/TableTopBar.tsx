@@ -26,7 +26,7 @@ export function TableTopBar({ title, handleSave, onClose, saving, onAddNewRow }:
                 <Box flex={1} />
                 <Button
                     variant="contained"
-                    onClick={() => onAddNewRow}
+                    onClick={onAddNewRow}
                     sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
                 >
                     Add
