@@ -7,17 +7,18 @@ import {
     VendorTO
 } from "../types/purchaseTypes";
 import {ConsumptionReportTO} from "../types/consumptionTypes";
-import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, ShiftReportTO} from "../types/shiftTypes";
+import {BaseShiftResponse, CreateShiftReportTO, EditShiftReportTO, MonthlyShiftReport, ShiftReportTO, StaffOption} from "../types/shiftTypes";
 import {VatStatePayload} from "../types/statTypes";
 import {BlackListCstmr} from "../types/blacklistTypes";
 import {BranchBalanceResponse, CashRegisterEventTO, CashUpdateRequest} from "../types/branchBalanceTypes";
 import {AuthRequest, AuthResponse} from "../types/authTypes";
+import {AccountingCategoryTO, AccountingReportSummary, AccountingReportTO, AccountingType, CreateAccountingReportPayload, UpdateAccountingReportPayload} from "../types/accountingTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 
 
-export var URL = PROD_BASE_HOST;
+export var URL = DEV_BASE_HOST;
 
 export async function authFetch(url: string, headersWithoutAuth: RequestInit): Promise<Response> {
     const token = localStorage.getItem("jwt_token");
@@ -43,10 +44,27 @@ export async function authFetch(url: string, headersWithoutAuth: RequestInit): P
     return response;
 }
 
-export async function getBaseManagementReports(branchId: string): Promise<IManagementResponse[]> {
-    const res = await authFetch(URL + `/base_management?branchId=${branchId}`, { headers: { Accept: "application/json" } });
+type ListableReportType = 'INVENTORY' | 'PURCHASE' | 'SHIFT_REPORT';
+
+type GetReportsParams<T extends ListableReportType> = {
+    branchId: string;
+    reportType: T;
+    from?: string;
+    to?: string;
+};
+
+export async function getReports(params: GetReportsParams<'INVENTORY'>): Promise<IManagementResponse[]>;
+export async function getReports(params: GetReportsParams<'PURCHASE'>): Promise<BasePurchaseResponse[]>;
+export async function getReports(params: GetReportsParams<'SHIFT_REPORT'>): Promise<BaseShiftResponse[]>;
+export async function getReports(
+    params: GetReportsParams<ListableReportType>
+): Promise<IManagementResponse[] | BasePurchaseResponse[] | BaseShiftResponse[]> {
+    const query = new URLSearchParams({ branchId: params.branchId, reportType: params.reportType });
+    if (params.from !== undefined) query.set('from', params.from);
+    if (params.to !== undefined) query.set('to', params.to);
+    const res = await authFetch(URL + `/reports?${query}`, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json()) as IManagementResponse[];
+    return res.json();
 }
 
 export async function fetchAllBranches(): Promise<IBranch[]> {
@@ -136,15 +154,6 @@ export async function fetchVendors(): Promise<VendorTO[]> {
     return res.json();
 }
 
-export async function fetchPurchaseReports(branchId: string): Promise<BasePurchaseResponse[]> {
-    const res = await authFetch(URL + `/get_purchase_reports?branchId=${branchId}`, {
-        method: "GET",
-        headers: {"Content-Type": "application/json" }
-    })
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
-    return res.json();
-}
-
 export async function createPurchaseReport(payload: CreatePurchasePayload): Promise<BasePurchaseResponse> {
     const res = await authFetch(URL + `/create_purchase_report`, {
         method: "POST",
@@ -176,15 +185,6 @@ export async function editPurchaseReport(payload: EditPurchasePayload) : Promise
 
 export async function fetchLatestConsumptionReport(branchId: string): Promise<ConsumptionReportTO> {
     const res = await authFetch(URL + `/get_consumption_report?branchId=${branchId}`, {
-        method: "GET",
-        headers: {"Content-Type": "application/json" }
-    })
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
-    return res.json();
-}
-
-export async function fetchShiftReports(branchId: string): Promise<BaseShiftResponse[]> {
-    const res = await authFetch(URL + `/get_all_shift_reports?branchId=${branchId}`, {
         method: "GET",
         headers: {"Content-Type": "application/json" }
     })
@@ -291,10 +291,74 @@ export async function getBranchEvents(branchId: string): Promise<CashRegisterEve
     return res.json();
 }
 
+export async function getMonthlyShiftReport(
+    branchId: string,
+    yearMonth: string
+): Promise<MonthlyShiftReport> {
+    const params = new URLSearchParams({ branchId, yearMonth });
+    const res = await authFetch(URL + `/shift_monthly_report?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getStaffByBranch(branchId: string): Promise<StaffOption[]> {
+    const res = await authFetch(URL + `/staff_by_branch?branchId=${branchId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
 export async function initiateAuth(authRequest: AuthRequest) {
     return await fetch(`${URL}/auth/login`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(authRequest),
     })
+}
+export async function getAccountingReports(branchId: string): Promise<AccountingReportSummary[]> {
+    const params = new URLSearchParams({ branchId });
+    const res = await authFetch(URL + `/accounting/reports?${params}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function getAccountingReport(id: number): Promise<AccountingReportTO> {
+    const res = await authFetch(URL + `/accounting/reports/${id}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function createAccountingReport(payload: CreateAccountingReportPayload): Promise<AccountingReportTO> {
+    const res = await authFetch(URL + `/accounting/reports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function updateAccountingReport(id: number, payload: UpdateAccountingReportPayload): Promise<AccountingReportTO> {
+    const res = await authFetch(URL + `/accounting/reports/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function getAccountingCategories(branchId: string, type?: AccountingType): Promise<AccountingCategoryTO[]> {
+    const params = new URLSearchParams({ branchId });
+    if (type !== undefined) {
+        params.append("type", type);
+    }
+    const res = await authFetch(URL + `/accounting/categories?${params}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
 }

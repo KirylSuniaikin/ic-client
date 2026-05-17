@@ -1,14 +1,16 @@
-import {BaseShiftResponse} from "../types/shiftTypes";
-import {Button, Card, CardHeader, Typography} from "@mui/material";
-
-type Props = {
-    report: BaseShiftResponse
-    onEditClick: (shift: BaseShiftResponse) => void
-}
+import { AccountingReportSummary } from "../types/accountingTypes";
+import { Button, Card, CardHeader, Stack, Typography } from "@mui/material";
 
 const BRAND = "#E44B4C";
 
-export function ShiftCard({report, onEditClick}: Props) {
+export type AccountingCardProps = {
+    report: AccountingReportSummary;
+    onEditClick: () => void;
+};
+
+export function AccountingCard({ report, onEditClick }: AccountingCardProps): JSX.Element {
+    const created = new Date(report.createdAt).toLocaleDateString();
+
     return (
         <Card key={report.id} variant="outlined" sx={{ borderRadius: 4, borderColor: "snow" }}>
             <CardHeader
@@ -17,12 +19,21 @@ export function ShiftCard({report, onEditClick}: Props) {
                         {report.title}
                     </Typography>
                 }
-                subheader={"Total: " + report.totalHours.toFixed(3) + " hrs"}
+                subheader={
+                    <Stack direction="column" gap={0.25}>
+                        <Typography variant="body2" color="text.secondary">
+                            {created}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Income: {report.totalIncome} BHD · Expense: {report.totalExpense} BHD
+                        </Typography>
+                    </Stack>
+                }
                 action={
                     <Button
                         size="small"
                         variant="outlined"
-                        onClick={() => onEditClick(report)}
+                        onClick={() => onEditClick()}
                         sx={{
                             borderRadius: 4,
                             borderWidth: 1,
@@ -31,7 +42,7 @@ export function ShiftCard({report, onEditClick}: Props) {
                             px: 2,
                             borderColor: BRAND,
                             color: BRAND,
-                            "&:hover": { borderColor: BRAND, backgroundColor: BRAND + "14" },
+                            "&:hover": { borderColor: BRAND, backgroundColor: `${BRAND}14` },
                         }}
                     >
                         Edit
@@ -43,6 +54,5 @@ export function ShiftCard({report, onEditClick}: Props) {
                 }}
             />
         </Card>
-    )
-
+    );
 }

@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from "react";
 import {IBranch} from "../types/inventoryTypes";
 import {BaseShiftResponse} from "../types/shiftTypes";
-import {fetchShiftReports, getBranchInfo} from "../api/api";
+import {getReports} from "../api/api";
 import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
-import {PurchaseTopBar} from "../purchaseComponents/PurchaseTopBar";
 import {ShiftCard} from "./ShiftCard";
 import {ShiftTablePopup} from "./ShiftTablePopup";
 import {ShiftReportTopBar} from "./ShiftReportTopBar";
@@ -42,7 +41,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
             setError(null);
             try{
                 const [baseShiftResponse] = await Promise.all([
-                    fetchShiftReports(branch.id.toString()),
+                    getReports({ branchId: branch.id.toString(), reportType: 'SHIFT_REPORT' }),
                 ]);
                 if (alive) {
                     setShiftReports(baseShiftResponse);
@@ -94,7 +93,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
                 <ShiftReportTopBar
                     onClose={onClose}
                     onNewClick={handleCreateShiftReportClick}
-                ></ShiftReportTopBar>
+                />
 
                 <Container
                     maxWidth="sm"

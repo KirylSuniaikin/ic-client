@@ -1,7 +1,10 @@
 import Decimal from "decimal.js-light";
 
 export type ReportType =
-    "INVENTORY"
+    | "INVENTORY"
+    | "PURCHASE"
+    | "PRODUCT_CONSUMPTION"
+    | "SHIFT_REPORT"
 
 export interface IManagementResponse {
     id: number;
@@ -18,6 +21,7 @@ export interface IBranch {
     externalId: string;
     branchNo: number;
     branchName: string;
+    locale: string
 }
 
 export interface IUser {

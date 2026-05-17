@@ -35,6 +35,7 @@ import CashPopup from "./components/shiftComponents/CashPopup";
 import { ShiftHomePage } from "./management/shiftComponents/ShiftHomePage";
 import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
+import { AccountingHomePage } from "./management/accountingComponents/AccountingHomePage";
 import { useAuth } from "./management/security/AuthProvider";
 import { fetchAllBranches, getBranchInfo } from "./management/api/api";
 import type { Order, WorkloadLevel, ShiftEventType } from "./types/orderTypes";
@@ -72,6 +73,7 @@ function AdminHomePage(): JSX.Element {
     const [selectedBranch, setSelectedBranch] = useState<IBranch | null>(null);
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
+    const [accountingOpen, setAccountingOpen] = useState(false);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -609,6 +611,7 @@ function AdminHomePage(): JSX.Element {
                     selectedBranch={selectedBranch}
                     onBlacklistopen={() => setBlacklistOpen(true)}
                     onCashRegisterOpen={() => setCashRegisterOpen(true)}
+                    onAccountingOpen={() => setAccountingOpen(true)}
                     role={role}
                     logout={logout}
                     userName={username ?? ""}
@@ -733,6 +736,14 @@ function AdminHomePage(): JSX.Element {
             {shiftManagementPageOpen && selectedBranch && (
                 <ShiftHomePage open={shiftManagementPageOpen}
                     onClose={() => setShiftManagementPageOpen(false)}
+                    branch={selectedBranch}
+                />
+            )}
+
+            {accountingOpen && selectedBranch && (
+                <AccountingHomePage
+                    open={accountingOpen}
+                    onClose={() => setAccountingOpen(false)}
                     branch={selectedBranch}
                 />
             )}

@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {BasePurchaseResponse} from "../types/purchaseTypes";
-import {fetchPurchaseReports, getBranchInfo, getUser} from "../api/api";
+import {getReports, getBranchInfo, getUser} from "../api/api";
 import {IBranch, IUser} from "../types/inventoryTypes";
 import {Alert, Box, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
@@ -40,7 +40,7 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
             setError(null);
             try {
                 const [baseManagementResponse, userResponse] = await Promise.all([
-                    fetchPurchaseReports(branch.id.toString()),
+                    getReports({ branchId: branch.id.toString(), reportType: 'PURCHASE' }),
                     getUser(adminId),
                 ]);
                 if (alive) {

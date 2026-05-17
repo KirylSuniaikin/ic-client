@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types/inventoryTypes";
-import {getBaseManagementReports, getBranchInfo, getUser} from "../api/api";
+import {getReports, getBranchInfo, getUser} from "../api/api";
 import {
     Alert,
     Box,
@@ -58,7 +58,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
             setError(null);
             try {
                 const [baseManagementResponse] = await Promise.all([
-                    getBaseManagementReports(branch.id.toString()),
+                    getReports({ branchId: branch.id.toString(), reportType: 'INVENTORY' }),
                 ]);
                 if (alive) {
                     setReports(baseManagementResponse);

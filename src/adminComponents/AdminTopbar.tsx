@@ -29,6 +29,7 @@ import {
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import {StaffRoles} from "../management/types/authTypes";
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import type { StaffRoles as StaffRolesType } from '../management/types/authTypes';
@@ -58,6 +59,7 @@ interface AdminTopbarProps {
     selectedBranch: IBranch | null;
     onBlacklistopen: () => void;
     onCashRegisterOpen: () => void;
+    onAccountingOpen: () => void;
     role: StaffRolesType | null;
     logout: () => void;
     userName: string;
@@ -84,6 +86,7 @@ export default function AdminTopbar({
                                         selectedBranch,
                                         onBlacklistopen,
                                         onCashRegisterOpen,
+                                        onAccountingOpen,
                                         role,
                                         logout,
                                         userName
@@ -129,13 +132,13 @@ export default function AdminTopbar({
         {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
         {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
         {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen},
+        {label: "Accounting", icon: <AccountBalanceWalletOutlinedIcon fontSize="small"/>, onClick: onAccountingOpen},
         {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
         {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
     ]
 
     const cookItems = [
         {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
         {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
         {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
         {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
