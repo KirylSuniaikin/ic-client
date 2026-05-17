@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
+import PaymentMethodSelector, { PaymentMethod } from "./payment/PaymentMethodSelector";
 
 const brandRed = "#E44B4C";
 
@@ -28,8 +29,6 @@ const countries: Country[] = [
     {name: "Poland", code: "48", digits: 9}
 ];
 
-const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
-
 interface ClientInfoPopupProps {
     isPhonePopupOpen: boolean;
     onClose: () => void;
@@ -46,7 +45,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
     const [name, setName] = useState("");
     const [nameError, setNameError] = useState("");
     const [note, setNote] = useState("");
-    const [paymentMethod, setPaymentMethod] = useState("Card (Through card machine)");
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
     const IS_MULTI_BRANCH_ENABLED =  false;
 
@@ -81,6 +80,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             setNameError("Name is required");
             return;
         }
+        if (paymentMethod === null) return;
         setPhoneError("");
         setNameError("");
         const fullPhone = countryObj.code + phoneDigits;
@@ -160,21 +160,12 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         InputProps={{ sx: { borderRadius: 4 } }}
                     />
 
-                    <TextField
-                        select
-                        label="Payment Method"
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        fullWidth
-                        sx={{ mb: 2 }}
-                        InputProps={{ sx: { borderRadius: 4 } }}
-                    >
-                        {paymentOptions.map((option) => (
-                            <MenuItem key={option} value={option}>
-                                {option}
-                            </MenuItem>
-                        ))}
-                    </TextField>
+                    <Box sx={{ mb: 2 }}>
+                        <PaymentMethodSelector
+                            value={paymentMethod}
+                            onChange={setPaymentMethod}
+                        />
+                    </Box>
 
                     {IS_MULTI_BRANCH_ENABLED &&
                         <TextField
@@ -219,6 +210,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         fullWidth
                         variant="contained"
                         onClick={handleSave}
+                        disabled={paymentMethod === null}
                         sx={{
                             backgroundColor: brandRed,
                             color: "#fff",

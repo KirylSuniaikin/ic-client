@@ -7,6 +7,9 @@ import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
 import {checkCustomer, createOrder, editOrder, fetchBaseAppInfo, URL} from "./api/api";
+import {initiatePaymentSession, getPaymentConfig} from "./api/paymentApi";
+import CredimaxCheckout from "./components/payment/CredimaxCheckout";
+import {persistCartForRecovery} from "./utils/cartPersistence";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
 import ClientInfoPopup from "./components/ClientInfoPopup";
@@ -177,6 +180,14 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
 
     const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
+
+    type CheckoutOverlayConfig = {
+        sessionId: string;
+        merchantId: string;
+        orderId: number;
+    };
+
+    const [checkoutConfig, setCheckoutConfig] = useState<CheckoutOverlayConfig | null>(null);
 
     const bestRef = useRef<HTMLDivElement | null>(null);
 
@@ -1084,6 +1095,26 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             setUsername("");
             setCartOpen(false);
 
+            const isOnlinePayment = (orderData as { payment_type?: string }).payment_type === "Online";
+
+            if (isOnlinePayment) {
+                const numericOrderId = parseInt(response.id, 10);
+                if (isNaN(numericOrderId)) {
+                    throw new Error("Invalid order ID returned from server");
+                }
+                persistCartForRecovery(numericOrderId);
+                const [sessionResponse, configResponse] = await Promise.all([
+                    initiatePaymentSession(numericOrderId),
+                    getPaymentConfig(),
+                ]);
+                setCheckoutConfig({
+                    sessionId: sessionResponse.sessionId,
+                    merchantId: configResponse.merchantId,
+                    orderId: numericOrderId,
+                });
+                return;
+            }
+
             if (!isKiosk) {
                 navigate("/order_status?order_id=" + response.id);
             }
@@ -1587,6 +1618,15 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     </Badge>
                 </Box>
             }
+
+            {checkoutConfig !== null && (
+                <CredimaxCheckout
+                    sessionId={checkoutConfig.sessionId}
+                    merchantId={checkoutConfig.merchantId}
+                    orderId={checkoutConfig.orderId}
+                    onClose={() => setCheckoutConfig(null)}
+                />
+            )}
 
             <ErrorSnackbar
                 open={errorSnackBarOpen}

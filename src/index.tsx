@@ -8,6 +8,7 @@ import {OrderStatusPage} from "./OrderStatusPage";
 import {AuthPage} from "./AuthPage";
 import {AuthProvider} from "./management/security/AuthProvider";
 import {ProtectedRoute} from "./management/security/ProtectedRoute";
+import PaymentResultPage from "./pages/PaymentResultPage";
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
@@ -43,6 +44,7 @@ root.render(
                     }
                     />
                     <Route path="/order_status" element={<WatchOrderStatus/>}/>
+                    <Route path="/payment/result" element={<PaymentResultPage/>}/>
                     <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
                     <Route path="/auth" element={<AuthPage/>}/>
                 </Routes>

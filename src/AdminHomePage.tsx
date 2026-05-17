@@ -155,9 +155,9 @@ function AdminHomePage(): JSX.Element {
 
     useEffect(() => {
         (async () => {
-            await BluetoothPrinterService.init();
-            await BluetoothPrinterService.connect();
-            BluetoothPrinterService.startConnectionMonitor();
+            // await BluetoothPrinterService.init();
+            // await BluetoothPrinterService.connect();
+            // BluetoothPrinterService.startConnectionMonitor();
         })();
     }, []);
 
@@ -317,6 +317,7 @@ function AdminHomePage(): JSX.Element {
                 setLoading(true);
                 // IBranch.id is numeric; String() coerces to match the string parameter
                 const response = await getAllActiveOrders(String(selectedBranch!.id));
+                console.log(response)
                 try {
                     const arr = JSON.parse(localStorage.getItem(SUPPRESS_KEY) || '[]') as unknown[];
                     suppressedSoundIdsRef.current = new Set(arr.map(String));

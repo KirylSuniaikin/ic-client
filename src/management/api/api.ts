@@ -18,7 +18,7 @@ export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
 
 
-export var URL = DEV_BASE_HOST;
+export var URL = PROD_BASE_HOST;
 
 export async function authFetch(url: string, headersWithoutAuth: RequestInit): Promise<Response> {
     const token = localStorage.getItem("jwt_token");
