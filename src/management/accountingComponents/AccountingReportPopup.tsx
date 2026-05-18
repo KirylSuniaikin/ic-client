@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
     AppBar,
@@ -39,6 +39,7 @@ import {
 import { useAuth } from "../security/AuthProvider";
 import { StaffRoles } from "../types/authTypes";
 import { dateFormatter } from "../mappers/dateFormatter";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 
 type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT";
 
@@ -227,6 +228,10 @@ export function AccountingReportPopup({
         return categories.filter((c) => c.type === type && !c.archived);
     }
 
+    function deleteRow(key: string) {
+        setRows(prev => prev.filter(r => r._key !== key));
+    }
+
     async function handleSave(): Promise<void> {
         if (!title.trim()) {
             setError("Report title is required.");
@@ -300,7 +305,13 @@ export function AccountingReportPopup({
                 elevation={0}
                 color="inherit"
                 position="sticky"
-                sx={{ borderBottom: 1, borderColor: "divider", backgroundColor: "#fff" }}
+                sx={{ p: 2,
+                    borderBottom: 1,
+                    borderColor: "divider",
+                    backgroundColor: "#fff",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10, }}
             >
                 <Toolbar sx={{ gap: 1 }}>
                     <IconButton edge="start" onClick={onClose} size="small" aria-label="close">
@@ -600,6 +611,17 @@ export function AccountingReportPopup({
                                                     </Box>
                                                 </TableCell>
                                             )}
+
+                                            {/* Delete */}
+                                            <TableCell sx={{width: 40, pr: 1}}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => deleteRow(row._key)}
+                                                    sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
+                                                >
+                                                    <DeleteOutlineRoundedIcon fontSize="small"/>
+                                                </IconButton>
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 })}
