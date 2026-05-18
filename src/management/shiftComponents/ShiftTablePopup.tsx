@@ -11,9 +11,7 @@ import {
 } from "../api/api";
 import {
     Alert,
-    AppBar,
     Box,
-    Button,
     CircularProgress,
     Dialog,
     IconButton,
@@ -27,10 +25,9 @@ import {
     TableHead,
     TableRow,
     TextField,
-    Toolbar,
     Typography,
 } from "@mui/material";
-import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import {toShiftEntryPayload} from "../mappers/shiftMapper";
 import {TableTopBar} from "./TableTopBar";
 
@@ -44,8 +41,6 @@ type Props = {
     onClose: () => void;
     onSaved?: (report: BaseShiftResponse) => void;
 };
-
-const BRAND = "#E44B4C";
 
 const noUnderlineSx = {
     "& .MuiInput-underline:before": {borderBottom: "none"},
@@ -104,14 +99,12 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             isDataLoaded.current = false;
             return;
         }
-        if (!branch) return;
-        if (isDataLoaded.current) return;
+        if (!branch || isDataLoaded.current) return;
 
         (async () => {
             try {
                 setError(null);
                 setLoading(true);
-
                 const staff = await getStaffByBranch(branch.id.toString());
                 if (!cancelled) setStaffOptions(staff);
 
@@ -154,11 +147,12 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
 
     function updateRow(id: string, patch: Partial<ShiftRow>) {
         setRows(prev =>
-            prev.map(r => {
-                if (r.id !== id) return r;
-                return calculateTotalHours({...r, ...patch});
-            })
+            prev.map(r => r.id !== id ? r : calculateTotalHours({...r, ...patch}))
         );
+    }
+
+    function deleteRow(id: string) {
+        setRows(prev => prev.filter(r => r.id !== id));
     }
 
     const handleSave = async (): Promise<void> => {
@@ -174,14 +168,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
             if (mode === "new") {
                 report = await createShiftReport({title, branchNo: branch.branchNo, totalHours, shifts: rowsToSave});
             } else {
-                report = await editShiftReport({
-                    id: shiftReportId!,
-                    title,
-                    branchNo: branch.branchNo,
-                    totalHours,
-                    creationTimeStamp,
-                    shifts: rowsToSave
-                });
+                report = await editShiftReport({id: shiftReportId!, title, branchNo: branch.branchNo, totalHours, creationTimeStamp, shifts: rowsToSave});
             }
             onSaved?.(report);
             onClose();
@@ -222,14 +209,9 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     <TableContainer
                         component={Paper}
                         elevation={0}
-                        sx={{
-                            borderRadius: 4,
-                            overflow: "hidden",
-                            overflowX: "auto",
-                            WebkitOverflowScrolling: "touch"
-                        }}
+                        sx={{borderRadius: 4, overflowX: "auto", WebkitOverflowScrolling: "touch"}}
                     >
-                        <Table size="small" aria-label="shift entries">
+                        <Table size="small" aria-label="shift entries" sx={{minWidth: 620}}>
                             <TableHead sx={{bgcolor: "#fff"}}>
                                 <TableRow>
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Shift Date</TableCell>
@@ -237,6 +219,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Start Time</TableCell>
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>End Time</TableCell>
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
+                                    <TableCell />
                                 </TableRow>
                             </TableHead>
 
@@ -258,7 +241,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                             />
                                         </TableCell>
 
-                                        {/* Contributor — pill select */}
+                                        {/* Contributor */}
                                         <TableCell sx={{minWidth: 190}}>
                                             <Box sx={{
                                                 backgroundColor: pillSx.bg,
@@ -286,8 +269,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                                     }}
                                                 >
                                                     <MenuItem value="" disabled>
-                                                        <Typography color="text.secondary"
-                                                                    variant="body2">Select…</Typography>
+                                                        <Typography color="text.secondary" variant="body2">Select…</Typography>
                                                     </MenuItem>
                                                     {staffOptions.map((s) => (
                                                         <MenuItem key={s.id} value={s.id}>{s.username}</MenuItem>
@@ -322,7 +304,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                             />
                                         </TableCell>
 
-                                        {/* Total Hours — pill (read-only, computed) */}
+                                        {/* Total Hours */}
                                         <TableCell sx={{minWidth: 120}}>
                                             <Box sx={{
                                                 backgroundColor: pillSx.bg,
@@ -339,12 +321,23 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                                 {row.totalHours != null ? `${row.totalHours.toFixed(3)} h` : "—"}
                                             </Box>
                                         </TableCell>
+
+                                        {/* Delete */}
+                                        <TableCell sx={{width: 40, pr: 1}}>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => deleteRow(row.id)}
+                                                sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
+                                            >
+                                                <DeleteOutlineRoundedIcon fontSize="small"/>
+                                            </IconButton>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
 
                                 {rows.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5} align="center" sx={{py: 3, color: "text.secondary"}}>
+                                        <TableCell colSpan={6} align="center" sx={{py: 3, color: "text.secondary"}}>
                                             No entries yet — click "Add" to create one
                                         </TableCell>
                                     </TableRow>
