@@ -333,11 +333,11 @@ function PizzaPopup({
                     <Box sx={{
                         width: "100%",
                         height: {
-                            xs: 280,
-                            sm: 360,
-                            md: 400,
-                            lg: 450,
-                            xl: 500
+                            xs: 460,
+                            sm: 500,
+                            md: 480,
+                            lg: 460,
+                            xl: 520
                         },
                         overflow: "hidden",
                         display: "flex",
