@@ -22,8 +22,8 @@ export type CartItem = {
     quantity: number;
     description: string;
     amount: number;
-    discount_amount: number;
-    comboItems: ComboItem[];
+    discountAmount: number;
+    comboItems: ComboItem[] | null;
     photo: string;
 }
 

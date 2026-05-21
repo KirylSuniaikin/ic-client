@@ -63,7 +63,8 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
             note: notes,
             quantity,
             description: notes,
-            amount: menuItem.price
+            amount: menuItem.price,
+            discountAmount: 0
         }];
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
@@ -71,7 +72,8 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                 products.push({
                     ...item,
                     quantity: count,
-                    amount: item.price
+                    amount: item.price,
+                    discountAmount: 0
                 });
             }
         }))

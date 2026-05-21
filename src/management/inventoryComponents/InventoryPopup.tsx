@@ -9,13 +9,23 @@ import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {createReport, editReport, fetchProducts, getReport} from "../api/api";
 import Decimal from "decimal.js-light";
 import {
-    DataGrid,
-    GridColDef, GridFilterModel,
-    GridRowModel, GridValueFormatter, GridValueGetter,
-} from '@mui/x-data-grid';
-import {Box, Button, CircularProgress, Dialog, IconButton, Stack, TextField, Typography} from "@mui/material";
+    Box,
+    Button,
+    CircularProgress,
+    Dialog,
+    IconButton,
+    Paper,
+    Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    TextField,
+    Typography
+} from "@mui/material";
 import {dateFormatter} from "../mappers/dateFormatter";
-
 
 type InventoryPopupProps = {
     open: boolean;
@@ -25,6 +35,22 @@ type InventoryPopupProps = {
     author: IUser;
     onClose: () => void;
     onSaved?: (report: IManagementResponse) => void;
+};
+
+const noUnderlineSx = {
+    "& .MuiInput-underline:before": { borderBottom: "none" },
+    "& .MuiInput-underline:after": { borderBottom: "none" },
+    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
+};
+
+const pillSx = {
+    bg: "rgba(0,0,0,0.06)",
+    text: "#333",
+};
+
+const finalPricePillSx = {
+    bg: "rgba(52, 199, 89, 0.12)",
+    text: "#008a00",
 };
 
 export default function InventoryPopup({
@@ -42,33 +68,19 @@ export default function InventoryPopup({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [title, setTitle] = useState<string>("");
-    const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
+    const [filterText, setFilterText] = useState("");
+    const [focusedCell, setFocusedCell] = useState<{ productId: number; field: "storageQuantity" | "kitchenQuantity" } | null>(null);
+    const [editValue, setEditValue] = useState<string>("");
     const isDataLoadedRef = useRef<boolean>(false);
-    // const dataGridRows = useMemo(() => {
-    //     return rows.map((r) => ({ id: r.productId, ...r }));
-    // }, [rows]);
-
-    const fmt3: GridValueFormatter = (value: any) =>
-        value instanceof Decimal ? value.toFixed(3) : new Decimal(value ?? 0).toFixed(3);
-
-    const finalGetter: GridValueGetter = (_value, row: any) => {
-        const kitchenQ: Decimal = row?.kitchenQuantity instanceof Decimal ? row.kitchenQuantity : new Decimal(row?.kitchenQuantity ?? 0);
-        const storageQ : Decimal = row?.storageQuantity instanceof Decimal ? row.storageQuantity : new Decimal(row?.storageQuantity ?? 0);
-        const qty = storageQ.add(kitchenQ);
-        const price = row?.price instanceof Decimal ? row.price : new Decimal(row?.price ?? 0);
-        return qty.mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
-    };
 
     useEffect(() => {
         if (!open) {
             isDataLoadedRef.current = false;
             return;
         }
-
         if (isDataLoadedRef.current) return;
-        if (!author?.id) {
-            return;
-        }
+        if (!author?.id) return;
+
         let alive = true;
 
         if (mode === "new" && !Number.isFinite(branch.branchNo)) {
@@ -101,7 +113,7 @@ export default function InventoryPopup({
                     const rep: ReportTO = await getReport(reportId!);
                     setTitle(rep.title as string);
                     if (alive) {
-                        isDataLoadedRef.current = true
+                        isDataLoadedRef.current = true;
                         setRows(normalizeReportPayload(rep));
                     }
                 }
@@ -112,106 +124,50 @@ export default function InventoryPopup({
             }
         })();
 
-        return () => {
-            alive = false;
-        };
+        return () => { alive = false; };
     }, [open, mode, reportId, author?.id, branch?.id]);
 
-    const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setFilterModel({
-            items: value ? [{
-                id: 0,
-                field: "name",
-                operator: "contains",
-                value: value
-            }]: []
-        });
-    };
+    function updateQuantity(productId: number, field: "kitchenQuantity" | "storageQuantity", value: string) {
+        setRows(prev => prev.map(r => {
+            if (r.productId !== productId) return r;
+            const oldKitchen = field === "kitchenQuantity" ? r.kitchenQuantity : r.kitchenQuantity;
+            const oldStorage = field === "storageQuantity" ? r.storageQuantity : r.storageQuantity;
+            const next = withRecalc(
+                r,
+                field === "kitchenQuantity" ? value : oldKitchen?.toString?.() ?? "",
+                field === "storageQuantity" ? value : oldStorage?.toString?.() ?? "",
+            );
+            setDirty(prev => {
+                const s = new Set(prev);
+                s.add(productId);
+                return s;
+            });
+            return next;
+        }));
+    }
 
-    const columns = useMemo<GridColDef<InventoryRow>[]>(() => [
-        {
-            field: "name",
-            headerName: "Name",
-            flex: 1,
-            headerAlign: "left",
-            align: "left",
-            minWidth: 140
-        },
-        {
-            field: "kitchenQuantity",
-            headerName: "Kitchen Quantity",
-            width: 140,
-            editable: true,
-            type: "number",
-            headerAlign: "left",
-            align: "left",
-            valueFormatter: fmt3,
-        },
-        {
-        field: "storageQuantity",
-            headerName: "Storage Quantity",
-            width: 140,
-            editable: true,
-            type: "number",
-            headerAlign: "left",
-            align: "left",
-            valueFormatter: fmt3,
-        },
-        {
-            field: "finalPrice",
-            headerName: "Final Price",
-            width: 140,
-            headerAlign: "left",
-            align: "left",
-            valueGetter: finalGetter,
-            valueFormatter: fmt3,
-        },
-        {
-            field: "price",
-            headerName: "Price per unit/kg",
-            width: 160,
-            headerAlign: "left",
-            align: "left",
-            valueFormatter: fmt3
-        },
-    ], []);
+    const filteredRows = useMemo(
+        () => filterText
+            ? rows.filter(r => r.name.toLowerCase().includes(filterText.toLowerCase()))
+            : rows,
+        [rows, filterText]
+    );
 
     const total = useMemo(
         () => rows.reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0)).toFixed(3),
         [rows]
     );
 
-    const processRowUpdate = (newRow: GridRowModel, oldRow: GridRowModel) => {
-        const nr = newRow as unknown as InventoryRow;
-        const or = oldRow as unknown as InventoryRow;
-        const next = withRecalc(or, (nr.kitchenQuantity as any)?.toString?.() ?? "", (nr.storageQuantity as any)?.toString?.() ?? "");
+    function getFinalPrice(row: InventoryRow): Decimal {
+        const kitchen = row.kitchenQuantity instanceof Decimal ? row.kitchenQuantity : new Decimal(row.kitchenQuantity ?? 0);
+        const storage = row.storageQuantity instanceof Decimal ? row.storageQuantity : new Decimal(row.storageQuantity ?? 0);
+        const price = row.price instanceof Decimal ? row.price : new Decimal(row.price ?? 0);
+        return kitchen.add(storage).mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+    }
 
-        setRows(prev => prev.map(r => (r.productId === next.productId ? next : r)));
-
-        // setDirty(prev => {
-        //     const s = new Set(prev);
-        //     const changed = next.quantity.toFixed(3) !== or.quantity.toFixed(3);
-        //     changed ? s.add(next.productId) : s.delete(next.productId);
-        //     return s;
-        // });
-        // return next;
-        setDirty(prev => {
-            const s = new Set(prev);
-
-
-            const isKitchenChanged = nr.kitchenQuantity.toFixed(3) !== or.kitchenQuantity.toFixed(3);
-            const isStorageChanged = nr.storageQuantity.toFixed(3) !== or.storageQuantity.toFixed(3);
-
-            const changed = isKitchenChanged || isStorageChanged;
-
-            changed ? s.add(next.productId) : s.delete(next.productId);
-
-            return s;
-        });
-
-        return next;
-    };
+    function fmt3(val: any): string {
+        return val instanceof Decimal ? val.toFixed(3) : new Decimal(val ?? 0).toFixed(3);
+    }
 
     const handleSave = async () => {
         if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
@@ -220,23 +176,23 @@ export default function InventoryPopup({
             setSaving(true);
             if (mode === "new") {
                 const report: IManagementResponse = await createReport({
-                    title: title,
+                    title,
                     type: "INVENTORY",
                     branchNo: branch.branchNo!,
                     userId: author.id,
                     finalPrice: Number(total),
-                    inventoryProducts: inventoryProducts,
+                    inventoryProducts,
                 });
                 onSaved(report);
             } else {
                 const report: IManagementResponse = await editReport({
                     id: reportId!,
                     type: "INVENTORY",
-                    title: title,
+                    title,
                     branchNo: branch.branchNo,
                     userId: author.id,
                     finalPrice: Number(total),
-                    inventoryProducts: inventoryProducts,
+                    inventoryProducts,
                 });
                 onSaved(report);
             }
@@ -253,96 +209,216 @@ export default function InventoryPopup({
             open={open}
             onClose={onClose}
             fullScreen
-            sx={{
-                display: "flex",
-                flexDirection: "column",
-                height: "100dvh",
-                maxHeight: "100dvh",
-                overflow: "hidden",
-            }}
+            sx={{ display: "flex", flexDirection: "column", height: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
         >
-            <Stack direction="row" gap={2} alignItems="center" sx={{p: 2, borderBottom: 1, borderColor: "divider"}}>
+            {/* ── Top bar (unchanged) ── */}
+            <Stack direction="row" gap={2} alignItems="center" sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
                 <IconButton onClick={onClose}>
-                    <CloseIcon/>
+                    <CloseIcon />
                 </IconButton>
-                <Typography variant="body1"
-                            sx={{
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                            }}
+                <Typography
+                    variant="body1"
+                    sx={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                    }}
                 >
                     {title}
                 </Typography>
-                <Box flex={1}/>
+                <Box flex={1} />
                 <Typography>Total: <b>{total}</b></Typography>
-                <Button variant="contained"
-                        disabled={dirty.size === 0 || saving}
-                        sx={{bgcolor: "#E44B4C", "&:hover": {bgcolor: "#c93d3e"}, borderRadius: 4}}
-                        onClick={handleSave}
+                <Button
+                    variant="contained"
+                    disabled={dirty.size === 0 || saving}
+                    sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e" }, borderRadius: 4 }}
+                    onClick={handleSave}
                 >
                     {saving ? "Saving..." : "Save"}
                 </Button>
             </Stack>
 
-            <Box sx={{
-                p: 2,
-                flex: 1,
-                minHeight: 0,
-                overflow: "auto",
-                overscrollBehavior: "contain"
-            }}>
+            {/* ── Content ── */}
+            <Box sx={{ p: 2, flex: 1, minHeight: 0, overflow: "auto", overscrollBehavior: "contain" }}>
                 {loading ? (
-                    <Box sx={{display: "grid", placeItems: "center", flex: 1}}>
-                        <CircularProgress/>
+                    <Box sx={{ display: "grid", placeItems: "center", flex: 1, minHeight: 200 }}>
+                        <CircularProgress />
                     </Box>
                 ) : error ? (
-                    <Box
-                        sx={{
-                            p: 2,
-                            m: 0,
-                            border: 1,
-                            borderColor: "error.main",
-                            color: "error.main",
-                            borderRadius: 2,
-                            width: "100%",
-                        }}
-                    >
+                    <Box sx={{ p: 2, border: 1, borderColor: "error.main", color: "error.main", borderRadius: 2 }}>
                         {error}
                     </Box>
                 ) : (
                     <>
-                        <Box
-                            sx={{mb: 1, borderRadius: 4}}
-                        >
+                        {/* Filter */}
+                        <Box sx={{ mb: 2 }}>
                             <TextField
                                 size="small"
                                 label="Filter by product name"
                                 placeholder="Type to filter"
-                                onChange={handleFilterParamChange}
+                                value={filterText}
+                                onChange={(e) => setFilterText(e.target.value)}
                                 autoFocus
                                 fullWidth
-                                sx={{
-                                    borderRadius: 4
-                                }}
+                                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
                             />
                         </Box>
 
-                        <Box sx={{flex: 1, minHeight: 0}}>
-                            <DataGrid rows={rows}
-                                      getRowId={(row) => row.productId}
-                                      columns={columns}
-                                      disableRowSelectionOnClick
-                                      processRowUpdate={processRowUpdate}
-                                      editMode="row"
-                                      onFilterModelChange={setFilterModel}
-                                      filterModel={filterModel}
-                                      // onRowEditStop={() => setRows((r) => [...r])}
-                                      onProcessRowUpdateError={(err) => setError(String(err))}
-                            />
-                        </Box>
+                        {/* Table */}
+                        <TableContainer
+                            component={Paper}
+                            elevation={0}
+                            sx={{
+                                borderRadius: 4,
+                                overflowX: "auto",
+                                WebkitOverflowScrolling: "touch",
+                                border: "1px solid rgba(0,0,0,0.08)",
+                            }}
+                        >
+                            <Table size="small" aria-label="inventory" sx={{ minWidth: 580 }}>
+                                <TableHead sx={{ bgcolor: "#fafafa" }}>
+                                    <TableRow>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Name</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Storage Qty</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Kitchen Qty</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Price / unit</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Final Price</TableCell>
+                                    </TableRow>
+                                </TableHead>
+
+                                <TableBody>
+                                    {filteredRows.map((row) => (
+                                        <TableRow
+                                            key={row.productId}
+                                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                                        >
+                                            {/* Name */}
+                                            <TableCell sx={{ color: "#333", fontSize: "0.9rem", minWidth: 140 }}>
+                                                {row.name}
+                                            </TableCell>
+
+                                            {/* Storage Quantity */}
+                                            <TableCell sx={{ minWidth: 130 }}>
+                                                <Box sx={{
+                                                    backgroundColor: pillSx.bg,
+                                                    color: pillSx.text,
+                                                    py: 0.5,
+                                                    px: 1.5,
+                                                    borderRadius: 2,
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    fontWeight: "bold",
+                                                    fontSize: "0.9rem",
+                                                }}>
+                                                    <TextField
+                                                        type="number"
+                                                        value={
+                                                            focusedCell?.productId === row.productId && focusedCell?.field === "storageQuantity"
+                                                                ? editValue
+                                                                : fmt3(row.storageQuantity)
+                                                        }
+                                                        onFocus={() => {
+                                                            setFocusedCell({ productId: row.productId, field: "storageQuantity" });
+                                                            const raw = new Decimal(row.storageQuantity ?? 0);
+                                                            setEditValue(raw.equals(0) ? "" : raw.toFixed(3));
+                                                        }}
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        onBlur={() => {
+                                                            updateQuantity(row.productId, "storageQuantity", editValue || "0");
+                                                            setFocusedCell(null);
+                                                            setEditValue("");
+                                                        }}
+                                                        size="small"
+                                                        variant="standard"
+                                                        inputProps={{ min: 0, step: "0.001" }}
+                                                        sx={{
+                                                            width: 80,
+                                                            ...noUnderlineSx,
+                                                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
+                                                        }}
+                                                    />
+                                                </Box>
+                                            </TableCell>
+
+                                            {/* Kitchen Quantity */}
+                                            <TableCell sx={{ minWidth: 130 }}>
+                                                <Box sx={{
+                                                    backgroundColor: pillSx.bg,
+                                                    color: pillSx.text,
+                                                    py: 0.5,
+                                                    px: 1.5,
+                                                    borderRadius: 2,
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    fontWeight: "bold",
+                                                    fontSize: "0.9rem",
+                                                }}>
+                                                    <TextField
+                                                        type="number"
+                                                        value={
+                                                            focusedCell?.productId === row.productId && focusedCell?.field === "kitchenQuantity"
+                                                                ? editValue
+                                                                : fmt3(row.kitchenQuantity)
+                                                        }
+                                                        onFocus={() => {
+                                                            setFocusedCell({ productId: row.productId, field: "kitchenQuantity" });
+                                                            const raw = new Decimal(row.kitchenQuantity ?? 0);
+                                                            setEditValue(raw.equals(0) ? "" : raw.toFixed(3));
+                                                        }}
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        onBlur={() => {
+                                                            updateQuantity(row.productId, "kitchenQuantity", editValue || "0");
+                                                            setFocusedCell(null);
+                                                            setEditValue("");
+                                                        }}
+                                                        size="small"
+                                                        variant="standard"
+                                                        inputProps={{ min: 0, step: "0.001" }}
+                                                        sx={{
+                                                            width: 80,
+                                                            ...noUnderlineSx,
+                                                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
+                                                        }}
+                                                    />
+                                                </Box>
+                                            </TableCell>
+
+                                            {/* Price per unit */}
+                                            <TableCell sx={{ minWidth: 130, color: "text.secondary", fontSize: "0.9rem" }}>
+                                                {fmt3(row.price)}
+                                            </TableCell>
+
+                                            {/* Final Price — green pill, read-only */}
+                                            <TableCell sx={{ minWidth: 130 }}>
+                                                <Box sx={{
+                                                    backgroundColor: finalPricePillSx.bg,
+                                                    color: finalPricePillSx.text,
+                                                    py: 0.5,
+                                                    px: 1.5,
+                                                    borderRadius: 2,
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    fontWeight: "bold",
+                                                    fontSize: "0.9rem",
+                                                }}>
+                                                    {getFinalPrice(row).toFixed(3)}
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+
+                                    {filteredRows.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                                                No products match the filter
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     </>
                 )}
             </Box>

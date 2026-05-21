@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import OrderCard, { renderItemDetails, sortItemsByCategory } from "./adminComponents/OrderCard";
 import {
     Alert,
@@ -40,6 +40,8 @@ import { useAuth } from "./management/security/AuthProvider";
 import { fetchAllBranches, getBranchInfo } from "./management/api/api";
 import type { Order, WorkloadLevel, ShiftEventType } from "./types/orderTypes";
 import type { IBranch } from "./management/types/inventoryTypes";
+import {useDeleteOrder} from "./hooks/useDeleteOrder";
+import {DeleteOrderDialog} from "./adminComponents/DeleteOrderDialog";
 
 function AdminHomePage(): JSX.Element {
     const [loading, setLoading] = useState(true);
@@ -91,6 +93,9 @@ function AdminHomePage(): JSX.Element {
         OPEN_SHIFT_EVENT: "CLOSE_SHIFT_EVENT",
         CLOSE_SHIFT_EVENT: "OPEN_SHIFT_EVENT"
     }), [])
+
+    const {deleteDialogOpen, orderToDelete, handleDeleteClick, confirmDelete, cancelDelete} =
+        useDeleteOrder((id)=> setOrders(prev => prev.filter(order => order.id !== id)));
 
     const colorRed = '#E44B4C';
 
@@ -532,7 +537,6 @@ function AdminHomePage(): JSX.Element {
         (a, b) => new Date(a.order_created).getTime() - new Date(b.order_created).getTime()
     );
 
-
     const handlePaymentSuccess = (orderId: string): void => {
         setOrders((prev) =>
             prev.map((o) =>
@@ -575,10 +579,10 @@ function AdminHomePage(): JSX.Element {
                         }}
                     >
                         Cash mismatch! <br />
-                        <strong>Expected: </strong>
-                        <span style={{ color: "#E44B4C", fontWeight: 700 }}>
-                            {cashWarning} BD
-                        </span>
+                        {/*<strong>Expected: </strong>*/}
+                        {/*<span style={{ color: "#E44B4C", fontWeight: 700 }}>*/}
+                        {/*    {cashWarning} BD*/}
+                        {/*</span>*/}
                     </Alert>
                 </Box>
             )}
@@ -656,11 +660,13 @@ function AdminHomePage(): JSX.Element {
                         // alignItems: 'flex-start'
                     }}>
                     {sortedOrders.map((order) => (
-                        <OrderCard key={order.id} order={order}
+                        <OrderCard
+                            key={order.id}
+                            order={order}
                             onReadyClick={(order) => {
                                 handleMarkReady(order.id)
                             }}
-                            onDeleteClick={() => {}}
+                            onDeleteClick={() => handleDeleteClick(order)}
                             onPayClick={(order) => {
                                 setSelectedOrder(order);
                                 setPaymentDialogOpen(true);
@@ -966,6 +972,13 @@ function AdminHomePage(): JSX.Element {
                     {confirmingCancel ? "Cancelling…" : "Confirm Cancel"}
                 </Button>
             </SwipeableDrawer>
+
+            <DeleteOrderDialog
+                open={deleteDialogOpen}
+                order={orderToDelete}
+                onConfirm={confirmDelete}
+                onCancel={cancelDelete}
+            />
         </div>
 
     );

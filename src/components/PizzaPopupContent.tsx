@@ -236,7 +236,7 @@ function PizzaPopup({
             quantity,
             description: getDesc(),
             amount: finalPizzaPricePerItem,
-            discount_amount: 0,
+            discountAmount: 0,
             comboItems: [],
         }];
         crossSellItems.forEach((item => {
@@ -252,7 +252,7 @@ function PizzaPopup({
                     toppings: [],
                     note: "",
                     description: "",
-                    discount_amount: 0,
+                    discountAmount: 0,
                     comboItems: [],
                 });
             }
@@ -331,17 +331,25 @@ function PizzaPopup({
                         }
                     }}>
                     <Box sx={{
-                        width: "100%", height: {
-                            xs: 360,
-                            sm: 720,
-                            md: 700,
-                            lg: 420
-                        }, overflow: "hidden"
+                        width: "100%",
+                        height: {
+                            xs: 280,
+                            sm: 360,
+                            md: 400,
+                            lg: 450,
+                            xl: 500
+                        },
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "#fff"
                     }}>
-                        <img
+
+                    <img
                             src={item.photo}
                             alt={item.name}
-                            style={{width: "100%", height: "100%", objectFit: "cover"}}
+                            style={{width: "100%", height: "100%", objectFit: "contain"}}
                         />
                     </Box>
 

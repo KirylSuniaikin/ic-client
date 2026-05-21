@@ -39,7 +39,7 @@ function CartItemHorizontal({
                                 handleDiscountChange,
                                 menuData,
                             }: CartItemHorizontalProps): JSX.Element {
-    const discount = item.discount_amount || 0;
+    const discount = item.discountAmount || 0;
     const discountedPrice = item.amount * (1 - discount / 100);
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
 
@@ -211,10 +211,15 @@ function CartItemHorizontal({
                             <Select
                                 size="small"
                                 labelId={`discount-label-${item.name}`}
-                                value={item.discount_amount ?? 0}
+                                value={item.discountAmount ?? 0}
                                 label="Discount"
+                                MenuProps={{
+                                    PaperProps: {
+                                        sx: { zIndex: 2000 }
+                                    }
+                                }}
                                 onChange={(e) =>
-                                    handleDiscountChange?.(item, parseInt(String(e.target.value)))
+                                    handleDiscountChange?.(item, Number(e.target.value))
                                 }
                                 sx={{
                                     backgroundColor: "#FAFAFA",
@@ -307,7 +312,7 @@ function CartItemHorizontal({
                     ))}
                 </ToggleButtonGroup>
                 }
-                {(100 !== item.discount_amount || isAdmin) && (
+                {(100 !== item.discountAmount || isAdmin) && (
                 <Box
                     sx={{
                         backgroundColor: brandGray,

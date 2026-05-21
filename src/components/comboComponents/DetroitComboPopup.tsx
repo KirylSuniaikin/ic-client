@@ -124,7 +124,7 @@ export function DetroitComboPopup({
             category: "Combo Deals",
             name: "Detroit Combo",
             description: "",
-            discount_amount: 0,
+            discountAmount: 0,
             isGarlicCrust: false,
             isThinDough: false,
             photo: (comboGroup as MenuItem).photo,

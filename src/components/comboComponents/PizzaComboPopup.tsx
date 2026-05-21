@@ -219,7 +219,7 @@ export function PizzaComboPopup({
             category: "Combo Deals",
             name: "Pizza Combo",
             description: "",
-            discount_amount: 0,
+            discountAmount: 0,
             isGarlicCrust: false,
             isThinDough: false,
             photo: sizeItem.photo,

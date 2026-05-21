@@ -38,7 +38,7 @@ function CartPopup({
                         menuData
                    }: CartPopupProps): JSX.Element {
     const totalPrice = items.reduce((acc, i) => {
-        const discount = i.discount_amount || 0;
+        const discount = i.discountAmount || 0;
         const discountedPrice = i.amount * (1 - discount / 100);
         return acc + discountedPrice * i.quantity;
     }, 0).toFixed(2);
