@@ -174,6 +174,7 @@ export async function getPurchaseReport(payload:{id: number}): Promise<PurchaseT
 }
 
 export async function editPurchaseReport(payload: EditPurchasePayload) : Promise<BasePurchaseResponse> {
+    console.log(payload)
     const res = await authFetch(URL + `/edit_purchase_report`, {
         method: "PUT",
         headers: {"Content-Type": "application/json" },

@@ -15,7 +15,6 @@ import type { Group, CartItem, MenuItem } from '../management/types/menuTypes';
 // This local type reflects the actual runtime shape passed from menu_service.
 export type GroupWithCategory = Group & { category: string };
 
-// CartItems in this component carry a legacy `discount` field alongside discount_amount.
 // Using an intersection type to reflect the actual runtime shape without changing logic.
 type CartItemWithDiscount = CartItem & { discount?: number };
 
@@ -60,7 +59,8 @@ function MenuItemCardHorizontal({
                 handleAddToCart({
                     ...defaultItem,
                     amount: price,
-                    quantity: 1
+                    quantity: 1,
+                    discountAmount: 0
                 } as unknown as CartItem);
             }
         } else {

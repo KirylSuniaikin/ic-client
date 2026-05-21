@@ -16,7 +16,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import {CircularTimer} from "./CircularTimer";
 import BluetoorhPrinterService from "../services/BluetoorhPrinterService";
 import {usePreciseCountdown} from "./usePreciseCountdown";
-import type { Order, OrderItem, ComboItemTO } from '../types/orderTypes';
+import type {Order, OrderItem, ComboItemTO} from '../types/orderTypes';
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -41,6 +41,7 @@ const CATEGORY_ORDER = [
     "Combo Deals",
     "Pizzas",
     "Brick Pizzas",
+    "Baguette Pizzas",
     "Sides",
     "Sauces",
     "Beverages",
@@ -150,13 +151,18 @@ interface OrderCardProps {
     onOvenClick?: (order: Order) => void;
 }
 
-function OrderCard({order,
-                       onReadyClick = () => {},
+function OrderCard({
+                       order,
+                       onReadyClick = () => {
+                       },
                        isHistory = false,
                        onDeleteClick,
-                       onPayClick = () => {},
-                       onPickedUpClick = () => {},
-                       onOvenClick = () => {},
+                       onPayClick = () => {
+                       },
+                       onPickedUpClick = () => {
+                       },
+                       onOvenClick = () => {
+                       },
                    }: OrderCardProps): JSX.Element {
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
@@ -182,16 +188,24 @@ function OrderCard({order,
 
     useEffect(() => {
         let lock: WakeLockSentinel | undefined;
+
         async function req(): Promise<void> {
             try {
                 lock = await navigator.wakeLock?.request("screen");
                 document.addEventListener("visibilitychange", () => {
                     if (document.visibilityState === "visible") req();
-                }, { once: true });
-            } catch {}
+                }, {once: true});
+            } catch {
+            }
         }
+
         req();
-        return () => { try { lock?.release?.(); } catch {} };
+        return () => {
+            try {
+                lock?.release?.();
+            } catch {
+            }
+        };
     }, []);
 
     const isCritical = timeLeft < 60;
@@ -208,7 +222,7 @@ function OrderCard({order,
             borderRadius: 3,
             borderColor: cardBorderColor,
             alignSelf: 'flex-start',
-            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#fbaa66' :"#fff",
+            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#fbaa66' : "#fff",
             boxShadow: 3
         }}>
             <CardContent>
@@ -220,7 +234,7 @@ function OrderCard({order,
                         mb: 1
                     }}
                 >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                    <Box sx={{display: "flex", alignItems: "center", gap: 0.8}}>
                         <Box
                             sx={{
                                 width: 36,
@@ -235,16 +249,16 @@ function OrderCard({order,
                             }}
                             onClick={() => BluetoorhPrinterService.printOrder(order)}
                         >
-                            <PrintIcon sx={{ fontSize: 26, color: "#E44B4C" }} />
+                            <PrintIcon sx={{fontSize: 26, color: "#E44B4C"}}/>
                         </Box>
 
                         <Typography component="span" fontWeight={600}>
                             <Typography variant="h4" component="div" fontWeight={900}>
-                                #{order.order_type === "Jahez" ||  order.order_type === "Keeta" ||  order.order_type === "Talabat" ? formatExternalId(order.external_id) : order.order_no}{" "}
+                                #{order.order_type === "Jahez" || order.order_type === "Keeta" || order.order_type === "Talabat" ? formatExternalId(order.external_id) : order.order_no}{" "}
                             </Typography>
                             <Typography
                                 component="span"
-                                sx={{ fontSize: 14, color: "text.secondary" }}
+                                sx={{fontSize: 14, color: "text.secondary"}}
                             >
                                 ({order?.order_type?.toUpperCase()})
                             </Typography>
@@ -252,24 +266,26 @@ function OrderCard({order,
                     </Box>
 
                     {!isHistory &&
-                        <CircularTimer timeLeft={timeLeft} totalSec={(order.estimation ?? 15)*60} />
+                        <CircularTimer timeLeft={timeLeft} totalSec={(order.estimation ?? 15) * 60}/>
                     }
                 </Box>
 
                 <Divider sx={{mb: 2}}/>
 
                 <Box sx={{mb: 1}}>
-                    <Typography variant="body2">
-                        <strong>Time:</strong> {formattedTime}
-                    </Typography>
+                    {/*<Typography variant="body2">*/}
+                    {/*    <strong>Time:</strong> {formattedTime}*/}
+                    {/*</Typography>*/}
                     {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                         </Typography>
                     )}
-                    <Typography variant="body2" color={colorRed}>
-                        <strong>Notes:</strong> {order.notes}
-                    </Typography>
+                    {order.notes.length > 0 && (
+                        <Typography variant="body2" color={colorRed}>
+                            <strong>Notes:</strong> {order.notes}
+                        </Typography>
+                    )}
                     {!isHistory && (
                         <Typography variant="body2">
                             <strong>Payment type:</strong> {order.payment_type}
@@ -317,12 +333,12 @@ function OrderCard({order,
                 }}
             >
                 <Typography variant="h6" fontWeight="bold">
-                    BHD {order.amount_paid}
+                    {order.amount_paid}
                 </Typography>
                 <Box>
                     {!isHistory && (
                         <>
-                            {order.status==="Kitchen Phase" && (
+                            {order.status === "Kitchen Phase" && (
                                 <Button
                                     variant="contained"
                                     size="small"
@@ -348,7 +364,7 @@ function OrderCard({order,
                                     OVEN
                                 </Button>
                             )}
-                            {order.status==="Oven" && (
+                            {order.status === "Oven" && (
                                 <Button
                                     variant="contained"
                                     size="small"
@@ -374,7 +390,7 @@ function OrderCard({order,
                                     READY
                                 </Button>
                             )}
-                            {order.status==="Ready" && (
+                            {order.status === "Ready" && (
                                 <Button
                                     variant="contained"
                                     size="small"
@@ -439,7 +455,6 @@ function OrderCard({order,
                             EDIT
                         </Button>
                     )}
-                    {isHistory && (
                         <IconButton
                             size="small"
                             sx={{
@@ -456,7 +471,6 @@ function OrderCard({order,
                         >
                             <DeleteIcon fontSize="small"/>
                         </IconButton>
-                    )}
                 </Box>
             </CardActions>
         </Card>

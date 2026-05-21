@@ -44,9 +44,8 @@ export type OrderItem = {
   description: string;
   isThinDough?: boolean;
   isGarlicCrust?: boolean;
-  discount?: number;
+  discountAmount?: number;
   comboItemTO?: ComboItemTO[];
-  extraIngredients?: Array<{ name: string }>;
   photo?: string;
 };
 
@@ -128,15 +127,53 @@ export type UpdateOrderStatusPayload = {
 
 export type Statistics = Record<string, unknown>;
 
+export type ComboItemRequest = {
+  id?: number;
+  name: string;
+  category: string;
+  size: string;
+  quantity: number;
+  isGarlicCrust: boolean;
+  isThinDough: boolean;
+  description: string;
+};
+
+export type OrderItemRequest = {
+  id?: number;
+  name: string;
+  quantity: number;
+  amount: number;
+  size: string;
+  category: string;
+  description: string;
+  isGarlicCrust: boolean;
+  isThinDough: boolean;
+  discountAmount: number;
+  comboItems?: ComboItemRequest[];
+};
+
+// Mirrors backend CreateOrderTO
 export type CreateOrderRequest = {
-  items: import('../management/types/menuTypes').CartItem[];
+  tel: string | null;
+  customer_name: string | null;
+  type: string;
+  payment_type: string | null;
+  branchId: string;
+  notes: string;
+  items: OrderItemRequest[];
+  amount_paid: number;
+};
+
+// Mirrors backend EditOrderTO
+export type EditOrderRequest = {
+  id: string | number;
+  order_no: number | unknown;
   tel: string;
   customer_name: string | null;
   delivery_method: string | null;
   payment_type: string | null;
-  address: string;
+  address: unknown;
   notes: string;
-  order_type: string;
-  branch_id: string;
+  items: OrderItemRequest[];
   amount_paid: number;
 };

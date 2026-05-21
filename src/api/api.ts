@@ -11,8 +11,11 @@ import type {
     CustomerCheckResponse,
     Statistics,
     WorkloadLevel,
+    CreateOrderRequest,
+    EditOrderRequest,
 } from '../types/orderTypes';
 import {OrderStatusData} from "../OrderStatusPage";
+import {ShiftEventResponse} from "../types/EventTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -61,7 +64,8 @@ export async function fetchBaseAppInfo(
     return data;
 }
 
-export async function createOrder(order: unknown): Promise<Order> {
+export async function createOrder(order: CreateOrderRequest): Promise<Order> {
+    console.log(order)
     const response = await fetch(URL + "/create_order", {
         method: "POST",
         headers: {
@@ -111,7 +115,7 @@ export async function updateAvailability(
     return await response.text();
 }
 
-export async function editOrder(order: unknown, orderId: string): Promise<Order> {
+export async function editOrder(order: EditOrderRequest, orderId: string): Promise<Order> {
     const url = `${URL}/edit_order`;
 
     const response = await authFetch(url, {
@@ -188,7 +192,7 @@ export async function fetchStatistics(
     return await response.json();
 }
 
-export async function sendShiftEvent(payload: ShiftEventPayload): Promise<unknown> {
+export async function sendShiftEvent(payload: ShiftEventPayload): Promise<ShiftEventResponse> {
     const {type, datetime, branch_id, cash_amount = null, prep_plan = null} = payload;
     try {
         const response = await authFetch(URL + "/branch/send_shift_event", {

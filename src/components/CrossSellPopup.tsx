@@ -65,7 +65,7 @@ function CrossSellPopup({
                     extraIngredients: [],
                     toppings: [],
                     note: "",
-                    discount_amount: 0,
+                    discountAmount: 0,
                     comboItems: [],
                 });
             }

@@ -21,7 +21,6 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
         try {
             onClose();
             const data = await sendShiftEvent({
-                // stage prop is typed as string; cast to ShiftEventType to match API contract
                 type: stage as ShiftEventType,
                 datetime: new Date().toISOString(),
                 branch_id: branchId,
@@ -31,15 +30,8 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
                         "Close Shift Cash Check" : null,
             });
 
-            const cashWarning =
-                data !== null &&
-                typeof data === 'object' &&
-                'cashWarning' in data &&
-                typeof (data as Record<string, unknown>).cashWarning === 'string'
-                    ? (data as Record<string, unknown>).cashWarning as string
-                    : null;
-            if (cashWarning) {
-                onCashWarning(cashWarning);
+            if (data.cashWarning) {
+                onCashWarning(data.cashWarning.error);
                 setTimeout(() => onCashWarning(null), 5000);
             } else {
                 onCashWarning(null);

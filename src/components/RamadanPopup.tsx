@@ -142,7 +142,7 @@ export default function RamadanPopup({open, group, onAddToCart, onClose}: Props)
             quantity: quantity,
             description: description,
             amount: selectedItem.price,
-            discount_amount: 0,
+            discountAmount: 0,
             comboItems: comboItems
         };
 

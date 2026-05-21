@@ -4,10 +4,7 @@ import {
     Box,
     Button,
     Divider,
-    FormControl,
-    InputLabel,
     MenuItem,
-    Select,
     TextField,
     Typography
 } from "@mui/material";
@@ -228,34 +225,24 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                 </TextField>
 
                 {/* Admin: Order Discount */}
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel id="order-discount-label">Order Discount</InputLabel>
-                    <Select
-                        labelId="order-discount-label"
-                        label="Order Discount"
-                        value={globalDiscount}
-                        onChange={(e) => {
-                            const discount = parseInt(String(e.target.value), 10);
-                            setGlobalDiscount(discount);
-
-                            const updated = cartItems.map((item) => {
-                                return { ...item, discount_amount: discount };
-                            });
-                            setCartItems(updated);
-                        }}
-                        sx={{
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: grayBorder },
-                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: focusBorder },
-                            "&.Mui-focused": { backgroundColor: focusBg },
-                            borderRadius: 1
-                        }}
-                    >
-                        {[0,10,20,30,40,50,60,70,80,90,100].map((p) => (
-                            <MenuItem key={p} value={p}>{p}%</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                <TextField
+                    select
+                    label="Order Discount"
+                    value={globalDiscount}
+                    onChange={(e) => {
+                        const discount = parseInt(e.target.value, 10);
+                        setGlobalDiscount(discount);
+                        const updated = cartItems.map((item) => ({ ...item, discountAmount: discount }));
+                        setCartItems(updated);
+                    }}
+                    fullWidth
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                >
+                    {[0,10,20,30,40,50,60,70,80,90,100].map((p) => (
+                        <MenuItem key={p} value={p}>{p}%</MenuItem>
+                    ))}
+                </TextField>
 
                 {/* Notes */}
                 <TextField

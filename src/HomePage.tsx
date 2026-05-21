@@ -34,8 +34,9 @@ import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
 import * as React from "react";
 import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
 import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
-import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from './management/types/menuTypes';
+import type { MenuItem, CartItem, ComboItem, ExtraIngr, Topping, Group } from './management/types/menuTypes';
 import type { IBranch } from './management/types/inventoryTypes';
+import {CreateOrderRequest, EditOrderRequest, Order} from "./types/orderTypes";
 
 interface HomePageProps {
     userParam: string | null;
@@ -196,7 +197,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
 
     const handleDiscountChange = (item: CartItem, newDiscount: number): void => {
         const updatedItems = cartItems.map((i) =>
-            i === item ? {...i, discount: newDiscount} : i
+            i === item ? {...i, discountAmount: newDiscount} : i
         );
         setCartItems(updatedItems as CartItem[]);
     };
@@ -344,7 +345,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     const parsed = JSON.parse(rawOrder) as {
                         items: Array<{
                             discountAmount?: number;
-                            amount: number;
+                            amount: number | string;
                             quantity: number;
                             description: string;
                             comboItemTO?: Array<Partial<CartItem> & { description?: string }>;
@@ -353,18 +354,13 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     };
                     if (Array.isArray(parsed.items)) {
                         const normalized = parsed.items.map(item => {
-                            const discount = item.discountAmount && item.quantity
-                                ? Math.round((item.discountAmount / (item.amount + item.discountAmount) * 100))
-                                : 0;
-
-                            const originalAmount = item.amount + (item.discountAmount || 0);
-
+                            const pct = item.discountAmount ?? item.discountAmount ?? 0;
                             return {
                                 ...item,
                                 photo: imageMap[(item.name as string)] || item.photo,
                                 quantity: item.quantity || 1,
-                                discount,
-                                amount: originalAmount,
+                                discountAmount: pct,
+                                amount: parseFloat(String(item.amount)),
                                 note: parseItemNoteOuter(item.description),
                                 extraIngredients: parseExtraIngrOuter(item.description),
                                 comboItems: Array.isArray(item.comboItemTO)
@@ -375,7 +371,6 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                                     : []
                             };
                         });
-                        // normalized items are partial CartItem shapes from localStorage; cast via unknown
                         setCartItems(normalized as unknown as CartItem[]);
                     }
                 } catch (e) {
@@ -406,7 +401,6 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 note += (note ? " " : "") + text;
             }
         }
-        console.log(note)
         return note.trim();
     }
 
@@ -421,14 +415,13 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 .filter((s: string) => s.length > 0);
             extras.push(...ingr);
         }
-        console.log(extras)
         return extras;
     }
 
 
     const totalPrice = cartItems
         ? cartItems.reduce((acc, i) => {
-            const discount = (i as CartItem & { discount?: number }).discount || 0;
+            const discount = i.discountAmount || 0;
             const discountedPrice = i.amount * (1 - discount / 100);
             return acc + discountedPrice * i.quantity;
         }, 0).toFixed(2)
@@ -657,10 +650,10 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             const updated = [...prev];
 
             arr.forEach((item: CartItem) => {
-                const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
+                const typedItem = item as CartItem & { id?: number; comboItems?: CartItem[] };
                 const idx = updated.findIndex((it: CartItem) =>
                     it.name === item.name &&
-                    ((it as CartItem & { discount?: number }).discount || 0) === (typedItem.discount || 0)
+                    (it.discountAmount || 0) === (item.discountAmount || 0)
                 );
 
                 if (idx === -1) {
@@ -668,7 +661,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     return;
                 }
 
-                const existing = updated[idx] as CartItem & { discount?: number; comboItems?: CartItem[] };
+                const existing = updated[idx] as CartItem & { comboItems?: CartItem[] };
 
                 if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
                     updated[idx] = {
@@ -776,7 +769,6 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
         });
 
         handleClosePizzaPopup();
-        handleCloseComboPopup();
         const firstItem = arr[0] as CartItem & { price?: number; id?: number };
         if (firstItem) {
             window.ttq?.track('AddToCart', {
@@ -812,8 +804,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
     function handleChangeQuantity(item: CartItem, newQty: number): void {
         if (newQty < 1) return;
 
-        const typedItem = item as CartItem & { discount?: number };
-        if (!isAdmin && typedItem.discount === 100 && newQty > item.quantity) {
+        if (!isAdmin && item.discountAmount === 100 && newQty > item.quantity) {
             console.warn("Nice try! It's a gift order u cant encrease it's amount!");
             return;
         }
@@ -858,10 +849,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             address: orderToEdit['address'],
             notes: notes,
             items: items.map((item: CartItem) => {
-                const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
-                const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
-                const discountAmount = item.amount * (discount / 100) * item.quantity;
-
+                const typedItem = item as CartItem & { id?: number };
                 return {
                     id: typedItem.id,
                     name: item.name,
@@ -870,28 +858,24 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     size: item.size || "",
                     category: item.category,
                     description: item.description || "",
-                    isGarlicCrust: (item as CartItem & { isGarlicCrust?: boolean }).isGarlicCrust || false,
-                    isThinDough: (item as CartItem & { isThinDough?: boolean }).isThinDough || false,
-                    discount_amount: parseFloat(discountAmount.toFixed(3)),
-                    comboItems: typedItem.comboItems
-                        ? typedItem.comboItems.map((ci: CartItem & { id?: number; isGarlicCrust?: boolean; isThinDough?: boolean }) => ({
-                            id: ci.id,
-                            name: ci.name,
-                            category: ci.category,
-                            size: ci.size || "",
-                            quantity: ci.quantity || 1,
-                            isGarlicCrust: ci.isGarlicCrust || false,
-                            isThinDough: ci.isThinDough || false,
-                            description: ci.description || ""
-                        }))
-                        : []
+                    isGarlicCrust: item.isGarlicCrust,
+                    isThinDough: item.isThinDough,
+                    discountAmount: item.discountAmount,
+                    comboItems: item.comboItems.map((ci) => ({
+                        id: (ci as ComboItem & { id?: number }).id,
+                        name: ci.name,
+                        category: ci.category,
+                        size: ci.size || "",
+                        quantity: ci.quantity || 1,
+                        isGarlicCrust: ci.isGarlicCrust,
+                        isThinDough: ci.isThinDough,
+                        description: ci.description || ""
+                    }))
                 };
             }),
             amount_paid: parseFloat(
                 items.reduce((acc, item) => {
-                    const typedItem = item as CartItem & { discount?: number };
-                    const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
-                    const discountedPrice = item.amount * (1 - discount / 100);
+                    const discountedPrice = item.amount * (1 - item.discountAmount / 100);
                     return acc + discountedPrice * item.quantity;
                 }, 0).toFixed(3)
             )
@@ -922,7 +906,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             try {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit") ?? "{}") as Record<string, unknown>;
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
-                const res = await editOrder(order, String(orderToEdit['id']));
+                const res = await editOrder(order as EditOrderRequest, String(orderToEdit['id']));
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
                 const list = [String(res.id)];
                 localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(list));
@@ -943,41 +927,33 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 branchId: isKiosk? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin? adminBranchId : branchId,
                 notes: notes,
                 items: items.map((item: CartItem) => {
-                    const typedItem = item as CartItem & { discount?: number; id?: number; comboItems?: CartItem[] };
-                    const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
-                    const discountAmount = item.amount * (discount / 100) * item.quantity;
-                    const discountedAmount = item.amount * (1 - discount / 100);
-
+                    const typedItem = item as CartItem & { id?: number };
                     return {
                         id: typedItem.id,
                         name: item.name,
                         quantity: item.quantity,
-                        amount: parseFloat(discountedAmount.toFixed(3)),
+                        amount: parseFloat(String(item.amount)),
                         size: item.size || "",
                         category: item.category,
                         description: item.description || "",
-                        isGarlicCrust: (item as CartItem & { isGarlicCrust?: boolean }).isGarlicCrust || false,
-                        isThinDough: (item as CartItem & { isThinDough?: boolean }).isThinDough || false,
-                        discount_amount: parseFloat(discountAmount.toFixed(3)),
-                        comboItems: typedItem.comboItems
-                            ? typedItem.comboItems.map((ci: CartItem & { id?: number; isGarlicCrust?: boolean; isThinDough?: boolean }) => ({
-                                id: ci.id,
-                                name: ci.name,
-                                category: ci.category,
-                                size: ci.size || "",
-                                quantity: ci.quantity || 1,
-                                isGarlicCrust: ci.isGarlicCrust || false,
-                                isThinDough: ci.isThinDough || false,
-                                description: ci.description || ""
-                            }))
-                            : []
+                        isGarlicCrust: item.isGarlicCrust,
+                        isThinDough: item.isThinDough,
+                        discountAmount: item.discountAmount,
+                        comboItems: (item.comboItems || []).map((ci) => ({
+                            id: (ci as ComboItem & { id?: number }).id,
+                            name: ci.name,
+                            category: ci.category,
+                            size: ci.size || "",
+                            quantity: ci.quantity || 1,
+                            isGarlicCrust: ci.isGarlicCrust,
+                            isThinDough: ci.isThinDough,
+                            description: ci.description || ""
+                        }))
                     };
                 }),
                 amount_paid: parseFloat(
                     items.reduce((acc, item) => {
-                        const typedItem = item as CartItem & { discount?: number };
-                        const discount = typeof typedItem.discount === "number" ? typedItem.discount : 0;
-                        const discountedPrice = item.amount * (1 - discount / 100);
+                        const discountedPrice = item.amount * (1 - (item.discountAmount || 0) / 100);
                         return acc + discountedPrice * item.quantity;
                     }, 0).toFixed(3)
                 ),
@@ -1064,7 +1040,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
         try {
             setLoading(true);
 
-            const response = await createOrder(orderData);
+            const response = await createOrder(orderData as CreateOrderRequest);
 
             const typedOrder = orderData as { amount_paid: number; tel: string; items: Array<{ id?: number; name: string; quantity: number; amount: number }> };
             window.ttq?.track('PlaceAnOrder', {

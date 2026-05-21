@@ -206,7 +206,7 @@ function ComboPopup({
             extraIngredients: [],
             toppings: [],
             note: "",
-            discount_amount: 0,
+            discountAmount: 0,
             comboItems: [],
         } as unknown as CartItem);
         window.ttq?.track('AddToCart', {

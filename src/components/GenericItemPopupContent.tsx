@@ -131,7 +131,7 @@ function GenericItemPopupContent({
             extraIngredients: [],
             toppings: [],
             note: "",
-            discount_amount: 0,
+            discountAmount: 0,
             comboItems: [],
         }];
         crossSellItems.forEach((item => {
@@ -147,7 +147,7 @@ function GenericItemPopupContent({
                     toppings: [],
                     note: "",
                     description: "",
-                    discount_amount: 0,
+                    discountAmount: 0,
                     comboItems: [],
                 });
             }
