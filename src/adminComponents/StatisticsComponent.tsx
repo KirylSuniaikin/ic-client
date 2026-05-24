@@ -31,6 +31,7 @@ import {CustomerStatCard} from "./CustomerStatCard";
 import {StaffRoles} from "../management/types/authTypes";
 import {StaffSummaryContent} from "../management/shiftComponents/StaffSummaryContent";
 import type { Statistics } from '../types/orderTypes';
+import PrepPlanTable from "./PrepPlanTable";
 
 interface DateRangeState {
     startDate: Date;
@@ -496,6 +497,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                 {mode === "Consumption" &&(
                     <>
                         <Box sx={{mt: 1}}>
+                            <PrepPlanTable branchId={branchId} />
                             <DoughUsageTable
                                 rows={(doughUsage as Record<string, unknown>).doughUsage as import('../management/types/statTypes').DoughUsageTO[]}
                             />

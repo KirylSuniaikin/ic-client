@@ -7,7 +7,7 @@ export const workingHours: Record<string, DaySchedule> = {
     "Wednesday": [["15:00", "23:59"]],
     "Thursday": [["16:30", "01:30"]],
     "Friday": [["16:30", "01:30"]],
-    "Saturday": [["15:00", "23:59"]],
+    "Saturday": [["14:00", "23:59"]],
     "Sunday": null,
 }
 
