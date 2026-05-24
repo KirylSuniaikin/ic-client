@@ -1,4 +1,5 @@
 import type {IBranch, IManagementResponse, IUser, ProductTO, ReportTO} from "../types/inventoryTypes";
+import type {GeneratePrepPlanRequest, PrepPlanResponse} from "../types/prepPlanTypes";
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
@@ -360,6 +361,26 @@ export async function getAccountingCategories(branchId: string, type?: Accountin
         params.append("type", type);
     }
     const res = await authFetch(URL + `/accounting/categories?${params}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function fetchCurrentPrepPlan(branchId: number): Promise<PrepPlanResponse | null> {
+    const res = await authFetch(URL + `/prep-plan/current?branch_id=${branchId}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (res.status === 204) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function generatePrepPlan(payload: GeneratePrepPlanRequest): Promise<PrepPlanResponse> {
+    const res = await authFetch(URL + `/prep-plan/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
