@@ -218,8 +218,8 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                         <TableHead>
                             <TableRow>
                                 <TableCell sx={{ fontWeight: 600 }}>Component</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -227,7 +227,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                                 <TableRow key={row.componentId}>
                                     <TableCell>{row.name}</TableCell>
                                     <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>
-                                    <TableCell>{Math.round(row.amount)}</TableCell>
+                                    <TableCell>{Math.round(row.amount/10) * 10}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

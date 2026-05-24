@@ -861,7 +861,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     isGarlicCrust: item.isGarlicCrust,
                     isThinDough: item.isThinDough,
                     discountAmount: item.discountAmount,
-                    comboItems: item.comboItems.map((ci) => ({
+                    comboItems: (item.comboItems || []).map((ci) => ({
                         id: (ci as ComboItem & { id?: number }).id,
                         name: ci.name,
                         category: ci.category,
@@ -905,7 +905,10 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             setLoading(true);
             try {
                 const orderToEdit = JSON.parse(localStorage.getItem("orderToEdit") ?? "{}") as Record<string, unknown>;
+                console.log(orderToEdit);
+                console.log(items)
                 const order = buildOrderTO(orderToEdit, tel, customerName, deliveryMethod, paymentMethod, items, notes);
+                console.log(order)
                 const res = await editOrder(order as EditOrderRequest, String(orderToEdit['id']));
                 const EDITED_ORDER_ID_KEY = 'editedOrderId';
                 const list = [String(res.id)];
