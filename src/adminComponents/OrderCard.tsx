@@ -151,6 +151,13 @@ interface OrderCardProps {
     onOvenClick?: (order: Order) => void;
 }
 
+function isNotKeetaDefaultNotes(notes: string) {
+    return !(notes === "Need cutlery"
+        || notes === "Need cutlery; Please contact me when the item is out of stock");
+
+
+}
+
 function OrderCard({
                        order,
                        onReadyClick = () => {
@@ -273,15 +280,17 @@ function OrderCard({
                 <Divider sx={{mb: 2}}/>
 
                 <Box sx={{mb: 1}}>
-                    {/*<Typography variant="body2">*/}
-                    {/*    <strong>Time:</strong> {formattedTime}*/}
-                    {/*</Typography>*/}
+                    {!isHistory && (
+                        <Typography variant="body2">
+                            <strong>Time:</strong> {formattedTime}
+                        </Typography>
+                    )}
                     {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                         </Typography>
                     )}
-                    {order.notes.length > 0 && (
+                    {order.notes.length > 0 && isNotKeetaDefaultNotes(order.notes) && (
                         <Typography variant="body2" color={colorRed}>
                             <strong>Notes:</strong> {order.notes}
                         </Typography>

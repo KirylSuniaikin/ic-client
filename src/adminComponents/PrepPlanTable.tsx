@@ -44,6 +44,12 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
     // Used to discard stale in-flight results when the branch changes
     const currentBranchRef = useRef<number | null>(null);
 
+    const roundNum = (num: number) => {
+        if(num>=1000) return Math.round(num / 50) * 50;
+
+        return num.toFixed(0);
+    }
+
     const loadPlan = useCallback(async (branch: IBranch): Promise<void> => {
         const branchId = branch.id;
         currentBranchRef.current = branchId;
@@ -218,7 +224,8 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                         <TableHead>
                             <TableRow>
                                 <TableCell sx={{ fontWeight: 600 }}>Component</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Workday Amount</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Weekend Amount</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
                             </TableRow>
                         </TableHead>
@@ -226,8 +233,9 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                             {plan.rows.map((row) => (
                                 <TableRow key={row.componentId}>
                                     <TableCell>{row.name}</TableCell>
+                                    <TableCell>{roundNum(row.amount*0.75)}</TableCell>
+                                    <TableCell>{roundNum(row.amount*1.25)}</TableCell>
                                     <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>
-                                    <TableCell>{Math.round(row.amount/10) * 10}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
