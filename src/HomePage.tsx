@@ -986,9 +986,9 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     setLoading(false);
                     navigate("/admin/");
                     // ttq.identify is accessed via index signature since it's under [key: string]: unknown
-                    (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({
-                        phone_number: "+" + tel
-                    });
+                    // (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({
+                    //     phone_number: "+" + tel
+                    // });
                 }
                 else if (isKiosk) {
                     setLoading(true);
