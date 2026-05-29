@@ -196,9 +196,12 @@ class BluetoothPrinterService {
             "--------------------------\n",
             "Order Type: " + order.order_type + "\n",
             order.order_type !== "Jahez"
-                ? `Customer Info: ${order.customer_name || "—"} (${order.phone_number})\n`
+                ? `Customer Info: ${order.customer_name || "—"}\n
+                 (${order.phone_number})\n`
                 : "",
-            `Notes: ${order.notes || "—"}\n`,
+            order.notes.length > 0
+                ? `Notes: ${order.notes || "—"}\n`
+                : "",
             `Payment type: ${order.payment_type || "N/A"}\n`,
             "--------------------------\n",
             this.formatOrderItems(order.items),

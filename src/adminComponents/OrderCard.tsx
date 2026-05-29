@@ -153,9 +153,9 @@ interface OrderCardProps {
 
 function isNotKeetaDefaultNotes(notes: string) {
     return !(notes === "Need cutlery"
-        || notes === "Need cutlery; Please contact me when the item is out of stock");
-
-
+        || notes === "Need cutlery; Please contact me when the item is out of stock"
+        || notes === "Need cutlery; Please cancel the order if the item is out of stock"
+    );
 }
 
 function OrderCard({
@@ -260,16 +260,29 @@ function OrderCard({
                         </Box>
 
                         <Typography component="span" fontWeight={600}>
-                            <Typography variant="h4" component="div" fontWeight={900}>
+                            <Typography variant="h3" component="div" fontWeight={900}>
                                 #{order.order_type === "Jahez" || order.order_type === "Keeta" || order.order_type === "Talabat" ? formatExternalId(order.external_id) : order.order_no}{" "}
                             </Typography>
-                            <Typography
-                                component="span"
-                                sx={{fontSize: 14, color: "text.secondary"}}
-                            >
-                                ({order?.order_type?.toUpperCase()})
-                            </Typography>
                         </Typography>
+
+                        <IconButton
+                            size="small"
+                            sx={{
+                                width: 36,
+                                height: 36,
+                                border: `1px solid ${colorRed}`,
+                                color: colorRed,
+                                borderRadius: "50%",
+                                p: 0.5,
+                                ml: 0.5,
+                                "&:hover": {
+                                    backgroundColor: "rgba(228, 75, 76, 0.08)"
+                                }
+                            }}
+                            onClick={() => onDeleteClick(order)}
+                        >
+                            <DeleteIcon fontSize="small"/>
+                        </IconButton>
                     </Box>
 
                     {!isHistory &&
@@ -341,7 +354,7 @@ function OrderCard({
                     pb: 2
                 }}
             >
-                <Typography variant="h6" fontWeight="bold">
+                <Typography variant="h5" fontWeight="bold">
                     {order.amount_paid}
                 </Typography>
                 <Box>
@@ -464,22 +477,6 @@ function OrderCard({
                             EDIT
                         </Button>
                     )}
-                        <IconButton
-                            size="small"
-                            sx={{
-                                border: `1px solid ${colorRed}`,
-                                color: colorRed,
-                                borderRadius: 4,
-                                p: 0.5,
-                                ml: 0.5,
-                                "&:hover": {
-                                    backgroundColor: "rgba(228, 75, 76, 0.08)"
-                                }
-                            }}
-                            onClick={() => onDeleteClick(order)}
-                        >
-                            <DeleteIcon fontSize="small"/>
-                        </IconButton>
                 </Box>
             </CardActions>
         </Card>
