@@ -1,10 +1,17 @@
 import React, {useEffect, useState} from "react";
 import {Box, Typography, Switch, Button} from "@mui/material";
+import {StompSubscription} from "@stomp/stompjs";
 import PizzaLoader from "../components/loadingAnimations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../api/api";
+import {connectSocket, socket} from "../api/socket";
 import {BackTopBar} from "../management/consumptionComponents/BackTopBar";
 import type { MenuItem } from "../management/types/menuTypes";
 import type { AvailabilityChange } from "../types/orderTypes";
+import {isDoughAlert} from "../management/types/doughInventoryTypes";
+import type {DoughInventory, DoughType} from "../management/types/doughInventoryTypes";
+import {getDoughInventory} from "../management/api/api";
+import DoughSection from "./DoughSection";
+import ErrorSnackbar from "./ErrorSnackbar";
 
 interface SelectedBranch {
     id: string;
@@ -41,7 +48,9 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
     const [originalGroups, setOriginalGroups] = useState<MenuGroup[]>([]);
     const [originalDough, setOriginalDough] = useState<DoughAvailability>({});
     const [changes, setChanges] = useState<ConfigChange[]>([]);
-    const isSaveDisabled = changes.length === 0;
+    const [inventoryBuffer, setInventoryBuffer] = useState<DoughInventory>({S: 0, M: 0, L: 0, Brick: 0});
+    const [inventoryDirty, setInventoryDirty] = useState(false);
+    const isSaveDisabled = changes.length === 0 && !inventoryDirty;
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
         M: true,
@@ -55,7 +64,10 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
             try {
                 // branchId is hardcoded in the API implementation, so passing empty string here
                 // does not affect the actual request behaviour
-                const baseInfo = await fetchBaseAppInfo(null, '');
+                const [baseInfo, inventory] = await Promise.all([
+                    fetchBaseAppInfo(null, ''),
+                    getDoughInventory(selectedBranch.id),
+                ]);
 
                 function groupItemsByName(data: MenuItem[]): MenuGroup[] {
                     const map = new Map<string, MenuGroup>();
@@ -119,6 +131,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
                 setOriginalGroups(initializedGroups);
                 setDoughAvailability(sizesAvailable);
                 setOriginalDough(sizesAvailable);
+                setInventoryBuffer(inventory);
 
             } catch (e) {
                 console.error("Error loading menu info", e);
@@ -127,8 +140,31 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
             }
         }
 
-        load();
-    }, []);
+        void load();
+    }, [selectedBranch.id]);
+
+    // useEffect(() => {
+    //     const branchId = selectedBranch.id;
+    //     if (!branchId) return;
+    //
+    //     let sub: StompSubscription | undefined;
+    //
+    //     const doSubscribe = (): void => {
+    //         sub = );
+    //     };
+    //
+    //     // If the shared socket is already connected, subscribe directly to avoid overwriting
+    //     // AdminHomePage's onConnect handler. Fall back to connectSocket for the disconnected case.
+    //     if (socket.connected) {
+    //         doSubscribe();
+    //     } else {
+    //         connectSocket(doSubscribe);
+    //     }
+    //
+    //     return () => {
+    //         sub?.unsubscribe();
+    //     };
+    // }, [selectedBranch.id]);
 
     const handleToggleGroup = (name: string): void => {
         setGroups(prevGroups => {
@@ -172,15 +208,25 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
         });
     };
 
+    const handleInventoryChange = (type: DoughType, value: number): void => {
+        setInventoryBuffer(prev => ({...prev, [type]: value}));
+        setInventoryDirty(true);
+    };
+
     const handleSave = (): void => {
         // ConfigChange[] is passed as AvailabilityChange[] — the backend accepts both shapes
         // The types differ because the API was designed before this change tracking was introduced
-        updateAvailability(changes as unknown as AvailabilityChange[], selectedBranch.id).then(() => {
+        updateAvailability(
+            changes as unknown as AvailabilityChange[],
+            selectedBranch.id,
+            inventoryDirty ? inventoryBuffer : undefined
+        ).then(() => {
             setOriginalGroups(groups);
             setOriginalDough(doughAvailability);
             setChanges([]);
-            onClose()
-        })
+            setInventoryDirty(false);
+            onClose();
+        });
     };
 
     if (isLoading) return <PizzaLoader/>;
@@ -199,17 +245,16 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
                     "&::-webkit-scrollbar": { display: "none" }
                 }}
             >
-                <Typography variant="h5" sx={{ mt: 1, mb: 2, fontWeight: "bold" }}>
-                    Dough Availability
-                </Typography>
-                {Object.entries(doughAvailability).map(([size, enabled]) => (
-                    <Box key={size} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", py: 1 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{size}</Typography>
-                        <Switch checked={enabled} onChange={() => handleToggleDough(size)} color="primary" />
-                    </Box>
-                ))}
+                <DoughSection
+                    branchId={selectedBranch.id}
+                    inventory={inventoryBuffer}
+                    availability={doughAvailability}
+                    onInventoryChange={handleInventoryChange}
+                    onAvailabilityToggle={handleToggleDough}
+                    loading={isLoading}
+                />
 
-                <Typography variant="h5" sx={{ mt: 4, mb: 2, fontWeight: "bold" }}>
+                <Typography variant="h5" sx={{ mt: 2, mb: 2, fontWeight: "bold" }}>
                     Menu Availability
                 </Typography>
                 {groups.map(group => (

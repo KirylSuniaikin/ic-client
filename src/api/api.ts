@@ -2,6 +2,7 @@ import {authFetch} from "../management/api/api";
 import {imageMap, mapOrderImages, mapOrdersImages} from "../utils/imageMap";
 import type {
     BaseAppInfoResponse,
+    Items409Response,
     Order,
     AvailabilityChange,
     ShiftEventPayload,
@@ -9,13 +10,13 @@ import type {
     UpdateOrderStatusPayload,
     AdminBaseInfo,
     CustomerCheckResponse,
-    Statistics,
     WorkloadLevel,
     CreateOrderRequest,
     EditOrderRequest,
 } from '../types/orderTypes';
 import {OrderStatusData} from "../OrderStatusPage";
 import {ShiftEventResponse} from "../types/EventTypes";
+import {StatsResponse} from "../adminComponents/types/statsTypes";
 
 export var PROD_BASE_HOST = "https://icpizza-back.onrender.com/api";
 export var DEV_BASE_HOST = "http://localhost:8000/api";
@@ -64,17 +65,31 @@ export async function fetchBaseAppInfo(
     return data;
 }
 
+
+export class ItemsUnavailableError extends Error {
+    readonly unavailableIds: number[];
+
+    constructor(message: string, unavailableIds: number[]) {
+        super(message);
+        this.name = 'ItemsUnavailableError';
+        this.unavailableIds = unavailableIds;
+    }
+}
+
 export async function createOrder(order: CreateOrderRequest): Promise<Order> {
-    console.log(order)
-    const response = await fetch(URL + "/create_order", {
+    const response = await authFetch(URL + "/create_order", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            // "ngrok-skip-browser-warning": "69420"
         },
         body: JSON.stringify(order)
     });
 
+
+    if (response.status === 409) {
+        const body = await response.json() as Items409Response;
+        throw new ItemsUnavailableError(body.message, body.unavailableIds);
+    }
 
     if (!response.ok) {
         let errorMessage = "Something went wrong placing an order.";
@@ -96,16 +111,19 @@ export async function createOrder(order: CreateOrderRequest): Promise<Order> {
     return await response.json();
 }
 
+export type DoughInventoryAmounts = { S: number; M: number; L: number; Brick: number };
+
 export async function updateAvailability(
     changes: AvailabilityChange[],
-    branchId: string
+    branchId: string,
+    doughInventory?: DoughInventoryAmounts
 ): Promise<string> {
     const response = await authFetch(URL + "/update_availability", {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({changes, branchId}),
+        body: JSON.stringify({changes, branchId, doughInventory: doughInventory ?? null}),
     });
 
     if (!response.ok) {
@@ -175,7 +193,7 @@ export async function fetchStatistics(
     finishDate: string,
     certainDate: string,
     branchId: string
-): Promise<Statistics> {
+): Promise<StatsResponse> {
     const url = `${URL}/get_statistics?start_date=${startDate}&finish_date=${finishDate}&certain_date=${certainDate}&branchId=${branchId}`;
 
     const response = await authFetch(url, {

@@ -6,7 +6,7 @@ import {useNavigate} from "react-router-dom";
 import MenuItemCardHorizontal from "./components/MenuItemCardHorizontal";
 import CartComponent from "./components/CartComponent";
 import PizzaPopup from "./components/PizzaPopupContent";
-import {checkCustomer, createOrder, editOrder, fetchBaseAppInfo, URL} from "./api/api";
+import {checkCustomer, createOrder, editOrder, fetchBaseAppInfo, ItemsUnavailableError, URL} from "./api/api";
 import {groupItemsByCategory} from "./services/item_services";
 import ComboPopup from "./components/ComboPopupContent";
 import ClientInfoPopup from "./components/ClientInfoPopup";
@@ -28,12 +28,12 @@ import {PickUpReminderPopup} from "./components/PickUpReminderPopup";
 import {fetchAllBranches, getAllBannedCstmrs} from "./management/api/api";
 import {KioskBranchSelector} from "./components/KioskBranchSelector";
 import BlackListSnackBar from "./components/BlackListSnackBar";
-import RamadanPopup from "./components/RamadanPopup";
+// import RamadanPopup from "./components/RamadanPopup";
 import {UnavailablePopup} from "./components/UnavailablePopup";
 import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
 import * as React from "react";
 import {BaguettePizzaPopup} from "./components/BaguettePizzaPopup";
-import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
+// import {RamadanInfoPopup} from "./components/RamadanInfoPopup";
 import type { MenuItem, CartItem, ComboItem, ExtraIngr, Topping, Group } from './management/types/menuTypes';
 import type { IBranch } from './management/types/inventoryTypes';
 import {CreateOrderRequest, EditOrderRequest, Order} from "./types/orderTypes";
@@ -84,7 +84,7 @@ function parseExtraIngrOuter(desc: string): string[] {
     return extras;
 }
 
-function normalizeComboItem(ci: Partial<CartItem> & { id?: number; description?: string }): {
+function normalizeComboItem(ci: Partial<CartItem>): {
     id: number | undefined;
     name: string;
     category: string;
@@ -140,9 +140,11 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
     const [editMode, setEditMode] = useState(false)
     const [closedPopup, setClosedPopupOpen] = useState(false);
     const [ramadanPopupOpen ,setRamadanPopupOpen] = useState(false);
-    const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
+    // const [ramadanInfoPopupOpen ,setRamadanInfoPopupOpen] = useState(false);
 
     const [unavailableItems, setUnavailableItems] = useState<string[]>([]);
+    const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
+    const [pendingCartItems, setPendingCartItems] = useState<CartItem[]>([]);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
@@ -650,7 +652,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             const updated = [...prev];
 
             arr.forEach((item: CartItem) => {
-                const typedItem = item as CartItem & { id?: number; comboItems?: CartItem[] };
+                const typedItem = item as CartItem & { comboItems?: CartItem[] };
                 const idx = updated.findIndex((it: CartItem) =>
                     it.name === item.name &&
                     (it.discountAmount || 0) === (item.discountAmount || 0)
@@ -769,7 +771,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
         });
 
         handleClosePizzaPopup();
-        const firstItem = arr[0] as CartItem & { price?: number; id?: number };
+        const firstItem = arr[0] as CartItem & { price?: number };
         if (firstItem) {
             window.ttq?.track('AddToCart', {
                 content_id: firstItem.name,
@@ -817,7 +819,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
     function handleChangeSize(item: CartItem, newSize: string): void {
         const sameItems = getSameItems(item.name)
         const matched = sameItems ? sameItems.find((it: MenuItem) => it.size === newSize) : null;
-        const typedItem = item as CartItem & { sizes?: Record<string, number>; price?: number; id?: number };
+        const typedItem = item as CartItem & { sizes?: Record<string, number>; price?: number };
         const newBasePrice = matched ? matched.price : (typedItem.sizes?.[newSize] || typedItem.price || 0);
         const newId = matched ? matched.id : typedItem.id;
         setCartItems(prev =>
@@ -849,9 +851,8 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             address: orderToEdit['address'],
             notes: notes,
             items: items.map((item: CartItem) => {
-                const typedItem = item as CartItem & { id?: number };
                 return {
-                    id: typedItem.id,
+                    id: item.id,
                     name: item.name,
                     quantity: item.quantity,
                     amount: item.amount,
@@ -862,7 +863,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     isThinDough: item.isThinDough,
                     discountAmount: item.discountAmount,
                     comboItems: (item.comboItems || []).map((ci) => ({
-                        id: (ci as ComboItem & { id?: number }).id,
+                        id: ci.id,
                         name: ci.name,
                         category: ci.category,
                         size: ci.size || "",
@@ -930,9 +931,8 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 branchId: isKiosk? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin? adminBranchId : branchId,
                 notes: notes,
                 items: items.map((item: CartItem) => {
-                    const typedItem = item as CartItem & { id?: number };
                     return {
-                        id: typedItem.id,
+                        id: item.id,
                         name: item.name,
                         quantity: item.quantity,
                         amount: parseFloat(String(item.amount)),
@@ -943,7 +943,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                         isThinDough: item.isThinDough,
                         discountAmount: item.discountAmount,
                         comboItems: (item.comboItems || []).map((ci) => ({
-                            id: (ci as ComboItem & { id?: number }).id,
+                            id: ci.id,
                             name: ci.name,
                             category: ci.category,
                             size: ci.size || "",
@@ -961,16 +961,42 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     }, 0).toFixed(3)
                 ),
             };
-            setCartItems([]);
+            const submittedItems = [...items];
 
             try {
                 let response;
 
                 if (isAdmin) {
                     setLoading(true);
-                    setCartItems([]);
                     isAdminConfirmedRef.current = false;
-                    response = await createOrder(order)
+                    try {
+                        response = await createOrder(order);
+                    } catch (e) {
+                        if (e instanceof ItemsUnavailableError) {
+                            const removedItems = submittedItems.filter(item =>
+                                e.unavailableIds.includes(item.id)
+                            );
+                            const remainingItems = submittedItems.filter(item =>
+                                !e.unavailableIds.includes(item.id)
+                            );
+                            if (remainingItems.length > 0){
+                                setCartItems(remainingItems);
+                                setCartOpen(true);
+                            }
+                            else{
+                                setCartItems(null);
+                                setCartOpen(false);
+                            }
+                            setUnavailableItems(removedItems.map(i => i.name));
+                            setUnavailableMessage(e.message);
+                            setUnavailablePopupOpen(true);
+                            fetchBaseAppInfo(null, '').then(d => setMenuData(d.menu)).catch(() => {});
+                            setLoading(false);
+                            return;
+                        }
+                        throw e;
+                    }
+                    setCartItems([]);
                     const SUPPRESS_KEY = 'suppressSoundIds';
                     const createdId = String(response.id);
                     console.log("Received id " + createdId);
@@ -992,8 +1018,28 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 }
                 else if (isKiosk) {
                     setLoading(true);
+                    try {
+                        response = await createOrder(order);
+                    } catch (e) {
+                        if (e instanceof ItemsUnavailableError) {
+                            const removedItems = submittedItems.filter(item =>
+                                e.unavailableIds.includes(item.id)
+                            );
+                            const remainingItems = submittedItems.filter(item =>
+                                !e.unavailableIds.includes(item.id)
+                            );
+                            setCartItems(remainingItems);
+                            setCartOpen(true);
+                            setUnavailableItems(removedItems.map(i => i.name));
+                            setUnavailableMessage(e.message);
+                            setUnavailablePopupOpen(true);
+                            fetchBaseAppInfo(null, '').then(d => setMenuData(d.menu)).catch(() => {});
+                            setLoading(false);
+                            return;
+                        }
+                        throw e;
+                    }
                     setCartItems([]);
-                    response = await createOrder(order)
                     const SUPPRESS_KEY = 'suppressSoundIds';
                     const createdId = String(response.id);
                     console.log("Received id " + createdId);
@@ -1015,15 +1061,14 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                         return
                     }
                     let customerResponse = await checkCustomer(order.tel)
-                    console.log((customerResponse as Record<string, unknown>)?.['isNewCustomer'])
                     if ((customerResponse as Record<string, unknown>)?.['isNewCustomer'] === false) {
-                        await executeOrderCreation(order)
+                        await executeOrderCreation(order, submittedItems)
                     } else {
+                        setPendingCartItems(submittedItems);
                         setPendingOrder(order)
                         setPickUpReminder(true)
                     }
                 }
-                console.log("Order placed successfully:", response);
             } catch (error) {
                 setErrorMessage((error as Error).message);
                 setErrorSnackBarOpen(true)
@@ -1032,14 +1077,12 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 await localStorage.removeItem("orderToEdit")
                 setPhone("")
                 setUsername("")
-                setCartOpen(false);
-                setCartItems([]);
             }
         }
     }
 
 
-    const executeOrderCreation = async (orderData: unknown): Promise<void> => {
+    const executeOrderCreation = async (orderData: unknown, originalCartItems: CartItem[]): Promise<void> => {
         try {
             setLoading(true);
 
@@ -1068,6 +1111,21 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             }
 
         } catch (error) {
+            if (error instanceof ItemsUnavailableError) {
+                const removedItems = originalCartItems.filter(item =>
+                    error.unavailableIds.includes(item.id)
+                );
+                const remainingItems = originalCartItems.filter(item =>
+                    !error.unavailableIds.includes(item.id)
+                );
+                setCartItems(remainingItems);
+                setCartOpen(true);
+                setUnavailableItems(removedItems.map(i => i.name));
+                setUnavailableMessage(error.message);
+                setUnavailablePopupOpen(true);
+                fetchBaseAppInfo(null, '').then(d => setMenuData(d.menu)).catch(() => {});
+                return;
+            }
             setErrorMessage((error as Error).message);
             setErrorSnackBarOpen(true)
             console.error("Error processing order:", error);
@@ -1256,6 +1314,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                                                 handleAddToCart={handleAddToCart}
                                                 handleChangeQuantity={handleChangeQuantity}
                                                 cartItems={cartItems}
+                                                isAdmin={isAdmin}
                                             />
                                         </Box>
                                     ))}
@@ -1276,7 +1335,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 !detroitComboPopupOpen &&
                 !upsellPopupOpen &&
                 !ramadanPopupOpen &&
-                ! ramadanInfoPopupOpen && (
+                (
                     <Box sx={{
                         position: 'fixed',
                         top: 16,
@@ -1356,14 +1415,14 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 />
             )}
 
-            {ramadanPopupOpen && (
-                <RamadanPopup open={ramadanPopupOpen}
-                              onClose={() => {
-                                  setRamadanPopupOpen(false)
-                                  setRamadanInfoPopupOpen(true)
-                              }}
-                              onAddToCart={handleAddToCart} group={ramadan[0]}/>
-            )}
+            {/*{ramadanPopupOpen && (*/}
+            {/*    <RamadanPopup open={ramadanPopupOpen}*/}
+            {/*                  onClose={() => {*/}
+            {/*                      setRamadanPopupOpen(false)*/}
+            {/*                      setRamadanInfoPopupOpen(true)*/}
+            {/*                  }}*/}
+            {/*                  onAddToCart={handleAddToCart} group={ramadan[0]}/>*/}
+            {/*)}*/}
 
             {detroitComboPopupOpen && (
                 <DetroitComboPopup
@@ -1401,12 +1460,13 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 ></BlackListSnackBar>
             )}
 
-            {unavailablePopupOpen && (
-                <UnavailablePopup
-                    open={unavailablePopupOpen}
-                    onClose={() => setUnavailablePopupOpen(false)}
-                    unavailableItems={unavailableItems}/>
-            )}
+            {/*{unavailablePopupOpen && (*/}
+            {/*    <UnavailablePopup*/}
+            {/*        open={unavailablePopupOpen}*/}
+            {/*        onClose={() => { setUnavailablePopupOpen(false); setUnavailableMessage(null); }}*/}
+            {/*        unavailableItems={unavailableItems}*/}
+            {/*        message={unavailableMessage ?? undefined}/>*/}
+            {/*)}*/}
 
             {genericPopupOpen && <GenericItemPopupContent
                 open={genericPopupOpen}
@@ -1418,11 +1478,11 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             />
             }
 
-            {ramadanInfoPopupOpen &&
-                <RamadanInfoPopup
-                    open={ramadanInfoPopupOpen}
-                    onClose={() => setRamadanInfoPopupOpen(false)}/>
-            }
+            {/*{ramadanInfoPopupOpen &&*/}
+            {/*    <RamadanInfoPopup*/}
+            {/*        open={ramadanInfoPopupOpen}*/}
+            {/*        onClose={() => setRamadanInfoPopupOpen(false)}/>*/}
+            {/*}*/}
 
             {isCrossSellOpen && <CrossSellPopup
                 open={isCrossSellOpen}
@@ -1449,22 +1509,30 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
             />
             }
 
-            {cartOpen && <CartComponent
-                open={cartOpen}
-                items={cartItems}
-                onClose={handleCloseCart}
-                onChangeQuantity={handleChangeQuantity}
-                onChangeSize={handleChangeSize}
-                onRemoveItem={handleRemoveItemFromCart}
-                onCheckout={handleCheckout}
-                openPizzaEditPopUp={openPizzaEditPopUp}
-                openPizzaComboEditPopup={openPizzaComboEditPopup}
-                openDetroitComboEditPopup={openDetroitComboEditPopup}
-                isAdmin={isAdmin}
-                handleDiscountChange={handleDiscountChange}
-                menuData={menuData}
-            />
-            }
+            {cartOpen && (
+                <CartComponent
+                    open={cartOpen}
+                    items={cartItems}
+                    onClose={handleCloseCart}
+                    onChangeQuantity={handleChangeQuantity}
+                    onChangeSize={handleChangeSize}
+                    onRemoveItem={handleRemoveItemFromCart}
+                    onCheckout={handleCheckout}
+                    openPizzaEditPopUp={openPizzaEditPopUp}
+                    openPizzaComboEditPopup={openPizzaComboEditPopup}
+                    openDetroitComboEditPopup={openDetroitComboEditPopup}
+                    isAdmin={isAdmin}
+                    handleDiscountChange={handleDiscountChange}
+                    menuData={menuData}
+                    unavailablePopupOpen={unavailablePopupOpen}
+                    unavailableItems={unavailableItems}
+                    unavailableMessage={unavailableMessage}
+                    onCloseUnavailablePopup={() => {
+                        setUnavailablePopupOpen(false);
+                        setUnavailableMessage(null);
+                    }}
+                />
+            )}
 
             {closedPopup && (
                 <ClosedPopup open={closedPopup} onClose={() => setClosedPopupOpen(false)}/>
@@ -1472,7 +1540,6 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
 
             {phonePopupOpen && <ClientInfoPopup
                 isPhonePopupOpen={phonePopupOpen}
-                // IBranch.id is number but ClientInfoPopup.Branch.id is string; map to string-id shape
                 branches={availableBranches.map(b => ({ ...b, id: String(b.id) }))}
                 onClose={handleClosePhonePopup}
                 onSave={(tel: string, paymentMethod: string, customerName: string, notes: string, branchId: string) => {
@@ -1502,7 +1569,7 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                     }}
                     onClick={() => {
                         setPickUpReminder(false)
-                        executeOrderCreation(pendingOrder)
+                        executeOrderCreation(pendingOrder, pendingCartItems)
                     }
                     }
                 />
@@ -1573,6 +1640,19 @@ function HomePage({userParam, recommendedIds, giftId}: HomePageProps): JSX.Eleme
                 severity="error"
                 handleClose={() => setErrorSnackBarOpen(false)}
             />
+
+            {!cartOpen && unavailablePopupOpen && (
+                <UnavailablePopup
+                    standalone
+                    open={unavailablePopupOpen}
+                    onClose={() => {
+                        setUnavailablePopupOpen(false);
+                        setUnavailableMessage(null);
+                    }}
+                    unavailableItems={unavailableItems}
+                    message={unavailableMessage ?? undefined}
+                />
+            )}
         </Box>
     );
 }

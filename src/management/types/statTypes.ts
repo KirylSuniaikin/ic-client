@@ -15,11 +15,6 @@ export type DoughUsageRow = {
     [date: string]: string | number | boolean | undefined;
 };
 
-export type SellsByDay = {
-    hour: number;
-    sellsByDay: [string, number];
-}
-
 export type TopProduct = {
     name: string;
     quantity: number;

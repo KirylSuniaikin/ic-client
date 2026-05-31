@@ -82,7 +82,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                 setBranches(allBranches);
                 if (allBranches.length === 0) return;
 
-                const matched = allBranches.find((b) => b.externalId === branchId) ?? allBranches[0];
+                const matched = allBranches.find((b) => b.id.toString() === branchId) ?? allBranches[0];
                 setSelectedBranch(matched);
                 await loadPlan(matched);
             } catch (err) {

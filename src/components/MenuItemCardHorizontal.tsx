@@ -4,16 +4,17 @@ import {
     CardContent,
     CardMedia,
     Box,
-    IconButton
+    IconButton,
+    Typography
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../utils/typography";
 import type { Group, CartItem, MenuItem } from '../management/types/menuTypes';
 
-// Group at runtime always carries `category` (MenuGroup is a superset of Group).
+// Group at runtime always carries `category` and `isAvailable` (MenuGroup is a superset of Group).
 // This local type reflects the actual runtime shape passed from menu_service.
-export type GroupWithCategory = Group & { category: string };
+export type GroupWithCategory = Group & { category: string; isAvailable: boolean };
 
 // Using an intersection type to reflect the actual runtime shape without changing logic.
 type CartItemWithDiscount = CartItem & { discount?: number };
@@ -28,6 +29,7 @@ interface MenuItemCardHorizontalProps {
     handleAddToCart: (item: CartItem) => void;
     handleChangeQuantity: (item: CartItem, delta: number) => void;
     cartItems: CartItemWithDiscount[];
+    isAdmin: boolean;
 }
 
 const colorText = "#1A1A1A";
@@ -40,17 +42,20 @@ function MenuItemCardHorizontal({
                                     handleAddToCart,
                                     handleRemoveItemFromCart,
                                     handleChangeQuantity,
-                                    cartItems
+                                    cartItems,
+                                    isAdmin
                                 }: MenuItemCardHorizontalProps): JSX.Element | null {
     const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
     const { name, price, photo, is_best_seller } = defaultItem;
     const is_ramadan = defaultItem.category === "Ramadan";
+    const isAvailable = group.isAvailable;
     const displayPrice = `${price}`;
     const [selected, setSelected] = useState(false);
     const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
     const cartItem = cartItems.find(i => i.name === name && (i.discount || 0) === 0);
 
     const handleClick = () => {
+        if (!isAvailable && !isAdmin) return;
         if (isSimpleGroup) {
             if (!selected) {
                 // Cast is needed: for simple items (sides/sauces/beverages), CartItem
@@ -96,7 +101,7 @@ function MenuItemCardHorizontal({
                 border: selected ? `2px solid ${highlightColor}` : "2px solid transparent",
                 boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
                 width: 160,
-                cursor: "pointer",
+                cursor: isAvailable ? "pointer" : "default",
                 overflow: "hidden",
                 flexShrink: 0,
                 mx: 0.65,
@@ -104,7 +109,7 @@ function MenuItemCardHorizontal({
             }}
         >
             <Box sx={{ position: "relative" }}>
-                {is_best_seller && (
+                {is_best_seller && isAvailable && (
                     <Box
                         sx={{
                             position: "absolute",
@@ -155,8 +160,41 @@ function MenuItemCardHorizontal({
                         height: 180,
                         objectFit: "contain",
                         backgroundColor: "#fff",
+                        filter: isAdmin ? "none" : isAvailable ? "none" : "blur(3px)",
+                        transition: "filter 0.2s ease-in-out",
                     }}
                 />
+                {!isAvailable && !isAdmin && (
+                    <>
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                inset: 0,
+                                backgroundColor: "rgba(255,255,255,0.55)",
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                top: 14,
+                                right: -22,
+                                backgroundColor: "#E44B4C",
+                                color: "#fff",
+                                fontSize: "0.6rem",
+                                fontWeight: 800,
+                                letterSpacing: "0.05em",
+                                px: "28px",
+                                py: "4px",
+                                transform: "rotate(35deg)",
+                                zIndex: 3,
+                                whiteSpace: "nowrap",
+                                pointerEvents: "none",
+                            }}
+                        >
+                            SOLD OUT
+                        </Box>
+                    </>
+                )}
             </Box>
             <CardContent sx={{ px: 1.5, py: 1 , '&:last-child': { pb: 0.2 }}}>
                 <TextTitle

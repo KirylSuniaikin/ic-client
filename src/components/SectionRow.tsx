@@ -79,6 +79,7 @@ export default function SectionRow({
                                 handleAddToCart={handleAddToCart}
                                 handleChangeQuantity={handleChangeQuantity}
                                 cartItems={cartItems}
+                                isAdmin={true}
                             />
                         </Box>
                     ))}

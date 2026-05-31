@@ -125,7 +125,11 @@ export type UpdateOrderStatusPayload = {
   reason: string | null;
 };
 
-export type Statistics = Record<string, unknown>;
+
+export type Items409Response = {
+  message: string;
+  unavailableIds: number[];
+};
 
 export type ComboItemRequest = {
   id?: number;
@@ -177,3 +181,4 @@ export type EditOrderRequest = {
   items: OrderItemRequest[];
   amount_paid: number;
 };
+

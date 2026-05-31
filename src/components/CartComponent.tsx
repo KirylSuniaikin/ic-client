@@ -1,8 +1,9 @@
-import React, {useState} from "react";
-import {Modal, Box, Typography, IconButton, Button} from "@mui/material";
+import React, { useState } from "react";
+import { Modal, Box, Typography, IconButton, Button } from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import type { CartItem, MenuItem } from '../management/types/menuTypes';
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import type { CartItem, MenuItem } from "../management/types/menuTypes";
+import { UnavailablePopup } from "./UnavailablePopup";
 
 const brandRed = "#E44B4C";
 
@@ -20,6 +21,11 @@ interface CartPopupProps {
     isAdmin: boolean;
     handleDiscountChange: (item: CartItem, discount: number) => void;
     menuData: MenuItem[];
+    // Unavailable popup props — passed down from HomePage
+    unavailablePopupOpen?: boolean;
+    unavailableItems?: string[];
+    unavailableMessage?: string | null;
+    onCloseUnavailablePopup?: () => void;
 }
 
 function CartPopup({
@@ -35,27 +41,39 @@ function CartPopup({
                        openDetroitComboEditPopup,
                        isAdmin,
                        handleDiscountChange,
-                        menuData
+                       menuData,
+                       unavailablePopupOpen = false,
+                       unavailableItems = [],
+                       unavailableMessage,
+                       onCloseUnavailablePopup,
                    }: CartPopupProps): JSX.Element {
-    const totalPrice = items.reduce((acc, i) => {
-        const discount = i.discountAmount || 0;
-        const discountedPrice = i.amount * (1 - discount / 100);
-        return acc + discountedPrice * i.quantity;
-    }, 0).toFixed(2);
-    // tel state is kept for API compatibility but not used in this component
+    const totalPrice = items
+        .reduce((acc, i) => {
+            const discount = i.discountAmount || 0;
+            const discountedPrice = i.amount * (1 - discount / 100);
+            return acc + discountedPrice * i.quantity;
+        }, 0)
+        .toFixed(2);
+
     const [tel] = useState<string | null>(null);
 
     return (
         <Modal open={open} onClose={onClose}>
+            {/*
+             * position: relative here is the key fix — it creates a stacking context
+             * so the absolutely-positioned UnavailablePopup renders on top of the cart,
+             * not behind it as it did when it was a sibling in HomePage.
+             */}
             <Box
                 sx={{
                     position: "absolute",
                     inset: 0,
                     display: "flex",
                     flexDirection: "column",
-                    backgroundColor: "#FAFAFA"
+                    backgroundColor: "#FAFAFA",
                 }}
             >
+                {/* Header */}
                 <Box
                     sx={{
                         position: "relative",
@@ -65,7 +83,7 @@ function CartPopup({
                         justifyContent: "center",
                         px: 2,
                         backgroundColor: "#fafafa",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                     }}
                 >
                     <Box
@@ -75,46 +93,29 @@ function CartPopup({
                             top: "50%",
                             transform: "translateY(-50%)",
                             display: "flex",
-                            alignItems: "center"
+                            alignItems: "center",
                         }}
                     >
-                        {/* Arrow button */}
                         <IconButton
                             onClick={onClose}
-                            sx={{
-                                color: brandRed,
-                                ml: 1.3,
-                                p: 0
-                            }}
+                            sx={{ color: brandRed, ml: 1.3, p: 0 }}
                         >
                             <ArrowBackIosNewIcon fontSize="medium" />
                         </IconButton>
-                        {/* Vertical */}
                         <Box
                             sx={{
                                 width: "1px",
                                 height: "100%",
                                 backgroundColor: "#ccc",
-                                ml: 1
+                                ml: 1,
                             }}
                         />
                     </Box>
-
-                    {/* Logo */}
-                    <Box>
-                        <Typography variant="h5" >
-                            Cart
-                        </Typography>
-                    </Box>
+                    <Typography variant="h5">Cart</Typography>
                 </Box>
 
-                <Box
-                    sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        p: 2
-                    }}
-                >
+                {/* Items list */}
+                <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
                     {items.map((item, idx) => (
                         <CartItemHorizontal
                             key={idx}
@@ -132,6 +133,7 @@ function CartPopup({
                     ))}
                 </Box>
 
+                {/* Total */}
                 <Box
                     sx={{
                         flexShrink: 0,
@@ -143,7 +145,11 @@ function CartPopup({
                         borderTop: "1px solid #eee",
                     }}
                 >
-                    <Typography variant="subtitle1" color="text.secondary" sx={{ color: "#000" }}>
+                    <Typography
+                        variant="subtitle1"
+                        color="text.secondary"
+                        sx={{ color: "#000" }}
+                    >
                         Total(VAT incl.)
                     </Typography>
                     <Typography variant="h6" fontWeight="bold" sx={{ color: "#000" }}>
@@ -151,6 +157,7 @@ function CartPopup({
                     </Typography>
                 </Box>
 
+                {/* Checkout button */}
                 <Box
                     sx={{
                         flexShrink: 0,
@@ -159,30 +166,38 @@ function CartPopup({
                         alignItems: "center",
                         justifyContent: "space-between",
                         px: 2,
-                        pb: 2
+                        pb: 2,
                     }}
                 >
                     <Button
                         variant="contained"
-                        onClick={() => {
-                            onCheckout?.(items, tel, null, null, null)
-                        }
-                    }
+                        onClick={() => onCheckout?.(items, tel, null, null, null)}
                         sx={{
                             backgroundColor: brandRed,
                             color: "#fff",
                             textTransform: "none",
                             fontWeight: "bold",
                             borderRadius: 4,
-                            width: '100%',
-                            "&:hover": {
-                                backgroundColor: brandRed
-                            }
+                            width: "100%",
+                            "&:hover": { backgroundColor: brandRed },
                         }}
                     >
                         Checkout (Take Out Only)
                     </Button>
                 </Box>
+
+                {/*
+                 * UnavailablePopup is now a child of CartComponent.
+                 * It uses position:absolute + inset:0 to overlay the entire cart,
+                 * which is possible because the parent Box above has position:absolute
+                 * giving it a proper stacking context.
+                 */}
+                <UnavailablePopup
+                    open={unavailablePopupOpen}
+                    onClose={onCloseUnavailablePopup ?? (() => {})}
+                    unavailableItems={unavailableItems}
+                    message={unavailableMessage ?? undefined}
+                />
             </Box>
         </Modal>
     );

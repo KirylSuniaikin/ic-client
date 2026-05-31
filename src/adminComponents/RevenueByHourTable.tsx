@@ -1,10 +1,10 @@
-import {SellsByDay} from "../management/types/statTypes";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import React, {useMemo} from "react";
 import {Box} from "@mui/material";
+import {SellsByHourStat} from "./types/statsTypes";
 
 type Props = {
-    rawData: SellsByDay[];
+    rawData: SellsByHourStat[];
 }
 
 const DAYS_OF_WEEK = [

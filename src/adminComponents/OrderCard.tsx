@@ -281,7 +281,7 @@ function OrderCard({
                             }}
                             onClick={() => onDeleteClick(order)}
                         >
-                            <DeleteIcon fontSize="small"/>
+                            <DeleteIcon sx={{fontSize: 26}}/>
                         </IconButton>
                     </Box>
 
@@ -293,7 +293,7 @@ function OrderCard({
                 <Divider sx={{mb: 2}}/>
 
                 <Box sx={{mb: 1}}>
-                    {!isHistory && (
+                    {isHistory && (
                         <Typography variant="body2">
                             <strong>Time:</strong> {formattedTime}
                         </Typography>
@@ -308,7 +308,7 @@ function OrderCard({
                             <strong>Notes:</strong> {order.notes}
                         </Typography>
                     )}
-                    {!isHistory && (
+                    {isHistory && (
                         <Typography variant="body2">
                             <strong>Payment type:</strong> {order.payment_type}
                         </Typography>

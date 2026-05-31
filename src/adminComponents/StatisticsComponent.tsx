@@ -30,8 +30,8 @@ import {VatReportCard} from "./VatReportCard";
 import {CustomerStatCard} from "./CustomerStatCard";
 import {StaffRoles} from "../management/types/authTypes";
 import {StaffSummaryContent} from "../management/shiftComponents/StaffSummaryContent";
-import type { Statistics } from '../types/orderTypes';
 import PrepPlanTable from "./PrepPlanTable";
+import type {StatsResponse, DoughUsageTO, SellsByHourStat, TopFiveProducts} from "./types/statsTypes";
 
 interface DateRangeState {
     startDate: Date;
@@ -53,14 +53,14 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
             key: 'selection'
         }
     ]);
-    const [globalStats, setGlobalStats] = useState<Record<string, unknown> | null>(null);
-    const [rangeStats, setRangeStats] = useState<Record<string, unknown> | null>(null);
-    const [retentionStats, setRetentionStats] = useState<Record<string, unknown> | null>(null);
+    const [globalStats, setGlobalStats] = useState<StatsResponse | null>(null);
+    const [rangeStats, setRangeStats] = useState<StatsResponse | null>(null);
+    const [retentionStats, setRetentionStats] = useState<StatsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()))
-    const [doughUsage, setDoughUsage] = useState<Record<string, unknown>>({});
+    const [doughUsage, setDoughUsage] = useState<DoughUsageTO[]>([]);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-    const [sellStats, setSellStats] = useState<Record<string, unknown>>({});
+    const [sellStats, setSellStats] = useState<SellsByHourStat[]>([]);
 
     const handleOpenCalendar = (event: React.MouseEvent<HTMLElement>): void => {
         setAnchorEl(event.currentTarget);
@@ -70,18 +70,15 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         setAnchorEl(null);
     };
 
-    function countPercentage(total: unknown, number: unknown): string | number {
-        if (!total || Number.isNaN(Number(total))) {
-            return 0;
-        }
-        return ((Number(number) / Number(total)) * 100).toFixed(2);
+    function countPercentage(total: number, number: number): string {
+        if (!total || Number.isNaN(total)) return "0";
+        return ((number / total) * 100).toFixed(2);
     }
 
     const open = Boolean(anchorEl);
     const id = open ? 'date-range-popover' : undefined;
 
     const formatDate = (date: Date): string => date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
-
 
     const loadStats = useCallback(async (manualDateRange?: DateRangeState[], manualSelectedDate?: Date): Promise<void> => {
         try {
@@ -94,45 +91,13 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
             const end = formatInTimeZone(currentRange[0].endDate, 'Asia/Bahrain', 'yyyy-MM-dd');
             const retentionDate = formatInTimeZone(currentSelectedDate, 'Asia/Bahrain', 'yyyy-MM-dd');
 
-            const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'), branchId.toString()) as Statistics;
-            setGlobalStats({
-                arpu: (response as Record<string, unknown>).ARPU,
-                uniqueClients: (response as Record<string, unknown>).unique_customers_all_time,
-                repeatClients: (response as Record<string, unknown>).repeat_customers_all_time,
-                aov: (response as Record<string, unknown>).average_order_value_all_time,
-            });
+            const response = await fetchStatistics(start, end, formatInTimeZone(retentionDate, 'Asia/Bahrain', 'yyyy-MM-dd'), branchId.toString()) as StatsResponse;
 
-            setDoughUsage({
-                doughUsage: (response as Record<string, unknown>).doughUsageTOS
-            })
-
-            setRangeStats({
-                totalPickUpRevenue: (response as Record<string, unknown>).pick_up_total_revenue,
-                totalPickUpOrders: (response as Record<string, unknown>).pick_up_total_order_count,
-                newCustomers: (response as Record<string, unknown>).new_customer_ordered_count,
-                oldCustomers: (response as Record<string, unknown>).old_customer_ordered_count,
-                totalJahezRevenue: (response as Record<string, unknown>).jahez_total_revenue,
-                totalJahezOrders: (response as Record<string, unknown>).jahez_total_order_count,
-                totalTalabatOrders: (response as Record<string, unknown>).totalTalabatOrders,
-                totalTalabatRevenue: (response as Record<string, unknown>).totalTalabatRevenue,
-                totalKeetaOrders: (response as Record<string, unknown>).totalKeetaOrders,
-                totalKeetaRevenue: (response as Record<string, unknown>).totalKeetaRevenue,
-                topProducts: (response as Record<string, unknown>).topProducts
-            });
-
-            setSellStats({
-                sellStats: (response as Record<string, unknown>).sellsByHour,
-            })
-
-            setDoughUsage({
-                doughUsage: (response as Record<string, unknown>).doughUsageTOS
-            })
-
-            setRetentionStats({
-                month_count: (response as Record<string, unknown>).month_total_customers,
-                retained_customers: (response as Record<string, unknown>).retained_customers,
-                percentage: (response as Record<string, unknown>).retention_percentage
-            });
+            setGlobalStats(response);
+            setRangeStats(response);
+            setRetentionStats(response);
+            setDoughUsage(response.doughUsageTOS);
+            setSellStats(response.sellsByHour);
         } catch (err) {
             console.error("Failed to load statistics:", err);
         } finally {
@@ -158,10 +123,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
             )}
 
             <Box sx={{ flexShrink: 0 }}>
-                <BackTopBar
-                    onClose={onClose}
-                    title="Statistics"
-                />
+                <BackTopBar onClose={onClose} title="Statistics" />
             </Box>
 
             <Box sx={{
@@ -218,6 +180,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         )}
                     </ToggleButtonGroup>
                 </Box>
+
                 <Box sx={{
                     flex: 1,
                     overflowY: "auto",
@@ -226,23 +189,29 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     scrollbarWidth: "none",
                     "&::-webkit-scrollbar": {display: "none"},
                 }}>
-                {mode === "Performance" && (<>
-                        {rangeStats && (
-                            <Grid size={{xs: 12, md: 6}}>
+                    {mode === "Performance" && (<>
+                            {rangeStats && (
+                                <Grid size={{xs: 12, md: 6}}>
                                     <CustomerStatCard
                                         title="Customer(Pick Up + Keeta)"
                                         items={[
-                                            {label: "New Customers", value:  `${rangeStats.newCustomers}(${countPercentage(Number(rangeStats.newCustomers)+Number(rangeStats.oldCustomers), Number(rangeStats.newCustomers))}%)`},
-                                            {label: "Returning", value: `${rangeStats.oldCustomers}(${countPercentage(Number(rangeStats.newCustomers)+Number(rangeStats.oldCustomers), Number(rangeStats.oldCustomers))}%)`}
+                                            {
+                                                label: "New Customers",
+                                                value: `${rangeStats.newCustomerOrderedCount}(${countPercentage(rangeStats.newCustomerOrderedCount + rangeStats.oldCstmrOrderCount, rangeStats.newCustomerOrderedCount)}%)`
+                                            },
+                                            {
+                                                label: "Returning",
+                                                value: `${rangeStats.oldCstmrOrderCount}(${countPercentage(rangeStats.newCustomerOrderedCount + rangeStats.oldCstmrOrderCount, rangeStats.oldCstmrOrderCount)}%, ${rangeStats.oldCustomerOrderedCount}, ${rangeStats.oldCustomerOrderedCount ? (rangeStats.oldCstmrOrderCount / rangeStats.oldCustomerOrderedCount).toFixed(2) : '0.00'})`
+                                            }
                                         ]}
-                                    ></CustomerStatCard>
-                            </Grid>
-                        )}
+                                    />
+                                </Grid>
+                            )}
                             <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
                                 <CardContent>
-                                    <Box sx={{mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                                    <Box sx={{mb: 2, flexWrap: 'wrap', gap: 1}}>
                                         <Typography variant="h6">📆 <b>Stats by Date Range</b></Typography>
-                                        <Box sx={{mt: 1}}></Box>
+                                        <Box sx={{mt: 1}}/>
                                         <Button variant="outlined" onClick={handleOpenCalendar}>
                                             {formatDate(dateRange[0].startDate)} — {formatDate(dateRange[0].endDate)}
                                         </Button>
@@ -253,17 +222,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                         open={open}
                                         anchorEl={anchorEl}
                                         onClose={handleCloseCalendar}
-                                        anchorOrigin={{
-                                            vertical: 'bottom',
-                                            horizontal: 'left',
-                                        }}
+                                        anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
                                     >
                                         <Box sx={{p: 2}}>
                                             <DateRange
                                                 editableDateInputs={true}
-                                                onChange={item => {
-                                                    setDateRange([item.selection as DateRangeState]);
-                                                }}
+                                                onChange={item => setDateRange([item.selection as DateRangeState])}
                                                 moveRangeOnFirstSelection={false}
                                                 ranges={dateRange}
                                                 locale={enUS}
@@ -271,10 +235,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                             <Button
                                                 variant="contained"
                                                 fullWidth
-                                                onClick={() => {
-                                                    loadStats(dateRange, selectedDate);
-                                                    handleCloseCalendar();
-                                                }}
+                                                onClick={() => { loadStats(dateRange, selectedDate); handleCloseCalendar(); }}
                                                 sx={{mt: 2}}
                                             >
                                                 🔁 Refresh
@@ -286,65 +247,46 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                         <>
                                             <Grid container spacing={4}>
                                                 <Grid size={{xs: 12, md: 7, lg: 8}}>
-
                                                     <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
                                                         Platforms Statistics
                                                     </Typography>
-
                                                     <Grid container spacing={2}>
-
                                                         <Grid size={{xs: 12, sm: 6}}>
                                                             <PlatformStatCard
                                                                 title="Pick Up"
                                                                 items={[
-                                                                    { label: "Revenue", value: rangeStats.totalPickUpRevenue as string | number, subValue: "BD" },
-                                                                    { label: "Orders", value: rangeStats.totalPickUpOrders as string | number },
+                                                                    {label: "Revenue", value: rangeStats.pickUpTotalRevenue, subValue: "BD"},
+                                                                    {label: "Orders", value: rangeStats.pickUpTotalOrderCount},
                                                                 ]}
                                                             />
                                                         </Grid>
-
-                                                        <Grid size={{xs: 12, sm: 6}}>
-                                                            <PlatformStatCard
-                                                                title="Jahez"
-                                                                items={[
-                                                                    { label: "Revenue", value: rangeStats.totalJahezRevenue as string | number, subValue: "BD" },
-                                                                    { label: "Orders", value: rangeStats.totalJahezOrders as string | number }
-                                                                ]}
-                                                            />
-                                                        </Grid>
-
                                                         <Grid size={{xs: 12, sm: 6}}>
                                                             <PlatformStatCard
                                                                 title="Talabat"
                                                                 items={[
-                                                                    { label: "Revenue", value: rangeStats.totalTalabatRevenue as string | number, subValue: "BD" },
-                                                                    { label: "Orders", value: rangeStats.totalTalabatOrders as string | number }
+                                                                    {label: "Revenue", value: rangeStats.totalTalabatRevenue, subValue: "BD"},
+                                                                    {label: "Orders", value: rangeStats.totalTalabatOrders},
                                                                 ]}
                                                             />
                                                         </Grid>
-
                                                         <Grid size={{xs: 12, sm: 6}}>
                                                             <PlatformStatCard
                                                                 title="Keeta"
                                                                 items={[
-                                                                    { label: "Revenue", value: rangeStats.totalKeetaRevenue as string | number, subValue: "BD" },
-                                                                    { label: "Orders", value: rangeStats.totalKeetaOrders as string | number }
+                                                                    {label: "Revenue", value: rangeStats.totalKeetaRevenue, subValue: "BD"},
+                                                                    {label: "Orders", value: rangeStats.totalKeetaOrders},
                                                                 ]}
                                                             />
                                                         </Grid>
                                                     </Grid>
-
-                                                    <Box sx={{ display: { xs: 'block', md: 'none' }, height: 24 }} />
+                                                    <Box sx={{display: {xs: 'block', md: 'none'}, height: 24}}/>
                                                 </Grid>
 
-                                                <Grid size={{xs: 12, md: 5, lg: 4}} sx={{
-                                                    borderLeft: { md: "1px solid #e0e0e0" },
-                                                    pl: { md: 2 }
-                                                }}>
+                                                <Grid size={{xs: 12, md: 5, lg: 4}} sx={{borderLeft: {md: "1px solid #e0e0e0"}, pl: {md: 2}}}>
                                                     <Typography variant="subtitle1" sx={{mt: {xs: 0, md: 0}, mb: 1, fontWeight: "bold"}}>
                                                         Top 10 Products
                                                     </Typography>
-                                                    <TopProductsTable topProducts={rangeStats.topProducts as import('../management/types/statTypes').TopProduct[]}/>
+                                                    <TopProductsTable topProducts={rangeStats.topProducts as TopFiveProducts[]}/>
                                                 </Grid>
                                             </Grid>
 
@@ -353,25 +295,17 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                             <Typography variant="subtitle1" sx={{mt: 2, mb: 1, fontWeight: "bold"}}>
                                                 Revenue By Hour
                                             </Typography>
-                                            <RevenueByHourTable rawData={(sellStats as Record<string, unknown>).sellStats as import('../management/types/statTypes').SellsByDay[]}/>
+                                            <RevenueByHourTable rawData={sellStats}/>
                                         </>
                                     )}
                                 </CardContent>
                             </Card>
 
-                            <Grid container spacing={2} sx={{ mb: 2 }}>
-
+                            <Grid container spacing={2} sx={{mb: 2}}>
                                 <Grid size={{xs: 12, md: 6}}>
-                                    <Card sx={{
-                                        borderRadius: 3,
-                                        boxShadow: 3,
-                                        height: "100%",
-                                        display: "flex",
-                                        flexDirection: "column"
-                                    }}>
+                                    <Card sx={{borderRadius: 3, boxShadow: 3, height: "100%", display: "flex", flexDirection: "column"}}>
                                         <CardContent>
                                             <Typography variant="h6" gutterBottom>🔄 <b>Retention Check</b></Typography>
-
                                             <Button variant="outlined" onClick={(e) => setRetentionAnchorEl(e.currentTarget)}>
                                                 {formatDate(selectedDate)}
                                             </Button>
@@ -387,18 +321,13 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                                     <input
                                                         type="date"
                                                         value={format(selectedDate, 'yyyy-MM-dd')}
-                                                        onChange={(e) => {
-                                                            setSelectedDate(new Date(e.target.value));
-                                                        }}
+                                                        onChange={(e) => setSelectedDate(new Date(e.target.value))}
                                                         style={{padding: "8px", fontSize: "16px", width: "100%"}}
                                                     />
                                                     <Button
                                                         variant="contained"
                                                         fullWidth
-                                                        onClick={() => {
-                                                            loadStats(dateRange, selectedDate);
-                                                            setRetentionAnchorEl(null);
-                                                        }}
+                                                        onClick={() => { loadStats(dateRange, selectedDate); setRetentionAnchorEl(null); }}
                                                         sx={{mt: 2}}
                                                     >
                                                         🔁 Upload
@@ -407,25 +336,24 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                             </Popover>
 
                                             {retentionStats && (
-                                                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', mt: 2 }}>
+                                                <Box sx={{flexGrow: 1, display: 'flex', alignItems: 'center', mt: 2}}>
                                                     <Grid container spacing={2}>
                                                         <Grid size={{xs: 6}}>
                                                             <Box textAlign="center">
-                                                                <Typography variant="body2" color="text.secondary">
-                                                                    New Clients
-                                                                </Typography>
+                                                                <Typography variant="body2" color="text.secondary">New Clients</Typography>
                                                                 <Typography variant="h5" fontWeight="bold">
-                                                                    {retentionStats.month_count as React.ReactNode}
+                                                                    {retentionStats.monthTotalCustomers}
                                                                 </Typography>
                                                             </Box>
                                                         </Grid>
                                                         <Grid size={{xs: 6}}>
                                                             <Box textAlign="center">
-                                                                <Typography variant="body2" color="text.secondary">
-                                                                    Retained
-                                                                </Typography>
+                                                                <Typography variant="body2" color="text.secondary">Retained</Typography>
                                                                 <Typography variant="h5" fontWeight="bold">
-                                                                    {retentionStats.retained_customers as React.ReactNode} <Typography component="span" variant="caption" color="text.secondary">({(retentionStats.percentage as number).toFixed(0)}%)</Typography>
+                                                                    {retentionStats.retainedCustomers}{' '}
+                                                                    <Typography component="span" variant="caption" color="text.secondary">
+                                                                        ({retentionStats.retentionPercentage?.toFixed(0) ?? '-'}%)
+                                                                    </Typography>
                                                                 </Typography>
                                                             </Box>
                                                         </Grid>
@@ -437,52 +365,42 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                 </Grid>
 
                                 <Grid size={{xs: 12, md: 6}}>
-                                    <Card sx={{
-                                        borderRadius: 3,
-                                        boxShadow: 3,
-                                        height: "100%"
-                                    }}>
+                                    <Card sx={{borderRadius: 3, boxShadow: 3, height: "100%"}}>
                                         <CardContent>
                                             <Typography variant="h6" gutterBottom>📉 <b>Global Stats</b></Typography>
                                             {globalStats && (
-                                                <Grid container spacing={2} sx={{ mt: 1 }}>
+                                                <Grid container spacing={2} sx={{mt: 1}}>
                                                     <Grid size={{xs: 6}}>
                                                         <Box textAlign="center">
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                ARPU
-                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary">ARPU</Typography>
                                                             <Typography variant="h5" fontWeight="bold">
-                                                                {(globalStats.arpu as number).toFixed(2)} <Typography component="span" variant="caption">BD</Typography>
+                                                                {globalStats.arpu?.toFixed(2) ?? '-'}{' '}
+                                                                <Typography component="span" variant="caption">BD</Typography>
                                                             </Typography>
                                                         </Box>
                                                     </Grid>
                                                     <Grid size={{xs: 6}}>
                                                         <Box textAlign="center">
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                AOV (All Time)
-                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary">AOV (All Time)</Typography>
                                                             <Typography variant="h5" fontWeight="bold">
-                                                                {(globalStats.aov as number).toFixed(2)} <Typography component="span" variant="caption">BD</Typography>
+                                                                {globalStats.averageOrderValueAllTime?.toFixed(2) ?? '-'}{' '}
+                                                                <Typography component="span" variant="caption">BD</Typography>
                                                             </Typography>
                                                         </Box>
                                                     </Grid>
                                                     <Grid size={{xs: 6}}>
                                                         <Box textAlign="center">
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                Unique Customers
-                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary">Unique Customers</Typography>
                                                             <Typography variant="h5" fontWeight="bold">
-                                                                {globalStats.uniqueClients as React.ReactNode}
+                                                                {globalStats.uniqueCustomersAllTime}
                                                             </Typography>
                                                         </Box>
                                                     </Grid>
                                                     <Grid size={{xs: 6}}>
                                                         <Box textAlign="center">
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                Repeat Customers
-                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary">Repeat Customers</Typography>
                                                             <Typography variant="h5" fontWeight="bold">
-                                                                {globalStats.repeatClients as React.ReactNode}
+                                                                {globalStats.repeatCustomersAllTime}
                                                             </Typography>
                                                         </Box>
                                                     </Grid>
@@ -494,29 +412,19 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             </Grid>
                         </>
                     )}
-                {mode === "Consumption" &&(
-                    <>
-                        <Box sx={{mt: 1}}>
-                            <PrepPlanTable branchId={branchId} />
-                            <DoughUsageTable
-                                rows={(doughUsage as Record<string, unknown>).doughUsage as import('../management/types/statTypes').DoughUsageTO[]}
-                            />
-                            <Box sx={{mt: 1}}></Box>
-                            <ConsumptionStatistics branchId={branchId.toString()}/>
-                        </Box>
-                    </>
-                )}
-                {mode === "Reports" && (
-                    <VatReportCard branchId={branchId}/>
-                )}
-
-                {mode === "Pricing" && (
-                    <ProductsTable/>
-                )}
-
-                {mode === "Shifts" && (
-                    <StaffSummaryContent branchId={branchId} />
-                )}
+                    {mode === "Consumption" && (
+                        <>
+                            <Box sx={{mt: 1}}>
+                                <PrepPlanTable branchId={branchId}/>
+                                <DoughUsageTable rows={doughUsage}/>
+                                <Box sx={{mt: 1}}/>
+                                <ConsumptionStatistics branchId={branchId.toString()}/>
+                            </Box>
+                        </>
+                    )}
+                    {mode === "Reports" && <VatReportCard branchId={branchId}/>}
+                    {mode === "Pricing" && <ProductsTable/>}
+                    {mode === "Shifts" && <StaffSummaryContent branchId={branchId}/>}
                 </Box>
             </Box>
         </Box>
