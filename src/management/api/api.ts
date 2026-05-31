@@ -1,4 +1,5 @@
 import type {IBranch, IManagementResponse, IUser, ProductTO, ReportTO} from "../types/inventoryTypes";
+import type {DoughInventory} from "../types/doughInventoryTypes";
 import type {GeneratePrepPlanRequest, PrepPlanResponse} from "../types/prepPlanTypes";
 import {
     BasePurchaseResponse,
@@ -380,6 +381,25 @@ export async function generatePrepPlan(payload: GeneratePrepPlanRequest): Promis
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function getDoughInventory(branchId: string): Promise<DoughInventory> {
+    const res = await authFetch(URL + `/branches/${branchId}/dough-inventory`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function putDoughInventory(branchId: string, body: DoughInventory): Promise<DoughInventory> {
+    const res = await authFetch(URL + `/branches/${branchId}/dough-inventory`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

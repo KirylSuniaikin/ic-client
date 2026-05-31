@@ -11,6 +11,7 @@ export type MenuItem = {
 }
 
 export type CartItem = {
+    id: number;
     name: string;
     size: string;
     category: string;
@@ -36,6 +37,7 @@ export type Topping = {
 }
 
 export type ComboItem = {
+    id: number;
     name: string;
     category: string;
     size: string;

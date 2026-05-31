@@ -3,6 +3,7 @@ import { Box } from "@mui/material";
 import SectionRow from "./SectionRow";
 import type { CartItem, MenuItem } from '../management/types/menuTypes';
 import type { GroupWithCategory } from './MenuItemCardHorizontal';
+import {is} from "date-fns/locale";
 
 interface MenuSectionsProps {
     bestsellers: GroupWithCategory[];
@@ -34,7 +35,7 @@ export default function MenuSections({
                                          handleAddToCart,
                                          handleChangeQuantity,
                                          cartItems,
-                                         bestRef
+                                         bestRef,
                                      }: MenuSectionsProps): JSX.Element {
     const sections = [
         { title: "Bestsellers", items: bestsellers, isBestSellerBlock: true },

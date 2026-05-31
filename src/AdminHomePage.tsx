@@ -42,6 +42,8 @@ import type { Order, WorkloadLevel, ShiftEventType } from "./types/orderTypes";
 import type { IBranch } from "./management/types/inventoryTypes";
 import {useDeleteOrder} from "./hooks/useDeleteOrder";
 import {DeleteOrderDialog} from "./adminComponents/DeleteOrderDialog";
+import {isDoughAlert} from "./management/types/doughInventoryTypes";
+import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
 
 function AdminHomePage(): JSX.Element {
     const [loading, setLoading] = useState(true);
@@ -76,6 +78,8 @@ function AdminHomePage(): JSX.Element {
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
+    const [alertOpen, setAlertOpen] = useState(false);
+    const [alertMessage, setAlertMessage] = useState("");
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -425,11 +429,18 @@ function AdminHomePage(): JSX.Element {
                         stopSound()
                         setActiveAlertOrder(null);
 
-
                         socket.publish({
                             destination: '/app/orders/ack',
                             body: JSON.stringify({ orderId: acceptedOrderId }),
                         });
+                    })
+
+                    socket.subscribe(`/topic/dough-alert/${branchId}`, (msg) => {
+                        const parsed: unknown = JSON.parse(msg.body);
+                        if (isDoughAlert(parsed)) {
+                            setAlertMessage(`${parsed.doughType} dough low: ${parsed.currentAmount} left`);
+                            setAlertOpen(true);
+                        }
                     })
 
                     socket.subscribe(`/topic/${selectedBranch!.id}/order-cancelled`, (frame) => {
@@ -978,6 +989,17 @@ function AdminHomePage(): JSX.Element {
                 order={orderToDelete}
                 onConfirm={confirmDelete}
                 onCancel={cancelDelete}
+            />
+
+            <ErrorSnackbar
+                open={alertOpen}
+                message={alertMessage}
+                severity="error"
+                handleClose={() => {
+                    setAlertOpen(false)
+                    setAlertMessage(null)
+                }
+                }
             />
         </div>
 
