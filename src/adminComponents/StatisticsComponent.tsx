@@ -255,8 +255,8 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                                             <PlatformStatCard
                                                                 title="Pick Up"
                                                                 items={[
-                                                                    {label: "Revenue", value: rangeStats.pickUpTotalRevenue, subValue: "BD"},
-                                                                    {label: "Orders", value: rangeStats.pickUpTotalOrderCount},
+                                                                    {label: "Revenue", value: rangeStats.totalPickUpRevenue, subValue: "BD"},
+                                                                    {label: "Orders", value: rangeStats.totalPickUpOrderCount},
                                                                 ]}
                                                             />
                                                         </Grid>
