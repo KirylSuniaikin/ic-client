@@ -19,8 +19,8 @@ export interface TopFiveProducts {
 }
 
 export interface StatsResponse {
-    pickUpTotalRevenue: number;
-    pickUpTotalOrderCount: number;
+    totalPickUpRevenue: number;
+    totalPickUpOrderCount: number;
     newCustomerOrderedCount: number;
     oldCustomerOrderedCount: number;
     oldCstmrOrderCount: number;
