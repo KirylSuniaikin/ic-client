@@ -136,7 +136,7 @@ export function PizzaComboPopup({
 
     const [description, setDescription] = useState<string>(() => {
         if (isEditMode && editItem) {
-            return editItem.comboItems[0].description.trim();
+            return editItem.comboItems[0].description?.trim() ?? "";
         } else {
             return (selectedPizza as unknown as Record<string, string>)?.note?.trim() || "" ;
         }
