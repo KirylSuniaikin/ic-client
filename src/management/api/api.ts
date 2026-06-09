@@ -1,5 +1,5 @@
 import type {IBranch, IManagementResponse, IUser, ProductTO, ReportTO} from "../types/inventoryTypes";
-import type {DoughInventory} from "../types/doughInventoryTypes";
+import type {DoughAvailabilityFlags, DoughInventory, DoughStatus} from "../types/doughInventoryTypes";
 import type {GeneratePrepPlanRequest, PrepPlanResponse} from "../types/prepPlanTypes";
 import {
     BasePurchaseResponse,
@@ -386,7 +386,7 @@ export async function generatePrepPlan(payload: GeneratePrepPlanRequest): Promis
     return res.json();
 }
 
-export async function getDoughInventory(branchId: string): Promise<DoughInventory> {
+export async function getDoughInventory(branchId: string): Promise<DoughStatus> {
     const res = await authFetch(URL + `/branches/${branchId}/dough-inventory`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -395,11 +395,24 @@ export async function getDoughInventory(branchId: string): Promise<DoughInventor
     return res.json();
 }
 
-export async function putDoughInventory(branchId: string, body: DoughInventory): Promise<DoughInventory> {
+export async function putDoughInventory(branchId: string, body: DoughInventory): Promise<DoughStatus> {
     const res = await authFetch(URL + `/branches/${branchId}/dough-inventory`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function putDoughAvailability(
+    branchId: string,
+    availability: DoughAvailabilityFlags,
+): Promise<DoughStatus> {
+    const res = await authFetch(URL + `/branches/${branchId}/dough-availability`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(availability),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

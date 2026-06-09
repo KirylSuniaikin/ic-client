@@ -347,7 +347,7 @@ export function PizzaComboPopup({
                             onCrustChange={(val) => setPizza({ ...pizza, crust: val })}
                             onChange={() => {
                                 openEditor("pizza", pizzas
-                                    .map(p => p.items.find(i => i.size.trim() === selectedSize))
+                                    .map(p => p.items.find(i => i.size.trim() === selectedSize && i.available))
                                     .filter((i): i is MenuItem => i !== undefined),
                                     pizza.item
                                 );
@@ -359,11 +359,11 @@ export function PizzaComboPopup({
                         />
                         <ItemCard
                             item={drink.item}
-                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
+                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items).filter(i => i.available), drink.item)}
                         />
                         <ItemCard
                             item={sauce.item}
-                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
+                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items).filter(i => i.available), sauce.item)}
                         />
                     </Box>
 

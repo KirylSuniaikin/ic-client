@@ -37,13 +37,15 @@ import BlacklistHomepage from "./management/blacklist/BlacklistHomepage";
 import CashRegisterPopup from "./management/cashRegister/CashRegisterPopup";
 import { AccountingHomePage } from "./management/accountingComponents/AccountingHomePage";
 import { useAuth } from "./management/security/AuthProvider";
-import { fetchAllBranches, getBranchInfo } from "./management/api/api";
+import { fetchAllBranches, getBranchInfo, getDoughInventory, putDoughInventory, putDoughAvailability } from "./management/api/api";
 import type { Order, WorkloadLevel, ShiftEventType } from "./types/orderTypes";
 import type { IBranch } from "./management/types/inventoryTypes";
 import {useDeleteOrder} from "./hooks/useDeleteOrder";
 import {DeleteOrderDialog} from "./adminComponents/DeleteOrderDialog";
-import {isDoughAlert} from "./management/types/doughInventoryTypes";
+import { isDoughAlert } from "./management/types/doughInventoryTypes";
+import type { DoughStatus, DoughAvailabilityFlags, DoughType } from "./management/types/doughInventoryTypes";
 import ErrorSnackbar from "./adminComponents/ErrorSnackbar";
+import DoughSection from "./adminComponents/DoughSection";
 
 function AdminHomePage(): JSX.Element {
     const [loading, setLoading] = useState(true);
@@ -80,6 +82,12 @@ function AdminHomePage(): JSX.Element {
     const [accountingOpen, setAccountingOpen] = useState(false);
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState("");
+    const [doughStatus, setDoughStatus] = useState<DoughStatus | null>(null);
+    const [doughLoading, setDoughLoading] = useState(false);
+    const doughDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const doughStatusRef = useRef<DoughStatus | null>(null);
+    // Keep ref in sync with state so debounce callbacks always read the latest counts
+    doughStatusRef.current = doughStatus;
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -495,7 +503,17 @@ function AdminHomePage(): JSX.Element {
                             setCashStage(nextCashStage);
                             setEventStage(nextEventStage);
                         }
-                    })
+                    });
+
+                    socket.subscribe(`/topic/${selectedBranch!.id}/dough-inventory`, (msg) => {
+                        try {
+                            const parsed = JSON.parse(msg.body) as DoughStatus;
+                            setDoughStatus(parsed);
+                            doughStatusRef.current = parsed;
+                        } catch {
+                            // silently ignore unparseable frames — follow existing WS guard pattern
+                        }
+                    });
                 };
 
                 socket.onWebSocketClose = () => console.log('🔴 WS disconnected');
@@ -527,10 +545,25 @@ function AdminHomePage(): JSX.Element {
             }
         }
 
+        async function loadDoughInventory(): Promise<void> {
+            try {
+                setDoughLoading(true);
+                const status = await getDoughInventory(String(selectedBranch!.id));
+                setDoughStatus(status);
+                doughStatusRef.current = status;
+            } catch (err) {
+                console.error("Failed to load dough inventory:", err);
+            } finally {
+                setDoughLoading(false);
+            }
+        }
+
         fetchAdminBaseInfo(String(selectedBranch.id));
         initialize();
+        loadDoughInventory();
 
         return () => {
+            clearTimeout(doughDebounceRef.current);
             const c = stompRef.current;
             stompRef.current = null;
             c?.deactivate?.().catch(() => {
@@ -562,6 +595,67 @@ function AdminHomePage(): JSX.Element {
     const branchForComponents = selectedBranch
         ? { ...selectedBranch, id: String(selectedBranch.id) }
         : null;
+
+    const onDoughInventoryChange = (type: DoughType, value: number): void => {
+        const current = doughStatusRef.current;
+        const optimisticStatus: DoughStatus | null = current ? {
+            S: type === 'S' ? value : current.S,
+            M: type === 'M' ? value : current.M,
+            L: type === 'L' ? value : current.L,
+            Brick: type === 'Brick' ? value : current.Brick,
+            availability: current.availability,
+        } : null;
+        setDoughStatus(optimisticStatus);
+        doughStatusRef.current = optimisticStatus;
+
+        clearTimeout(doughDebounceRef.current);
+        const bid = selectedBranch ? String(selectedBranch.id) : null;
+        doughDebounceRef.current = setTimeout(async () => {
+            const latest = doughStatusRef.current;
+            if (!bid || !latest) return;
+            try {
+                const serverResponse = await putDoughInventory(bid, latest);
+                setDoughStatus(serverResponse);
+                doughStatusRef.current = serverResponse;
+            } catch (err) {
+                console.error("Failed to save dough inventory:", err);
+            }
+        }, 300);
+    };
+
+    const onDoughAvailabilityToggle = async (key: string): Promise<void> => {
+        if (!selectedBranch || !doughStatus) return;
+
+        const prevStatus = doughStatus;
+        const prevAvailability: DoughAvailabilityFlags = doughStatus.availability ?? {
+            S: false, M: false, L: false, "Brick dough": false,
+        };
+        let updatedFlags: DoughAvailabilityFlags;
+        if (key === "S") {
+            updatedFlags = { ...prevAvailability, S: !prevAvailability.S };
+        } else if (key === "M") {
+            updatedFlags = { ...prevAvailability, M: !prevAvailability.M };
+        } else if (key === "L") {
+            updatedFlags = { ...prevAvailability, L: !prevAvailability.L };
+        } else {
+            // key === "Brick dough" — the only other value DoughSection passes via AVAILABILITY_KEY
+            updatedFlags = { ...prevAvailability, "Brick dough": !prevAvailability["Brick dough"] };
+        }
+
+        const optimisticStatus: DoughStatus = { ...doughStatus, availability: updatedFlags };
+        setDoughStatus(optimisticStatus);
+        doughStatusRef.current = optimisticStatus;
+
+        try {
+            const serverResponse = await putDoughAvailability(String(selectedBranch.id), updatedFlags);
+            setDoughStatus(serverResponse);
+            doughStatusRef.current = serverResponse;
+        } catch (err) {
+            setDoughStatus(prevStatus);
+            doughStatusRef.current = prevStatus;
+            console.error("Failed to update dough availability:", err);
+        }
+    };
 
     return (
 
@@ -670,6 +764,17 @@ function AdminHomePage(): JSX.Element {
                         gridAutoRows: 'max-content',
                         // alignItems: 'flex-start'
                     }}>
+                    {selectedBranch && (
+                        <DoughSection
+                            branchId={String(selectedBranch.id)}
+                            inventory={doughStatus ?? { S: 0, M: 0, L: 0, Brick: 0 }}
+                            availability={doughStatus?.availability ?? { S: false, M: false, L: false, "Brick dough": false }}
+                            onInventoryChange={onDoughInventoryChange}
+                            onAvailabilityToggle={onDoughAvailabilityToggle}
+                            loading={doughLoading}
+                            card
+                        />
+                    )}
                     {sortedOrders.map((order) => (
                         <OrderCard
                             key={order.id}

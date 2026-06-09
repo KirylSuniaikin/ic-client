@@ -131,7 +131,7 @@ function PizzaPopup({
             setSelectedIngr(editItem.extraIngredients as unknown as string[] || [])
             setNote((editItem as unknown as Record<string, string>).note || "")
         } else if (group) {
-            const defaultItem = group.items.find(i => i.size === "M") || group.items[0];
+            const defaultItem = group.items.find(i => i.size === "M" && i.available) || group.items.find(i => i.available) || group.items[0];
             setItem(defaultItem);
             setSelectedSize(defaultItem.size);
             setSelectedDough("Traditional");
@@ -143,7 +143,7 @@ function PizzaPopup({
                 value: defaultItem.price
             });
         }
-        const sizes = Array.from(new Set(group.items.map(i => i.size)));
+        const sizes = Array.from(new Set(group.items.filter(i => i.available).map(i => i.size)));
         const order = ["S", "M", "L"];
         const sortedSizes = order.filter(size => sizes.includes(size));
         setAvailableSizes(sortedSizes);
@@ -257,7 +257,9 @@ function PizzaPopup({
                 });
             }
         }))
-        removeFromCart(item.name, item.price, quantity);
+        if (isEditMode && editItem) {
+            removeFromCart(editItem.name, editItem.amount, editItem.quantity);
+        }
         onAddToCart?.(products);
         onClose?.();
     }

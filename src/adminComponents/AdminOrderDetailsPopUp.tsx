@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import type { CartItem } from '../management/types/menuTypes';
+import {discountArray} from "../components/CartItemHorizontal";
 
 const countries = [
     { name: "Bahrain", code: "973", digits: 8 },
@@ -239,7 +240,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                     sx={fieldSx}
                     InputProps={{ sx: { borderRadius: 4 } }}
                 >
-                    {[0,10,20,30,40,50,60,70,80,90,100].map((p) => (
+                    {discountArray.map((p) => (
                         <MenuItem key={p} value={p}>{p}%</MenuItem>
                     ))}
                 </TextField>

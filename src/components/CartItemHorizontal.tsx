@@ -27,6 +27,8 @@ interface CartItemHorizontalProps {
     menuData: MenuItemType[];
 }
 
+export const discountArray = Array.from({ length: 21 }, (_, i) => i * 5);
+
 function CartItemHorizontal({
                                 item,
                                 onChangeQuantity,
@@ -235,7 +237,7 @@ function CartItemHorizontal({
                                     }
                                 }}
                             >
-                                {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => (
+                                {discountArray.map((percent) => (
                                     <MenuItem key={percent} value={percent}>
                                         {percent}%
                                     </MenuItem>

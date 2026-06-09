@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Box, Card, CardContent, Grid, Switch, TextField, Typography } from "@mui/material";
+import { Box, Card, CardContent, Grid, IconButton, Switch, TextField, Typography } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 import type { DoughInventory, DoughType } from "../management/types/doughInventoryTypes";
 
 const DOUGH_LABELS: Record<string, string> = {
@@ -27,6 +29,7 @@ interface DoughSectionProps {
     onInventoryChange: (type: DoughType, value: number) => void;
     onAvailabilityToggle: (size: string) => void;
     loading: boolean;
+    card?: boolean;
 }
 
 function getStatusColor(amount: number): string {
@@ -41,6 +44,7 @@ export default function DoughSection({
                                          onInventoryChange,
                                          onAvailabilityToggle,
                                          loading,
+                                         card = false,
                                      }: DoughSectionProps): JSX.Element {
     const toRaw = (inv: DoughInventory): Record<DoughType, string> =>
         Object.fromEntries(DOUGH_TYPES.map(t => [t, String(inv[t])])) as Record<DoughType, string>;
@@ -51,10 +55,9 @@ export default function DoughSection({
         setRawValues(toRaw(inventory));
     }, [inventory]);
 
-    return (
+    const inner = (
         <Box
             sx={{
-                mb: 2,
                 width: "100%",
                 opacity: loading ? 0.5 : 1,
                 pointerEvents: loading ? "none" : "auto",
@@ -127,35 +130,68 @@ export default function DoughSection({
                                     </Box>
 
                                     {/* Amount */}
-                                    <TextField
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={rawValues[type]}
-                                        onChange={(e) => {
-                                            const str = e.target.value.replace(/[^0-9]/g, '');
-                                            setRawValues(prev => ({ ...prev, [type]: str }));
-                                            const parsed = parseInt(str, 10);
-                                            onInventoryChange(type, isNaN(parsed) ? 0 : Math.max(0, parsed));
-                                        }}
-                                        inputProps={{ min: 0 }}
-                                        variant="standard"
-                                        sx={{
-                                            "& .MuiInputBase-input": {
-                                                fontSize: "2.2rem",
-                                                fontWeight: 700,
-                                                lineHeight: 1,
-                                                letterSpacing: "-0.02em",
-                                                color: "text.primary",
-                                                p: 0,
-                                                MozAppearance: "textfield",
-                                                "&::-webkit-outer-spin-button": { display: "none" },
-                                                "&::-webkit-inner-spin-button": { display: "none" },
-                                            },
-                                            "& .MuiInput-underline:before": { borderBottom: "none" },
-                                            "& .MuiInput-underline:after": { borderBottom: "none" },
-                                            "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
-                                        }}
-                                    />
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => {
+                                                const newVal = Math.max(0, amount - 1);
+                                                setRawValues(prev => ({ ...prev, [type]: String(newVal) }));
+                                                onInventoryChange(type, newVal);
+                                            }}
+                                            sx={{ p: "2px" }}
+                                        >
+                                            <RemoveIcon fontSize="small" />
+                                        </IconButton>
+                                        <TextField
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={rawValues[type]}
+                                            onChange={(e) => {
+                                                const raw = e.target.value;
+                                                // Negative input is clamped to 0 per FR7 ("count cannot go below 0")
+                                                if (raw.includes('-')) {
+                                                    setRawValues(prev => ({ ...prev, [type]: '0' }));
+                                                    onInventoryChange(type, 0);
+                                                    return;
+                                                }
+                                                const str = raw.replace(/[^0-9]/g, '');
+                                                setRawValues(prev => ({ ...prev, [type]: str }));
+                                                const parsed = parseInt(str, 10);
+                                                onInventoryChange(type, isNaN(parsed) ? 0 : Math.max(0, parsed));
+                                            }}
+                                            inputProps={{ min: 0 }}
+                                            variant="standard"
+                                            sx={{
+                                                flex: 1,
+                                                "& .MuiInputBase-input": {
+                                                    fontSize: "2.2rem",
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                    letterSpacing: "-0.02em",
+                                                    color: "text.primary",
+                                                    p: 0,
+                                                    textAlign: "center",
+                                                    MozAppearance: "textfield",
+                                                    "&::-webkit-outer-spin-button": { display: "none" },
+                                                    "&::-webkit-inner-spin-button": { display: "none" },
+                                                },
+                                                "& .MuiInput-underline:before": { borderBottom: "none" },
+                                                "& .MuiInput-underline:after": { borderBottom: "none" },
+                                                "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
+                                            }}
+                                        />
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => {
+                                                const newVal = Math.max(0, amount + 1);
+                                                setRawValues(prev => ({ ...prev, [type]: String(newVal) }));
+                                                onInventoryChange(type, newVal);
+                                            }}
+                                            sx={{ p: "2px" }}
+                                        >
+                                            <AddIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
 
                                     {/* Divider */}
                                     <Box sx={{ height: "0.5px", backgroundColor: "divider" }} />
@@ -187,4 +223,25 @@ export default function DoughSection({
             </Grid>
         </Box>
     );
+
+    if (card) {
+        return (
+            <Card
+                sx={{
+                    mb: 2,
+                    border: "2px solid transparent",
+                    borderRadius: 3,
+                    alignSelf: "flex-start",
+                    backgroundColor: "#fff",
+                    boxShadow: 3,
+                }}
+            >
+                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                    {inner}
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return <Box sx={{ mb: 2, width: "100%" }}>{inner}</Box>;
 }

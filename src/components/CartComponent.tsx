@@ -57,6 +57,8 @@ function CartPopup({
 
     const [tel] = useState<string | null>(null);
 
+    console.log(items)
+
     return (
         <Modal open={open} onClose={onClose}>
             {/*
