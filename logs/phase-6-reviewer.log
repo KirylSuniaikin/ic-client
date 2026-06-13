@@ -1,0 +1,19 @@
+NEEDS WORK
+
+Four blocking issues must be resolved before Phase 6 can be accepted:
+
+---
+
+**Issue 1 — Old directories not deleted.**  
+`src/management/` (27 files), `src/adminComponents/` (20 files), and `src/hooks/useDeleteOrder.ts` are all still present. Phase 6 verification requires them to be empty and deleted. The new `src/domains/management/` copies compile cleanly — this is purely a deletion-of-originals gap.
+
+**Issue 2 — `AdminHomePage.tsx` is 763 lines (target ≤ 120).**  
+The page was never reduced to a thin shell. It still contains `toLongOrNull`/`getId`/`getStringId`/`normalizeId`/`getExtId` utilities (lines 120–141), `confirmExternalOrder` and `handleCancel` async handlers that call the API directly (lines 150–190), a branch-init `useEffect` that should be a hook, and 14 `useState` declarations. All of this must be extracted; the shell should only call `useAdminOrders`, `useDough`, and render.
+
+**Issue 3 — `BluetoorhPrinterService.ts` (typo) not deleted.**  
+`src/services/BluetoothPrinterService.ts` (correct) was added but the old `src/services/BluetoorhPrinterService.ts` was never removed. The old file still imports `formatExternalId` from `../adminComponents/OrderCard`. When `adminComponents/` is deleted it will break. Delete the typo file, rename `src/services/__mocks__/BluetoorhPrinterService.ts`, and fix the mock path on line 10 of `useAdminOrders.test.ts`.
+
+**Issue 4 — Stale duplicate test files block directory deletion.**  
+Three test files were copied to new locations but originals were not removed: `src/adminComponents/DoughSection.test.tsx`, `src/management/mappers/shiftMapper.test.ts`, and `src/adminComponents/PrepPlanTable.test.ts`. They live inside the directories that must be deleted (#1), so their removal is Phase 6 scope. After deleting, re-run `yarn test --watchAll=false` to confirm suite still passes (count will drop by duplicate cases; all assertions must still pass).
+
+Full details with file paths and line numbers are in `review-feedback.md`.

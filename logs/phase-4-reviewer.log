@@ -1,0 +1,11 @@
+Phase 4 is **not LGTM**. `review-feedback.md` written with 4 blocking issues:
+
+1. **`yarn build` / `yarn tsc --noEmit` fail** — `usePreciseCountdown.test.ts:97` has a TS type error: `jest.spyOn(window, "clearTimeout")` — `"clearTimeout"` resolves to `never` under `@jest/globals` strict types. Fix: use `jest.spyOn(global, "clearTimeout")`.
+
+2. **`branchSelector` prop is a no-op stub** — present in the interface but not destructured in the function signature, so it never renders `BranchSelectorComponent`. The spec explicitly says "shows BranchSelectorComponent if true". `BranchSelectorComponent` hasn't been moved to `_shared/components/` either. Tests only assert no-crash, not rendering. Blocking per the review criteria.
+
+3. **`ConsumptionStatistics` has no topbar** — `BackTopBar.tsx` was deleted but `ManagementTopBar` with `onBack` was never added. Component has zero topbar now.
+
+4. **`PurchaseTablePopup` has an inlined custom header** — `PurchaseTopBar.tsx` was deleted but replaced with a custom `Stack+IconButton+Typography` inline header instead of `ManagementTopBar`. The `Total` display and `Add row` button could be passed via the `actions` prop.
+
+**Passing:** ErrorSnackbar ✅, BlackListSnackBar deleted ✅, HomePage `duration={10000}` ✅, `usePreciseCountdown` stepMs=1000 ✅, 3 of 5 topbar callers updated ✅, 0 `any` in moved files ✅, all 134 tests pass ✅.

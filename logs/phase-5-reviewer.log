@@ -1,0 +1,28 @@
+**NOT LGTM — blocking violations found.** `review-feedback.md` written at iteration 1.
+
+## Summary
+
+Phase 5 passes the gate checks (tsc clean, 274 tests pass, build succeeds), but has pervasive violations of the **"no bare `as X` without comment"** rule from CLAUDE.md and RESTRUCTURE_SPEC.md §3. Violations span 4 of the 5 new hook files.
+
+### What must be fixed before merge:
+
+**`useCart.ts` (8 violations):**
+- Lines 104/109 cast `comboItems` items to `CartItem[]` but the real type is `ComboItem[]` — wrong subtype, no comment.
+- Lines 135/136 cast to `CartItem & { isThinDough?: boolean; isGarlicCrust?: boolean }` — those fields already exist on `CartItem`; both casts are dead code.
+- Lines 156/183 cast to `CartItem & { price?: number; sizes?: ... }` — `CartItem` has no `price` field; the cast hides a design gap instead of fixing it.
+- Line 190 needs an array check instead of bare `as CartItem[]`.
+
+**`useMenuData.ts` (6 violations):**
+- Lines 138/141 use `as unknown as CartItem` to force-cast incomplete object literals that are missing required `CartItem` fields — should complete the objects instead.
+- Lines 155, 173, 180, 182, 186 — mix of redundant casts (name is already `string`) and unexplained type narrowings.
+
+**`useCheckout.ts` (9 violations):**
+- `pendingOrder: unknown` state is cast to `CreateOrderRequest` at line 118 without any type guard. Change the state type to `CreateOrderRequest | null` — eliminates both casts.
+- `.filter(Boolean) as MenuItem[]` (×2) should use a type predicate instead.
+- `(error as Error).message` (×2) should use `instanceof` guard.
+
+**`useOrderStatus.ts` (2 violations):**
+- Lines 31/66: two unexplained casts of JSON-parsed values — need inline comments or type guards.
+
+**`domains/order/types.ts` line 186:**
+- `order_no: number | unknown` collapses to `unknown` in TypeScript — effectively an untyped field. Change to the correct concrete type.

@@ -1,0 +1,10 @@
+All acceptance criteria pass:
+
+- `yarn build` — exits 0 ✓
+- `yarn tsc --noEmit` — 0 errors ✓
+- `any` in changed files — 0 (only in comments) ✓
+- old import paths — none ✓
+- `yarn test` — 12/12 pass ✓
+- 3 perf fixes intact (`onConnect` immediate call, `await deactivate()` before re-activate, socket singleton export) ✓
+
+LGTM

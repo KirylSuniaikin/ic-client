@@ -1,0 +1,13 @@
+**LGTM — Phase 5 (Customer Domain Extraction) Iteration 2 is approved for merge.**
+
+Here is the per-file resolution summary:
+
+**`useCart.ts`** — All 8 casts eliminated cleanly. The `.map() as CartItem[]` redundancy is gone; the `CartItem & { comboItems?: CartItem[] }` wrong-subtype casts are replaced with direct field access (`existing.comboItems?.[0]?.isGarlicCrust`, etc.); the nonexistent `.price` casts now use `.amount`; `pendingItems as CartItem[]` is gone because `handleAddToCart` already accepts `CartItem | CartItem[]`.
+
+**`useMenuData.ts`** — The `as unknown as CartItem` double-casts on lines 138/141 are gone; object literals are now structurally complete `CartItem`s. The single remaining `as unknown as CartItem[]` at line 213 carries a thorough multi-line comment explaining the genuine shape divergence (localStorage `extraIngredients` are raw strings, not `ExtraIngr[]`). All other casts removed or replaced with `instanceof Error` guards. This is the legitimate `untyped data` exception permitted by CLAUDE.md.
+
+**`useCheckout.ts`** — `pendingOrder` state and interface changed from `unknown` to `CreateOrderRequest | null`, eliminating the structural cast issue. `.filter(Boolean)` replaced with type predicates. `customerResponse.isNewCustomer` now accessed directly after `CustomerCheckResponse` was given the field. All `(error as Error).message` replaced with `instanceof` guards. Remaining casts carry justifying comments.
+
+**`useOrderStatus.ts`** — Both casts (`data as OrderStatusData`, `JSON.parse(frame.body) as {...}`) carry comments explaining the invariant.
+
+**`types.ts`** — `order_no: number | unknown` corrected to `order_no: number`. `CustomerCheckResponse` gained `isNewCustomer?: boolean`.

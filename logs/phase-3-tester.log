@@ -1,0 +1,20 @@
+All 109 tests pass. Here's a summary of what was added:
+
+**`socket.test.ts`** — 6 new tests in 2 new describe blocks:
+- `connectSocket — immediate onConnect when already connected`: verifies the Phase 3 fix that calls `onConnect()` directly when `socket.connected === true`, without touching `socket.onConnect` or calling `activate`
+- `connectSocket — awaits deactivate before re-activate`: verifies `deactivate()` is called when `socket.active === true`, that `activate` only fires after deactivation resolves (tested with a pending Promise), and that the ordering is sequential
+
+**`useAdminOrders.test.ts`** — 4 new tests verifying subscription lifecycle:
+- Exactly 9 subscriptions are created when `branchId` is provided
+- All 9 handles get `unsubscribe()` called on unmount (no leak)
+- No subscriptions when `branchId` is null
+- `connectSocket` never called when `branchId` is null
+
+**`useOrderStatus.test.ts`** — 3 new tests:
+- `connectSocket` is called after the order status fetch resolves
+- The subscribed topic includes the correct branch and event name
+- The single subscription handle is unsubscribed on unmount
+
+**3 new mock files** created to support the hook tests without circular dependencies or hoisting issues: `__mocks__/socket.ts`, `__mocks__/public.ts`, `__mocks__/BluetoorhPrinterService.ts`.
+
+Final result: **109 tests, 9 suites — all passing.**

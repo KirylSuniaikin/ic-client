@@ -1,0 +1,15 @@
+**Review complete. Phase 1 is BLOCKED — 2 failing acceptance criteria.**
+
+---
+
+**Blocking issue 1 — `yarn build` fails (exit 1) / `yarn tsc --noEmit` exits 2**
+
+Four test files (`client.test.ts:44`, `public.test.ts:219`, `management.test.ts:208`, `socket.test.ts:9`) use `jest.Mock<T, Y>` as a type namespace. That pattern requires `@types/jest` global injection, which isn't installed. CRA's build step compiles test files and hits `TS2503: Cannot find namespace 'jest'`. Fix: remove the explicit `let foo: jest.Mock<…>` type annotations and initialize directly with `jest.fn<T, Y>()` so TypeScript infers the type.
+
+**Blocking issue 2 — old `adminComponents/` import in a changed file**
+
+`shared/api/public.ts:19` imports `StatsResponse` from `../../adminComponents/types/statsTypes`. That's a new file created in Phase 1 importing from `adminComponents/`, which violates the "no old import paths in changed files" criterion. Fix: either inline a local `type StatsResponse = …` in `public.ts` or move only that type to `shared/types/` early.
+
+**What is clean:** `yarn test --watchAll=false` passes (7 suites, 96 tests), zero `any` in all four new files, zero `var URL`, both old API files deleted, no callers still pointing at old paths, and the `socket.ts` heartbeat `console.log` is correctly guarded behind `NODE_ENV === 'development'`.
+
+Findings written to `review-feedback.md` (iteration 1).

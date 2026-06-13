@@ -1,0 +1,20 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+**NEEDS WORK**
+
+One blocking issue remains after iteration 2. All four prior issues are resolved:
+
+| Prior issue | Status |
+|---|---|
+| Old dirs (`adminComponents/`, `management/`, `hooks/`) not deleted | ✅ FIXED |
+| AdminHomePage not reduced to shell | ✅ PARTIALLY — 181 lines, still over target |
+| `BluetoorhPrinterService` typo not removed | ✅ FIXED |
+| Stale duplicate test files | ✅ FIXED |
+
+**Remaining blocker:** `AdminHomePage.tsx` is 181 lines against the ≤120 spec target. Two useEffects leak real logic into the shell:
+
+- **Lines 75–85 (WakeLock, 11 lines):** Infrastructure logic — extract to `useWakeLock()` hook.
+- **Lines 87–98 (initial orders fetch, 12 lines):** Data-fetch concern — absorb into `useAdminOrders` alongside the existing WebSocket subscriptions, and expose `loading` from that hook.
+
+After those two extractions the file is ~158 lines. Reaching ≤120 requires one additional reduction: either a `useAlertAudio()` hook for the audio ref/effects, a `useAdminUIState()` hook for the 10 dialog-open flags, or an `<AdminPageModals>` component for the popup render block. Details and combinations are in `review-feedback.md`.
+
+No new `any` or unjustified `as X` were introduced. No architecture-boundary violations.

@@ -1,0 +1,14 @@
+All broken patterns are gone. The remaining `'../domains/order/types'` hits in the grep are in the legacy `src/adminComponents/` directory — those are pre-restructure files outside Phase 6's scope.
+
+Summary of all 32 changes applied:
+- **`../../types` → `../types`** in 19 files across `components/` and `mappers/` subdirectories of: accounting, purchases, cash-register, consumption, shift, blacklist, inventory
+- **`../../../inventory/types` → `../../inventory/types`** in 9 files: accounting, purchases, cash-register, shift, statistics, orders
+- **`../../../statistics/types` → `../../statistics/types`** in dough/mappers and inventory/mappers
+- **`../../../prep-plan/types` → `../../prep-plan/types`** in statistics/PrepPlanTable
+- **`../../../inventory/mappers/inventoryMapper` → `../../inventory/mappers/inventoryMapper`** in statistics/ProductsTable
+- **`../../../auth/AuthProvider` → `../../../auth/context/AuthProvider`** in accounting/AccountingReportPopup
+- **`import('../domains/order/types')` → `import('../../../order/types')`** in orders/PaymentPopup (2 inline type assertions)
+- **`./domains/auth/AuthProvider` → `./domains/auth/context/AuthProvider`** in index.tsx, AdminHomePage.tsx, AuthPage.tsx
+- **`./domains/auth/ProtectedRoute` → `./domains/auth/components/ProtectedRoute`** in index.tsx
+
+PHASE 6 IMPORTS FIXED

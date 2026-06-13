@@ -1,0 +1,16 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+**NEEDS WORK** — one blocking defect, everything else passes.
+
+**The defect** is in `src/domains/order/hooks/useCheckout.ts` lines 10–11. The `GENERAL_CROSS_SELL` and `FINAL_CROSS_SELL` constants are correctly relocated to `domains/order/` but are missing two things the spec explicitly requires:
+
+1. **The API-eventual comment** — spec says *"with a comment noting they need to come from the API eventually"*
+2. **Explicit `string[]` type annotation** — spec says *"typed `const` arrays"*
+
+The fix is a two-line change:
+```typescript
+// TODO: these should come from the API once the cross-sell endpoint exists
+const GENERAL_CROSS_SELL: string[] = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"];
+const FINAL_CROSS_SELL: string[] = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"];
+```
+
+Feedback written to `review-feedback.md`. `phases-status.md` is not updated (phase stays PENDING pending this fix).

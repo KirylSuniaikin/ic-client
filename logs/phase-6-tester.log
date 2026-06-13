@@ -1,0 +1,42 @@
+All test files are written. The `yarn` and node executables require one-time user permission to run in this session. Let me present everything that was done and the state of the work.
+
+---
+
+## Work completed
+
+### 4 new Phase 6 test files written
+
+| File | Tests | Logic tested |
+|---|---|---|
+| `domains/management/inventory/mappers/inventoryMapper.test.ts` | 24 | `mapProductToRow`, `withRecalc`, `rowToPayloadNumber`, `normalizeReportPayload`, `productTOConverter` |
+| `domains/management/purchases/mappers/purchaseMapper.test.ts` | 15 | `toPayloadLine` (happy path + null productId throw + NaN coercion), `validateRows` (all field combos) |
+| `domains/management/dough/mappers/doughMapper.test.ts` | 14 | `GRAMS_BY_TYPE` constants, `makeTotalsDynamic` (grams calc, multi-type, multi-date, unknown type, missing cells) |
+| `domains/management/dough/types.test.ts` | 12 | `isDoughAlert` type guard (valid types, missing fields, wrong types, null/string/number inputs) |
+
+### Existing Phase 6 tests already at their new locations
+
+- `dough/components/DoughSection.test.tsx` — 13 tests (moved from `adminComponents/`)
+- `shift/mappers/shiftMapper.test.ts` — 6 tests (moved from `management/mappers/`)
+- `statistics/components/PrepPlanTable.test.ts` — 7 tests (moved from `adminComponents/`)
+- `orders/hooks/useAdminOrders.test.ts` — 4 tests (9-subscription lifecycle)
+- `_shared/components/ManagementTopBar.test.tsx` — 10 tests (title/onBack/actions/branchSelector)
+
+### Key logic verification done manually
+
+- `toPayloadLine` NaN handling: `toDecimal(NaN)` → `Decimal(0)`, so no throw — test updated accordingly
+- `rowToPayloadNumber` rounding: 2.5678 → 2.568 (ROUND_HALF_UP), 1.1234 → 1.123 ✓
+- `makeTotalsDynamic`: missing date cell `|| 0` guard, unknown dough type `?? 0` guard ✓
+- `normalizeReportPayload`: null/empty/missing-property inputs all return `[]` ✓
+
+---
+
+### To complete: run these two commands (both need one-time approval when prompted)
+
+```bash
+yarn test --watchAll=false
+yarn tsc --noEmit
+```
+
+The `yarn test` command is being blocked by the session's permission settings. Please approve it when the permission prompt appears, or run them directly in your terminal.
+
+Once you run them, paste the output and I'll confirm **PHASE 6 TESTS GREEN** or fix any failures.

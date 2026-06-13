@@ -1,0 +1,413 @@
+import React from "react";
+import {
+    Box,
+    FormControl,
+    IconButton,
+    InputLabel,
+    MenuItem,
+    Popover,
+    Select,
+    SelectChangeEvent,
+    Typography, useMediaQuery, useTheme
+} from "@mui/material";
+import {useState} from "react";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import AddIcon from "@mui/icons-material/Add";
+import HistoryIcon from "@mui/icons-material/History";
+import SettingsIcon from "@mui/icons-material/Settings";
+import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
+import {updateWorkload} from "../../../../shared/api/public";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {ShiftButton} from "../../shift/components/ShiftButton";
+import {
+    PointOfSale as PointOfSaleIcon,
+    AccessTime as AccessTimeIcon
+} from '@mui/icons-material';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import LogoutIcon from '@mui/icons-material/Logout';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import {StaffRoles} from "../../../auth/types";
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import type { StaffRoles as StaffRolesType } from '../../../auth/types';
+import type { WorkloadLevel } from '../../../order/types';
+import type { IBranch } from '../../inventory/types';
+
+interface AdminTopbarProps {
+    onOpenHistory: () => void;
+    onOpenStatistics: () => void;
+    onOpenConfig: () => void;
+    onGoToMenu: () => void;
+    branchId: string;
+    workloadLevel: WorkloadLevel | null;
+    onWorkloadChange?: (level: WorkloadLevel) => void;
+    adminId: number;
+    onPurchaseOpen: () => void;
+    onManagementPageOpen: () => void;
+    cashStage: string;
+    onShiftManagementPageOpen: () => void;
+    shiftStage: string;
+    // stage is optional because ShiftButton calls onClick() with no args;
+    // mobile code calls it with a stage arg — using optional to satisfy both usages
+    onCashClick: (stage?: string) => void;
+    onShiftStageClick: (stage?: string) => void;
+    branches?: IBranch[];
+    onBranchChange: (selectedBranch: IBranch) => void;
+    selectedBranch: IBranch | null;
+    onBlacklistopen: () => void;
+    onCashRegisterOpen: () => void;
+    onAccountingOpen: () => void;
+    role: StaffRolesType | null;
+    logout: () => void;
+    userName: string;
+}
+
+export default function AdminTopbar({
+                                        onOpenHistory,
+                                        onOpenStatistics,
+                                        onOpenConfig,
+                                        onGoToMenu,
+                                        branchId,
+                                        workloadLevel,
+                                        onWorkloadChange,
+                                        adminId,
+                                        onPurchaseOpen,
+                                        onManagementPageOpen,
+                                        cashStage,
+                                        onShiftManagementPageOpen,
+                                        shiftStage,
+                                        onCashClick,
+                                        onShiftStageClick,
+                                        branches = [],
+                                        onBranchChange,
+                                        selectedBranch,
+                                        onBlacklistopen,
+                                        onCashRegisterOpen,
+                                        onAccountingOpen,
+                                        role,
+                                        logout,
+                                        userName
+                                    }: AdminTopbarProps): JSX.Element {
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const open = Boolean(anchorEl);
+    const theme = useTheme();
+    const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'xl'));
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+    const handleMenuClose = () => setAnchorEl(null);
+
+    const colorRed = '#E44B4C';
+
+    const getCashStage = (stage: string): string => {
+        switch (stage) {
+            case "OPEN_SHIFT_CASH_CHECK":
+                return "Open Cash";
+            case "CLOSE_SHIFT_CASH_CHECK":
+                return "Close Cash";
+            default:
+                return "Error cash";
+        }
+    }
+
+    const getShiftStage = (stage: string): string => {
+        switch (stage) {
+            case "OPEN_SHIFT_EVENT":
+                return "Open Shift";
+            case "CLOSE_SHIFT_EVENT":
+                return "Close Shift";
+            default:
+                return "Error";
+        }
+    }
+
+    const managerItems = [
+        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
+        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
+        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
+        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
+        {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
+        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
+        {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen},
+        {label: "Accounting", icon: <AccountBalanceWalletOutlinedIcon fontSize="small"/>, onClick: onAccountingOpen},
+        {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
+        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+    ]
+
+    const cookItems = [
+        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
+        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
+        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
+        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
+        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+    ]
+
+    const items = role === StaffRoles.COOK ? cookItems : managerItems;
+
+    const levels: WorkloadLevel[] = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
+
+    const getWorkloadData = (workload: WorkloadLevel): string => {
+        switch (workload) {
+            case "IDLE":
+                return "+0"
+            case "BUSY":
+                return "+10"
+            case "CROWDED":
+                return "+20"
+            case "RUSH":
+                return "+30"
+            case "HEAVY_RUSH":
+                return "+40"
+            case "SLAMMED":
+                return "+50"
+            case "OVERLOADED":
+                return "+60"
+            default:
+                return ""
+        }
+    }
+
+    async function handleChangeWorkloadLevel(event: SelectChangeEvent): Promise<void> {
+        const newLevel = event.target.value as WorkloadLevel;
+        onWorkloadChange?.(newLevel);
+        try {
+            await updateWorkload({branchId, newLevel});
+        } catch (err) {
+            console.error("Failed to update workload:", err);
+        }
+    }
+
+    return (
+        <Box
+            sx={{
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                backgroundColor: "#fbfaf6",
+                gap: 1,
+                px: 1,
+                py: 1,
+                borderBottom: "1px solid #ddd",
+                position: "sticky",
+                top: 0,
+                zIndex: 10
+            }}
+        >
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "9999px",
+                    padding: "6px 16px",
+                    width: "fit-content",
+                    height: "40px"
+                }}
+            >
+                <PersonOutlineIcon sx={{ fontSize: "1.2rem", color: "#555" }} />
+                <Typography
+                    sx={{
+                        textTransform: "capitalize",
+                        fontSize: "1rem",
+                        fontWeight: 500,
+                        color: "#333",
+                        lineHeight: 1
+                    }}
+                >
+                    {userName}
+                </Typography>
+            </Box>
+
+            <Box sx={{flexGrow: 1}}/>
+
+            <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
+
+                {role === StaffRoles.SUPER_MANAGER && (
+                    <BranchSelectorComponent
+                        branches={branches}
+                        onBranchChange={onBranchChange}
+                        selectedBranch={selectedBranch}
+                    ></BranchSelectorComponent>
+                )}
+
+                <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
+                    <InputLabel>Workload</InputLabel>
+                    <Select
+                        value={workloadLevel ?? "IDLE"}
+                        onChange={handleChangeWorkloadLevel}
+                        label="Workload"
+                        sx={{
+                            borderRadius: "9999px",
+                            border: colorRed,
+                            fontWeight: 500,
+                            textTransform: "capitalize",
+                        }}
+                    >
+                        {levels.map((lvl) => (
+                            <MenuItem key={lvl} value={lvl}>
+                                {getWorkloadData(lvl)}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                {!isMobile && (
+                    <>
+                        <ShiftButton
+                            onClick={onCashClick}
+                            stage={cashStage}
+                            getStage={(stage) => getCashStage(stage)}
+                        ></ShiftButton>
+
+                        <ShiftButton
+                            onClick={onShiftStageClick}
+                            stage={shiftStage}
+                            getStage={getShiftStage}
+                        ></ShiftButton>
+                    </>
+                )}
+
+                <IconButton
+                    onClick={handleMenuOpen}
+                    size="small"
+                    sx={{
+                        border: "1px solid #E44B4C",
+                        borderRadius: "999px",
+                        padding: "4px 10px",
+                        color: colorRed,
+                        height: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        '&:hover': {
+                            backgroundColor: "#fff5f5",
+                            borderColor: colorRed,
+                        }
+                    }}
+                >
+                    <MoreHorizIcon sx={{fontSize: "16px"}}/>
+                </IconButton>
+
+                <Popover
+                    open={open}
+                    anchorEl={anchorEl}
+                    onClose={handleMenuClose}
+                    anchorOrigin={{
+                        vertical: 'bottom',
+                        horizontal: 'right',
+                    }}
+                    transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                    }}
+                    PaperProps={{
+                        sx: {
+                            borderRadius: "12px",
+                            overflow: "hidden",
+                            minWidth: 160,
+                            p: 0.5,
+                        },
+                    }}
+                >
+                    {isMobile && (
+                        <>
+                            <Box
+                                onClick={() => {
+                                    handleMenuClose();
+                                    onCashClick(cashStage);
+                                }}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    px: 0.6,
+                                    py: 1.2,
+                                    fontSize: "0.9rem",
+                                    fontWeight: 500,
+                                    fontFamily: "Baloo Bhaijaan 2",
+                                    color: "#333",
+                                    borderBottom: "1px solid #f0f0f0",
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                        backgroundColor: "#fff5f5",
+                                    }
+                                }}
+                            >
+                                <Typography sx={{fontSize: "0.9rem"}}>
+                                    {getCashStage(cashStage)}
+                                </Typography>
+                                <Box sx={{display: "flex", alignItems: "center"}}>
+                                    <PointOfSaleIcon fontSize="small"/>
+                                </Box>
+                            </Box>
+
+                            <Box
+                                onClick={() => {
+                                    handleMenuClose();
+                                    onShiftStageClick(shiftStage);
+                                }}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    px: 0.6,
+                                    py: 1.2,
+                                    fontSize: "0.9rem",
+                                    fontWeight: 500,
+                                    fontFamily: "Baloo Bhaijaan 2",
+                                    color: "#333",
+                                    borderBottom: "1px solid #f0f0f0",
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                        backgroundColor: "#fff5f5",
+                                    }
+                                }}
+                            >
+                                <Typography sx={{fontSize: "0.9rem"}}>
+                                    {getShiftStage(shiftStage)}
+                                </Typography>
+                                <Box sx={{display: "flex", alignItems: "center"}}>
+                                    <AccessTimeIcon fontSize="small"/>
+                                </Box>
+                            </Box>
+                        </>
+                    )}
+
+                    {items.map((item, i) => (
+                        <Box
+                            key={item.label}
+                            onClick={() => {
+                                handleMenuClose();
+                                item.onClick();
+                            }}
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                px: 0.6,
+                                py: 1.2,
+                                fontSize: "0.9rem",
+                                fontWeight: 500,
+                                fontFamily: "Baloo Bhaijaan 2",
+                                color: "#333",
+                                borderBottom: i < items.length - 1 ? "1px solid #f0f0f0" : "none",
+                                cursor: "pointer",
+                                "&:hover": {
+                                    backgroundColor: "#fff5f5",
+                                }
+                            }}
+                        >
+                            <Typography sx={{fontSize: "0.9rem"}}>{item.label}</Typography>
+                            <Box sx={{display: "flex", alignItems: "center"}}>{item.icon}</Box>
+                        </Box>
+                    ))}
+                </Popover>
+            </Box>
+        </Box>
+    );
+}

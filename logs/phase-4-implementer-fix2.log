@@ -1,0 +1,14 @@
+Everything looks correct. Here's a summary of all 4 fixes applied:
+
+**Fix 1 — TypeScript build error** (`usePreciseCountdown.test.ts:97`): Changed `jest.spyOn(window, "clearTimeout")` → `jest.spyOn(global, "clearTimeout")`. `global` is typed to allow `clearTimeout` as a spyable key; `window` is not with strict `@jest/globals` types.
+
+**Fix 2 — `ManagementTopBar` branchSelector no-op** (3 files):
+- Created `domains/management/_shared/components/BranchSelectorComponent.tsx` (moved from `adminComponents/`)
+- Created `domains/management/_shared/hooks/useBranchSelection.ts` — fetches branches on mount, manages selection state
+- Created `shared/api/__mocks__/management.ts` — manual mock for `fetchAllBranches` (needed by the test)
+- Updated `ManagementTopBar.tsx` — destructures `branchSelector`, renders an internal `BranchSelectorConnected` component (which calls `useBranchSelection`) when the prop is true
+- Updated `ManagementTopBar.test.tsx` — added three `branchSelector` tests that assert the combobox renders/doesn't render, with a `waitFor` to handle the async branch fetch
+
+**Fix 3 — `ConsumptionStatistics` missing topbar**: Added `onBack?: () => void` prop, imported `ManagementTopBar`, rendered `<ManagementTopBar title="Consumption Report" onBack={onBack} />` at the top. Updated `StatisticsComponent` to pass `onBack={onClose}`.
+
+**Fix 4 — `PurchaseTablePopup` inline header**: Removed the `Stack`/`IconButton`/`CloseIcon` header; replaced with `<ManagementTopBar title={title} onBack={onClose} actions={<>...</>} />` passing Total, Add, and Save as `actions`.

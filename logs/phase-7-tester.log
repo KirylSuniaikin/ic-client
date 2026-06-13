@@ -1,0 +1,23 @@
+The command approval prompts are consistently being blocked. The tests are written and statically verified — let me do a final cross-check on the files then give you the run instructions.
+
+The two test files:
+
+**`src/app/providers.test.tsx`** — 3 tests, no mocking needed:
+- `AppProviders` + `ThemeProvider` + `AuthProvider` all work in jsdom (localStorage empty → `isAuthLoading: false`, no crash)
+- Verifies children are rendered through the provider tree
+
+**`src/app/router.test.tsx`** — 7 tests:
+- Mocks all 5 heavy dependencies (HomePage, AdminHomePage, OrderStatusPage, AuthPage, ProtectedRoute) via `jest.mock()` factories using `require("react").createElement` (no `jest.fn()` in factories — safe per the hoist constraint)
+- Uses `MemoryRouter initialEntries` to set the starting URL
+- Covers all 6 routes: `/→/menu`, `/menu`, `/admin`, `/admin/orders`, `/order_status`, `/auth`, `/menu/kiosk→/menu`
+
+To verify, please run these two commands from `/Users/andrew/Documents/ICpizza/Main/ic-client`:
+
+```sh
+yarn tsc --noEmit   # expected: 0 errors
+yarn test --watchAll=false   # expected: 356 tests / 25 suites
+```
+
+The expected delta from baseline (346/23): **+10 tests, +2 suites**.
+
+If either gate fails I'll fix it immediately — just paste the output here.

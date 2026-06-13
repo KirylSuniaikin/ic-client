@@ -1,0 +1,17 @@
+PHASE 4 COMPLETE
+
+All Phase 4 work is done and verified:
+
+- **`yarn tsc --noEmit`** — 0 errors
+- **`yarn build`** — exits 0
+- **`yarn test --watchAll=false`** — 109/109 tests pass
+
+**What was done:**
+
+1. **`shared/components/`**: `ErrorSnackbar` (+ `duration?: number` prop, `autoHideDuration={duration ?? 4000}`), `CircularTimer`, `typography`
+2. **`shared/hooks/`**: `usePreciseCountdown` (stepMs default `1000`), `useOscillatingAutoScroll`
+3. **`shared/utils/`**: `dateFormatter`, `decimalUtils` (`toDecimal`, `p2`, `q3`), `menuUtils` (merged `menu_service` + `item_services`, removed localStorage side effect from `groupAvailableItemsByName`)
+4. **`domains/management/_shared/components/ManagementTopBar`**: unified topbar with `title`, `onBack?`, `actions?`, `branchSelector?`
+5. **All 5 old topbars deleted** — `ManagementTopBar(inv)`, `ShiftReportTopBar`, `TableTopBar`, `BackTopBar`, `PurchaseTopBar` — all callers updated
+6. **`BlackListSnackBar` deleted** — `HomePage.tsx` now uses `ErrorSnackbar` with `duration={10000}` and the full blacklist message
+7. **Assets moved**: JSON animations → `assets/animations/`, MP3s → `assets/audio/` — all import paths updated

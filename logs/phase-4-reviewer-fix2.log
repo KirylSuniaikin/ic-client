@@ -1,0 +1,17 @@
+All 4 blocking issues from iteration 1 are resolved. Here's the verification:
+
+**Issue 1 — `clearTimeout` spy type error:** Fixed. Line 97 now uses `jest.spyOn(global, "clearTimeout")` instead of `window`.
+
+**Issue 2 — `branchSelector` prop wired + `BranchSelectorComponent` moved + `useBranchSelection` hook:** Fixed.
+- `BranchSelectorComponent` is at `domains/management/_shared/components/BranchSelectorComponent.tsx`
+- `useBranchSelection` hook is at `domains/management/_shared/hooks/useBranchSelection.ts`
+- `ManagementTopBar` destructures `branchSelector`, creates a `BranchSelectorConnected` wrapper using `useBranchSelection`, and renders it conditionally (`{branchSelector && <BranchSelectorConnected />}`)
+- Tests assert the combobox renders when `branchSelector={true}` (line 91–97) and is absent when false/omitted
+
+**Issue 3 — `ConsumptionStatistics` uses `ManagementTopBar` with `onBack`:** Fixed. Line 114 renders `<ManagementTopBar title="Consumption Report" onBack={onBack} />`.
+
+**Issue 4 — `PurchaseTablePopup` uses `ManagementTopBar` instead of inline Stack header:** Fixed. Line 496 renders `<ManagementTopBar ... onBack={onClose} />` with actions wired via the `actions` prop.
+
+Gates confirmed passing: `yarn tsc --noEmit`, `yarn test --watchAll=false` (15 suites / 203 tests), `yarn build`.
+
+**LGTM**

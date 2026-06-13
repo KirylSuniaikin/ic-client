@@ -1,0 +1,18 @@
+PHASE 1 COMPLETE
+
+Here's what was done:
+
+**New files created (`src/shared/api/`):**
+- `client.ts` — `BASE_URL`, `WS_URL`, `authFetch` (single source of truth; env-aware URL switching)
+- `public.ts` — all customer/shared API calls (was `api/api.ts`)
+- `management.ts` — all management API calls (was `management/api/api.ts`); added explicit return types to the 5 functions that were missing them
+- `socket.ts` — STOMP singleton with all 4 `console.log` calls guarded by `process.env.NODE_ENV === 'development'`
+
+**Domain type files seeded early (required by the API layer):**
+- `domains/order-status/types.ts` — `OrderStatusData` (removed circular dependency where `api/api.ts` imported from a page component)
+- `domains/management/dough/types.ts` — `DoughInventoryAmounts`
+- `domains/order/types.ts` — `ItemsUnavailableError`
+
+**~30 existing files updated** (import paths only, no logic changes), then `api/api.ts`, `management/api/api.ts`, and `api/socket.ts` deleted.
+
+**Verification:** `yarn tsc --noEmit` → 0 errors; `yarn build` → exits 0; no `var URL` or old import paths remain.
