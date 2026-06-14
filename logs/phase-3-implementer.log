@@ -1,0 +1,17 @@
+All 9 subscription handles are stored via `subscriptions.push()` and all 9 are unsubscribed in cleanup via `subscriptions.forEach(sub => sub.unsubscribe())`.
+
+Summary of what was done in Phase 3:
+
+1. **`shared/api/socket.ts`** — `connectSocket` is now `async`: calls `onConnect()` immediately when `socket.connected === true` (fixes OrderStatusPage silent non-subscription), and awaits `socket.deactivate()` before re-activating when `socket.active === true` (eliminates activate-before-deactivate-resolves race).
+
+2. **`domains/management/orders/hooks/useAdminOrders.ts`** (new) — Extracts all 9 STOMP subscriptions from AdminHomePage. All subscription handles stored in a `subscriptions` array; all unsubscribed in cleanup. Includes a `cancelled` flag to prevent subscriptions from being created if the effect cleans up before the socket connects. Also fetches initial admin-base-info via REST on branchId change.
+
+3. **`domains/order-status/hooks/useOrderStatus.ts`** (new) — Extracts the WebSocket subscription and countdown timer from OrderStatusPage. Returns `{ order, loading, remainingSeconds }`.
+
+4. **`AdminHomePage.tsx`** — Zero socket imports. Uses `useAdminOrders`. Audio plays from `useEffect` watching `alertOrder`/`editedOrder` returned by the hook.
+
+5. **`OrderStatusPage.tsx`** — Zero socket imports. Delegates entirely to `useOrderStatus`.
+
+**Verification:** `yarn tsc --noEmit` 0 errors, `yarn build` exits 0, `yarn test --watchAll=false` 96/96 passing.
+
+PHASE 3 COMPLETE

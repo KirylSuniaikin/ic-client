@@ -1,0 +1,207 @@
+import { logger } from "../../../../shared/utils/logger";
+import * as React from "react";
+import {useEffect, useState} from "react";
+import {cashUpdate, getBranchBalance} from "../../../../shared/api/management";
+import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
+import {Box, Button, Card, CardContent, CircularProgress, Dialog, Grid, Stack, Typography} from "@mui/material";
+import {CashUpdateType} from "../types";
+import CashInputDrawer from "./CashInputDrawer";
+import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import TransactionDetailsTable from "./TransactionDetailsTable";
+import {IBranch} from "../../inventory/types";
+
+type Props = {
+    branch: IBranch;
+    open: boolean;
+    handleClose: () => void;
+}
+
+const cardBg = "#FFFFFF";
+const buttonBg = "#F0F0F0";
+const brandBlack = "#000000";
+
+export default function CashRegisterPopup({branch, open, handleClose}: Props) {
+    const [balance, setBalance] = useState<number>(0);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [errorSnackbarOpen, setErrorSnackbarOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string>();
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [cashInputDrawerOpen, setCashInputDrawerOpen] = useState<{
+        open: boolean;
+        type: CashUpdateType
+    }>({
+        open: false,
+        type: CashUpdateType.CASH_IN
+    });
+
+    useEffect(() => {
+        if (!open) return;
+
+        let isMounted = true;
+        setLoading(true);
+
+        const fetchBalance = async () => {
+            try {
+                const response = await getBranchBalance(branch.id.toString());
+                if (isMounted) {
+                    setBalance(response.branchBalance || 0);
+                }
+            } catch (error) {
+                logger.error("Failed to load balance", error);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        fetchBalance();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [branch, open]);
+
+    const formattedBalance = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(balance);
+
+    const onCashUpdateClick = (type: CashUpdateType) => {
+        setCashInputDrawerOpen({open: true, type: type});
+    }
+
+    const handleSubmit = async (amount: number, type: CashUpdateType, note: string) => {
+        setLoading(true);
+        const resp = await cashUpdate({amount: amount, branchId: branch.id.toString(), cashUpdateType: type, note: note});
+        const data = await resp.json();
+        if (resp.ok) {
+            setBalance(data.branchBalance)
+        }
+        if (!resp.ok) {
+            const massage = data.message
+            setErrorMessage(massage)
+            setErrorSnackbarOpen(true)
+        }
+
+        setLoading(false);
+    }
+
+    return (
+        <>
+            <Dialog
+                open={open}
+                onClose={handleClose}
+                fullScreen
+                sx={{
+                    "& .MuiDialog-paper": {
+                        backgroundColor: "#fbfaf6",
+                    }
+                }}
+            >
+                <ManagementTopBar title="Cash Register" onBack={handleClose} />
+
+                <Box sx={{p: 2, mt: 1}}>
+                    <Card
+                        elevation={0}
+                        sx={{
+                            borderRadius: 4,
+                            backgroundColor: cardBg,
+                            boxShadow: 4,
+                            p: 1
+                        }}
+                    >
+                        <CardContent>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                                    Cash Balance ({branch.branchName})
+                                </Typography>
+
+                                <Button
+                                    onClick={() => setHistoryOpen(true)}
+                                    sx={{
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        fontSize: '0.9rem',
+                                        color: "text.secondary",
+                                        minWidth: 'auto',
+                                        padding: '4px 8px',
+                                        backgroundColor: buttonBg,
+                                        borderRadius: 8,
+                                    }}
+                                >
+                                    Details &gt;
+                                </Button>
+                            </Stack>
+
+                            {loading ? (
+                                <Box sx={{height: 60, display: 'flex', alignItems: 'center'}}>
+                                    <CircularProgress size={30}/>
+                                </Box>
+                            ) : (
+                                <Typography variant="h3" sx={{fontWeight: "800", mb: 4}}>
+                                    {formattedBalance} <Typography component="span" variant="h5" color="text.secondary"
+                                                                   fontWeight="bold">BD</Typography>
+                                </Typography>
+                            )}
+
+                            <Grid container spacing={2}>
+                                <Grid size={{xs: 6}}>
+                                    <Button
+                                        fullWidth
+                                        variant="contained"
+                                        disableElevation
+                                        sx={{
+                                            backgroundColor: buttonBg,
+                                            color: brandBlack,
+                                            borderRadius: 8,
+                                            textTransform: "none",
+                                            fontWeight: 700,
+                                            fontSize: "1rem",
+                                            py: 1.5,
+                                            "&:hover": {
+                                                backgroundColor: "#e0e0e0"
+                                            }
+                                        }}
+                                        onClick={() => onCashUpdateClick(CashUpdateType.CASH_IN)}
+                                    >
+                                        Add Cash
+                                    </Button>
+                                </Grid>
+                                <Grid size={{xs: 6}}>
+                                    <Button
+                                        fullWidth
+                                        variant="contained"
+                                        disableElevation
+                                        sx={{
+                                            backgroundColor: buttonBg,
+                                            color: brandBlack,
+                                            borderRadius: 8,
+                                            textTransform: "none",
+                                            fontWeight: 700,
+                                            fontSize: "1rem",
+                                            py: 1.5,
+                                            "&:hover": {
+                                                backgroundColor: "#e0e0e0"
+                                            }
+                                        }}
+                                        onClick={() => onCashUpdateClick(CashUpdateType.CASH_OUT)}
+                                    >
+                                        Cash Out
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </CardContent>
+                    </Card>
+                </Box>
+            </Dialog>
+
+            <CashInputDrawer type={cashInputDrawerOpen.type} open={cashInputDrawerOpen.open} onSubmit={handleSubmit}
+                             onClose={() => setCashInputDrawerOpen({open: false, type: cashInputDrawerOpen.type})}/>
+
+            <ErrorSnackbar open={errorSnackbarOpen} message={errorMessage} severity="error"
+                           handleClose={() => setErrorSnackbarOpen(false)}/>
+
+            <TransactionDetailsTable branchId={branch.id.toString()} open={historyOpen} onClose={() => setHistoryOpen(false)}
+            />
+        </>
+    );
+}

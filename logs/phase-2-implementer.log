@@ -1,0 +1,16 @@
+PHASE 2 COMPLETE
+
+**Summary of what was done:**
+
+- **14 new domain type files created** under `src/domains/` — all types now live next to their business domain
+- **3 shared type files** moved to `src/shared/types/` (`EventTypes.ts`, `global.d.ts`, `cordova-bluetooth-serial.d.ts`)
+- **`domains/order/types.ts`** expanded with all types from old `types/orderTypes.ts`; `BaseAppInfoResponse` now imports from `../menu/types` with a real static import instead of a dynamic reference
+- **`domains/management/dough/types.ts`** merged with old `doughInventoryTypes.ts` content
+- **`domains/management/statistics/types.ts`** merged from 3 sources: `statTypes.ts` + `adminComponents/types/statsTypes.ts` + `productStatRow.ts`
+- **`shared/utils/imageMap.ts`** created with zero `any` — uses proper `Order`/`OrderItem`/`ComboItemTO` types from domain files
+- **`adminComponents/usePreciseCountdown.ts`** given explicit `number` parameter and return types
+- **`StatsResponse`** inline definition removed from `public.ts`; now imported from `domains/management/statistics/types`
+- **All old type directories deleted**: `management/types/`, `types/`, `adminComponents/types/`
+- **All import paths updated** across ~50 files
+
+Verification: `yarn tsc --noEmit` → 0 errors | `yarn build` → exits 0 | `yarn test --watchAll=false` → 96/96 tests pass | 0 uses of `any` in moved/created files

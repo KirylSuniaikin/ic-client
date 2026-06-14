@@ -1,0 +1,59 @@
+The permission system is blocking all binary execution. Here is my complete status report based on thorough code analysis:
+
+---
+
+## Summary
+
+### TS2322 Regression — Fixed
+
+**Is it a real Phase 5 regression?** Yes. `HomePage.tsx` passed `sections={allSections}` (an array of `{title, items}[]` objects) but `MenuSections` expects `groups: CategoryGroups` (an object with named category arrays). This is both the wrong prop name and wrong shape.
+
+**Does it block the test run?** No. CRA's Jest runner is independent of `tsc --noEmit`. Tests would run even with this TS error. It would block `yarn tsc --noEmit` and `yarn build`.
+
+**Fix applied:** Removed the redundant `allSections` array from `HomePage.tsx` and changed `sections={allSections}` → `groups={groups}` (line 98). `MenuSections` already builds sections internally from `groups`.
+
+---
+
+### Files Written
+
+**Mock updates** (extend existing mocks, no existing tests affected):
+- `src/shared/api/__mocks__/public.ts` — added `fetchBaseAppInfo`, `createOrder`, `checkCustomer`, `editOrder`
+- `src/shared/api/__mocks__/management.ts` — added `getAllBannedCstmrs`
+
+**4 new Phase 5 test files:**
+
+| File | Tests | Coverage |
+|---|---|---|
+| `domains/schedule/utils/workingHours.test.ts` | 12 | Static `workingHours` / `ramadanHours` shape and business rules |
+| `domains/cart/hooks/useCart.test.ts` | 25 | All cart operations: addToCart, upsell gate, remove, quantity, discount, totalPrice |
+| `domains/menu/hooks/useMenuData.test.ts` | 18 | API calls, loading states, error handling, userInfo propagation, refreshMenu |
+| `domains/order/hooks/useCheckout.test.ts` | 16 | Cross-sell gate, payment gate, blacklist check, executeOrderCreation, admin flow |
+
+**Patterns followed:** factoryless `jest.mock()` using `__mocks__/` dir; `jest.mocked()` for mock handles; no `jest.Mock<>` type annotations; inline `jest.fn<T,Y>()`.
+
+---
+
+### Gate Status — Commands Blocked by Permission System
+
+The permission system in this session is blocking all `yarn`, `npx`, `node_modules/.bin/*` executions. Please run the three gates manually:
+
+```bash
+cd /Users/andrew/Documents/ICpizza/Main/ic-client
+
+# Gate 1 — TypeScript
+yarn tsc --noEmit
+
+# Gate 2 — Build (plain, not CI=true)
+yarn build
+
+# Gate 3 — Tests
+yarn test --watchAll=false
+```
+
+**Expected gate results based on code analysis:**
+
+- **`yarn tsc --noEmit`**: Should pass. The TS2322 regression (`sections` prop) is fixed. The `isWithinWorkingHours.ts` has implicit `any` parameters (`baseDate` and `[start, end]`) but `tsconfig.json` has no `strict: true` so this doesn't block compilation.
+- **`yarn build`**: Should pass. Same reasoning.
+- **`yarn test --watchAll=false`**: Should show **71 new tests** (12 + 25 + 18 + 16) across 4 new files, plus the **3 pre-existing** Phase 5 `useOrderStatus` tests. All 203 pre-existing tests across the full suite should continue passing — the mock additions are additive and don't break existing consumers.
+
+**Total expected test count:** ~274 tests across 19 test files.

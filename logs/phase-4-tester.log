@@ -1,0 +1,24 @@
+All 134 tests across 12 suites pass with no regressions.
+
+Here's a summary of what was written:
+
+---
+
+**`src/shared/components/ErrorSnackbar.test.tsx`** — 7 tests
+- Rendering: message text visible, no crash when `duration` omitted, no crash with `duration=10000`
+- Duration / `autoHideDuration` behavior (all 3 use `jest.useFakeTimers()`):
+  - `handleClose` fires after **4001 ms** when `duration` is omitted (default 4000)
+  - `handleClose` does **not** fire at 4001 ms when `duration=10000`
+  - `handleClose` fires after **10001 ms** when `duration=10000` (blacklist use case)
+
+**`src/domains/management/_shared/components/ManagementTopBar.test.tsx`** — 9 tests
+- `title` prop renders correctly
+- `onBack` absent → no back button; present → back button visible; click → callback fires
+- `actions` prop renders single and multiple elements; omitted causes no crash
+- `branchSelector=true/false` accepted without crash (prop is declared in interface; wiring is future work)
+
+**`src/shared/hooks/usePreciseCountdown.test.ts`** — 9 tests
+- All tests use `jest.useFakeTimers()` + `jest.setSystemTime(0)` for deterministic 1000 ms–aligned ticks
+- Default `stepMs=1000`: no tick at 999 ms; tick at 1000 ms; three ticks in 3000 ms
+- Explicit `stepMs=500`: ticks at 500 ms and 1000 ms; contrast with `stepMs=1000` not ticking at 500 ms
+- Cleanup: `clearTimeout` called on unmount

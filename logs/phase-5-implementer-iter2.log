@@ -1,0 +1,44 @@
+The permission mode is blocking all shell commands. Please run these three gates manually to verify:
+
+```bash
+cd /Users/andrew/Documents/ICpizza/Main/ic-client
+yarn tsc --noEmit
+yarn build
+yarn test --watchAll=false
+```
+
+Here's a complete summary of every change made:
+
+**`src/domains/order/types.ts`**
+- `CustomerCheckResponse`: added `isNewCustomer?: boolean` (removes cast in useCheckout)
+- `EditOrderRequest.order_no`: `number | unknown` → `number` (was effectively `unknown`)
+
+**`src/domains/cart/hooks/useCart.ts`**
+- L72: removed redundant `as CartItem[]` from `.map()` return
+- L104: deleted `typedItem` variable — `CartItem` already has `comboItems: ComboItem[] | null`
+- L109: `existing = updated[idx]` — no cast, it's already `CartItem`
+- L115–128: access `comboItems[n].isGarlicCrust / .isThinDough` directly — `ComboItem` already declares these fields
+- L134–135: removed `te`/`tn` alias casts — `isThinDough`/`isGarlicCrust` are on `CartItem`
+- L153: `firstItem.amount` instead of `firstItem.price` — `CartItem` has no `price` field
+- L177–183: removed `typedItem` cast; use `item.amount` as fallback (was always `0` before)
+- L186: `if (upsellItem && pendingItems)` — guard instead of null cast
+
+**`src/domains/menu/hooks/useMenuData.ts`**
+- L135–149: complete `CartItem` objects with all required fields + explicit `: CartItem` return type — no double-cast
+- L163: `err instanceof Error ? err.message : String(err)`
+- L176: added comment on `JSON.parse` cast; added `name: string` to item shape so `item.name as string` cast is removed (L182)
+- L192: `imageMap[ci.name ?? ''] || ci.photo` — uses `Partial<CartItem>.photo` directly (removes `(ci as Record<string, unknown>)['photo']`)
+- L197: `normalized as CartItem[]` with explaining comment (was `as unknown as CartItem[]`)
+
+**`src/domains/order/hooks/useCheckout.ts`**
+- Interface + state: `pendingOrder: CreateOrderRequest | null` (was `unknown`)
+- Interface + function: `executeOrderCreation(orderData: CreateOrderRequest)` — removes both casts inside the function
+- L91: `order_no: orderToEdit['order_no'] as number` with comment (needed after fixing the type)
+- L82/86: `.filter((item): item is MenuItem => item !== undefined)` type predicate
+- L121: comment on `window.ttq as ...` cast
+- L140/272: `error instanceof Error ? error.message : String(error)`
+- L172: comment on `JSON.parse(...)` cast
+- L263: `customerResponse?.isNewCustomer === false` — no cast needed after updating the type
+
+**`src/domains/order-status/hooks/useOrderStatus.ts`**
+- L31/66: added `// safe because:` and `// STOMP frame body` comments to the two remaining casts

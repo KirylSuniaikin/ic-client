@@ -1,0 +1,46 @@
+import {Alert, IconButton, Snackbar} from "@mui/material";
+import * as React from "react";
+
+type Props = {
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+    handleClose: () => void;
+    duration?: number;
+}
+
+export default function ErrorSnackbar({open, message, severity, handleClose, duration}: Props): React.JSX.Element {
+    return (
+        <Snackbar
+            open={open}
+            autoHideDuration={duration ?? 4000}
+            onClose={handleClose}
+            anchorOrigin={{vertical: 'top', horizontal: 'center'}}
+            sx={{
+                top: { xs: '24px !important', sm: '32px !important' },
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: { xs: '90%', sm: 'auto' },
+                minWidth: { sm: '400px' },
+                zIndex: 2500,
+            }}
+        >
+            <Alert
+                severity={severity}
+                variant="filled"
+                onClose={handleClose}
+                sx={{
+                    width: '100%',
+                    fontSize: '1rem',
+                    borderRadius: 3,
+                    boxShadow: 6,
+                    fontWeight: 500,
+                    py: 1.5,
+                    px: 3
+                }}
+            >
+                {message}
+            </Alert>
+        </Snackbar>
+    )
+}

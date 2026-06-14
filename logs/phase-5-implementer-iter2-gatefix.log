@@ -1,0 +1,14 @@
+I can't run the compiler directly here, but the fix is structurally sound. Here's exactly what changed in `useMenuData.ts` lines 175–178:
+
+**Removed** the `[key: string]: unknown` index signature, which was causing all spread properties to widen to `unknown` (including `photo`).
+
+**Added** all CartItem required fields that weren't previously declared in the inline type:
+- `id: number`
+- `size: string`
+- `category: string`
+- `isThinDough: boolean`
+- `isGarlicCrust: boolean`
+- `toppings: Topping[]`
+- `photo: string`
+
+Now when the `...item` spread is applied on line 180, TypeScript sees all those fields with concrete types. Combined with the explicit overrides (`photo`, `quantity`, `discountAmount`, `amount`, `note`, `extraIngredients`, `comboItems`), the resulting object literal structurally matches `CartItem`, so the `as CartItem[]` on line 197 no longer fails the overlap check. No `any`, no `as unknown as`, no other files touched.

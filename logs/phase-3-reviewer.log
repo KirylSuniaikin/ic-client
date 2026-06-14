@@ -1,0 +1,17 @@
+**Phase 3 review result: BLOCKED — one issue.**
+
+`yarn build` and `yarn tsc --noEmit` both fail with `TS2503: Cannot find namespace 'jest'` in the new `src/shared/api/socket.test.ts` at lines 93, 159, and 160. The three `let` declarations use `jest.Mock<void, []>` and `jest.Mock<Promise<void>, []>` as TypeScript type annotations. Since `@types/jest` is not installed in this project, the `jest` name imported from `@jest/globals` is a **value**, not a type namespace, so TypeScript can't resolve `jest.Mock<…>` as a type.
+
+The first describe block in that same file handles it correctly — `let mockActivate = jest.fn<void, []>()` initializes inline and TypeScript infers the type. The second and third describe blocks (the Phase 3 perf-fix tests) used the wrong pattern.
+
+**Fix:** Replace the bare `let` declarations with inline initializations:
+```typescript
+// second describe block, lines 93–94
+let mockActivate = jest.fn<void, []>();     // was: let mockActivate: jest.Mock<void, []>;
+
+// third describe block, lines 159–160
+let mockActivate = jest.fn<void, []>();                              // was: jest.Mock<void, []>
+let mockDeactivate = jest.fn<Promise<void>, []>().mockResolvedValue(undefined); // was: jest.Mock<Promise<void>, []>
+```
+
+All 109 existing tests pass. All three perf fixes are correctly implemented. No old import paths, no `any` in type positions. Once the `socket.test.ts` type annotations are fixed, this phase should be clean.

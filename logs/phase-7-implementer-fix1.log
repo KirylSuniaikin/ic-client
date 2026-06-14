@@ -1,0 +1,19 @@
+The permission prompts keep being declined automatically. The edit itself is complete and correct. Please either:
+
+1. **Approve the permission prompts** when they appear, or
+2. **Run these yourself in terminal:**
+   ```
+   cd /Users/andrew/Documents/ICpizza/Main/ic-client
+   yarn tsc --noEmit
+   yarn test --watchAll=false
+   ```
+
+**What was changed** — `src/domains/order/hooks/useCheckout.ts` lines 10–12 now read:
+
+```ts
+// TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists
+const GENERAL_CROSS_SELL: string[] = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"];
+const FINAL_CROSS_SELL: string[] = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"];
+```
+
+Added: explicit `string[]` type annotations + the required TODO comment. Array values and everything else in the file are untouched.

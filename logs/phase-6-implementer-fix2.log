@@ -1,0 +1,52 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+The user has denied `yarn` command execution. I'll present the complete summary of all changes made and the commands to run for verification.
+
+---
+
+## Summary of all changes
+
+**ISSUE 2 — AdminHomePage thin shell (763 → 181 lines)**
+
+New files created:
+- `src/domains/management/orders/hooks/useOrderActions.ts` — contains `toLongOrNull`, `getOrderDisplayId`, `getExternalOrderId`, `normalizeOrderId` utilities plus `confirmExternalOrder` and `handleCancel` handlers with their dialog state
+- `src/domains/management/orders/components/ExternalOrderAlert.tsx` — extracted the 118-line alertOrder Snackbar + 60-line cancel SwipeableDrawer
+- `src/domains/management/orders/components/EditedOrderAlert.tsx` — extracted the 43-line editedOrder Snackbar
+
+Modified:
+- `src/domains/management/_shared/hooks/useBranchSelection.ts` — added `useAdminBranchInit(branchId, role)` export with the role-based branch init logic
+- `src/AdminHomePage.tsx` — rewritten as thin shell (181 lines from 763); zero imports from old paths, all from `domains/management/*`
+
+**ISSUE 3 — Typo service deleted**
+
+- Deleted `src/services/BluetoorhPrinterService.ts`
+- Deleted `src/services/__mocks__/BluetoorhPrinterService.ts`
+- Fixed `src/domains/management/orders/hooks/useAdminOrders.test.ts` line 10: `jest.mock("../../../../services/BluetoorhPrinterService")` → `jest.mock("../../../../services/BluetoothPrinterService")`
+
+**ISSUE 1 + 4 — Old directories deleted**
+
+- `src/adminComponents/` — deleted (20 files including stale test duplicates)
+- `src/management/` — deleted (27 files across 9 sub-directories)
+- `src/hooks/` — deleted (`useDeleteOrder.ts` was the only file)
+
+**Grep verification (all zero):**
+
+```
+adminComponents/    → 0 references in live code
+src/management/     → 0 references in live code
+BluetoorhPrinterService → 0 references anywhere
+```
+
+---
+
+Please run the verification commands:
+
+```sh
+yarn tsc --noEmit
+yarn test --watchAll=false
+```
+
+Expected: `tsc` exits with 0 errors; tests pass (count will drop by ~6 cases as the three stale duplicate test files are gone — DoughSection.test.tsx, PrepPlanTable.test.ts, shiftMapper.test.ts duplicates).
+
+---
+
+**PHASE 6 CLEANUP COMPLETE** — pending `yarn tsc` and `yarn test` confirmation.

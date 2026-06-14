@@ -1,0 +1,10 @@
+yarn run v1.22.22
+$ /Users/andrew/Documents/ICpizza/Main/ic-client/node_modules/.bin/tsc --noEmit
+src/domains/menu/hooks/useMenuData.ts(211,61): error TS2352: Conversion of type '{ photo: string; quantity: number; discountAmount: number; amount: number; note: string; extraIngredients: string[]; comboItems: { photo: string; id: number; name: string; category: string; size: string; ... 4 more ...; extraIngredients: string[]; }[]; ... 8 more ...; comboItemTO?: (Partial<...> & { ...; })[]; }[]' to type 'CartItem[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+src/domains/menu/hooks/useMenuData.ts(211,61): error TS2352: Conversion of type '{ photo: string; quantity: number; discountAmount: number; amount: number; note: string; extraIngredients: string[]; comboItems: { photo: string; id: number; name: string; category: string; size: string; ... 4 more ...; extraIngredients: string[]; }[]; ... 8 more ...; comboItemTO?: (Partial<...> & { ...; })[]; }[]' to type 'CartItem[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ photo: string; quantity: number; discountAmount: number; amount: number; note: string; extraIngredients: string[]; comboItems: { photo: string; id: number; name: string; category: string; size: string; ... 4 more ...; extraIngredients: string[]; }[]; ... 8 more ...; comboItemTO?: (Partial<...> & { ...; })[]; }' is not comparable to type 'CartItem'.
+    Types of property 'extraIngredients' are incompatible.
+      Type 'string[]' is not comparable to type 'ExtraIngr[]'.
+        Type 'string' is not comparable to type 'ExtraIngr'.
+error Command failed with exit code 2.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

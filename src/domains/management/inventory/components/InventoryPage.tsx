@@ -1,0 +1,154 @@
+import { logger } from "../../../../shared/utils/logger";
+import {useEffect, useMemo, useState} from "react";
+import {IBranch, IManagementResponse, IUser} from "../types";
+import {getReports, getBranchInfo, getUser} from "../../../../shared/api/management";
+import {
+    Alert,
+    Box,
+    Button,
+    CircularProgress, Container, Dialog, Stack, Typography
+} from "@mui/material";
+import ReportCard from "./ReportCard";
+import * as React from "react";
+import InventoryPopup from "./InventoryPopup";
+import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
+
+type Props = {
+    isOpen: boolean;
+    onClose: () => void;
+    branch: IBranch;
+    user: IUser;
+};
+
+export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
+    const [reports, setReports] = useState<IManagementResponse[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [inventoryPopup, setInventoryPopup] = useState<
+        {
+            open: boolean;
+            mode: "new" | "edit";
+            reportId?: number;
+        }>
+    ({open: false, mode: "new"});
+
+    function handleCreateReportClick() {
+        setInventoryPopup({open: true, mode: "new"});
+    }
+
+
+    function handleEditClick(reportId: number) {
+        setInventoryPopup({open: true, mode: "edit", reportId});
+    }
+
+    function handleCloseInventoryPopup() {
+        setInventoryPopup(prev => ({...prev, open: false}));
+    }
+
+    function upsertReport(list: IManagementResponse[], next: IManagementResponse): IManagementResponse[] {
+        const idx = list.findIndex(r => r.id === next.id);
+        if (idx === -1) return [next, ...list];
+        const copy = list.slice();
+        copy[idx] = next;
+        return copy;
+    }
+
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const [baseManagementResponse] = await Promise.all([
+                    getReports({ branchId: branch.id.toString(), reportType: 'INVENTORY' }),
+                ]);
+                if (alive) {
+                    setReports(baseManagementResponse);
+                }
+            } catch (e: any) {
+                if (alive) setError(e?.message ?? "Failed to load");
+                logger.error(error);
+            } finally {
+                if (alive) setLoading(false);
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [branch]);
+
+
+    return (
+        <>
+            <Dialog fullScreen
+                    open={isOpen}
+                    onClose={onClose}
+                    PaperProps={{
+                        sx: {
+                            backgroundColor: "#fbfaf6",
+                        }
+                    }}>
+                <ManagementTopBar
+                    title="Inventory"
+                    onBack={onClose}
+                    actions={
+                        <Button
+                            variant="contained"
+                            onClick={handleCreateReportClick}
+                            sx={{ borderRadius: 4, textTransform: "none", fontWeight: 700, bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e" } }}
+                        >
+                            New Report
+                        </Button>
+                    }
+                />
+                <Container maxWidth="lg" sx={{py: 3, backgroundColor: "#fbfaf6"}}>
+                    {loading ? (
+                        <Box sx={{display: "grid", placeItems: "center", minHeight: 240}}>
+                            <CircularProgress/>
+                        </Box>
+                    ) : reports.length === 0 ? (
+                        <Box
+                            sx={{
+                                p: 3,
+                                border: "1px dashed",
+                                borderColor: "divider",
+                                borderRadius: 2,
+                                textAlign: "center",
+                            }}
+                        >
+                            <Typography color="text.secondary">There are no reports</Typography>
+                        </Box>
+                    ) : (
+                        <Stack gap={2}>
+                            {reports.map((r) => (
+                                <Box key={r.id}>
+                                    <ReportCard
+                                        report={r}
+                                        onEditClick={() => handleEditClick(r.id)}
+                                    />
+                                </Box>
+                            ))}
+                        </Stack>
+                    )}
+                </Container>
+            </Dialog>
+            {inventoryPopup.open && (
+                <InventoryPopup
+                    open={inventoryPopup.open}
+                    mode={inventoryPopup.mode}
+                    reportId={inventoryPopup.reportId}
+                    branch={branch}
+                    author={user}
+                    onClose={handleCloseInventoryPopup}
+                    onSaved={(report) => {
+                        setReports(prev => upsertReport(prev, report));
+                    }}
+                />
+            )}
+
+            {error && (
+                <Alert severity="error">{error}</Alert>
+            )}
+        </>
+    );
+}

@@ -1,0 +1,7 @@
+All three checks pass: `yarn tsc --noEmit` 0 errors, `yarn build` exits 0, `yarn test --watchAll=false` 7 suites / 96 tests passing.
+
+**Summary of changes:**
+- **4 test files** (`client.test.ts:44`, `public.test.ts:219`, `management.test.ts:208`, `socket.test.ts:9`): Removed `let foo: jest.Mock<T,Y>` type annotations; type is now inferred from the initializer `jest.fn<T,Y>()` at declaration.
+- **`shared/api/public.ts`**: Removed `import type { StatsResponse } from '../../adminComponents/types/statsTypes'` and replaced it with a local `type StatsResponse = { ... }` inlined from the original source shape.
+
+PHASE 1 FIXES COMPLETE

@@ -1,0 +1,3 @@
+LGTM.
+
+The iteration 1 blocker is fully resolved: `useCheckout.ts` lines 10–12 now carry the required `// TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists` comment and both constants are declared with explicit `: string[]` types. Array values and all other file content are untouched. No regression against the verified green state (356 tests / 25 suites, `yarn tsc --noEmit` clean, `yarn build` clean). `phases-status.md` updated: Phase 7 → **DONE**, review cycles = 2.

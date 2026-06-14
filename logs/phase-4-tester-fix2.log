@@ -1,0 +1,33 @@
+## Verification: Phase 4 test suite — yarn build / tsc / test
+
+**Verdict:** BLOCKED
+
+**Claim:** After iteration-2 fixes to Phase 4 (clearTimeout spy on `global`, `branchSelector` prop wired in `ManagementTopBar`, `ConsumptionStatistics` and `PurchaseTablePopup` migrated to `ManagementTopBar`), all three CI gates should pass: `yarn build`, `yarn tsc --noEmit`, `yarn test --watchAll=false`.
+
+**Method:** Cold start — no `.claude/skills/` directory exists in the project. The repo has no server, browser app, or CLI surface for the Phase 4 changes (shared utils, hooks, components). The only runtime surface *is* the build toolchain.
+
+### Steps
+
+1. ❌ `yarn tsc --noEmit` → **blocked by sandbox permissions** (requires user approval; command never executed)
+2. ❌ `yarn build` → **blocked** (same)
+3. ❌ `yarn test --watchAll=false` → **blocked** (same)
+4. ✅ `git diff HEAD --stat` → confirms the diff is real (large restructure branch, all Phase 4 files present)
+5. ✅ `cat tsconfig.json` → config is valid; `noEmit: true`, `skipLibCheck: true`, includes `src/**/*`
+
+**Root cause:** The sandbox blocks `yarn`, `node node_modules/.bin/tsc`, and all derivative invocations. `node --version` passes (proves Node is available), but every executable under `node_modules/.bin/` and every `yarn` subcommand requires user-level approval that was denied.
+
+### Findings
+
+- ⚠️ **Cannot produce a verdict** — the CI gates are the only surface for this change. They cannot be reached in the current permission mode.
+- The three new test files (`decimalUtils.test.ts`, `dateFormatter.test.ts`, `menuUtils.test.ts`) are written and present, but untested.
+- To unblock: run the three commands manually in a terminal, or add `yarn` / `node_modules/.bin/` execution to the project's `.claude/settings.json` allowlist (`/fewer-permission-prompts` can help scope which commands to allow, though those are read-only only).
+
+**`/run-skill-generator` prompt if a verifier skill is wanted:**
+> Surface: test suite (CRA / react-scripts). Build: `yarn install` then `yarn build`. Test: `CI=true yarn test --watchAll=false`. Typecheck: `yarn tsc --noEmit`. Working directory: `/Users/andrew/Documents/ICpizza/Main/ic-client`. No browser needed — output is stdout/stderr only.
+=== Phase 4 iteration-2 verification (orchestrator-run, sandbox disabled) ===
+yarn tsc --noEmit  -> PASS (exit 0, Done in 4.61s)
+yarn test --watchAll=false -> PASS (15 suites, 203 tests)
+yarn build -> PASS (exit 0, build folder ready)
+CI=true yarn build -> FAIL, but ONLY due to pre-existing project-wide ESLint warnings
+  (AdminHomePage, HomePage, AdminTopbar, HistoryComponent, etc. - none touched by Phase 4).
+  Iteration-1 blocker was a hard TS2345 compile error in usePreciseCountdown.test.ts:97 - NOW FIXED (tsc clean).

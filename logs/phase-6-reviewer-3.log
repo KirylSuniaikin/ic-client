@@ -1,0 +1,24 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+**LGTM.**
+
+Full findings per criterion:
+
+**1. Thin shell (≤120 lines)** — 118 lines. No business logic leaks: all domain logic is in hooks, render is pure composition.
+
+**2. Types / no new `any` / no unjustified `as X`**
+- `useWakeLock` — return `void`, no `any`, no cast.
+- `useAlertAudio` — returns `UseAlertAudioResult`, explicit param types, no `any`, no cast.
+- `AdminPageModals` — full `Props` type, `JSX.Element` return. One `as { userName: string | null; id: number }` on the `ManagementPage` user prop (line 60) is pre-existing debt moved from the old shell, guarded by `currentUser.id &&` so it's safe; comment-justification absence is pre-existing, out of scope.
+
+**3. audioStopRef proxy (CRITICAL) — CORRECT**
+The two-level indirection is:
+```
+WS handler → stopSoundRef.current() → stopSoundProxy → audioStopRef.current() → real stopSound
+```
+Both refs are updated synchronously during every render phase, before any async event can fire. `stopSoundProxy` is a closure over the *ref object* (stable identity), not over `stopSound` itself — so there is no stale-closure hazard. `audioStopRef` is initialized to a no-op `() => {}`, never `null`, and is set to the real `stopSound` after the very first render — well before any WebSocket message can arrive. No defect.
+
+**4. AdminPageModals behavior parity** — renders all six modal components under the same boolean × selectedBranch conditions as before. No regressions.
+
+**5. Architecture boundaries** — clean. `_shared/hooks` cross-imports from `domains/order/types` is acceptable for a shared hook layer. All modal imports stay within `domains/management/`.
+
+Phase 6 marked **DONE** (Review Cycles = 3) in phases-status.md.

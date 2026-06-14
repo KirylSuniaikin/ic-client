@@ -1,0 +1,14 @@
+**96 tests pass, 0 failures.**
+
+Here's what was written and why:
+
+**4 new test files** in `src/shared/api/`:
+
+| File | Tests | Coverage |
+|---|---|---|
+| `client.test.ts` | 12 | `BASE_URL`/`WS_URL` constants, `authFetch` auth header, 401 rejection, token removal |
+| `public.test.ts` | 30 | `createOrder` (409→`ItemsUnavailableError`, 500→Error, POST body), `deleteOrder`, `updateAvailability`, `fetchBaseAppInfo`, `getAllActiveOrders`, `getHistory`, `updateOrderStatus` |
+| `management.test.ts` | 22 | `fetchCurrentPrepPlan` (204→null), `generatePrepPlan`, `fetchAllBranches`, `getReports` (query params), `initiateAuth` (raw fetch, not authFetch), `fetchProducts`, `getVatStats`, `getDoughInventory`, `putDoughInventory`, `getBranchBalance` |
+| `socket.test.ts` | 6 | `connectSocket` activates when disconnected, skips when connected, sets `onConnect` callback |
+
+**Key finding**: `jest.fn()` inside `jest.mock()` factories fails when `jest` is imported from `@jest/globals` (makes it a local binding; babel-jest requires a true global). Solution: `src/shared/api/__mocks__/client.ts` (manual mock with `jest.fn()` at module level) + factoryless `jest.mock("./client")`. For `socket.ts` (singleton), `jest.doMock()` + `jest.resetModules()` + `require()` was used.
