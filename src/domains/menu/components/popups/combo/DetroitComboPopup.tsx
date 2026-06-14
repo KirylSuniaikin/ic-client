@@ -166,9 +166,8 @@ export function DetroitComboPopup({
                 },
             ],
         } as unknown as CartItem;
-        if(isEditMode && editItem) {
-            removeFromCart?.(orderItem.name, (orderItem as unknown as Record<string, number>).amount, orderItem.quantity);
-        }
+        // Edit replacement is handled in useCart.handleAddToCart by reference; removing
+        // by value here could wipe other identical lines, so it is intentionally omitted.
         onAddToCart?.(orderItem);
         onClose?.();
     }

@@ -1,3 +1,4 @@
+import { logger } from "../utils/logger";
 import { authFetch, BASE_URL } from './client';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type {
@@ -203,10 +204,9 @@ export async function sendShiftEvent(payload: ShiftEventPayload): Promise<ShiftE
         if (!response.ok) {
             return {error: true, ...data};
         }
-        console.log(data);
         return data;
     } catch (error) {
-        console.error("Failed to sendShiftEvent", error);
+        logger.error("Failed to sendShiftEvent", error);
     }
 }
 
@@ -241,10 +241,9 @@ export async function sendOrderPayment(payload: OrderPaymentPayload): Promise<un
         if (!response.ok) {
             return {error: true, ...data};
         }
-        console.log(data);
         return data;
     } catch (error) {
-        console.error("Failed to sendOrderPayment", error);
+        logger.error("Failed to sendOrderPayment", error);
     }
 }
 
@@ -274,7 +273,7 @@ export async function updateOrderStatus(payload: UpdateOrderStatusPayload): Prom
         }
         throw new Error(`HTTP ${response.status}${detail}`);
     } catch (error) {
-        console.error("Failed to update status", error);
+        logger.error("Failed to update status", error);
     }
 }
 
@@ -293,7 +292,7 @@ export async function getOrderStatus(orderId: string): Promise<OrderStatusData |
         // OrderStatusData has no items array; mapOrderImages is a no-op here — cast is safe
         return mapOrderImages(await response.json() as unknown as Order) as unknown as OrderStatusData;
     } catch (error) {
-        console.error("Failed to get order", error);
+        logger.error("Failed to get order", error);
         return {error: true, message: "Connection error"};
     }
 }
@@ -313,7 +312,7 @@ export async function updateWorkload(params: { branchId: string; newLevel: Workl
         });
 
     } catch (e) {
-        console.error("Failed to update workload", e);
+        logger.error("Failed to update workload", e);
     }
 }
 
@@ -328,7 +327,7 @@ export async function getBaseAdminInfo(branchId: string): Promise<AdminBaseInfo 
 
         return await response.json();
     } catch (error) {
-        console.error("Failed to get base admin info", error);
+        logger.error("Failed to get base admin info", error);
     }
 }
 
@@ -343,6 +342,6 @@ export async function checkCustomer(telephoneNumber: string): Promise<CustomerCh
 
         return await response.json();
     } catch (error) {
-        console.error("Failed to check customer", error);
+        logger.error("Failed to check customer", error);
     }
 }

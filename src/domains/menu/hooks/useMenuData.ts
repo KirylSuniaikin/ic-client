@@ -1,4 +1,5 @@
-import { useState, useEffect, Dispatch, SetStateAction } from "react";
+import { logger } from "../../../shared/utils/logger";
+import { useState, useEffect, useRef, Dispatch, SetStateAction } from "react";
 import { fetchBaseAppInfo } from "../../../shared/api/public";
 import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
@@ -10,7 +11,6 @@ export interface UseMenuDataResult {
     extraIngredients: ExtraIngr[];
     toppings: Topping[];
     isSDoughAvailable: boolean;
-    isMDoughAvailable: boolean;
     loading: boolean;
     error: string | null;
     username: string;
@@ -31,6 +31,7 @@ interface UseMenuDataParams {
     isEditMode: boolean;
     searchParams: URLSearchParams;
     setSearchParams: (params: URLSearchParams, options?: { replace?: boolean }) => void;
+    isAdmin: boolean;
 }
 
 const BRANCH_KEY = 'kiosk_branch_data';
@@ -82,7 +83,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const [extraIngredients, setExtraIngredients] = useState<ExtraIngr[]>([]);
     const [toppings, setToppings] = useState<Topping[]>([]);
     const [isSDoughAvailable, setSDoughAvailable] = useState(false);
-    const [isMDoughAvailable, setMDoughAvailable] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [username, setUsername] = useState("");
@@ -91,8 +91,14 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const [branchSelector, setBranchSelector] = useState<boolean | null>(null);
     const [pendingInitialItems, setPendingInitialItems] = useState<CartItem[]>([]);
     const [pendingUnavailableNames, setPendingUnavailableNames] = useState<string[]>([]);
+    // Guard against React 18 StrictMode invoking this effect twice in development,
+    // which would inject the orderToEdit items into the cart more than once.
+    const didInit = useRef(false);
 
     useEffect(() => {
+        if (didInit.current) return;
+        didInit.current = true;
+
         async function load(): Promise<void> {
             try {
                 setLoading(true);
@@ -101,7 +107,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                 setExtraIngredients(baseInfo.extraIngr);
                 setToppings(baseInfo.toppings);
                 setSDoughAvailable(baseInfo.isSDoughAvailable);
-                setMDoughAvailable(baseInfo.isMDoughAvailable);
 
                 const branches = await fetchAllBranches();
                 setAvailableBranches(branches);
@@ -213,7 +218,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                         setPendingInitialItems(prev => [...(normalized as unknown as CartItem[]), ...prev]);
                     }
                 } catch (e) {
-                    console.error("Error parsing orderToEdit:", e);
+                    logger.error("Error parsing orderToEdit:", e);
                 }
             }
         }
@@ -225,7 +230,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     }
 
     return {
-        menuData, extraIngredients, toppings, isSDoughAvailable, isMDoughAvailable,
+        menuData, extraIngredients, toppings, isSDoughAvailable,
         loading, error, username, phone, availableBranches, branchSelector, setBranchSelector,
         pendingInitialItems, pendingUnavailableNames, refreshMenu,
     };

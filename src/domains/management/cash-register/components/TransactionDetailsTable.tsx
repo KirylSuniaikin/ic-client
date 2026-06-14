@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import {
     Dialog,
@@ -49,7 +50,7 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
             setLoading(true);
             getBranchEvents(branchId)
                 .then(data => setEvents(data))
-                .catch(err => console.error(err))
+                .catch(err => logger.error(err))
                 .finally(() => setLoading(false));
         }
     }, [branchId, open]);

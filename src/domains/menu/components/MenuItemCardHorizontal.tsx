@@ -1,3 +1,4 @@
+import { logger } from "../../../shared/utils/logger";
 import { useState, useEffect } from "react";
 import {
     Card,
@@ -79,7 +80,7 @@ function MenuItemCardHorizontal({
     }, [cartItem, isSimpleGroup]);
 
     if (!group || !group.items || group.items.length === 0) {
-        console.error("Invalid group passed to MenuItemCardHorizontal:", group);
+        logger.error("Invalid group passed to MenuItemCardHorizontal:", group);
         return null;
     }
 

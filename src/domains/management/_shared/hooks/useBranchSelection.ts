@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import { useState, useEffect } from "react";
 import { fetchAllBranches, getBranchInfo } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
@@ -54,7 +55,7 @@ export function useAdminBranchInit(
                     }
                 }
             } catch (err) {
-                console.error('Failed to fetch branches:', err);
+                logger.error('Failed to fetch branches:', err);
                 setBranchError('Failed to fetch branches');
             }
         }

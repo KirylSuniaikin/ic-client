@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
 import {
     Button,
@@ -48,7 +49,6 @@ export default function ShiftPopup({isOpen, onClose, stage, branchId}: ShiftPopu
     const mapToChecklistItems = (list: string[]): ChecklistItem[] => { return list.map((text) => ({ text, done: false })); };
 
     useEffect(() => {
-        console.log("Stage in shift popup: ", stage);
         if (stage === "OPEN_SHIFT_EVENT") {
             setChecklist(mapToChecklistItems(CHECKLISTS.OPENING));
         } else if (stage === "CLOSE_SHIFT_EVENT") {
@@ -71,7 +71,7 @@ export default function ShiftPopup({isOpen, onClose, stage, branchId}: ShiftPopu
                 prep_plan: null,
             });
         } catch (error) {
-            console.error('Error occurred while sending an shift event:', error);
+            logger.error('Error occurred while sending an shift event:', error);
         }
     };
 

@@ -1,4 +1,4 @@
-import {Alert, Snackbar} from "@mui/material";
+import {Alert, IconButton, Snackbar} from "@mui/material";
 import * as React from "react";
 
 type Props = {
@@ -28,6 +28,7 @@ export default function ErrorSnackbar({open, message, severity, handleClose, dur
             <Alert
                 severity={severity}
                 variant="filled"
+                onClose={handleClose}
                 sx={{
                     width: '100%',
                     fontSize: '1rem',

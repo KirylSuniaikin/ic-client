@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {IBranch, IUser, ProductTO} from "../../inventory/types";
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
@@ -404,7 +405,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     await api.stopCellEditMode({ id: fid, field: fcol });
                 }
             } catch (e) {
-                console.warn("[save] skip commit active cell:", e);
+                logger.warn("[save] skip commit active cell:", e);
             }
 
             let gridRows: PurchaseRow[] = [];
@@ -432,7 +433,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     apiRef.current.setCellFocus?.(badId, badField);
                     apiRef.current.startCellEditMode?.({ id: badId, field: badField });
                 } catch {}
-                console.error("[save] skip commit active cell:");
+                logger.error("[save] skip commit active cell:");
                 return;
             }
 
@@ -453,7 +454,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 try {
                     totalDecimal = totalDecimal.add( r.finalPrice );
                 } catch (e) {
-                    console.error("[total fail on row]", r, e);
+                    logger.error("[total fail on row]", r, e);
                 }
             }
             const base: CreatePurchasePayload = {
@@ -479,10 +480,10 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 onClose();
             }
             catch (e: any) {
-                console.error(e, "error with an api");
+                logger.error(e, "error with an api");
             }
         } catch (e: any) {
-            console.error(e);
+            logger.error(e);
             setError(e?.message ?? "Save failed");
         } finally {
             setSaving(false);

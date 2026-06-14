@@ -33,7 +33,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const navigate = useNavigate();
 
-    const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams });
+    const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin });
     const cart = useCart(menu.menuData, isAdmin);
     const checkout = useCheckout({
         isAdmin, isKiosk, isEditMode, adminBranchId,
@@ -62,7 +62,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     if (menu.loading || checkout.checkoutLoading) return <PizzaLoader />;
     if (menu.error) return <div>Error: {menu.error}</div>;
 
-    const availableGroups = groupAvailableItemsByName(menu.menuData);
+    const availableGroups = groupAvailableItemsByName(menu.menuData, isAdmin);
     localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
     const groups = groupItemsByCategory(availableGroups as Parameters<typeof groupItemsByCategory>[0]);
 
@@ -114,7 +114,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 cart={cart} checkout={checkout} menuData={menu.menuData}
                 toppings={menu.toppings} extraIngredients={menu.extraIngredients}
                 availableBranches={menu.availableBranches}
-                isSDoughAvailable={menu.isSDoughAvailable} isMDoughAvailable={menu.isMDoughAvailable}
+                isSDoughAvailable={menu.isSDoughAvailable}
                 phone={menu.phone} username={menu.username}
                 branchSelector={menu.branchSelector} setBranchSelector={menu.setBranchSelector}
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}

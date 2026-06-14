@@ -1,3 +1,4 @@
+import { logger } from "../shared/utils/logger";
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 import type { Order } from '../domains/order/types';
 
@@ -14,46 +15,46 @@ class BluetoothPrinterService {
     private monitorTimer?: ReturnType<typeof setInterval>;
 
     async init(): Promise<void> {
-        console.log("🔹 Initializing Bluetooth...");
+        logger.debug("🔹 Initializing Bluetooth...");
 
         try {
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.enable(
                     () => {
-                        console.log("✅ Bluetooth enabled: ");
+                        logger.debug("✅ Bluetooth enabled: ");
                         resolve();
                     },
                     (err) => {
-                        console.error("❌ Failed to enable Bluetooth", err);
+                        logger.error("❌ Failed to enable Bluetooth", err);
                         reject(err);
                     }
                 );
             });
         } catch (err) {
-            console.warn("Bluetooth enable skipped or failed:", err);
+            logger.warn("Bluetooth enable skipped or failed:", err);
         }
     }
 
     async connect(): Promise<void> {
-        console.log(`🔹 Connecting to ${this.mac}...`);
+        logger.debug(`🔹 Connecting to ${this.mac}...`);
         try {
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.connect(
                     this.mac,
                     () => {
                         this.isConnected = true;
-                        console.log("✅ Connected to printer via SPP");
+                        logger.debug("✅ Connected to printer via SPP");
                         resolve();
                     },
                     (err) => {
-                        console.error("❌ Connection failed:", err);
+                        logger.error("❌ Connection failed:", err);
                         this.isConnected = false;
                         reject(err);
                     }
                 );
             });
         } catch (e) {
-            console.error("Connection error:", e);
+            logger.error("Connection error:", e);
         }
     }
 
@@ -112,13 +113,13 @@ class BluetoothPrinterService {
 
         this.monitorTimer = setInterval(() => {
             BluetoothSerial.isConnected(
-                () => console.log("✅ Still connected"),
+                () => logger.debug("✅ Still connected"),
                 async () => {
-                    console.warn("🔴 Lost connection, reconnecting...");
+                    logger.warn("🔴 Lost connection, reconnecting...");
                     try {
                         await this.connect();
                     } catch (e) {
-                        console.error("❌ Reconnect failed:", e);
+                        logger.error("❌ Reconnect failed:", e);
                     }
                 }
             );
@@ -127,11 +128,11 @@ class BluetoothPrinterService {
 
     async printVatReport(text: string): Promise<boolean> {
         if (!this.isConnected) {
-            console.warn("⚠️ Printer not connected — trying to reconnect...");
+            logger.warn("⚠️ Printer not connected — trying to reconnect...");
             try {
                 await this.connect();
             } catch (e) {
-                console.error("❌ Reconnect before print failed", e);
+                logger.error("❌ Reconnect before print failed", e);
                 return false;
             }
         }
@@ -141,29 +142,29 @@ class BluetoothPrinterService {
                 BluetoothSerial.write(
                     text,
                     () => {
-                        console.log("🖨️ Printed successfully: ", text);
+                        logger.debug("🖨️ Printed successfully: ", text);
                         resolve();
                     },
                     (err) => {
-                        console.error("❌ Print failed:", err);
+                        logger.error("❌ Print failed:", err);
                         reject(err);
                     }
                 );
             });
             return true;
         } catch (e) {
-            console.error("Write error:", e);
+            logger.error("Write error:", e);
             return false;
         }
     }
 
     async printOrder(order: Order): Promise<boolean> {
         if (!this.isConnected) {
-            console.warn("⚠️ Printer not connected — trying to reconnect...");
+            logger.warn("⚠️ Printer not connected — trying to reconnect...");
             try {
                 await this.connect();
             } catch (e) {
-                console.error("❌ Reconnect before print failed", e);
+                logger.error("❌ Reconnect before print failed", e);
                 return false;
             }
         }
@@ -218,18 +219,18 @@ class BluetoothPrinterService {
                 BluetoothSerial.write(
                     text,
                     () => {
-                        console.log("🖨️ Printed successfully: ", text);
+                        logger.debug("🖨️ Printed successfully: ", text);
                         resolve();
                     },
                     (err) => {
-                        console.error("❌ Print failed:", err);
+                        logger.error("❌ Print failed:", err);
                         reject(err);
                     }
                 );
             });
             return true;
         } catch (e) {
-            console.error("Write error:", e);
+            logger.error("Write error:", e);
             return false;
         }
     }

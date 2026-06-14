@@ -51,7 +51,7 @@ export function groupItemsByName(data: MenuItem[]): Group[] {
     return Array.from(map.values()).filter(group => group.items.length > 0) as Group[];
 }
 
-export function groupAvailableItemsByName(data: MenuItem[]): Group[] {
+export function groupAvailableItemsByName(data: MenuItem[], isAdmin?: boolean): Group[] {
     if (!data || !Array.isArray(data)) {
         return [];
     }
@@ -64,12 +64,15 @@ export function groupAvailableItemsByName(data: MenuItem[]): Group[] {
                 name: item.name,
                 category: item.category,
                 is_best_seller: item.is_best_seller,
-                isAvailable: false,
+                isAvailable: isAdmin ? true : false,
                 items: []
             });
         }
         const group = map.get(item.name)!;
         group.items.push(item);
+        if (!item.available && isAdmin) {
+            item.available = true;
+        }
         if (item.available) group.isAvailable = true;
     });
 

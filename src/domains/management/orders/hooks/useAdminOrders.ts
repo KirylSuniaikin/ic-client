@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import { useEffect, useRef, useState } from 'react';
 import type { StompSubscription } from '@stomp/stompjs';
 import { connectSocket, socket } from '../../../../shared/api/socket';
@@ -97,7 +98,7 @@ export function useAdminOrders(
             setWorkloadLevel(resp['level'] as WorkloadLevel);
             setCashStage(nextCashStage);
             setEventStage(nextEventStage);
-        }).catch(err => console.error('Ошибка загрузки stage:', err));
+        }).catch(err => logger.error('Ошибка загрузки stage:', err));
 
         const subscriptions: StompSubscription[] = [];
         let cancelled = false;
@@ -119,8 +120,8 @@ export function useAdminOrders(
 
                     if ('Keeta' !== newOrder.order_type) {
                         BluetoothPrinterService.printOrder(newOrder)
-                            .then(() => console.log('🖨️ Auto print success'))
-                            .catch(e => console.warn('⚠️ Auto print error:', e));
+                            .then(() => logger.debug('🖨️ Auto print success'))
+                            .catch(e => logger.warn('⚠️ Auto print error:', e));
                     }
 
                     const alreadyExists = ordersRef.current.some(o => normalizeId(o.id) === id);
@@ -156,8 +157,8 @@ export function useAdminOrders(
                     });
 
                     BluetoothPrinterService.printOrder(updatedOrder)
-                        .then(() => console.log('🖨️ Auto print success'))
-                        .catch(e => console.warn('⚠️ Auto print error:', e));
+                        .then(() => logger.debug('🖨️ Auto print success'))
+                        .catch(e => logger.warn('⚠️ Auto print error:', e));
 
                     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 

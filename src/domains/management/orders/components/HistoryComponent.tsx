@@ -1,4 +1,5 @@
 // Assumed: Actual props are {onClose, selectedBranch} — spec's simplified interface doesn't match the codebase.
+import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
 import {deleteOrder, getHistory} from "../../../../shared/api/public";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
@@ -45,7 +46,7 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
     //
     //         handleRemoveItem(orderToDelete.id);
     //     } catch (err) {
-    //         console.error("Failed to delete the order", err);
+    //         logger.error("Failed to delete the order", err);
     //     } finally {
     //         setDeleteDialogOpen(false);
     //         setOrderToDelete(null);

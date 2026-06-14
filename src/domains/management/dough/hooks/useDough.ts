@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import { useEffect, useRef, useState } from "react";
 import type { DoughStatus, DoughType, DoughAvailabilityFlags } from "../types";
 import { getDoughInventory, putDoughInventory, putDoughAvailability } from "../../../../shared/api/management";
@@ -32,7 +33,7 @@ export function useDough(
                     doughStatusRef.current = status;
                 }
             } catch (err) {
-                console.error("Failed to load dough inventory:", err);
+                logger.error("Failed to load dough inventory:", err);
             } finally {
                 if (!cancelled) setDoughLoading(false);
             }
@@ -67,7 +68,7 @@ export function useDough(
                 setDoughStatus(serverResponse);
                 doughStatusRef.current = serverResponse;
             } catch (err) {
-                console.error("Failed to save dough inventory:", err);
+                logger.error("Failed to save dough inventory:", err);
             }
         }, 300);
     };
@@ -103,7 +104,7 @@ export function useDough(
         } catch (err) {
             setDoughStatus(prevStatus);
             doughStatusRef.current = prevStatus;
-            console.error("Failed to update dough availability:", err);
+            logger.error("Failed to update dough availability:", err);
         }
     };
 

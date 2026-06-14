@@ -10,7 +10,7 @@ import React, {useEffect, useState} from "react";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
 import CloseIcon from "@mui/icons-material/Close";
-import type { MenuItem, CartItem, Group } from '../../../types';
+import type {MenuItem, CartItem, Group} from '../../../types';
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -47,7 +47,7 @@ interface PizzaComboPopupProps {
     isEditMode?: boolean;
     removeFromCart?: (name: string, amount: number, quantity: number) => void;
     isSDoughAvailable?: boolean;
-    isMDoughAvailable?: boolean;
+    isAdmin?: boolean;
 }
 
 export function PizzaComboPopup({
@@ -63,13 +63,12 @@ export function PizzaComboPopup({
                                     isEditMode,
                                     removeFromCart,
                                     isSDoughAvailable,
-                                    isMDoughAvailable,
+                                    isAdmin,
                                 }: PizzaComboPopupProps): JSX.Element {
     const [selectedSize, setSelectedSize] = useState<string>(() => {
-        if(isEditMode && editItem){
+        if (isEditMode && editItem) {
             return editItem.size.trim();
-        }
-        else{
+        } else {
             return selectedPizza?.size?.trim() || "M";
         }
     });
@@ -116,9 +115,9 @@ export function PizzaComboPopup({
                 .flatMap(list => list.items)
                 .find(i => i.name === editItem.comboItems[1].name);
 
-            return { item: foundDrink || drinks[0].items[0] };
+            return {item: foundDrink || drinks[0].items[0]};
         } else {
-            return { item: drinks[0].items[0] };
+            return {item: drinks[0].items[0]};
         }
     });
 
@@ -128,9 +127,9 @@ export function PizzaComboPopup({
                 .flatMap(list => list.items)
                 .find(i => i.name === editItem.comboItems[2].name);
 
-            return { item: foundSauce || sauces[0].items[0] };
+            return {item: foundSauce || sauces[0].items[0]};
         } else {
-            return { item: sauces[0].items[0] };
+            return {item: sauces[0].items[0]};
         }
     });
 
@@ -138,7 +137,7 @@ export function PizzaComboPopup({
         if (isEditMode && editItem) {
             return editItem.comboItems[0].description?.trim() ?? "";
         } else {
-            return (selectedPizza as unknown as Record<string, string>)?.note?.trim() || "" ;
+            return (selectedPizza as unknown as Record<string, string>)?.note?.trim() || "";
         }
     });
     const [editorOpen, setEditorOpen] = useState(false);
@@ -150,11 +149,12 @@ export function PizzaComboPopup({
 
     const showDoughSelector =
         (selectedSize === "M" && isSDoughAvailable) ||
-        (selectedSize === "L" && isMDoughAvailable)
+        (selectedSize === "L" && isSDoughAvailable) || isAdmin
 
     useEffect(() => {
         if (selectedSize === "S" || showDoughSelector === false) {
-            setPizza({...pizza,
+            setPizza({
+                ...pizza,
                 size: selectedSize,
                 dough: "Traditional"
             })
@@ -261,9 +261,8 @@ export function PizzaComboPopup({
                 },
             ],
         } as unknown as CartItem;
-        if(isEditMode && editItem){
-            removeFromCart?.(editItem.name, editItem.amount, editItem.quantity);
-        }
+        // Edit replacement is handled in useCart.handleAddToCart by reference; removing
+        // by value here could wipe other identical lines, so it is intentionally omitted.
         onAddToCart?.(orderItem);
         onClose?.();
     }
@@ -307,9 +306,9 @@ export function PizzaComboPopup({
                         flex: 1,
                         overflowY: "auto",
                         p: 2,
-                        "&::-webkit-scrollbar": { display: "none" },
+                        "&::-webkit-scrollbar": {display: "none"},
                     }}>
-                        <Box sx={{ textAlign: "center", mb: 2 }}>
+                        <Box sx={{textAlign: "center", mb: 2}}>
                             {sizeItem?.photo && (
                                 <Box
                                     component="img"
@@ -318,8 +317,8 @@ export function PizzaComboPopup({
                                     sx={{
                                         width: "100%",
                                         height: "auto",
-                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
-                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
+                                        maxWidth: {xs: 320, sm: 800, md: 900, lg: 1000},
+                                        maxHeight: {xs: 320, sm: 600, md: 400, lg: 480},
                                         objectFit: "contain",
                                         display: "block",
                                         mx: "auto",
@@ -327,28 +326,28 @@ export function PizzaComboPopup({
                                     }}
                                 />
                             )}
-                        <Typography
-                            variant="h6"
-                            fontWeight="bold"
-                            sx={{ fontSize: "18px", mb: 0.5 }}
-                        >
-                            {sizeItem?.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {sizeItem?.description}
-                        </Typography>
-                    </Box>
+                            <Typography
+                                variant="h6"
+                                fontWeight="bold"
+                                sx={{fontSize: "18px", mb: 0.5}}
+                            >
+                                {sizeItem?.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {sizeItem?.description}
+                            </Typography>
+                        </Box>
 
                         <ItemCard
                             item={pizza.item}
                             dough={pizza.dough}
                             crust={pizza.crust}
-                            onDoughChange={(val) => setPizza({ ...pizza, dough: val })}
-                            onCrustChange={(val) => setPizza({ ...pizza, crust: val })}
+                            onDoughChange={(val) => setPizza({...pizza, dough: val})}
+                            onCrustChange={(val) => setPizza({...pizza, crust: val})}
                             onChange={() => {
                                 openEditor("pizza", pizzas
-                                    .map(p => p.items.find(i => i.size.trim() === selectedSize && i.available))
-                                    .filter((i): i is MenuItem => i !== undefined),
+                                        .map(p => p.items.find(i => i.size.trim() === selectedSize && i.available))
+                                        .filter((i): i is MenuItem => i !== undefined),
                                     pizza.item
                                 );
                             }
@@ -398,34 +397,34 @@ export function PizzaComboPopup({
                             fullWidth
                         >
                             {comboGroup
-                                ?.filter((c) => c.available===true)
+                                ?.filter((c) => c.available === true)
                                 .map((c) => (
-                                <ToggleButton
-                                    key={c.size}
-                                    value={c.size}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontSize: "16px",
-                                        justifyContent: "center",
-                                        color: "#666",
-                                        borderRadius: 8,
-                                        height: "100%",
-                                        "&:hover": {
-                                            backgroundColor: "transparent"
-                                        },
-                                        "&.Mui-selected": {
-                                            backgroundColor: "#fff",
-                                            color: brandRed,
-                                            boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                    <ToggleButton
+                                        key={c.size}
+                                        value={c.size}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontSize: "16px",
+                                            justifyContent: "center",
+                                            color: "#666",
+                                            borderRadius: 8,
+                                            height: "100%",
                                             "&:hover": {
-                                                backgroundColor: "#fff"
+                                                backgroundColor: "transparent"
+                                            },
+                                            "&.Mui-selected": {
+                                                backgroundColor: "#fff",
+                                                color: brandRed,
+                                                boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                                "&:hover": {
+                                                    backgroundColor: "#fff"
+                                                }
                                             }
-                                        }
-                                    }}
-                                >
-                                    {c.size}
-                                </ToggleButton>
-                            ))}
+                                        }}
+                                    >
+                                        {c.size}
+                                    </ToggleButton>
+                                ))}
                         </ToggleButtonGroup>
 
                         <Button
@@ -439,7 +438,7 @@ export function PizzaComboPopup({
                                 fontSize: "20px",
                                 borderRadius: 8,
                                 flex: 1,
-                                minHeight:60,
+                                minHeight: 60,
                                 height: "100%",
                                 "&:hover": {
                                     backgroundColor: "#d23f40"

@@ -1,4 +1,5 @@
 // Assumed: Actual props are {onClose, branchId, role} — spec's simplified {branchId} doesn't match codebase.
+import { logger } from "../../../../shared/utils/logger";
 import React, {useCallback, useEffect, useState} from 'react';
 import {
     Box,
@@ -99,7 +100,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
             setDoughUsage(response.doughUsageTOS);
             setSellStats(response.sellsByHour);
         } catch (err) {
-            console.error("Failed to load statistics:", err);
+            logger.error("Failed to load statistics:", err);
         } finally {
             setLoading(false);
         }

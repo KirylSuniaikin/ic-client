@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {useState} from "react";
 import {
     Button,
@@ -40,7 +41,7 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
             setCash('');
 
         } catch (error) {
-            console.error('Error occurred while sending an shift event:', error);
+            logger.error('Error occurred while sending an shift event:', error);
         }
     };
 

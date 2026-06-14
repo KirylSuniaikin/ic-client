@@ -74,6 +74,31 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
 
     function handleAddToCart(items: CartItem | CartItem[], upsellDeclined?: boolean): void {
         const arr = Array.isArray(items) ? items : [items];
+
+        // Editing an existing line: replace the original item in place by reference.
+        // Editing must NOT go through the upsell prompt or the name+discount merge below —
+        // otherwise the edited item is counted onto a sibling line and its quantity doubles.
+        if (editMode && editItem && arr.length > 0) {
+            const original = editItem;
+            const [edited, ...extras] = arr;
+            setCartItems(prev => {
+                const idx = prev.findIndex((it: CartItem) => it === original);
+                const next = [...prev];
+                if (idx === -1) next.push({ ...edited });
+                else next[idx] = { ...edited };
+                extras.forEach((ex: CartItem) => next.push({ ...ex }));
+                return next;
+            });
+            setEditItem(null);
+            setEditMode(false);
+            setPizzaPopupOpen(false);
+            setPizzaComboPopupOpen(false);
+            setDetroitComboPopupOpen(false);
+            setBaguettePizzaPopupOpen(false);
+            setPopupGroup(null);
+            return;
+        }
+
         const pizzaItem = arr.find((it: CartItem) => it.category === "Pizzas");
         const brickItem = arr.find((it: CartItem) => it.category === "Brick Pizzas");
 

@@ -1,3 +1,4 @@
+import { logger } from "../../../shared/utils/logger";
 import {createContext, useContext, useEffect, useState} from "react";
 import {jwtDecode} from "jwt-decode";
 import {AuthContextType, MyTokenPayload, StaffRoles} from "../types";
@@ -19,7 +20,7 @@ export function AuthProvider ({ children }:{children:React.ReactNode}) {
                 const decoded = jwtDecode<MyTokenPayload>(token);
 
                 if (decoded.exp * 1000 < Date.now()) {
-                    console.error("Token expired");
+                    logger.error("Token expired");
                     throw new Error("Token expired");
                 }
 

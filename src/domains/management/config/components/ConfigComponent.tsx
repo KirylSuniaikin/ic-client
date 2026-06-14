@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
 import {Box, Typography, Switch, Button} from "@mui/material";
 import {StompSubscription} from "@stomp/stompjs";
@@ -134,7 +135,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
                 setInventoryBuffer(inventory);
 
             } catch (e) {
-                console.error("Error loading menu info", e);
+                logger.error("Error loading menu info", e);
             } finally {
                 setIsLoading(false);
             }

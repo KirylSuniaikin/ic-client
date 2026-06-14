@@ -83,7 +83,6 @@ function CartItemHorizontal({
         if (cartItem.isGarlicCrust) extras.push("Garlic Crust");
 
         if (cartItem.description) {
-            console.log(cartItem)
             cartItem.description
                 .split("+")
                 .map((s) => s.trim())

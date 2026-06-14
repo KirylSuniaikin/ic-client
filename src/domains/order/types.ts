@@ -89,7 +89,6 @@ export type BaseAppInfoResponse = {
   extraIngr: ExtraIngr[];
   toppings: Topping[];
   isSDoughAvailable: boolean;
-  isMDoughAvailable: boolean;
   userInfo: { name: string; phone: string } | null;
 };
 

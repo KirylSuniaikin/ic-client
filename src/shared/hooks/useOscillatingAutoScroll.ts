@@ -31,7 +31,6 @@ export default function useOscillatingAutoScroll(
     }: AutoScrollOptions = {}
 ): void {
     useEffect(() => {
-        console.log("im triggered")
         const el = ref.current;
         if (!el || !enabled) return;
 

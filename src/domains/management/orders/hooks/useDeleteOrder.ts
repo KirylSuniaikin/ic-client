@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import { useState } from "react";
 import type { Order } from "../../../order/types";
 import { deleteOrder } from "../../../../shared/api/public";
@@ -23,7 +24,7 @@ export function useDeleteOrder(onDeleted: (id: string) => void): {
             await deleteOrder(String(orderToDelete.id));
             onDeleted(orderToDelete.id);
         } catch (err) {
-            console.error("Failed to delete the order", err);
+            logger.error("Failed to delete the order", err);
         } finally {
             setDeleteDialogOpen(false);
             setOrderToDelete(null);

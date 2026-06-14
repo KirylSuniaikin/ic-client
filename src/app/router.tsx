@@ -17,7 +17,6 @@ function MenuRoute(): JSX.Element {
 function WatchOrderStatus(): JSX.Element {
     const [searchParams] = useSearchParams();
     const orderId = searchParams.get('order_id');
-    console.log("[ORDER ID FROM URL]" + orderId);
     return <OrderStatusPage orderId={orderId}></OrderStatusPage>;
 }
 

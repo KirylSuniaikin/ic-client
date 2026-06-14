@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import { useState } from 'react';
 import { updateOrderStatus } from '../../../../shared/api/public';
 import type { Order } from '../../../order/types';
@@ -53,7 +54,7 @@ export function useOrderActions({ setAlertOrder, setOrders, setError }: UseOrder
         const extId = getExternalOrderId(order);
         const orderId = normalizeOrderId(order.id);
         if (!extId) {
-            console.warn('[Confirm] externalId is missing, skip');
+            logger.warn('[Confirm] externalId is missing, skip');
             return;
         }
         setConfirmingAccept(true);
@@ -63,7 +64,7 @@ export function useOrderActions({ setAlertOrder, setOrders, setError }: UseOrder
             setAlertOrder(null);
         } catch (e) {
             setError?.(String(e));
-            console.error('[Confirm] failed:', e instanceof Error ? e.message : e);
+            logger.error('[Confirm] failed:', e instanceof Error ? e.message : e);
         } finally {
             setConfirmingAccept(false);
         }
@@ -84,7 +85,7 @@ export function useOrderActions({ setAlertOrder, setOrders, setError }: UseOrder
             setOrders(prev => prev.filter(o => normalizeOrderId(o.id) !== normalizeOrderId(order.id)));
             setCancelReason('');
         } catch (e) {
-            console.error('[CANCEL] failed:', e instanceof Error ? e.message : e);
+            logger.error('[CANCEL] failed:', e instanceof Error ? e.message : e);
         } finally {
             setConfirmingCancel(false);
         }

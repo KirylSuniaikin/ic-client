@@ -1,16 +1,16 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import {fetchBaseAppInfo} from "../../../shared/api/public";
+import {fetchAllBranches} from "../../../shared/api/management";
+import {BaseAppInfoResponse} from "../../order/types";
+import {IBranch} from "../../management/inventory/types";
+import {useMenuData} from "./useMenuData";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../shared/api/public");
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../shared/api/management");
 
-import { fetchBaseAppInfo } from "../../../shared/api/public";
-import { fetchAllBranches } from "../../../shared/api/management";
-import { useMenuData } from "./useMenuData";
-import type { BaseAppInfoResponse } from "../../order/types";
-import type { IBranch } from "../../management/inventory/types";
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
@@ -32,7 +32,6 @@ const MENU_RESPONSE: BaseAppInfoResponse = {
     extraIngr: [],
     toppings: [],
     isSDoughAvailable: true,
-    isMDoughAvailable: true,
     userInfo: null,
 };
 
@@ -47,6 +46,7 @@ function makeParams(
         giftId: string | null;
         isKiosk: boolean;
         isEditMode: boolean;
+        isAdmin: boolean;
     }> = {},
 ) {
     return {
@@ -55,6 +55,7 @@ function makeParams(
         giftId: overrides.giftId ?? null,
         isKiosk: overrides.isKiosk ?? false,
         isEditMode: overrides.isEditMode ?? false,
+        isAdmin: overrides.isAdmin ?? false,
         searchParams: new URLSearchParams(),
         setSearchParams: jest.fn<void, [URLSearchParams, ({ replace?: boolean } | undefined)?]>(),
     };
@@ -148,16 +149,6 @@ describe("useMenuData — successful data fetch", () => {
         });
 
         expect(result.current.isSDoughAvailable).toBe(true);
-    });
-
-    it("reflects isMDoughAvailable from the API response", async () => {
-        const { result } = renderHook(() => useMenuData(makeParams()));
-
-        await waitFor(() => {
-            expect(result.current.loading).toBe(false);
-        });
-
-        expect(result.current.isMDoughAvailable).toBe(true);
     });
 
     it("leaves error null on success", async () => {

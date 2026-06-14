@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
 import {IBranch} from "../../inventory/types";
 import {BaseShiftResponse} from "../types";
@@ -50,7 +51,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
             catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Failed to load";
                 if (alive) setError(msg);
-                console.error(msg);
+                logger.error(msg);
             }
             finally {
                 if (alive) setLoading(false);

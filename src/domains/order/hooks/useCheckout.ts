@@ -1,3 +1,4 @@
+import { logger } from "../../../shared/utils/logger";
 import { useState, Dispatch, SetStateAction } from "react";
 import { NavigateFunction } from "react-router-dom";
 import { checkCustomer, createOrder, editOrder } from "../../../shared/api/public";
@@ -140,7 +141,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             }
             setErrorMessage(error instanceof Error ? error.message : String(error));
             setErrorSnackBarOpen(true);
-            console.error("Error processing order:", error);
+            logger.error("Error processing order:", error);
         } finally {
             setCheckoutLoading(false);
         }
@@ -177,7 +178,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 setCartOpen(false);
                 navigate("/admin/");
             } catch (error) {
-                console.error(error);
+                logger.error(error);
             } finally {
                 await localStorage.removeItem("orderToEdit");
                 setCheckoutLoading(false);
@@ -273,7 +274,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : String(error));
             setErrorSnackBarOpen(true);
-            console.error("Error placing order:", error);
+            logger.error("Error placing order:", error);
         } finally {
             await localStorage.removeItem("orderToEdit");
         }

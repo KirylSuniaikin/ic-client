@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import * as React from "react";
 import {useEffect, useState} from "react";
 import {cashUpdate, getBranchBalance} from "../../../../shared/api/management";
@@ -46,7 +47,7 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
                     setBalance(response.branchBalance || 0);
                 }
             } catch (error) {
-                console.error("Failed to load balance", error);
+                logger.error("Failed to load balance", error);
             } finally {
                 if (isMounted) setLoading(false);
             }

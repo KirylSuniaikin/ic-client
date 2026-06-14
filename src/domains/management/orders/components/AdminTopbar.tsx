@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import React from "react";
 import {
     Box,
@@ -177,7 +178,7 @@ export default function AdminTopbar({
         try {
             await updateWorkload({branchId, newLevel});
         } catch (err) {
-            console.error("Failed to update workload:", err);
+            logger.error("Failed to update workload:", err);
         }
     }
 

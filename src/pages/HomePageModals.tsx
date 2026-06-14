@@ -31,7 +31,6 @@ interface HomePageModalsProps {
     extraIngredients: ExtraIngr[];
     availableBranches: IBranch[];
     isSDoughAvailable: boolean;
-    isMDoughAvailable: boolean;
     phone: string;
     username: string;
     branchSelector: boolean | null;
@@ -46,7 +45,7 @@ interface HomePageModalsProps {
 
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
-    isSDoughAvailable, isMDoughAvailable, phone, username,
+    isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector,
     pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId,
 }: HomePageModalsProps): JSX.Element {
@@ -87,7 +86,7 @@ export default function HomePageModals({
                     removeFromCart={cart.removeFromCart}
                     isEditMode={cart.editMode}
                     isSDoughAvailable={isSDoughAvailable}
-                    isMDoughAvailable={isMDoughAvailable}
+                    isAdmin={isAdmin}
                 />
             )}
 
@@ -126,7 +125,7 @@ export default function HomePageModals({
                     isEditMode={cart.editMode}
                     removeFromCart={cart.removeFromCart}
                     isSDoughAvailable={isSDoughAvailable}
-                    isMDoughAvailable={isMDoughAvailable}
+                    isAdmin={isAdmin}
                 />
             )}
 

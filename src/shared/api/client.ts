@@ -1,3 +1,4 @@
+import { logger } from "../utils/logger";
 const PROD_BASE_URL = 'https://icpizza-back.onrender.com/api';
 const DEV_BASE_URL = 'http://localhost:8000/api';
 const PROD_WS_URL = 'https://icpizza-back.onrender.com/ws';
@@ -21,7 +22,7 @@ export async function authFetch(url: string, headersWithoutAuth: RequestInit): P
     });
 
     if (response.status === 401) {
-        console.warn("Unauthorized");
+        logger.warn("Unauthorized");
         localStorage.removeItem("jwt_token");
         window.location.href = "/auth";
         return Promise.reject(new Error("Unauthorized"));

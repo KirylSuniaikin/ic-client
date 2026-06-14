@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {useEffect, useState} from "react";
 import {addToBlackList, deleteFromBlackList, getAllBannedCstmrs} from "../../../../shared/api/management";
 import {BlackListCstmr} from "../types";
@@ -32,7 +33,7 @@ export default function BlacklistHomepage({open, handleClose}: Props) {
             const data = await getAllBannedCstmrs();
             setBannedCstmrs(data);
         } catch (error) {
-            console.error("Error fetching Banned Cstmrs", error);
+            logger.error("Error fetching Banned Cstmrs", error);
         } finally {
             setLoading(false);
         }
@@ -80,7 +81,7 @@ export default function BlacklistHomepage({open, handleClose}: Props) {
                 const errorData = await response.json();
                 if (errorData.message) errorMsg = errorData.message;
             } catch (e) {
-                console.error("Failed to parse error", e);
+                logger.error("Failed to parse error", e);
             }
 
             setSnackbar({

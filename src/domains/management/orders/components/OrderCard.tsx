@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {
     Box,
     Typography,
@@ -380,7 +381,7 @@ function OrderCard({
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Oven",
                                             reason: null
-                                        }).catch(console.error);
+                                        }).catch(logger.error);
                                     }}
                                 >
                                     OVEN
@@ -406,7 +407,7 @@ function OrderCard({
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Ready",
                                             reason: null
-                                        }).catch(console.error);
+                                        }).catch(logger.error);
                                     }}
                                 >
                                     READY
@@ -431,7 +432,7 @@ function OrderCard({
                                             jahezOrderId: order.external_id ? order.external_id : null,
                                             orderStatus: "Picked Up",
                                             reason: null
-                                        }).catch(console.error);
+                                        }).catch(logger.error);
                                     }}
                                 >
                                     PICKED UP

@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {useEffect, useRef, useState} from "react";
 import alertSound from "../../../../assets/audio/close-shift-alert-blr.mp3";
 import dayjs from "dayjs";
@@ -24,8 +25,8 @@ export default function useClosingAlarm(audioAllowed: boolean): void {
                 audioRef.loop = false;
                 audioRef.play().then(() => {
                     playedRef.current = true;
-                    console.log("⏰ Alarm triggered");
-                }).catch(console.error);
+                    logger.debug("⏰ Alarm triggered");
+                }).catch(logger.error);
             }
 
             if (now.hour() === 6 && now.minute() === 0) {

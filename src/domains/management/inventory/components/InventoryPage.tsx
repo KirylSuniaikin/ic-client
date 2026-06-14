@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {useEffect, useMemo, useState} from "react";
 import {IBranch, IManagementResponse, IUser} from "../types";
 import {getReports, getBranchInfo, getUser} from "../../../../shared/api/management";
@@ -66,7 +67,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
                 }
             } catch (e: any) {
                 if (alive) setError(e?.message ?? "Failed to load");
-                console.error(error);
+                logger.error(error);
             } finally {
                 if (alive) setLoading(false);
             }

@@ -47,7 +47,7 @@ interface PizzaPopupProps {
     isEditMode?: boolean;
     toppings?: Topping[];
     isSDoughAvailable?: boolean;
-    isMDoughAvailable?: boolean;
+    isAdmin?: boolean;
 }
 
 function PizzaPopup({
@@ -62,7 +62,7 @@ function PizzaPopup({
                         isEditMode,
                         toppings = [],
                         isSDoughAvailable,
-                        isMDoughAvailable,
+                        isAdmin
                     }: PizzaPopupProps): JSX.Element | null {
     const [loading, setLoading] = useState(true);
     const [item, setItem] = useState<MenuItem | null>(null);
@@ -74,7 +74,6 @@ function PizzaPopup({
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
-    const toppingUpdateAvailble = false
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -152,7 +151,7 @@ function PizzaPopup({
 
     const showDoughSelector =
         (selectedSize === "M" && isSDoughAvailable) ||
-        (selectedSize === "L" && isMDoughAvailable)
+        (selectedSize === "L" && isSDoughAvailable) || isAdmin
 
     useEffect(() => {
         if (selectedSize === "S" || showDoughSelector === false) {
@@ -257,9 +256,8 @@ function PizzaPopup({
                 });
             }
         }))
-        if (isEditMode && editItem) {
-            removeFromCart(editItem.name, editItem.amount, editItem.quantity);
-        }
+        // Edit replacement is handled in useCart.handleAddToCart by reference; removing
+        // by value here could wipe other identical lines, so it is intentionally omitted.
         onAddToCart?.(products);
         onClose?.();
     }
@@ -374,6 +372,7 @@ function PizzaPopup({
                             quantity={quantity}
                             setQuantity={setQuantity}
                             showDoughSelector={showDoughSelector}
+                            isAdmin={isAdmin}
                         />
 
                         <TextField
@@ -704,6 +703,7 @@ interface TogglesWithQuantityProps {
     quantity: number;
     setQuantity: React.Dispatch<React.SetStateAction<number>>;
     showDoughSelector: boolean | undefined;
+    isAdmin: boolean;
 }
 
 export function TogglesWithQuantity({
@@ -713,6 +713,7 @@ export function TogglesWithQuantity({
                                  quantity,
                                  setQuantity,
                                  showDoughSelector,
+                                    isAdmin
                              }: TogglesWithQuantityProps): JSX.Element {
     const groupSx = {
         backgroundColor: brandGray,

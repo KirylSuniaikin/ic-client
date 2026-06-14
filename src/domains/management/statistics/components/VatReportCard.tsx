@@ -1,3 +1,4 @@
+import { logger } from "../../../../shared/utils/logger";
 import {Box, Button, Card, CardContent, CircularProgress, Divider, Grid, Paper, Typography} from "@mui/material";
 import React, {useState} from "react";
 import PrintIcon from '@mui/icons-material/Print';
@@ -46,11 +47,10 @@ export function VatReportCard({branchId}: { branchId: string }) {
                     toDate: endDate
                 });
 
-            console.log("Report Data:", stats);
             setReportStats(stats);
 
         } catch (error) {
-            console.error("Failed to generate report:", error);
+            logger.error("Failed to generate report:", error);
             alert("Error generating report. Check console.");
         } finally {
             setLoading(false);
