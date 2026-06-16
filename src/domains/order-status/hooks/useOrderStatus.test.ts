@@ -37,10 +37,10 @@ function makeSub(): StompSubscription {
 
 describe("useOrderStatus — subscription lifecycle", () => {
     beforeEach(() => {
-        // Simulate instant connection: invoke onConnect synchronously
+        // Simulate instant connection: invoke onConnect synchronously, return an unregister fn
         mockConnectSocket.mockImplementation((onConnect: () => void) => {
             onConnect();
-            return Promise.resolve();
+            return jest.fn<void, []>();
         });
 
         mockSubscribe.mockReturnValue(makeSub());

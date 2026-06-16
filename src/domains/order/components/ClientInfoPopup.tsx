@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 
 const brandRed = "#E44B4C";
 
@@ -89,7 +90,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             paymentMethod,
             name,
             note,
-            selectedBranch?.id || '2e8c35f7-d75e-4442-b496-cbb929842c10'
+            selectedBranch?.id || DEFAULT_BRANCH_ID
         );
         onClose?.();
     }

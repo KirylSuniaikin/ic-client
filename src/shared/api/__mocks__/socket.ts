@@ -4,7 +4,8 @@ import { jest } from "@jest/globals";
 // jest.fn() at module level — no jest.mock() factory hoisting restrictions apply.
 // Used by hook tests via factoryless jest.mock() calls.
 
-export const connectSocket = jest.fn<Promise<void>, [() => void]>();
+// connectSocket registers a connect listener and returns an unregister function.
+export const connectSocket = jest.fn<() => void, [() => void]>();
 
 export const socket = {
     subscribe: jest.fn(),

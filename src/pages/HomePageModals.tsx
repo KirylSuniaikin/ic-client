@@ -35,6 +35,7 @@ interface HomePageModalsProps {
     username: string;
     branchSelector: boolean | null;
     setBranchSelector: Dispatch<SetStateAction<boolean | null>>;
+    refreshMenu: () => Promise<void>;
     pizzas: Group[];
     brickPizzas: Group[];
     beverages: Group[];
@@ -46,7 +47,7 @@ interface HomePageModalsProps {
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
-    branchSelector, setBranchSelector,
+    branchSelector, setBranchSelector, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId,
 }: HomePageModalsProps): JSX.Element {
 
@@ -107,6 +108,9 @@ export default function HomePageModals({
                     onSelect={(branch: IBranch) => {
                         localStorage.setItem(BRANCH_KEY, JSON.stringify(branch));
                         setBranchSelector(false);
+                        // Reload the menu for the just-selected branch; the initial fetch ran
+                        // against the default branch because no branch was stored yet.
+                        refreshMenu();
                     }}
                 />
             )}

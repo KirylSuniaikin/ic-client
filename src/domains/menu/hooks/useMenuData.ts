@@ -1,6 +1,7 @@
 import { logger } from "../../../shared/utils/logger";
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from "react";
 import { fetchBaseAppInfo } from "../../../shared/api/public";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
 import type { MenuItem, ExtraIngr, Topping, CartItem } from "../types";
@@ -32,6 +33,7 @@ interface UseMenuDataParams {
     searchParams: URLSearchParams;
     setSearchParams: (params: URLSearchParams, options?: { replace?: boolean }) => void;
     isAdmin: boolean;
+    adminBranchId?: string | null;
 }
 
 const BRANCH_KEY = 'kiosk_branch_data';
@@ -77,7 +79,25 @@ function normalizeComboItem(ci: Partial<CartItem>): {
 }
 
 export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
-    const { userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams } = params;
+    const { userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId } = params;
+
+    // Resolve which branch's availability to load: kiosk uses its selected branch,
+    // admin uses the branch it is ordering for, everyone else gets the public default.
+    // Mirrors the branch resolution in useCheckout's order creation.
+    function resolveBranchId(): string {
+        if (isKiosk) {
+            try {
+                const stored = JSON.parse(localStorage.getItem(BRANCH_KEY) || "{}");
+                if (stored?.id) return stored.id;
+            } catch {
+                // malformed kiosk branch data; fall back to the public default
+            }
+            return DEFAULT_BRANCH_ID;
+        }
+        if (isAdmin && adminBranchId) return adminBranchId;
+        console.log(DEFAULT_BRANCH_ID);
+        return DEFAULT_BRANCH_ID;
+    }
 
     const [menuData, setMenuData] = useState<MenuItem[]>([]);
     const [extraIngredients, setExtraIngredients] = useState<ExtraIngr[]>([]);
@@ -102,7 +122,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
         async function load(): Promise<void> {
             try {
                 setLoading(true);
-                const baseInfo = await fetchBaseAppInfo(userParam, '2e8c35f7-d75e-4442-b496-cbb929842c10');
+                const baseInfo = await fetchBaseAppInfo(userParam, resolveBranchId());
                 setMenuData(baseInfo.menu);
                 setExtraIngredients(baseInfo.extraIngr);
                 setToppings(baseInfo.toppings);
@@ -225,7 +245,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     async function refreshMenu(): Promise<void> {
-        const baseInfo = await fetchBaseAppInfo(null, '2e8c35f7-d75e-4442-b496-cbb929842c10');
+        const baseInfo = await fetchBaseAppInfo(null, resolveBranchId());
         setMenuData(baseInfo.menu);
     }
 

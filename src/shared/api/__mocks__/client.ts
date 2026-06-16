@@ -6,3 +6,4 @@ import { jest } from "@jest/globals";
 export const authFetch = jest.fn<Promise<Response>, [string, RequestInit?]>();
 export const BASE_URL = "http://test-api.com/api";
 export const WS_URL = "ws://test.com/ws";
+export const DEFAULT_BRANCH_ID = "2e8c35f7-d75e-4442-b496-cbb929842c10";
