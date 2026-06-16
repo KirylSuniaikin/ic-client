@@ -63,10 +63,10 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
         async function load(): Promise<void> {
             setIsLoading(true);
             try {
-                // branchId is hardcoded in the API implementation, so passing empty string here
-                // does not affect the actual request behaviour
+                // Read availability for the SAME branch we write to, so the switch states
+                // reflect what saving will actually change.
                 const [baseInfo, inventory] = await Promise.all([
-                    fetchBaseAppInfo(null, ''),
+                    fetchBaseAppInfo(null, selectedBranch.id),
                     getDoughInventory(selectedBranch.id),
                 ]);
 

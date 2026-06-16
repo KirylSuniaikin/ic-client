@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger";
-import { authFetch, BASE_URL } from './client';
+import { authFetch, BASE_URL, DEFAULT_BRANCH_ID } from './client';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type {
     BaseAppInfoResponse,
@@ -27,7 +27,7 @@ export async function fetchBaseAppInfo(
 ): Promise<BaseAppInfoResponse> {
     let url = BASE_URL + "/get_base_app_info";
     const queryParams = new URLSearchParams({
-        branchId: '2e8c35f7-d75e-4442-b496-cbb929842c10'
+        branchId: branchId || DEFAULT_BRANCH_ID
     });
 
     if (userId) {

@@ -269,6 +269,28 @@ describe("fetchBaseAppInfo", () => {
         const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(url).not.toContain("userId=");
     });
+
+    it("includes the provided branchId in the query string", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "branch-xyz");
+
+        const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("branchId=branch-xyz");
+    });
+
+    it("falls back to the default branch when branchId is empty", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "");
+
+        const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("branchId=2e8c35f7-d75e-4442-b496-cbb929842c10");
+    });
 });
 
 // ── getAllActiveOrders ────────────────────────────────────────────────────────

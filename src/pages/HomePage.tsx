@@ -33,7 +33,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const navigate = useNavigate();
 
-    const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin });
+    const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId });
     const cart = useCart(menu.menuData, isAdmin);
     const checkout = useCheckout({
         isAdmin, isKiosk, isEditMode, adminBranchId,
@@ -117,6 +117,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 isSDoughAvailable={menu.isSDoughAvailable}
                 phone={menu.phone} username={menu.username}
                 branchSelector={menu.branchSelector} setBranchSelector={menu.setBranchSelector}
+                refreshMenu={menu.refreshMenu}
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}
                 beverages={groups.beverages} sauces={groups.sauces}
                 isAdmin={isAdmin} adminBranchId={adminBranchId}

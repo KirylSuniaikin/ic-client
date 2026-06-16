@@ -34,10 +34,10 @@ describe("useAdminOrders — subscription lifecycle", () => {
     beforeEach(() => {
         capturedSubs = [];
 
-        // Simulate instant connection: call onConnect synchronously before resolving
+        // Simulate instant connection: call onConnect synchronously, return an unregister fn
         mockConnectSocket.mockImplementation((onConnect: () => void) => {
             onConnect();
-            return Promise.resolve();
+            return jest.fn<void, []>();
         });
 
         mockSubscribe.mockImplementation(() => {

@@ -60,7 +60,9 @@ export function useOrderStatus(orderId: string): UseOrderStatusResult {
 
         let subscription: StompSubscription | undefined;
 
-        connectSocket(() => {
+        const unregister = connectSocket(() => {
+            // Runs on every (re)connection — drop the previous handle before re-subscribing
+            subscription?.unsubscribe();
             subscription = socket.subscribe(
                 `/topic/${branchId}/order-status-updated`,
                 (frame) => {
@@ -79,7 +81,7 @@ export function useOrderStatus(orderId: string): UseOrderStatusResult {
             );
         });
 
-        return () => { subscription?.unsubscribe(); };
+        return () => { unregister(); subscription?.unsubscribe(); };
     }, [branchId]);
 
     return { order, loading, remainingSeconds };

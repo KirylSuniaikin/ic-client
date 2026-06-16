@@ -1,55 +1,69 @@
-import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 
 // socket.ts creates a STOMP Client singleton at module load time, so each test
 // must reset modules and set up fresh mocks before requiring the module.
 // jest.doMock() (non-hoisted) is used because it can reference closed-over
 // variables; jest.mock() factories are hoisted and restricted to a limited scope.
 
-describe("connectSocket", () => {
-    let mockActivate = jest.fn<void, []>();
-    let mockConnectedState: boolean;
+// Shape of the mocked STOMP Client whose connection state the tests drive.
+type MockClient = {
+    onConnect: (() => void) | null;
+    connected: boolean;
+    active: boolean;
+    activate: () => void;
+};
 
-    beforeEach(() => {
-        jest.resetModules();
+// Return type is inferred — @types/jest is not installed, so the jest.Mock
+// namespace cannot be referenced in an annotation (see frontend CLAUDE.md).
+function setupStompMock(initial: { connected?: boolean; active?: boolean }) {
+    const state = { connected: initial.connected ?? false, active: initial.active ?? false };
+    const mockActivate = jest.fn<void, []>();
 
-        mockActivate = jest.fn<void, []>();
-        mockConnectedState = false;
-
-        jest.doMock("@stomp/stompjs", () => ({
-            Client: jest.fn().mockImplementation(() => ({
+    jest.doMock("@stomp/stompjs", () => ({
+        Client: jest.fn().mockImplementation(() => {
+            const client: MockClient = {
+                onConnect: null,
                 get connected() {
-                    return mockConnectedState;
+                    return state.connected;
                 },
-                set connected(v: boolean) {
-                    mockConnectedState = v;
+                get active() {
+                    return state.active;
                 },
                 activate: mockActivate,
-                onConnect: null as (() => void) | null,
-            })),
-        }));
+            };
+            return client;
+        }),
+    }));
 
-        jest.doMock("sockjs-client", () =>
-            jest.fn().mockImplementation(() => ({
-                send: jest.fn<void, [string]>(),
-                onmessage: null,
-                close: jest.fn<void, []>(),
-            }))
-        );
+    jest.doMock("sockjs-client", () =>
+        jest.fn().mockImplementation(() => ({
+            send: jest.fn<void, [string]>(),
+            onmessage: null,
+            close: jest.fn<void, []>(),
+        }))
+    );
 
-        jest.doMock("./client", () => ({
-            WS_URL: "ws://test.com/ws",
-        }));
-    });
+    jest.doMock("./client", () => ({
+        WS_URL: "ws://test.com/ws",
+    }));
 
+    return { mockActivate, state };
+}
+
+// STOMP types onConnect as (frame: IFrame) => void; the registry dispatcher
+// ignores its argument, so tests invoke it as a no-arg function. The single cast
+// here keeps every call site readable without importing the IFrame type.
+function fireConnect(onConnect: unknown): void {
+    (onConnect as (() => void) | null)?.();
+}
+
+describe("connectSocket — activation", () => {
     afterEach(() => {
         jest.resetModules();
     });
 
-    it("calls socket.activate when the socket is not yet connected", () => {
-        mockConnectedState = false;
-
-        // require() after resetModules+doMock gives a fresh module with mocked deps.
-        // Asserted as the module's own type for type safety without using any.
+    it("calls socket.activate when the socket is neither connected nor active", () => {
+        const { mockActivate } = setupStompMock({ connected: false, active: false });
         const { connectSocket } = require("./socket") as typeof import("./socket");
 
         connectSocket(() => undefined);
@@ -58,8 +72,7 @@ describe("connectSocket", () => {
     });
 
     it("does not call socket.activate when the socket is already connected", () => {
-        mockConnectedState = true;
-
+        const { mockActivate } = setupStompMock({ connected: true });
         const { connectSocket } = require("./socket") as typeof import("./socket");
 
         connectSocket(() => undefined);
@@ -67,207 +80,122 @@ describe("connectSocket", () => {
         expect(mockActivate).not.toHaveBeenCalled();
     });
 
-    it("sets socket.onConnect to the provided callback before activating", () => {
-        mockConnectedState = false;
+    it("does not call socket.activate again when the socket is already activating", () => {
+        const { mockActivate } = setupStompMock({ connected: false, active: true });
+        const { connectSocket } = require("./socket") as typeof import("./socket");
 
-        const { connectSocket, socket } = require("./socket") as typeof import("./socket");
+        connectSocket(() => undefined);
+
+        expect(mockActivate).not.toHaveBeenCalled();
+    });
+
+    it("calls onConnect immediately when the socket is already connected", () => {
+        setupStompMock({ connected: true });
+        const { connectSocket } = require("./socket") as typeof import("./socket");
 
         const onConnect = jest.fn<void, []>();
         connectSocket(onConnect);
 
-        expect(socket.onConnect).toBe(onConnect);
+        expect(onConnect).toHaveBeenCalledTimes(1);
     });
 
     it("does not throw when called while the socket is already connected", () => {
-        mockConnectedState = true;
-
+        setupStompMock({ connected: true });
         const { connectSocket } = require("./socket") as typeof import("./socket");
 
         expect(() => connectSocket(() => undefined)).not.toThrow();
     });
 });
 
-// ── Phase 3 fix: onConnect called immediately when already connected ──────────
-
-describe("connectSocket — immediate onConnect when already connected", () => {
-    let mockActivate = jest.fn<void, []>();
-    let mockConnectedState: boolean;
-
-    beforeEach(() => {
-        jest.resetModules();
-
-        mockActivate = jest.fn<void, []>();
-        mockConnectedState = true;
-
-        jest.doMock("@stomp/stompjs", () => ({
-            Client: jest.fn().mockImplementation(() => ({
-                get connected() {
-                    return mockConnectedState;
-                },
-                activate: mockActivate,
-                onConnect: null as (() => void) | null,
-            })),
-        }));
-
-        jest.doMock("sockjs-client", () =>
-            jest.fn().mockImplementation(() => ({
-                send: jest.fn<void, [string]>(),
-                onmessage: null,
-            }))
-        );
-
-        jest.doMock("./client", () => ({
-            WS_URL: "ws://test.com/ws",
-        }));
-    });
-
+describe("connectSocket — registry dispatches to every listener on (re)connect", () => {
     afterEach(() => {
         jest.resetModules();
     });
 
-    it("calls onConnect immediately when socket is already connected", async () => {
-        const { connectSocket } = require("./socket") as typeof import("./socket");
-        const onConnect = jest.fn<void, []>();
-
-        await connectSocket(onConnect);
-
-        expect(onConnect).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not call activate when socket is already connected", async () => {
-        const { connectSocket } = require("./socket") as typeof import("./socket");
-
-        await connectSocket(() => undefined);
-
-        expect(mockActivate).not.toHaveBeenCalled();
-    });
-
-    it("does not set socket.onConnect when socket is already connected", async () => {
+    it("fires ALL registered listeners when the socket (re)connects", () => {
+        setupStompMock({ connected: false, active: false });
         const { connectSocket, socket } = require("./socket") as typeof import("./socket");
-        const onConnect = jest.fn<void, []>();
 
-        await connectSocket(onConnect);
+        const listenerA = jest.fn<void, []>();
+        const listenerB = jest.fn<void, []>();
+        connectSocket(listenerA);
+        connectSocket(listenerB);
 
-        // When already connected, onConnect is invoked directly; socket.onConnect is unchanged
-        expect(socket.onConnect).toBeNull();
-    });
-});
+        // Simulate STOMP firing the connect handler (e.g. after an auto-reconnect)
+        fireConnect(socket.onConnect);
 
-// ── Phase 3 fix: awaits deactivate before re-activate ─────────────────────────
-
-describe("connectSocket — awaits deactivate before re-activate", () => {
-    let mockActivate = jest.fn<void, []>();
-    let mockDeactivate = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
-
-    beforeEach(() => {
-        jest.resetModules();
-
-        mockActivate = jest.fn<void, []>();
-        mockDeactivate = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
-
-        jest.doMock("@stomp/stompjs", () => ({
-            Client: jest.fn().mockImplementation(() => ({
-                get connected() {
-                    return false;
-                },
-                get active() {
-                    return true;
-                },
-                activate: mockActivate,
-                deactivate: mockDeactivate,
-                onConnect: null as (() => void) | null,
-            })),
-        }));
-
-        jest.doMock("sockjs-client", () =>
-            jest.fn().mockImplementation(() => ({
-                send: jest.fn<void, [string]>(),
-                onmessage: null,
-            }))
-        );
-
-        jest.doMock("./client", () => ({
-            WS_URL: "ws://test.com/ws",
-        }));
+        expect(listenerA).toHaveBeenCalledTimes(1);
+        expect(listenerB).toHaveBeenCalledTimes(1);
     });
 
-    afterEach(() => {
-        jest.resetModules();
+    it("fires listeners again on a subsequent reconnect — re-subscription survives idle kills", () => {
+        setupStompMock({ connected: false, active: false });
+        const { connectSocket, socket } = require("./socket") as typeof import("./socket");
+
+        const listener = jest.fn<void, []>();
+        connectSocket(listener);
+
+        fireConnect(socket.onConnect);
+        fireConnect(socket.onConnect);
+
+        expect(listener).toHaveBeenCalledTimes(2);
     });
 
-    it("calls deactivate when socket is active but not connected", async () => {
-        const { connectSocket } = require("./socket") as typeof import("./socket");
+    it("unregister removes the listener so it no longer fires on reconnect", () => {
+        setupStompMock({ connected: false, active: false });
+        const { connectSocket, socket } = require("./socket") as typeof import("./socket");
 
-        await connectSocket(() => undefined);
+        const listener = jest.fn<void, []>();
+        const unregister = connectSocket(listener);
+        unregister();
 
-        expect(mockDeactivate).toHaveBeenCalledTimes(1);
+        fireConnect(socket.onConnect);
+
+        expect(listener).not.toHaveBeenCalled();
     });
 
-    it("calls activate after deactivate resolves", async () => {
-        const { connectSocket } = require("./socket") as typeof import("./socket");
+    it("a throwing listener does not prevent the others from firing", () => {
+        setupStompMock({ connected: false, active: false });
+        const { connectSocket, socket } = require("./socket") as typeof import("./socket");
 
-        await connectSocket(() => undefined);
-
-        expect(mockActivate).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not call activate before deactivate resolves", async () => {
-        let resolveDeactivate!: () => void;
-        const deactivatePromise = new Promise<void>(resolve => {
-            resolveDeactivate = resolve;
+        const throwing = jest.fn<void, []>().mockImplementation(() => {
+            throw new Error("re-subscribe failed");
         });
-        mockDeactivate.mockReturnValue(deactivatePromise);
+        const healthy = jest.fn<void, []>();
+        connectSocket(throwing);
+        connectSocket(healthy);
 
-        const { connectSocket } = require("./socket") as typeof import("./socket");
-        const connectPromise = connectSocket(() => undefined);
+        fireConnect(socket.onConnect);
 
-        // Deactivation is still pending — activate must not have been called yet
-        expect(mockActivate).not.toHaveBeenCalled();
-
-        resolveDeactivate();
-        await connectPromise;
-
-        expect(mockActivate).toHaveBeenCalledTimes(1);
+        expect(healthy).toHaveBeenCalledTimes(1);
     });
 });
 
 describe("socket export", () => {
-    beforeEach(() => {
-        jest.resetModules();
-
-        jest.doMock("@stomp/stompjs", () => ({
-            Client: jest.fn().mockImplementation(() => ({
-                connected: false,
-                activate: jest.fn<void, []>(),
-                onConnect: null,
-            })),
-        }));
-
-        jest.doMock("sockjs-client", () =>
-            jest.fn().mockImplementation(() => ({
-                send: jest.fn<void, [string]>(),
-                onmessage: null,
-            }))
-        );
-
-        jest.doMock("./client", () => ({
-            WS_URL: "ws://test.com/ws",
-        }));
-    });
-
     afterEach(() => {
         jest.resetModules();
     });
 
     it("exports a socket object", () => {
+        setupStompMock({});
         const { socket } = require("./socket") as typeof import("./socket");
 
         expect(socket).toBeDefined();
     });
 
     it("exports a connectSocket function", () => {
+        setupStompMock({});
         const { connectSocket } = require("./socket") as typeof import("./socket");
 
         expect(typeof connectSocket).toBe("function");
+    });
+
+    it("connectSocket returns an unregister function", () => {
+        setupStompMock({ connected: false, active: false });
+        const { connectSocket } = require("./socket") as typeof import("./socket");
+
+        const unregister = connectSocket(() => undefined);
+
+        expect(typeof unregister).toBe("function");
     });
 });

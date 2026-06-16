@@ -103,8 +103,14 @@ export function useAdminOrders(
         const subscriptions: StompSubscription[] = [];
         let cancelled = false;
 
-        connectSocket(() => {
+        const unregister = connectSocket(() => {
             if (cancelled) return;
+
+            // Runs on every (re)connection. Drop any handles from the previous
+            // connection before re-subscribing so reconnects don't accumulate
+            // dead subscriptions.
+            subscriptions.forEach(sub => sub.unsubscribe());
+            subscriptions.length = 0;
 
             subscriptions.push(
                 socket.subscribe(`/topic/${branchId}/orders`, async (frame) => {
@@ -294,6 +300,7 @@ export function useAdminOrders(
 
         return () => {
             cancelled = true;
+            unregister();
             subscriptions.forEach(sub => sub.unsubscribe());
         };
     }, [branchId]);

@@ -28,18 +28,45 @@ const socket = new Client({
     },
 });
 
-export async function connectSocket(onConnect: () => void): Promise<void> {
+// Registry of connection listeners. STOMP fires socket.onConnect on EVERY
+// (re)connection — including the auto-reconnects that follow the browser killing
+// an idle socket. A single overwritable socket.onConnect slot lost re-subscription
+// whenever more than one consumer connected (the last caller won the slot, so the
+// others never re-subscribed and silently received nothing). Dispatching to every
+// registered listener instead lets each consumer re-establish its subscriptions on
+// every reconnect.
+const connectListeners = new Set<() => void>();
+
+socket.onConnect = (): void => {
+    connectListeners.forEach((listener) => {
+        try {
+            listener();
+        } catch (e) {
+            // One consumer's re-subscribe failing must not block the others
+            logger.error('[STOMP] onConnect listener failed', e);
+        }
+    });
+};
+
+/**
+ * Register a callback to run on every (re)connection of the shared socket and
+ * return an unregister function for effect cleanup. If the socket is already
+ * connected the callback also runs immediately, so a late subscriber does not
+ * have to wait for the next reconnect to set up its subscriptions.
+ */
+export function connectSocket(onConnect: () => void): () => void {
+    connectListeners.add(onConnect);
+
     if (socket.connected) {
-        // Fix: call onConnect immediately so subscribers don't miss the connection
         onConnect();
-        return;
+    } else if (!socket.active) {
+        // Not connected and not already activating — kick off the connection
+        socket.activate();
     }
-    // Fix: await any in-progress deactivation before re-activating
-    if (socket.active) {
-        await socket.deactivate();
-    }
-    socket.onConnect = onConnect;
-    socket.activate();
+
+    return () => {
+        connectListeners.delete(onConnect);
+    };
 }
 
 export { socket };
