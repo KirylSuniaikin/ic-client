@@ -40,6 +40,17 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
     CLOSE_SHIFT_EVENT: 'OPEN_SHIFT_EVENT',
 };
 
+// Forward-only ranking of the kitchen status flow. Used to ignore stale/out-of-order
+// status frames (e.g. a backend-retried "Oven" landing after "Ready") that would move
+// an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
+// treated as applicable.
+const STATUS_RANK: Record<string, number> = {
+    'Kitchen Phase': 0,
+    'Oven': 1,
+    'Ready': 2,
+    'Picked Up': 3,
+};
+
 function normalizeId(x: unknown): string {
     return String(x);
 }
@@ -47,6 +58,14 @@ function normalizeId(x: unknown): string {
 function getStringId(o: unknown): string {
     const obj = o as { id?: unknown; orderId?: unknown; order_no?: unknown } | null;
     return String(obj?.id ?? obj?.orderId ?? obj?.order_no ?? o ?? '');
+}
+
+// Runtime response wraps orders in an object; cast to access .orders, falling back
+// to the raw array shape.
+async function fetchActiveOrders(branchId: string): Promise<Order[]> {
+    const response = await getAllActiveOrders(String(branchId));
+    return (response as unknown as { orders?: Order[] }).orders
+        ?? (response as unknown as Order[]);
 }
 
 export function useAdminOrders(
@@ -69,10 +88,7 @@ export function useAdminOrders(
         void (async (): Promise<void> => {
             try {
                 setLoading(true);
-                // IBranch.id is numeric; String() coerces to match the string parameter
-                const response = await getAllActiveOrders(String(branchId));
-                // Runtime response wraps orders in an object; cast to access .orders
-                setOrders((response as unknown as { orders: Order[] }).orders ?? response);
+                setOrders(await fetchActiveOrders(branchId));
             } finally { setLoading(false); }
         })();
     }, [branchId]);
@@ -84,8 +100,13 @@ export function useAdminOrders(
     const stopSoundRef = useRef(stopSound);
     stopSoundRef.current = stopSound;
 
+    // The initial [branchId] effect above does the first load; the connect callback
+    // below only re-hydrates on RECONNECTs. Re-armed on every branch change.
+    const isFirstConnectRef = useRef(true);
+
     useEffect(() => {
         if (!branchId) return;
+        isFirstConnectRef.current = true;
 
         // Fetch initial admin base info via REST (same state as admin-base-info subscription)
         getBaseAdminInfo(branchId).then(response => {
@@ -243,11 +264,16 @@ export function useAdminOrders(
                         setOrders(prev => prev.filter(o => getStringId(o) !== orderId));
                     } else {
                         setOrders(prev =>
-                            prev.map(o =>
-                                getStringId(o) === orderId
-                                    ? { ...o, status: status as Order['status'] }
-                                    : o
-                            )
+                            prev.map(o => {
+                                if (getStringId(o) !== orderId) return o;
+                                // Forward-only guard: ignore a stale/out-of-order frame that
+                                // would move the status backward (e.g. a retried "Oven" landing
+                                // after "Ready"). Unknown statuses fall through and are applied.
+                                const currentRank = STATUS_RANK[o.status as string] ?? -1;
+                                const incomingRank = STATUS_RANK[status as string] ?? Number.MAX_SAFE_INTEGER;
+                                if (incomingRank < currentRank) return o;
+                                return { ...o, status: status as Order['status'] };
+                            })
                         );
                     }
 
@@ -296,6 +322,20 @@ export function useAdminOrders(
                     }
                 })
             );
+
+            // STOMP topics are not durable: any frame published while this tablet was
+            // briefly disconnected (wifi blip, screen sleep) is lost — the cooks' board
+            // would keep showing a stale status. Re-hydrate the full board after every
+            // RECONNECT (subscriptions are already re-established above, so nothing sent
+            // after this fetch is missed). The first connect is skipped — the initial
+            // [branchId] effect already loaded the board.
+            if (isFirstConnectRef.current) {
+                isFirstConnectRef.current = false;
+            } else {
+                fetchActiveOrders(branchId)
+                    .then(resynced => { if (!cancelled) setOrders(resynced); })
+                    .catch(err => logger.error('Order resync on reconnect failed:', err));
+            }
         });
 
         return () => {
