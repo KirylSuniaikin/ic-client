@@ -1,6 +1,9 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { renderHook, act } from "@testing-library/react";
-import type { StompSubscription, StompHeaders } from "@stomp/stompjs";
+import type { RenderHookResult } from "@testing-library/react";
+import type { StompSubscription, StompHeaders, IMessage } from "@stomp/stompjs";
+import type { Order } from "../../../order/types";
+import type { UseAdminOrdersResult } from "./useAdminOrders";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/socket.ts
 jest.mock("../../../../shared/api/socket");
@@ -92,5 +95,109 @@ describe("useAdminOrders — subscription lifecycle", () => {
         });
 
         expect(mockConnectSocket).not.toHaveBeenCalled();
+    });
+});
+
+describe("useAdminOrders — resync on reconnect", () => {
+    const stopSound = jest.fn<void, []>();
+
+    beforeEach(() => {
+        mockSubscribe.mockImplementation(() => makeSub("s"));
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+        mockGetAllActiveOrders.mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("does not re-fetch the order list on the first connect", async () => {
+        // onConnect fires once (first connect) — the initial [branchId] effect already loaded
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        expect(mockGetAllActiveOrders).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-fetches the full order list on a reconnect", async () => {
+        let onConnect!: () => void;
+        mockConnectSocket.mockImplementation((cb: () => void) => {
+            onConnect = cb;
+            cb(); // first connect — skips resync
+            return jest.fn<void, []>();
+        });
+
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        await act(async () => {
+            onConnect(); // simulate a reconnect — should re-hydrate the board
+        });
+
+        expect(mockGetAllActiveOrders).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("useAdminOrders — forward-only status guard", () => {
+    const stopSound = jest.fn<void, []>();
+    const STATUS_TOPIC = "/topic/branch-1/order-status-updated";
+    let handlers: Record<string, (msg: IMessage) => void>;
+
+    // Minimal Order shape; only id/status are read by the status handler. Cast through
+    // unknown — building a full Order is unnecessary for these transition assertions.
+    const orderWith = (id: number, status: string): Order =>
+        ({ id, status } as unknown as Order);
+
+    const sendStatus = (id: number, status: string): void => {
+        // Only .body is read by the handler; cast the partial frame to IMessage.
+        handlers[STATUS_TOPIC]({ body: JSON.stringify({ orderId: id, status }) } as unknown as IMessage);
+    };
+
+    beforeEach(() => {
+        handlers = {};
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockImplementation((destination: string, cb: (msg: IMessage) => void) => {
+            handlers[destination] = cb;
+            return makeSub(destination);
+        });
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("ignores a stale 'Oven' frame that arrives after 'Ready'", async () => {
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Ready")]);
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendStatus(7, "Oven"));
+
+        expect(view.result.current.orders[0].status).toBe("Ready");
+    });
+
+    it("applies a forward 'Ready' frame over 'Oven'", async () => {
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Oven")]);
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendStatus(7, "Ready"));
+
+        expect(view.result.current.orders[0].status).toBe("Ready");
     });
 });
