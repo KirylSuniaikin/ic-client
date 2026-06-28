@@ -2,6 +2,7 @@ import { Box, Typography, IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 type Props = {
     unavailableItems: string[];
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function UnavailablePopup({ unavailableItems, open, onClose, message, standalone }: Props) {
+    const { t } = useTranslation("menu");
     if (!open) return null;
 
     return (
@@ -69,7 +71,7 @@ export function UnavailablePopup({ unavailableItems, open, onClose, message, sta
                     mb: 2,
                 }}
             >
-                {message ?? "Some items are no longer available"}
+                {message ?? t("unavailable.defaultMessage")}
             </Typography>
 
             {/* Unavailable item chips */}
@@ -101,8 +103,8 @@ export function UnavailablePopup({ unavailableItems, open, onClose, message, sta
             </Box>
 
             {/* Sub-text */}
-            <Typography sx={{ fontSize: 14, color: "#888", lineHeight: 1.6 }}>
-                These items have been removed from your cart.{"\n"}Feel free to continue with your remaining order.
+            <Typography sx={{ fontSize: 14, color: "#888", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                {t("unavailable.removedNotice")}
             </Typography>
         </Box>
     );

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Box, Typography, Fade } from "@mui/material";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
@@ -9,6 +10,7 @@ interface OrderConfirmedProps {
 }
 
 function OrderConfirmed({ open, duration = 1000, onClose }: OrderConfirmedProps): JSX.Element {
+    const { t } = useTranslation("checkout");
     const [visible, setVisible] = useState(open);
 
     useEffect(() => {
@@ -45,7 +47,7 @@ function OrderConfirmed({ open, duration = 1000, onClose }: OrderConfirmedProps)
             >
                 <CheckCircleIcon sx={{ fontSize: 40, color: "#4CAF50" }} />
                 <Typography variant="h6" sx={{ fontWeight: "bold", color: "#333" }}>
-                    Order Confirmed!
+                    {t("orderConfirmed")}
                 </Typography>
             </Box>
         </Fade>

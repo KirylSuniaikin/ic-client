@@ -1,0 +1,37 @@
+{
+    "blacklist": {
+        "notice": "You have been blacklisted. If this is a mistake, please call +97333607710"
+    },
+    "clientInfo": {
+        "title": "Enter your phone number to complete your order",
+        "country": "Country",
+        "phoneNumber": "Phone number",
+        "name": "Name",
+        "paymentMethod": "Payment Method",
+        "pickUpBranch": "Pick Up Branch",
+        "noteLabel": "Add a note to your order (optional)",
+        "checkoutTakeOut": "Checkout (Take Out)",
+        "errors": {
+            "onlyDigits": "Only digits are allowed",
+            "phoneLength": "Phone number must be exactly {{count}} digits",
+            "nameRequired": "Name is required"
+        }
+    },
+    "orderConfirmed": "Order Confirmed!",
+    "crossSell": {
+        "title": "Customers also buy",
+        "next": "Next"
+    },
+    "upsell": {
+        "offer": "{{product}} + Sauce + Drink just for {{price}}",
+        "productPizza": "Pizza",
+        "productDetroitBrick": "Detroit Brick",
+        "decline": "Next time",
+        "accept": "Yes, show me!"
+    },
+    "betterTogether": "Better together",
+    "pickUpReminder": {
+        "title": "This order for Pick Up only",
+        "action": "Place pick up order"
+    }
+}

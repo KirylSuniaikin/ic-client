@@ -1,8 +1,9 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal, Box, Typography, IconButton, Button } from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import type { CartItem, MenuItem } from "../../menu/types";
+import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 
 const brandRed = "#E44B4C";
@@ -21,6 +22,8 @@ interface CartPopupProps {
     isAdmin: boolean;
     handleDiscountChange: (item: CartItem, discount: number) => void;
     menuData: MenuItem[];
+    toppings?: Topping[];
+    extras?: ExtraIngr[];
     // Unavailable popup props — passed down from HomePage
     unavailablePopupOpen?: boolean;
     unavailableItems?: string[];
@@ -42,11 +45,14 @@ function CartPopup({
                        isAdmin,
                        handleDiscountChange,
                        menuData,
+                       toppings = [],
+                       extras = [],
                        unavailablePopupOpen = false,
                        unavailableItems = [],
                        unavailableMessage,
                        onCloseUnavailablePopup,
                    }: CartPopupProps): JSX.Element {
+    const { t } = useTranslation("cart");
     const totalPrice = items
         .reduce((acc, i) => {
             const discount = i.discountAmount || 0;
@@ -111,7 +117,7 @@ function CartPopup({
                             }}
                         />
                     </Box>
-                    <Typography variant="h5">Cart</Typography>
+                    <Typography variant="h5">{t("title")}</Typography>
                 </Box>
 
                 {/* Items list */}
@@ -129,6 +135,8 @@ function CartPopup({
                             isAdmin={isAdmin}
                             handleDiscountChange={handleDiscountChange}
                             menuData={menuData}
+                            toppings={toppings}
+                            extras={extras}
                         />
                     ))}
                 </Box>
@@ -150,7 +158,7 @@ function CartPopup({
                         color="text.secondary"
                         sx={{ color: "#000" }}
                     >
-                        Total(VAT incl.)
+                        {t("totalVatIncl")}
                     </Typography>
                     <Typography variant="h6" fontWeight="bold" sx={{ color: "#000" }}>
                         {totalPrice}
@@ -182,7 +190,7 @@ function CartPopup({
                             "&:hover": { backgroundColor: brandRed },
                         }}
                     >
-                        Checkout (Take Out Only)
+                        {t("checkoutTakeOutOnly")}
                     </Button>
                 </Box>
 

@@ -1,0 +1,10 @@
+{
+  "title": "السلة",
+  "totalVatIncl": "الإجمالي (شامل الضريبة)",
+  "checkoutTakeOutOnly": "إتمام الطلب (استلام فقط)",
+  "discount": "خصم",
+  "extras": {
+    "thinDough": "عجينة رقيقة",
+    "garlicCrust": "حافة بالثوم"
+  }
+}

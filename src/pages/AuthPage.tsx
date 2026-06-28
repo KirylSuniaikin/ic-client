@@ -8,6 +8,7 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import * as React from "react";
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import {useAuth} from "../domains/auth/context/AuthProvider";
+import { LtrBoundary } from "../shared/components/LtrBoundary";
 const brandRed = "#E44B4C";
 const brandRedHover = "#CC4344";
 const brandGray = "#f3f3f3";
@@ -59,7 +60,7 @@ export function AuthPage() {
     }
 
     return (
-        <>
+        <LtrBoundary>
             <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: brandWhite }}>
 
                 <Box
@@ -200,6 +201,6 @@ export function AuthPage() {
                 message={errorMessage}
                 severity="error"
                 handleClose={() => setErrorSnackBarOpen(false)}/>
-        </>
+        </LtrBoundary>
     );
 }

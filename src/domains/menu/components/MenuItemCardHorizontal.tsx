@@ -1,5 +1,6 @@
 import { logger } from "../../../shared/utils/logger";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Card,
     CardContent,
@@ -11,6 +12,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../../../shared/components/typography";
+import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
 import type { Group, CartItem, MenuItem } from '../types';
 
 // Group at runtime always carries `category` and `isAvailable` (MenuGroup is a superset of Group).
@@ -46,8 +48,13 @@ function MenuItemCardHorizontal({
                                     cartItems,
                                     isAdmin
                                 }: MenuItemCardHorizontalProps): JSX.Element | null {
+    const { t } = useTranslation("menu");
+    const { name: localizeName } = useLocalizedItem();
     const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
     const { name, price, photo, is_best_seller } = defaultItem;
+    // Display-only: Arabic when active (falls back to English when name_ar is null).
+    // `name` stays the canonical English value used for cart matching below.
+    const displayName = localizeName(defaultItem);
     const is_ramadan = defaultItem.category === "Ramadan";
     const isAvailable = group.isAvailable;
     const displayPrice = `${price}`;
@@ -127,7 +134,7 @@ function MenuItemCardHorizontal({
                             letterSpacing: 0.5,
                         }}
                     >
-                        Bestseller
+                        {t("card.bestseller")}
                     </Box>
                 )}
 
@@ -148,14 +155,14 @@ function MenuItemCardHorizontal({
                             letterSpacing: 0.5,
                         }}
                     >
-                        25 min
+                        {t("card.ramadanTime")}
                     </Box>
                 )}
 
                 <CardMedia
                     component="img"
                     image={photo}
-                    alt={name}
+                    alt={displayName}
                     sx={{
                         width: "100%",
                         height: 180,
@@ -192,7 +199,7 @@ function MenuItemCardHorizontal({
                                 pointerEvents: "none",
                             }}
                         >
-                            SOLD OUT
+                            {t("card.soldOut")}
                         </Box>
                     </>
                 )}
@@ -210,7 +217,7 @@ function MenuItemCardHorizontal({
                         minHeight: "2.6em",
                     }}
                 >
-                    {name}
+                    {displayName}
                 </TextTitle>
 
                 <Box
@@ -244,7 +251,7 @@ function MenuItemCardHorizontal({
                                 minWidth: 70,
                             }}
                         >
-                            SELECT
+                            {t("card.select")}
                         </TextTitleWithoutVariant>
                     ) : (
                         cartItem ? (

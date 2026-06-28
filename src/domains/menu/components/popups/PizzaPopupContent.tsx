@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {
     Modal,
     Box,
@@ -14,6 +15,8 @@ import * as PropTypes from "prop-types";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import {ToppingsScroll} from "../ToppingsScroll";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
+import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
+import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
 import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from '../../types';
 
 
@@ -64,6 +67,8 @@ function PizzaPopup({
                         isSDoughAvailable,
                         isAdmin
                     }: PizzaPopupProps): JSX.Element | null {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [loading, setLoading] = useState(true);
     const [item, setItem] = useState<MenuItem | null>(null);
     const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -348,7 +353,7 @@ function PizzaPopup({
 
                     <img
                             src={item.photo}
-                            alt={item.name}
+                            alt={localizeName(item)}
                             style={{width: "100%", height: "100%", objectFit: "contain"}}
                         />
                     </Box>
@@ -362,7 +367,7 @@ function PizzaPopup({
                         }}
                     >
                         <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
-                            {item.name}
+                            {localizeName(item)}
                         </Typography>
 
                         <TogglesWithQuantity
@@ -376,7 +381,7 @@ function PizzaPopup({
                         />
 
                         <TextField
-                            label="Add a note"
+                            label={t("pizzaPopup.addNote")}
                             fullWidth
                             multiline
                             rows={2}
@@ -387,7 +392,7 @@ function PizzaPopup({
                         />
 
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            Customize as you like it
+                            {t("pizzaPopup.customize")}
                         </Typography>
 
                         <Box
@@ -450,10 +455,10 @@ function PizzaPopup({
                                         lineHeight: 1.2
                                     }}
                                 >
-                                    Garlic Crust
+                                    {t("pizzaPopup.garlicCrust")}
                                 </Typography>
                                 <Typography variant="body2" sx={{mt: 1.2}}>
-                                    FREE
+                                    {t("pizzaPopup.free")}
                                 </Typography>
                             </Box>
                             {item.name === "Margherita" && <Box
@@ -501,10 +506,10 @@ function PizzaPopup({
                                         lineHeight: 1.2
                                     }}
                                 >
-                                    Cherry
+                                    {t("pizzaPopup.cherry")}
                                 </Typography>
                                 <Typography variant="body2" sx={{mt: 1.2}}>
-                                    FREE
+                                    {t("pizzaPopup.free")}
                                 </Typography>
                             </Box>
                             }
@@ -538,7 +543,7 @@ function PizzaPopup({
                                         {ingWithPhoto.photo ? (
                                             <img
                                                 src={ingWithPhoto.photo as string}
-                                                alt={ing.name}
+                                                alt={localizeName(ing)}
                                                 style={{
                                                     maxWidth: "100%",
                                                     height: 120,
@@ -568,7 +573,7 @@ function PizzaPopup({
                                                 lineHeight: 1.2
                                             }}
                                         >
-                                            {ing.name}
+                                            {localizeName(ing)}
                                         </Typography>
                                         <Typography variant="body2" sx={{mt: 0.5}}>
                                             +{ingWithPhoto.price as number}
@@ -579,7 +584,7 @@ function PizzaPopup({
                         </Box>
 
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            Drizzles
+                            {t("pizzaPopup.drizzles")}
                         </Typography>
 
                         <ToppingsScroll
@@ -598,7 +603,7 @@ function PizzaPopup({
                         {!isEditMode &&
                             <Box>
                                 <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                    About
+                                    {t("pizzaPopup.about")}
                                 </Typography>
                                 <Typography
                                     variant="body2"
@@ -609,7 +614,7 @@ function PizzaPopup({
                                         fontSize: "14px"
                                     }}
                                 >
-                                    {item.description}
+                                    {localizeDescription(item)}
                                 </Typography>
                             </Box>
                         }
@@ -688,7 +693,7 @@ function PizzaPopup({
                             }
                         }}
                     >
-                        Add · {getFinalPriceOnPopup()}
+                        {t("pizzaPopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
             </Box>
@@ -715,6 +720,7 @@ export function TogglesWithQuantity({
                                  showDoughSelector,
                                     isAdmin
                              }: TogglesWithQuantityProps): JSX.Element {
+    const optionLabel = useOptionLabel();
     const groupSx = {
         backgroundColor: brandGray,
         borderRadius: "9999px",
@@ -828,7 +834,7 @@ export function TogglesWithQuantity({
                 >
                     {["Traditional", "Thin"].map((label) => (
                         <ToggleButton key={label} value={label} sx={toggleBtnSx}>
-                            {label}
+                            {optionLabel(label)}
                         </ToggleButton>
                     ))}
                 </ToggleButtonGroup>

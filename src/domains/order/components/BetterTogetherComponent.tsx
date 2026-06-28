@@ -1,5 +1,6 @@
 import {MenuItem} from "../../menu/types";
 import {Box, Button, Typography} from "@mui/material";
+import {useTranslation} from "react-i18next";
 import React from "react";
 
 type BetterTogetherProps = {
@@ -13,10 +14,11 @@ const brandRed = "#E44B4C";
 const brandGray = "#F5F5F5";
 
 export function BetterTogetherComponent({betterTogether, selectedItems, increaseQuantityOnCrossSell, decreaseQuantityOnCrossSell}: BetterTogetherProps) {
+    const { t } = useTranslation("checkout");
     return (
         <Box>
             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                Better together
+                {t("betterTogether")}
             </Typography>
 
             <Box

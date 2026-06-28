@@ -1,8 +1,10 @@
 import {MenuItem} from "../../types";
 import {Box, Button, Fab, Modal, TextField, Typography} from "@mui/material";
 import React, {useState} from "react";
+import {useTranslation} from "react-i18next";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import CloseIcon from "@mui/icons-material/Close";
+import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import type { CartItem } from "../../types";
 
 type BaguettePizzaPopupProps = {
@@ -18,6 +20,8 @@ const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
 
 export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossSellItems, removeFromCart}: BaguettePizzaPopupProps) {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [notes, setNotes] = useState<string>("");
     const [quantity, setQuantity] = useState<number>(1);
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
@@ -143,7 +147,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                     }}>
                         <img
                             src={menuItem.photo}
-                            alt={menuItem.name}
+                            alt={localizeName(menuItem)}
                             style={{width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#fff"}}
                         />
                     </Box>
@@ -157,7 +161,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                         }}
                     >
                         <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
-                            {menuItem.name}
+                            {localizeName(menuItem)}
                         </Typography>
 
                         <Box
@@ -223,7 +227,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                         </Box>
 
                         <TextField
-                            label="Add a note"
+                            label={t("baguettePopup.addNote")}
                             fullWidth
                             multiline
                             rows={2}
@@ -242,7 +246,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
 
                         <Box>
                             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                About
+                                {t("baguettePopup.about")}
                             </Typography>
                             <Typography
                                 variant="body2"
@@ -253,7 +257,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                                     fontSize: "14px"
                                 }}
                             >
-                                {menuItem.description}
+                                {localizeDescription(menuItem)}
                             </Typography>
                         </Box>
                     </Box>
@@ -282,7 +286,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                             }
                         }}
                     >
-                        Add · {getFinalPriceOnPopup()} BHD
+                        {t("baguettePopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
             </Box>

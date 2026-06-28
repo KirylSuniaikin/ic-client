@@ -2,6 +2,7 @@ import React from "react";
 import {Box, Button, Modal, Typography} from "@mui/material";
 import Lottie from "lottie-react";
 import {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
 import sadManData from "../../../assets/animations/сrying-emoji-onclose.json";
 import {getTimeUntilNextOpening} from "../utils/getTimeUntilNextOpening";
 
@@ -15,15 +16,16 @@ interface ClosedPopupProps {
 }
 
 export default function ClosedPopup({ open, onClose }: ClosedPopupProps): JSX.Element {
+    const { t } = useTranslation("schedule");
     const [timeLeft, setTimeLeft] = useState("");
     const [nextOpeningMessage, setNextOpeningMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (!open) return;
         const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening();
-        setTimeLeft(hours === 0 && minutes === 0 ? "less than a minute" : `${hours}h ${minutes}m`);
+        setTimeLeft(hours === 0 && minutes === 0 ? t("closed.lessThanMinute") : `${hours}h ${minutes}m`);
         setNextOpeningMessage(nextOpeningMessage);
-    }, [open]);
+    }, [open, t]);
 
     return (
         <Modal open={open} onClose={onClose}>
@@ -45,12 +47,12 @@ export default function ClosedPopup({ open, onClose }: ClosedPopupProps): JSX.El
                 </Box>
 
                 <Typography variant="h6" sx={{ mt: -2, fontWeight: "bold", color: "#E44B4C" }}>
-                    Unfortunately we are closed right now
+                    {t("closed.title")}
                 </Typography>
 
                 {!nextOpeningMessage && (
                 <Typography sx={{ mt: 1.5, fontSize: 16 }}>
-                    But you can enjoy our pizza in:
+                    {t("closed.enjoyIn")}
                 </Typography>
                 )}
 
@@ -67,13 +69,13 @@ export default function ClosedPopup({ open, onClose }: ClosedPopupProps): JSX.El
                 )}
 
                 <Typography sx={{ mt: 3, fontSize: 14, color: "#888", fontWeight: 500 }}>
-                    Working hours:
+                    {t("closed.workingHours")}
                 </Typography>
 
                 <Box sx={{ mt: 1, fontSize: 14, lineHeight: 1.6 }}>
-                    <Typography>Mon, Tue, Wed, Sat — 14:00–00:00</Typography>
-                    <Typography>Thu, Fri — 15:30–01:00</Typography>
-                    <Typography>Sun — Closed</Typography>
+                    <Typography>{t("closed.hoursWeekdays")}</Typography>
+                    <Typography>{t("closed.hoursThuFri")}</Typography>
+                    <Typography>{t("closed.hoursSun")}</Typography>
                 </Box>
 
                 <Button
@@ -91,7 +93,7 @@ export default function ClosedPopup({ open, onClose }: ClosedPopupProps): JSX.El
                         }
                     }}
                 >
-                    See you soon!
+                    {t("closed.seeYouSoon")}
                 </Button>
             </Box>
         </Modal>

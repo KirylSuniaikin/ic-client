@@ -1,0 +1,65 @@
+{
+  "sections": {
+    "ramadanOffers": "عروض رمضان",
+    "bestsellers": "الأكثر مبيعاً",
+    "baguettePizzas": "بيتزا الباغيت",
+    "detroitBrickPizzas": "بيتزا ديترويت بريك",
+    "comboDeals": "عروض الكومبو",
+    "pizzas": "البيتزا",
+    "sides": "الأطباق الجانبية",
+    "sauces": "الصوصات",
+    "beverages": "المشروبات"
+  },
+  "card": {
+    "bestseller": "الأكثر مبيعاً",
+    "ramadanTime": "25 دقيقة",
+    "soldOut": "نفدت الكمية",
+    "select": "اختر"
+  },
+  "unavailable": {
+    "defaultMessage": "بعض الأصناف لم تعد متوفرة",
+    "removedNotice": "تمت إزالة هذه الأصناف من سلتك.\nيمكنك متابعة طلبك المتبقّي بكل أريحية."
+  },
+  "pizzaPopup": {
+    "addNote": "أضف ملاحظة",
+    "customize": "خصّصها حسب ذوقك",
+    "garlicCrust": "حافة بالثوم",
+    "cherry": "كرز",
+    "free": "مجاناً",
+    "drizzles": "رشّات الصوص",
+    "about": "نبذة",
+    "add": "أضف · {{price}}"
+  },
+  "genericPopup": {
+    "addNote": "أضف ملاحظة",
+    "betterTogether": "ألذّ معاً",
+    "add": "أضف · {{price}}"
+  },
+  "baguettePopup": {
+    "addNote": "أضف ملاحظة",
+    "about": "نبذة",
+    "add": "أضف · {{price}} د.ب"
+  },
+  "comboPopup": {
+    "add": "أضف · {{price}}",
+    "pick2Pizzas": "اختر بيتزتين"
+  },
+  "itemCard": {
+    "noItemAvailable": "لا يوجد صنف متاح",
+    "change": "تغيير",
+    "addNote": "أضف ملاحظة"
+  },
+  "itemEditor": {
+    "add": "أضف"
+  },
+  "options": {
+    "doughHeading": "العجينة",
+    "crustHeading": "الحافة",
+    "traditional": "تقليدية",
+    "thin": "رفيعة",
+    "traditionalDough": "عجينة تقليدية",
+    "thinDough": "عجينة رفيعة",
+    "classicCrust": "حافة كلاسيكية",
+    "garlicCrust": "حافة بالثوم"
+  }
+}

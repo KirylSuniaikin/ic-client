@@ -1,4 +1,5 @@
 import {Box, Button, Modal, Typography} from "@mui/material";
+import {useTranslation} from "react-i18next";
 import {useState} from "react";
 import type { MenuItem, CartItem } from '../../menu/types';
 
@@ -20,6 +21,7 @@ function CrossSellPopup({
                             crossSellItems = [],
                             onCheckout
                         }: CrossSellPopupProps): JSX.Element {
+    const { t } = useTranslation("checkout");
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
 
 
@@ -102,7 +104,7 @@ function CrossSellPopup({
                         px: 3
                     }}
                 >
-                    Customers also buy
+                    {t("crossSell.title")}
                 </Typography>
 
                 {[0, 1].map((rowIndex) => {
@@ -241,7 +243,7 @@ function CrossSellPopup({
                         }}
                         onClick={handleAdd}
                     >
-                        Next
+                        {t("crossSell.next")}
                     </Button>
                 </Box>
             </Box>

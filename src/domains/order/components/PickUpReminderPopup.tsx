@@ -1,4 +1,5 @@
 import {Box, Button, Stack, Typography} from "@mui/material";
+import {useTranslation} from "react-i18next";
 import PriorityHighRoundedIcon from '@mui/icons-material/PriorityHighRounded';
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
 }
 
 export function PickUpReminderPopup({onClose, onClick}: Props) {
+    const { t } = useTranslation("checkout");
     return (
         <Box
             onClick={onClose}
@@ -60,7 +62,7 @@ export function PickUpReminderPopup({onClose, onClick}: Props) {
 
                 <Stack direction="row" alignItems="center" gap={1}>
                     <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                        This order for Pick Up only
+                        {t("pickUpReminder.title")}
                     </Typography>
                 </Stack>
 
@@ -79,7 +81,7 @@ export function PickUpReminderPopup({onClose, onClick}: Props) {
                         "&:hover": { bgcolor: "#c93d3e" }
                     }}
                 >
-                    Place pick up order
+                    {t("pickUpReminder.action")}
                 </Button>
             </Stack>
         </Box>

@@ -1,5 +1,6 @@
 import {Box, Typography} from "@mui/material";
 import React from "react";
+import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
 
 type Props = {
     toppings: Topping[],
@@ -11,6 +12,7 @@ type Topping = {
     id: number,
     photo: string,
     name: string,
+    name_ar?: string | null,
     price: number,
     available: boolean,
 }
@@ -18,6 +20,7 @@ type Topping = {
 const brandRed = "#E44B4C";
 
 export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedToppings}: Props) {
+    const {name: localizeName} = useLocalizedItem();
     const handleToggleIngr = (name: string) => {
         if (selectedToppings.includes(name)) {
             onUpdateSelectedToppings((prev) => prev.filter((x) => x !== name));
@@ -71,7 +74,7 @@ export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedTopp
                         {topping.photo ? (
                             <img
                                 src={topping.photo}
-                                alt={topping.name}
+                                alt={localizeName(topping)}
                                 style={{
                                     maxWidth: "100%",
                                     height: 120,
@@ -101,7 +104,7 @@ export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedTopp
                                 lineHeight: 1.2
                             }}
                         >
-                            {topping.name}
+                            {localizeName(topping)}
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5}}>
                             +{topping.price}

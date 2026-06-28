@@ -27,6 +27,7 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
+import { LtrBoundary } from "../shared/components/LtrBoundary";
 
 function AdminHomePage(): JSX.Element {
     const { username, branchId, userId, role, logout } = useAuth();
@@ -54,6 +55,7 @@ function AdminHomePage(): JSX.Element {
     const branchForComponents = selectedBranch ? { ...selectedBranch, id: String(selectedBranch.id) } : null; // id: string for History/Config
     const handlePaymentSuccess = (orderId: string): void => setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: true } : o));
     return (
+        <LtrBoundary>
         <div className="p-4 max-w-4xl mx-auto">
             {ui.cashWarning && (
                 <Box sx={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 2000, width: '90%', maxWidth: 480 }}>
@@ -112,6 +114,7 @@ function AdminHomePage(): JSX.Element {
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />
             <ErrorSnackbar open={doughAlertOpen} message={doughAlertMessage} severity="error" handleClose={clearDoughAlert} />
         </div>
+        </LtrBoundary>
     );
 }
 

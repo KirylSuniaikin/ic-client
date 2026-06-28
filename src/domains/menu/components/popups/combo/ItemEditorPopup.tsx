@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Box,
     Typography,
@@ -6,6 +7,7 @@ import {
     IconButton,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
 import type { MenuItem } from '../../../types';
 
 const brandRed = "#E44B4C";
@@ -30,6 +32,8 @@ interface ItemEditorPopupProps {
 }
 
 function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust, initialItem }: ItemEditorPopupProps): JSX.Element | null {
+    const { t } = useTranslation("menu");
+    const {name: localizeName} = useLocalizedItem();
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(initialItem || items[0]);
 
     function handleConfirm(): void {
@@ -117,7 +121,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                 <Box
                                     component="img"
                                     src={it.photo}
-                                    alt={it.name}
+                                    alt={localizeName(it)}
                                     sx={{
                                         width: "100%",
                                         height: "auto",
@@ -130,7 +134,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                     }}
                                 />
                                     <Typography sx={{ mt: 1, fontWeight: 500 }}>
-                                        {it.name}
+                                        {localizeName(it)}
                                     </Typography>
                             </Box>
                         );
@@ -155,7 +159,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                     }}
                     onClick={handleConfirm}
                 >
-                    Add
+                    {t("itemEditor.add")}
                 </Button>
             </Box>
         </Box>

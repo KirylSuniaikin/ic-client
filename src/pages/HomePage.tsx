@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge, Box, IconButton } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import CloseIcon from "@mui/icons-material/Close";
@@ -14,6 +15,9 @@ import HeroSection from "./HeroSection";
 import { groupItemsByCategory, groupAvailableItemsByName } from "../shared/utils/menuUtils";
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 import { TextButton } from "../shared/components/typography";
+import { LtrBoundary } from "../shared/components/LtrBoundary";
+import { ScrollHintArrow } from "../domains/kiosk/components/ScrollHintArrow";
+import { enI18n } from "../shared/i18n";
 import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
 
@@ -32,6 +36,21 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const adminBranchId = searchParams.get('branchId');
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const navigate = useNavigate();
+    // Anchor at the top of the menu list; the kiosk scroll-hint arrow smooth-scrolls to it.
+    const menuTopRef = useRef<HTMLDivElement>(null);
+    // Kiosk runs in one long-lived tab, so sessionStorage (per-session scroll hints) would persist
+    // across customers. Clear it once on kiosk start so each customer gets a fresh session. Done in
+    // render (before child effects read sessionStorage), guarded by a ref so it runs only once.
+    const kioskSessionCleared = useRef(false);
+    if (isKiosk && !kioskSessionCleared.current) {
+        kioskSessionCleared.current = true;
+        try { sessionStorage.clear(); } catch { /* storage unavailable (private mode) — ignore */ }
+    }
+    const { t } = useTranslation(["home", "common"]);
+    // Admin mode is English-only (the render is wrapped in LtrBoundary), but HomePage's own
+    // useTranslation runs outside that boundary — resolve top-level strings against the English
+    // instance so they aren't localized to the customer's stored Arabic preference.
+    const tr = isAdmin ? enI18n.t : t;
 
     const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId });
     const cart = useCart(menu.menuData, isAdmin);
@@ -60,7 +79,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     }, [cart.cartItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (menu.loading || checkout.checkoutLoading) return <PizzaLoader />;
-    if (menu.error) return <div>Error: {menu.error}</div>;
+    if (menu.error) return <div>{tr("home:error", { message: menu.error })}</div>;
 
     const availableGroups = groupAvailableItemsByName(menu.menuData, isAdmin);
     localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
@@ -91,9 +110,12 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
 
     const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen;
 
-    return (
+    // Staff ordering (admin mode) is English-only and must not invert when an Arabic preference
+    // is stored in localStorage; the customer-facing flow stays language-dependent (RTL for Arabic).
+    const content = (
         <Box sx={{ backgroundColor: "#fbfaf6" }}>
             {!isAdmin && <HeroSection isKiosk={isKiosk} />}
+            <Box ref={menuTopRef} />
             <MenuSections
                 groups={groups}
                 handleOpenPopup={handleOpenPopup as (group: GroupWithCategory, item?: MenuItem) => void}
@@ -124,14 +146,17 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
             />
             {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && (
                 <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>
-                    {cart.totalPrice !== "0.00" && <Box sx={{ flexGrow: 1, textAlign: "center" }}><TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>{cart.totalPrice} BHD</TextButton></Box>}
+                    {cart.totalPrice !== "0.00" && <Box sx={{ flexGrow: 1, textAlign: "center" }}><TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>{cart.totalPrice} {tr("common:currency")}</TextButton></Box>}
                     <Badge badgeContent={cart.cartItems.length} color="error" sx={{ "& .MuiBadge-badge": { fontSize: "12px", height: "22px", minWidth: "22px", backgroundColor: brandRed, color: "white", top: 2, right: 2 } }}>
                         <ShoppingCartIcon sx={{ color: brandRed, fontSize: 32 }} />
                     </Badge>
                 </Box>
             )}
+            {isKiosk && <ScrollHintArrow targetRef={menuTopRef} />}
         </Box>
     );
+
+    return isAdmin ? <LtrBoundary>{content}</LtrBoundary> : content;
 }
 
 export default HomePage;

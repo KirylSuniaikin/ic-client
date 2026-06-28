@@ -1,0 +1,6 @@
+{
+  "hero": {
+    "tagline": "BETTER THAN YOU THINK"
+  },
+  "error": "Error: {{message}}"
+}

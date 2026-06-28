@@ -5,6 +5,11 @@ export type MenuItem = {
     id: number;
     is_best_seller: boolean;
     name: string;
+    // Arabic display variants (nullable — fall back to name/description). Display-only:
+    // the canonical English `name` is what goes into the cart and the order payload, so the
+    // kitchen/admin board always shows English. See shared/hooks/useLocalizedItem.
+    name_ar?: string | null;
+    description_ar?: string | null;
     photo: string;
     price: number;
     size: string;
@@ -30,10 +35,14 @@ export type CartItem = {
 
 export type ExtraIngr = {
     name: string;
+    // Arabic display name (nullable — falls back to `name`). Display-only; see useLocalizedItem.
+    name_ar?: string | null;
 }
 
 export type Topping = {
     name: string;
+    // Arabic display name (nullable — falls back to `name`). Display-only; see useLocalizedItem.
+    name_ar?: string | null;
 }
 
 export type ComboItem = {
