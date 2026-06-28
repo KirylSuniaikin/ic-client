@@ -1,0 +1,65 @@
+{
+  "sections": {
+    "ramadanOffers": "Ramadan Offers",
+    "bestsellers": "Bestsellers",
+    "baguettePizzas": "Baguette Pizzas",
+    "detroitBrickPizzas": "Detroit Brick Pizzas",
+    "comboDeals": "Combo Deals",
+    "pizzas": "Pizzas",
+    "sides": "Sides",
+    "sauces": "Sauces",
+    "beverages": "Beverages"
+  },
+  "card": {
+    "bestseller": "Bestseller",
+    "ramadanTime": "25 min",
+    "soldOut": "SOLD OUT",
+    "select": "SELECT"
+  },
+  "unavailable": {
+    "defaultMessage": "Some items are no longer available",
+    "removedNotice": "These items have been removed from your cart.\nFeel free to continue with your remaining order."
+  },
+  "pizzaPopup": {
+    "addNote": "Add a note",
+    "customize": "Customize as you like it",
+    "garlicCrust": "Garlic Crust",
+    "cherry": "Cherry",
+    "free": "FREE",
+    "drizzles": "Drizzles",
+    "about": "About",
+    "add": "Add · {{price}}"
+  },
+  "genericPopup": {
+    "addNote": "Add a note",
+    "betterTogether": "Better together",
+    "add": "Add · {{price}}"
+  },
+  "baguettePopup": {
+    "addNote": "Add a note",
+    "about": "About",
+    "add": "Add · {{price}} BHD"
+  },
+  "comboPopup": {
+    "add": "Add · {{price}}",
+    "pick2Pizzas": "Pick 2 Pizzas"
+  },
+  "itemCard": {
+    "noItemAvailable": "No item available",
+    "change": "Change",
+    "addNote": "Add a note"
+  },
+  "itemEditor": {
+    "add": "Add"
+  },
+  "options": {
+    "doughHeading": "Dough",
+    "crustHeading": "Crust",
+    "traditional": "Traditional",
+    "thin": "Thin",
+    "traditionalDough": "Traditional Dough",
+    "thinDough": "Thin Dough",
+    "classicCrust": "Classic Crust",
+    "garlicCrust": "Garlic Crust"
+  }
+}

@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 
@@ -41,6 +42,7 @@ interface ClientInfoPopupProps {
 }
 
 function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches}: ClientInfoPopupProps): JSX.Element {
+    const { t } = useTranslation("checkout");
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -71,15 +73,15 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
         if (!countryObj) return;
         const regex = /^\d+$/;
         if (!phoneDigits.match(regex)) {
-            setPhoneError("Only digits are allowed");
+            setPhoneError(t("clientInfo.errors.onlyDigits"));
             return;
         }
         if (phoneDigits.length !== countryObj.digits) {
-            setPhoneError(`Phone number must be exactly ${countryObj.digits} digits`);
+            setPhoneError(t("clientInfo.errors.phoneLength", { count: countryObj.digits }));
             return;
         }
         if (!name) {
-            setNameError("Name is required");
+            setNameError(t("clientInfo.errors.nameRequired"));
             return;
         }
         setPhoneError("");
@@ -114,12 +116,12 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
             >
                 <Box sx={{ p: 3 }}>
                     <Typography variant="h6" sx={{ mb: 3 }}>
-                        Enter your phone number to complete your order
+                        {t("clientInfo.title")}
                     </Typography>
 
                     <TextField
                         select
-                        label="Country"
+                        label={t("clientInfo.country")}
                         value={selectedCountry}
                         onChange={(e) => setSelectedCountry(e.target.value)}
                         fullWidth
@@ -134,7 +136,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     </TextField>
 
                     <TextField
-                        label="Phone number"
+                        label={t("clientInfo.phoneNumber")}
                         fullWidth
                         value={phoneDigits}
                         onChange={(e) => {
@@ -151,7 +153,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     />
 
                     <TextField
-                        label="Name"
+                        label={t("clientInfo.name")}
                         fullWidth
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -163,7 +165,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
 
                     <TextField
                         select
-                        label="Payment Method"
+                        label={t("clientInfo.paymentMethod")}
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         fullWidth
@@ -180,7 +182,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     {IS_MULTI_BRANCH_ENABLED &&
                         <TextField
                         select
-                        label="Pick Up Branch"
+                        label={t("clientInfo.pickUpBranch")}
                         value={selectedBranch}
                         onChange={(e) => setSelectedBranch(e.target.value as unknown as Branch)}
                         fullWidth
@@ -196,7 +198,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     }
 
                     <TextField
-                        label="Add a note to your order (optional)"
+                        label={t("clientInfo.noteLabel")}
                         fullWidth
                         multiline
                         rows={2}
@@ -229,7 +231,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                             "&:hover": { backgroundColor: "#d23f40" },
                         }}
                     >
-                        Checkout (Take Out)
+                        {t("clientInfo.checkoutTakeOut")}
                     </Button>
                 </Box>
             </Box>

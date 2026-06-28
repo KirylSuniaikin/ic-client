@@ -1,10 +1,12 @@
 import {Box, Card, CardContent,Grid, Typography} from "@mui/material";
 import React from "react";
+import {TrendChip} from "./performance/TrendChip";
 
 interface StatItem {
     label: string;
     value: string | number;
     subValue?: string;
+    previousValue?: number; // when set and value is numeric, renders a vs-previous trend
 }
 
 export const PlatformStatCard = ({ title, items }: { title: string; items: StatItem[] }) => {
@@ -38,14 +40,21 @@ export const PlatformStatCard = ({ title, items }: { title: string; items: StatI
                                     {item.label}
                                 </Typography>
 
-                                <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1 }}>
-                                    {item.value}
-                                    {item.subValue && (
-                                        <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                                            {item.subValue}
-                                        </Typography>
+                                {/* Amount and its trend on one row — trend sits to the right of
+                                    the value rather than stacked beneath it. */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
+                                    <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1 }}>
+                                        {item.value}
+                                        {item.subValue && (
+                                            <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                                                {item.subValue}
+                                            </Typography>
+                                        )}
+                                    </Typography>
+                                    {item.previousValue != null && typeof item.value === "number" && (
+                                        <TrendChip current={item.value} previous={item.previousValue} />
                                     )}
-                                </Typography>
+                                </Box>
                             </Box>
                         </Grid>
                     ))}

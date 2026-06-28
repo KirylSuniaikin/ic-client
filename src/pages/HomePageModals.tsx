@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
 import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaComboPopup";
@@ -50,6 +51,7 @@ export default function HomePageModals({
     branchSelector, setBranchSelector, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId,
 }: HomePageModalsProps): JSX.Element {
+    const { t } = useTranslation("checkout");
 
     function openPizzaEditPopUp(item: CartItem): void {
         cart.setEditItem(item);
@@ -209,6 +211,8 @@ export default function HomePageModals({
                     isAdmin={isAdmin}
                     handleDiscountChange={cart.handleDiscountChange}
                     menuData={menuData}
+                    toppings={toppings}
+                    extras={extraIngredients}
                     unavailablePopupOpen={checkout.unavailablePopupOpen}
                     unavailableItems={checkout.unavailableItems}
                     unavailableMessage={checkout.unavailableMessage}
@@ -260,7 +264,7 @@ export default function HomePageModals({
             {checkout.blacklistSnackBarOpen && (
                 <ErrorSnackbar
                     open={checkout.blacklistSnackBarOpen}
-                    message="You have been blacklisted. If this is a mistake, please call +97333607710"
+                    message={t("blacklist.notice")}
                     severity="error"
                     handleClose={() => checkout.setBlacklistSnackBarOpen(false)}
                     duration={10000}

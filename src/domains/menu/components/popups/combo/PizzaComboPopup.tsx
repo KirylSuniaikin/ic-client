@@ -7,9 +7,11 @@ import {
     ToggleButton, Fab,
 } from "@mui/material";
 import React, {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
 import CloseIcon from "@mui/icons-material/Close";
+import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
 import type {MenuItem, CartItem, Group} from '../../../types';
 
 const brandRed = "#E44B4C";
@@ -65,6 +67,8 @@ export function PizzaComboPopup({
                                     isSDoughAvailable,
                                     isAdmin,
                                 }: PizzaComboPopupProps): JSX.Element {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [selectedSize, setSelectedSize] = useState<string>(() => {
         if (isEditMode && editItem) {
             return editItem.size.trim();
@@ -313,7 +317,7 @@ export function PizzaComboPopup({
                                 <Box
                                     component="img"
                                     src={sizeItem.photo}
-                                    alt={sizeItem.name}
+                                    alt={localizeName(sizeItem)}
                                     sx={{
                                         width: "100%",
                                         height: "auto",
@@ -331,10 +335,10 @@ export function PizzaComboPopup({
                                 fontWeight="bold"
                                 sx={{fontSize: "18px", mb: 0.5}}
                             >
-                                {sizeItem?.name}
+                                {sizeItem ? localizeName(sizeItem) : ""}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                {sizeItem?.description}
+                                {sizeItem ? localizeDescription(sizeItem) : ""}
                             </Typography>
                         </Box>
 
@@ -445,7 +449,7 @@ export function PizzaComboPopup({
                                 }
                             }}
                         >
-                            Add · {basePrice.toFixed(2)}
+                            {t("comboPopup.add", {price: basePrice.toFixed(2)})}
                         </Button>
                     </Box>
                 </Box>

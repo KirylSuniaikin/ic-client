@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
     Box,
     Typography,
@@ -9,7 +10,13 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {Edit} from "@mui/icons-material";
-import type { CartItem, MenuItem as MenuItemType } from '../../menu/types';
+import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
+import { useOptionLabel } from "../../../shared/hooks/useOptionLabel";
+import type { CartItem, MenuItem as MenuItemType, Topping, ExtraIngr } from '../../menu/types';
+
+// Dough/crust values that can appear inside a customization description string (see the popups'
+// getDesc helpers). Their localized labels are token-replaced for display, value stays English.
+const OPTION_VALUES = ["Thin Dough", "Traditional Dough", "Garlic Crust", "Classic Crust", "Thin"];
 
 const brandGray = "#f3f3f3";
 const brandRed = "#E44B4C";
@@ -25,6 +32,10 @@ interface CartItemHorizontalProps {
     isAdmin: boolean;
     handleDiscountChange: (item: CartItem, discount: number) => void;
     menuData: MenuItemType[];
+    // Source toppings/extras (with Arabic names) used to localize the customization tokens
+    // baked into a cart line's description string. Default [] keeps the cart English-only.
+    toppings?: Topping[];
+    extras?: ExtraIngr[];
 }
 
 export const discountArray = Array.from({ length: 21 }, (_, i) => i * 5);
@@ -40,7 +51,45 @@ function CartItemHorizontal({
                                 isAdmin,
                                 handleDiscountChange,
                                 menuData,
+                                toppings = [],
+                                extras = [],
                             }: CartItemHorizontalProps): JSX.Element {
+    const { t } = useTranslation("cart");
+    const { name: localizeName, description: localizeDescription } = useLocalizedItem();
+    const optionLabel = useOptionLabel();
+    // CartItem stores only the canonical English name (used for order matching), so resolve the
+    // Arabic display name by looking the source MenuItem up in menuData. Falls back to the raw
+    // English name when the item isn't in menuData or has no name_ar.
+    const localizedName = (rawName: string): string => {
+        const source = menuData.find((m) => m.name === rawName);
+        return source ? localizeName(source) : rawName;
+    };
+
+    // English→localized lookup for topping/extra names + dough/crust options, longest first so a
+    // shorter token (e.g. "Thin") never partially overwrites a longer one (e.g. "Thin Dough").
+    const ingredientNames = [
+        ...[...toppings, ...extras].map((ingr) => [ingr.name, localizeName(ingr)] as const),
+        ...OPTION_VALUES.map((value) => [value, optionLabel(value)] as const),
+    ]
+        .filter(([raw, localized]) => localized !== raw)
+        .sort((a, b) => b[0].length - a[0].length);
+
+    // Customization descriptions are canonical English strings (also sent to the backend), so we
+    // localize only the topping/extra name tokens inside them for display — never the stored value.
+    const localizeTokens = (text: string): string =>
+        ingredientNames.reduce((acc, [raw, localized]) => acc.split(raw).join(localized), text);
+
+    // A cart line's description is either the menu item's own description (simple items) or a
+    // built-up customization string (pizzas/combos). Localize the former via description_ar and
+    // the latter via token replacement.
+    const localizeItemDescription = (cartItem: CartItem): string => {
+        const source = menuData.find((m) => m.name === cartItem.name);
+        if (source && cartItem.description === source.description) {
+            return localizeDescription(source);
+        }
+        return localizeTokens(cartItem.description);
+    };
+
     const discount = item.discountAmount || 0;
     const discountedPrice = item.amount * (1 - discount / 100);
     const itemTotal = (discountedPrice * item.quantity).toFixed(2);
@@ -51,15 +100,15 @@ function CartItemHorizontal({
                 <Box sx={{ mt: 1, ml: 1 }}>
                     {cartItem.comboItems.map((ci, idx) => {
                         const extras: string[] = [];
-                        if (ci.isThinDough) extras.push("Thin Dough");
-                        if (ci.isGarlicCrust) extras.push("Garlic Crust");
+                        if (ci.isThinDough) extras.push(t("extras.thinDough"));
+                        if (ci.isGarlicCrust) extras.push(t("extras.garlicCrust"));
 
                         if (ci.description) {
                             ci.description
                                 .split("+")
                                 .map((s) => s.trim())
                                 .filter(Boolean)
-                                .forEach((s) => extras.push(s));
+                                .forEach((s) => extras.push(localizeTokens(s)));
                         }
 
                         return (
@@ -68,7 +117,7 @@ function CartItemHorizontal({
                                 variant="body2"
                                 sx={{ ml: 1 }}
                             >
-                                • <strong>{ci.name}</strong>
+                                • <strong>{localizedName(ci.name)}</strong>
                                 {ci.size && ` (${ci.size})`}
                                 {extras.length > 0 && " + " + extras.join(" + ")}
                             </Typography>
@@ -79,15 +128,15 @@ function CartItemHorizontal({
         }
 
         const extras: string[] = [];
-        if (cartItem.isThinDough) extras.push("Thin Dough");
-        if (cartItem.isGarlicCrust) extras.push("Garlic Crust");
+        if (cartItem.isThinDough) extras.push(t("extras.thinDough"));
+        if (cartItem.isGarlicCrust) extras.push(t("extras.garlicCrust"));
 
         if (cartItem.description) {
             cartItem.description
                 .split("+")
                 .map((s) => s.trim())
                 .filter(Boolean)
-                .forEach((s) => extras.push(s));
+                .forEach((s) => extras.push(localizeTokens(s)));
         }
 
         return extras.length > 0 ? (
@@ -178,7 +227,7 @@ function CartItemHorizontal({
                     <CardMedia
                         component="img"
                         image={item.photo}
-                        alt={item.name}
+                        alt={localizedName(item.name)}
                         sx={{
                             width: 80,
                             height: 80,
@@ -190,11 +239,11 @@ function CartItemHorizontal({
 
                 <Box sx={{flex: 1, minWidth: 0, pr: "40px"}}>
                     <Typography variant="subtitle1" fontWeight="bold" sx={{color: "#000"}}>
-                        {item.name}
+                        {localizedName(item.name)}
                     </Typography>
                     {item.description && item.category !== "Combo Deals" ? (
                         <Typography variant="body2" sx={{color: "#555", mt: 0.5}}>
-                            {item.description}
+                            {localizeItemDescription(item)}
                         </Typography>
                     ) : (
                         renderItemDetails(item)
@@ -208,12 +257,12 @@ function CartItemHorizontal({
                 {isAdmin && (
                     <Box sx={{mt: 1}}>
                         <FormControl fullWidth sx={{mb: 2}}>
-                            <InputLabel id={`discount-label-${item.name}`}>Discount</InputLabel>
+                            <InputLabel id={`discount-label-${item.name}`}>{t("discount")}</InputLabel>
                             <Select
                                 size="small"
                                 labelId={`discount-label-${item.name}`}
                                 value={item.discountAmount ?? 0}
-                                label="Discount"
+                                label={t("discount")}
                                 MenuProps={{
                                     PaperProps: {
                                         sx: { zIndex: 2000 }

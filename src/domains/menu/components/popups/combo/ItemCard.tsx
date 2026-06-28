@@ -1,5 +1,8 @@
 import {Box, Button, TextField, ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
 import React from "react";
+import {useTranslation} from "react-i18next";
+import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
+import {useOptionLabel} from "../../../../../shared/hooks/useOptionLabel";
 import type { MenuItem } from '../../../types';
 
 const brandRed = "#E44B4C";
@@ -29,6 +32,9 @@ export function ItemCard ({ item,
                               setDescription,
                               showDoughSelector,
                             }: ItemCardProps): JSX.Element {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
+    const optionLabel = useOptionLabel();
 
     if (!item) {
         return (
@@ -45,7 +51,7 @@ export function ItemCard ({ item,
                     minHeight: 120,
                 }}
             >
-                <Typography color="text.secondary">No item available</Typography>
+                <Typography color="text.secondary">{t("itemCard.noItemAvailable")}</Typography>
             </Box>
         );
     }
@@ -62,7 +68,7 @@ export function ItemCard ({ item,
             <Box sx={{ display: "flex", alignItems: "flex-start" }}>
                 <img
                     src={item.photo}
-                    alt={item?.name}
+                    alt={localizeName(item)}
                     style={{
                         width: 120,
                         height: 120,
@@ -83,7 +89,7 @@ export function ItemCard ({ item,
                 >
                     <Box>
                         <Typography fontWeight="500" sx={{ mb: 0.5 }}>
-                            {item?.name}
+                            {localizeName(item)}
                         </Typography>
                         <Typography
                             variant="body2"
@@ -96,7 +102,7 @@ export function ItemCard ({ item,
                                 textOverflow: "ellipsis",
                             }}
                         >
-                            {item.description || " "}
+                            {localizeDescription(item) || " "}
                         </Typography>
                     </Box>
 
@@ -117,7 +123,7 @@ export function ItemCard ({ item,
                             }}
                             onClick={onChange}
                         >
-                            Change
+                            {t("itemCard.change")}
                         </Button>
                     )}
                 </Box>
@@ -136,7 +142,7 @@ export function ItemCard ({ item,
                             >
                                 {["Traditional Dough", "Thin Dough"].map((d) => (
                                     <ToggleButton key={d} value={d} sx={{ textTransform: "none", fontSize: "13px", justifyContent: "center", color: "#666", borderRadius: "9999px", height: 30, "&:hover": { backgroundColor: "transparent" }, "&.Mui-selected": { backgroundColor: "#fff", color: brandRed, boxShadow: "0 2px 4px rgba(0,0,0,0.25)", "&:hover": { backgroundColor: "#fff" }, }, }}>
-                                        {d}
+                                        {optionLabel(d)}
                                     </ToggleButton>
                                 ))}
                             </ToggleButtonGroup>
@@ -152,13 +158,13 @@ export function ItemCard ({ item,
                     >
                         {["Classic Crust", "Garlic Crust"].map((c) => (
                             <ToggleButton key={c} value={c} sx={{ textTransform: "none", fontSize: "13px", justifyContent: "center", color: "#666", borderRadius: "9999px", height: 30, "&:hover": { backgroundColor: "transparent" }, "&.Mui-selected": { backgroundColor: "#fff", color: brandRed, boxShadow: "0 2px 4px rgba(0,0,0,0.25)", "&:hover": { backgroundColor: "#fff" }, }, }}>
-                                {c}
+                                {optionLabel(c)}
                             </ToggleButton>
                         ))}
                     </ToggleButtonGroup>
 
                     <TextField
-                        label="Add a note"
+                        label={t("itemCard.addNote")}
                         fullWidth
                         multiline
                         rows={2}

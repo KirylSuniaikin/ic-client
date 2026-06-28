@@ -5,6 +5,7 @@ import {
     Button,
 } from "@mui/material";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { CartItem } from '../../menu/types';
 
 const brandRed = "#E44B4C";
@@ -30,6 +31,7 @@ export function UpsellPopup({
                                         photo,
                                         comboPrice
                                     }: UpsellPopupProps): JSX.Element | null {
+    const { t } = useTranslation("checkout");
     if (!upsellItem) return null;
 
     return (
@@ -71,7 +73,10 @@ export function UpsellPopup({
                 )}
 
                 <Typography variant="h6" color="bold" sx={{ mb: 3 }}>
-                    {upsellType === "pizza" ? "Pizza " : "Detroit Brick"} + Sauce + Drink just for {comboPrice}
+                    {t("upsell.offer", {
+                        product: upsellType === "pizza" ? t("upsell.productPizza") : t("upsell.productDetroitBrick"),
+                        price: comboPrice,
+                    })}
                 </Typography>
 
                 {/* Buttons */}
@@ -91,7 +96,7 @@ export function UpsellPopup({
                             fontSize: 16,
                         }}
                     >
-                        Next time
+                        {t("upsell.decline")}
                     </Button>
                     <Button
                         variant="contained"
@@ -109,7 +114,7 @@ export function UpsellPopup({
                             "&:hover": { backgroundColor: "#d23f40" },
                         }}
                     >
-                        Yes, show me!
+                        {t("upsell.accept")}
                     </Button>
                 </Box>
             </Box>

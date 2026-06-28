@@ -11,7 +11,10 @@ import {
     FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import {useTranslation} from "react-i18next";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
+import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
 import type { CartItem, Group } from '../../types';
 
 const brandRed = "#E44B4C";
@@ -39,6 +42,9 @@ function ComboPopup({
                         uniquePizzas = [],
                         onAddToCart
                     }: ComboPopupProps): JSX.Element | null {
+    const {t} = useTranslation("menu");
+    const {name: localizeName} = useLocalizedItem();
+    const optionLabel = useOptionLabel();
     const [loading, setLoading] = useState(true);
     const [item, setItem] = useState<import('../../types').MenuItem | null>(null);
     const [selectedSize, setSelectedSize] = useState("M");
@@ -267,7 +273,7 @@ function ComboPopup({
                     <Box sx={{width: "100%", height: 350, overflow: "hidden"}}>
                         <img
                             src={item.photo}
-                            alt={item.name}
+                            alt={localizeName(item)}
                             style={{width: "100%", height: "100%", objectFit: "cover"}}
                         />
                     </Box>
@@ -281,11 +287,11 @@ function ComboPopup({
                         }}
                     >
                         <Typography variant="h6" sx={{fontWeight: "bold", mb: 2}}>
-                            {item.name}
+                            {localizeName(item)}
                         </Typography>
 
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
-                            Pick 2 Pizzas
+                            {t("comboPopup.pick2Pizzas")}
                         </Typography>
 
                         {groupedPizzas.map(({pizza, configs}) => {
@@ -299,7 +305,7 @@ function ComboPopup({
                                         : "0 1px 3px rgba(0,0,0,0.15)"
                                 }}>
                                     <FormControlLabel
-                                        label={<Typography sx={{fontWeight: "bold"}}>{pizza.name}</Typography>}
+                                        label={<Typography sx={{fontWeight: "bold"}}>{localizeName(pizza)}</Typography>}
                                         control={<Checkbox
                                             checked={isSelected}
                                             onChange={(e) => handleTogglePizza(pizza.name, e.target.checked)}
@@ -347,7 +353,7 @@ function ComboPopup({
 
                                                     {/* Dough */}
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        Dough
+                                                        {t("options.doughHeading")}
                                                     </Typography>
                                                     <ToggleButtonGroup
                                                         exclusive
@@ -392,14 +398,14 @@ function ComboPopup({
                                                                     },
                                                                 }}
                                                             >
-                                                                {dough}
+                                                                {optionLabel(dough)}
                                                             </ToggleButton>
                                                         ))}
                                                     </ToggleButtonGroup>
 
                                                     {/* Crust */}
                                                     <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        Crust
+                                                        {t("options.crustHeading")}
                                                     </Typography>
                                                     <ToggleButtonGroup
                                                         exclusive
@@ -444,7 +450,7 @@ function ComboPopup({
                                                                     },
                                                                 }}
                                                             >
-                                                                {crust}
+                                                                {optionLabel(crust)}
                                                             </ToggleButton>
                                                         ))}
                                                     </ToggleButtonGroup>
@@ -531,7 +537,7 @@ function ComboPopup({
                             }
                         }}
                     >
-                        Add · {basePrice.toFixed(2)}
+                        {t("comboPopup.add", {price: basePrice.toFixed(2)})}
                     </Button>
                 </Box>
             </Box>

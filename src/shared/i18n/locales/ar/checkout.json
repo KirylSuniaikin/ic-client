@@ -1,0 +1,37 @@
+{
+    "blacklist": {
+        "notice": "لقد تم حظرك. إذا كان هذا خطأً، يُرجى الاتصال على ‎+97333607710"
+    },
+    "clientInfo": {
+        "title": "أدخل رقم هاتفك لإتمام طلبك",
+        "country": "الدولة",
+        "phoneNumber": "رقم الهاتف",
+        "name": "الاسم",
+        "paymentMethod": "طريقة الدفع",
+        "pickUpBranch": "فرع الاستلام",
+        "noteLabel": "أضف ملاحظة إلى طلبك (اختياري)",
+        "checkoutTakeOut": "إتمام الطلب (استلام)",
+        "errors": {
+            "onlyDigits": "يُسمح بالأرقام فقط",
+            "phoneLength": "يجب أن يتكوّن رقم الهاتف من {{count}} أرقام بالضبط",
+            "nameRequired": "الاسم مطلوب"
+        }
+    },
+    "orderConfirmed": "تم تأكيد الطلب!",
+    "crossSell": {
+        "title": "يشتري العملاء أيضاً",
+        "next": "التالي"
+    },
+    "upsell": {
+        "offer": "{{product}} + صوص + مشروب مقابل {{price}} فقط",
+        "productPizza": "بيتزا",
+        "productDetroitBrick": "ديترويت بريك",
+        "decline": "في المرة القادمة",
+        "accept": "نعم، أرني!"
+    },
+    "betterTogether": "ألذّ معاً",
+    "pickUpReminder": {
+        "title": "هذا الطلب للاستلام فقط",
+        "action": "تأكيد طلب الاستلام"
+    }
+}

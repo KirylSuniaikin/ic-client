@@ -5,10 +5,12 @@ import {
     Button,
 } from "@mui/material";
 import React, {useState} from "react";
+import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
 import CloseIcon from "@mui/icons-material/Close";
 import { Fab } from "@mui/material";
+import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
 import type { MenuItem, CartItem, Group } from '../../../types';
 
 const brandRed = "#E44B4C";
@@ -51,6 +53,8 @@ export function DetroitComboPopup({
                                       isEditMode,
                                       removeFromCart,
                                   }: DetroitComboPopupProps): JSX.Element | null {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [brick, setBrick] = useState<ItemConfig>(() => {
         if (isEditMode === false) {
             const found = bricks
@@ -217,7 +221,7 @@ export function DetroitComboPopup({
                                 <Box
                                     component="img"
                                     src={(comboGroup as MenuItem).photo}
-                                    alt={(comboGroup as MenuItem).name}
+                                    alt={localizeName(comboGroup as MenuItem)}
                                     sx={{
                                         width: "100%",
                                         height: "auto",
@@ -235,10 +239,10 @@ export function DetroitComboPopup({
                                 fontWeight="bold"
                                 sx={{fontSize: "18px", mb: 0.5}}
                             >
-                                {(comboGroup as MenuItem)?.name}
+                                {localizeName(comboGroup as MenuItem)}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                {(comboGroup as MenuItem)?.description}
+                                {localizeDescription(comboGroup as MenuItem)}
                             </Typography>
                         </Box>
 
@@ -285,7 +289,7 @@ export function DetroitComboPopup({
                                 }
                             }}
                         >
-                            Add · {basePrice.toFixed(2)}
+                            {t("comboPopup.add", {price: basePrice.toFixed(2)})}
                         </Button>
                     </Box>
                 </Box>

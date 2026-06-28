@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {
     Modal,
     Box,
@@ -7,6 +8,7 @@ import {
     Button, Checkbox, FormControlLabel, TextField
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import type { MenuItem, CartItem, ExtraIngr, Group } from '../../types';
 
 const brandRed = "#E44B4C";
@@ -29,6 +31,8 @@ function GenericItemPopupContent({
                                      onAddToCart,
                                      crossSellItems
 }: GenericItemPopupContentProps): JSX.Element | null {
+    const {t} = useTranslation("menu");
+    const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [item, setItem] = useState<MenuItem>(group.items[0]);
     const [quantity, setQuantity] = useState(1);
     const [description, setDescription] = useState("");
@@ -230,7 +234,7 @@ function GenericItemPopupContent({
                         overflow: "hidden"}}>
                         <img
                             src={item.photo}
-                            alt={item.name}
+                            alt={localizeName(item)}
                             style={{width: "100%", height: "100%", objectFit: "cover"}}
                         />
                     </Box>
@@ -245,7 +249,7 @@ function GenericItemPopupContent({
                         }}
                     >
                         <Typography variant="h6" sx={{fontWeight: "bold", mb: 1}}>
-                            {item.name}
+                            {localizeName(item)}
                         </Typography>
                         <Typography
                             variant="body2"
@@ -256,7 +260,7 @@ function GenericItemPopupContent({
                                 fontSize: "14px"
                             }}
                         >
-                            {item.description}
+                            {localizeDescription(item)}
                         </Typography>
                         {item.name === "Pizza Rolls" && (
                             <>
@@ -379,7 +383,7 @@ function GenericItemPopupContent({
                             <Box>
 
                                 <TextField
-                                    label="Add a note"
+                                    label={t("genericPopup.addNote")}
                                     fullWidth
                                     multiline
                                     rows={2}
@@ -390,7 +394,7 @@ function GenericItemPopupContent({
                                 />
 
                                 <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
-                                    Better together
+                                    {t("genericPopup.betterTogether")}
                                 </Typography>
 
                                 <Box
@@ -446,7 +450,7 @@ function GenericItemPopupContent({
                                                 {item.photo ? (
                                                     <img
                                                         src={item.photo}
-                                                        alt={item.name}
+                                                        alt={localizeName(item)}
                                                         style={{
                                                             maxWidth: "100%",
                                                             height: 120,
@@ -476,7 +480,7 @@ function GenericItemPopupContent({
                                                         lineHeight: 1.2
                                                     }}
                                                 >
-                                                    {item.name}
+                                                    {localizeName(item)}
                                                 </Typography>
                                                 {!active &&
                                                     <Typography variant="body2" sx={{mt: 1.2}}>
@@ -574,7 +578,7 @@ function GenericItemPopupContent({
                         }}
                         onClick={handleAdd}
                     >
-                        Add · {getFinalPriceOnPopup()}
+                        {t("genericPopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
             </Box>

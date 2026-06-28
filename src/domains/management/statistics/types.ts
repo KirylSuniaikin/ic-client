@@ -31,9 +31,28 @@ export type SellsByHourStat = {
     sellsByDay: Record<string, number>;
 };
 
+export type DateRangeState = {
+    startDate: Date;
+    endDate: Date;
+    key: string;
+};
+
 export type TopFiveProducts = {
     name: string;
     quantity: number;
+};
+
+export type PreviousPeriod = {
+    startDate: string;
+    finishDate: string;
+    totalRevenue: number;
+    totalOrders: number;
+    totalPickUpRevenue: number;
+    totalPickUpOrderCount: number;
+    totalTalabatRevenue: number;
+    totalTalabatOrders: number;
+    totalKeetaRevenue: number;
+    totalKeetaOrders: number;
 };
 
 export type StatsResponse = {
@@ -56,6 +75,10 @@ export type StatsResponse = {
     topProducts: TopFiveProducts[];
     totalKeetaOrders: number;
     totalKeetaRevenue: number;
+    previous?: PreviousPeriod;
+    // All-time average order preparation time in whole seconds (createdAt -> Ready).
+    // null when no order has a recorded prep time yet (legacy-only data).
+    averagePrepTimeSeconds: number | null;
 };
 
 export type ProductStatRow = {

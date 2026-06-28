@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Box } from "@mui/material";
 import SectionRow from "./SectionRow";
 import type { CartItem, MenuItem } from '../types';
@@ -25,18 +26,19 @@ export default function MenuSections({
     cartItems,
     isAdmin,
 }: MenuSectionsProps): JSX.Element {
+    const { t } = useTranslation("menu");
     const bestRef = useRef<HTMLDivElement | null>(null);
 
     const sections = [
-        { title: "Ramadan Offers", items: groups.ramadan as GroupWithCategory[] },
-        { title: "Bestsellers", items: groups.bestsellers as GroupWithCategory[], isBestSellerBlock: true },
-        { title: "Baguette Pizzas", items: groups.pizzaBaguettes as GroupWithCategory[] },
-        { title: "Detroit Brick Pizzas", items: groups.brickPizzas as GroupWithCategory[] },
-        { title: "Combo Deals", items: groups.combos as GroupWithCategory[] },
-        { title: "Pizzas", items: groups.pizzas as GroupWithCategory[] },
-        { title: "Sides", items: groups.sides as GroupWithCategory[] },
-        { title: "Sauces", items: groups.sauces as GroupWithCategory[] },
-        { title: "Beverages", items: groups.beverages as GroupWithCategory[] },
+        { title: t("sections.ramadanOffers"), items: groups.ramadan as GroupWithCategory[] },
+        { title: t("sections.bestsellers"), items: groups.bestsellers as GroupWithCategory[], isBestSellerBlock: true },
+        { title: t("sections.baguettePizzas"), items: groups.pizzaBaguettes as GroupWithCategory[] },
+        { title: t("sections.detroitBrickPizzas"), items: groups.brickPizzas as GroupWithCategory[] },
+        { title: t("sections.comboDeals"), items: groups.combos as GroupWithCategory[] },
+        { title: t("sections.pizzas"), items: groups.pizzas as GroupWithCategory[] },
+        { title: t("sections.sides"), items: groups.sides as GroupWithCategory[] },
+        { title: t("sections.sauces"), items: groups.sauces as GroupWithCategory[] },
+        { title: t("sections.beverages"), items: groups.beverages as GroupWithCategory[] },
     ].filter(s => s.items.length > 0);
 
     return (
