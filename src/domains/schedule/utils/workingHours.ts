@@ -2,7 +2,7 @@ type TimeRange = [string, string];
 type DaySchedule = TimeRange[] | null;
 
 export const workingHours: Record<string, DaySchedule> = {
-    "Monday": [["18:00", "23:59"]],
+    "Monday": [["15:00", "23:59"]],
     "Tuesday": [["15:00", "23:59"]],
     "Wednesday": [["15:00", "23:59"]],
     "Thursday": [["16:30", "01:30"]],
