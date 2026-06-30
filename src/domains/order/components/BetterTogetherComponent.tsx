@@ -2,23 +2,27 @@ import {MenuItem} from "../../menu/types";
 import {Box, Button, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import React from "react";
+import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
 
 type BetterTogetherProps = {
     betterTogether: MenuItem[],
     selectedItems: Record<string, number>,
     increaseQuantityOnCrossSell: (name: string) => void;
     decreaseQuantityOnCrossSell: (name: string) => void;
+    // Optional heading override; defaults to the shared "betterTogether" checkout label.
+    title?: string;
 }
 
 const brandRed = "#E44B4C";
 const brandGray = "#F5F5F5";
 
-export function BetterTogetherComponent({betterTogether, selectedItems, increaseQuantityOnCrossSell, decreaseQuantityOnCrossSell}: BetterTogetherProps) {
+export function BetterTogetherComponent({betterTogether, selectedItems, increaseQuantityOnCrossSell, decreaseQuantityOnCrossSell, title}: BetterTogetherProps) {
     const { t } = useTranslation("checkout");
+    const {name: localizeName} = useLocalizedItem();
     return (
         <Box>
             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                {t("betterTogether")}
+                {title ?? t("betterTogether")}
             </Typography>
 
             <Box
@@ -69,7 +73,7 @@ export function BetterTogetherComponent({betterTogether, selectedItems, increase
                             {item.photo ? (
                                 <img
                                     src={item.photo}
-                                    alt={item.name}
+                                    alt={localizeName(item)}
                                     style={{
                                         maxWidth: "100%",
                                         height: 120,
@@ -99,7 +103,7 @@ export function BetterTogetherComponent({betterTogether, selectedItems, increase
                                     lineHeight: 1.2
                                 }}
                             >
-                                {item.name}
+                                {localizeName(item)}
                             </Typography>
                             {!active &&
                                 <Typography variant="body2" sx={{mt: 1.2}}>
