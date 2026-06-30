@@ -2,6 +2,7 @@ import {Box, Button, Modal, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {useState} from "react";
 import type { MenuItem, CartItem } from '../../menu/types';
+import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -22,6 +23,7 @@ function CrossSellPopup({
                             onCheckout
                         }: CrossSellPopupProps): JSX.Element {
     const { t } = useTranslation("checkout");
+    const {name: localizeName} = useLocalizedItem();
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
 
 
@@ -150,7 +152,7 @@ function CrossSellPopup({
                                         {item.photo ? (
                                             <img
                                                 src={item.photo}
-                                                alt={item.name}
+                                                alt={localizeName(item)}
                                                 style={{
                                                     maxWidth: "100%",
                                                     height: 120,
@@ -178,7 +180,7 @@ function CrossSellPopup({
                                                 lineHeight: 1.2
                                             }}
                                         >
-                                            {item.name}
+                                            {localizeName(item)}
                                         </Typography>
 
                                         {!active && (
