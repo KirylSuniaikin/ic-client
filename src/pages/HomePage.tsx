@@ -86,7 +86,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const groups = groupItemsByCategory(availableGroups as Parameters<typeof groupItemsByCategory>[0]);
 
     function handleOpenCart(): void {
-        if (!isWithinWorkingHours() && !isAdmin) cart.setClosedPopupOpen(true);
+        if (!isWithinWorkingHours(menu.workingHours) && !isAdmin) cart.setClosedPopupOpen(true);
         else cart.setCartOpen(true);
     }
 
@@ -143,6 +143,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}
                 beverages={groups.beverages} sauces={groups.sauces}
                 isAdmin={isAdmin} adminBranchId={adminBranchId}
+                workingHours={menu.workingHours}
             />
             {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && (
                 <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>

@@ -11,6 +11,7 @@ import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { useCheckout } from "./useCheckout";
 import type { CartItem, MenuItem } from "../../menu/types";
 import type { Order } from "../types";
+import { BranchClosedError } from "../types";
 
 const mockCreateOrder = jest.mocked(createOrder);
 const mockCheckCustomer = jest.mocked(checkCustomer);
@@ -303,6 +304,23 @@ describe("useCheckout — executeOrderCreation", () => {
         });
 
         expect(result.current.errorSnackBarOpen).toBe(true);
+    });
+
+    it("opens error snackbar and refetches the menu when the branch is closed (423)", async () => {
+        mockCreateOrder.mockRejectedValue(new BranchClosedError("We're sorry, this branch is closed right now."));
+        const params = makeParams();
+
+        const { result } = renderHook(() => useCheckout(params));
+
+        await act(async () => {
+            await result.current.executeOrderCreation(
+                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
+                ITEMS,
+            );
+        });
+
+        expect(result.current.errorSnackBarOpen).toBe(true);
+        expect(params.refreshMenu).toHaveBeenCalled();
     });
 });
 

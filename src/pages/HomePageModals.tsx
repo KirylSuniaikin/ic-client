@@ -21,6 +21,7 @@ import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
+import type { WorkingHoursSchedule } from "../shared/api/management";
 
 const BRANCH_KEY = 'kiosk_branch_data';
 
@@ -43,13 +44,14 @@ interface HomePageModalsProps {
     sauces: Group[];
     isAdmin: boolean;
     adminBranchId: string | null;
+    workingHours?: WorkingHoursSchedule | null;
 }
 
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, refreshMenu,
-    pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId,
+    pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
 
@@ -220,7 +222,7 @@ export default function HomePageModals({
                 />
             )}
 
-            {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} />}
+            {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} workingHours={workingHours} />}
 
             {checkout.phonePopupOpen && (
                 <ClientInfoPopup

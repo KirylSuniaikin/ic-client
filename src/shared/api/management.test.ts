@@ -16,7 +16,10 @@ import {
     getDoughInventory,
     putDoughInventory,
     getBranchBalance,
+    getWorkingHours,
+    putWorkingHours,
 } from "./management";
+import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 
 const mockAuthFetch = jest.mocked(authFetch);
 
@@ -40,7 +43,7 @@ describe("fetchCurrentPrepPlan", () => {
     it("returns null when the server responds with 204 No Content", async () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-        const result = await fetchCurrentPrepPlan(1);
+        const result = await fetchCurrentPrepPlan("1");
 
         expect(result).toBeNull();
     });
@@ -54,7 +57,7 @@ describe("fetchCurrentPrepPlan", () => {
             })
         );
 
-        const result = await fetchCurrentPrepPlan(7);
+        const result = await fetchCurrentPrepPlan("7");
 
         expect(result).toEqual(plan);
     });
@@ -62,13 +65,13 @@ describe("fetchCurrentPrepPlan", () => {
     it("throws when the server responds with a non-ok status other than 204", async () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
 
-        await expect(fetchCurrentPrepPlan(99)).rejects.toThrow();
+        await expect(fetchCurrentPrepPlan("99")).rejects.toThrow();
     });
 
     it("calls the prep-plan/current endpoint with the branchId", async () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-        await fetchCurrentPrepPlan(42);
+        await fetchCurrentPrepPlan("42");
 
         const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
         expect(url).toContain("prep-plan/current");
@@ -88,7 +91,7 @@ describe("generatePrepPlan", () => {
             })
         );
 
-        await generatePrepPlan({ branchId: 1 });
+        await generatePrepPlan({ branchId: "1" });
 
         const [, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
         expect(init.method).toBe("POST");
@@ -103,18 +106,18 @@ describe("generatePrepPlan", () => {
             })
         );
 
-        await generatePrepPlan({ branchId: 5, fromDate: "2026-01-01", toDate: "2026-01-07" });
+        await generatePrepPlan({ branchId: "5", fromDate: "2026-01-01", toDate: "2026-01-07" });
 
         const [, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
-        const parsed = JSON.parse(init.body as string) as { branchId: number; fromDate: string };
-        expect(parsed.branchId).toBe(5);
+        const parsed = JSON.parse(init.body as string) as { branchId: string; fromDate: string };
+        expect(parsed.branchId).toBe("5");
         expect(parsed.fromDate).toBe("2026-01-01");
     });
 
     it("throws when the server responds with a non-ok status", async () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
 
-        await expect(generatePrepPlan({ branchId: 1 })).rejects.toThrow();
+        await expect(generatePrepPlan({ branchId: "1" })).rejects.toThrow();
     });
 });
 
@@ -380,5 +383,121 @@ describe("getBranchBalance", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(getBranchBalance("branch-42")).rejects.toThrow();
+    });
+});
+
+// ── getWorkingHours ───────────────────────────────────────────────────────────
+
+describe("getWorkingHours", () => {
+    it("returns null when server responds with 204", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        const result = await getWorkingHours("branch-1");
+
+        expect(result).toBeNull();
+    });
+
+    it("returns WorkingHoursResponse when server responds with 200", async () => {
+        const response: WorkingHoursResponse = {
+            branchId: "branch-1",
+            schedule: {
+                Sunday: { isOpen: false, shifts: [] },
+                Monday: { isOpen: true, shifts: [["15:00", "24:00"]] },
+                Tuesday: { isOpen: false, shifts: [] },
+                Wednesday: { isOpen: false, shifts: [] },
+                Thursday: { isOpen: false, shifts: [] },
+                Friday: { isOpen: false, shifts: [] },
+                Saturday: { isOpen: false, shifts: [] },
+            },
+            updatedAt: "2026-06-30T10:00:00Z",
+        };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(response), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await getWorkingHours("branch-1");
+
+        expect(result).toEqual(response);
+    });
+
+    it("throws when server responds with error status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(getWorkingHours("branch-1")).rejects.toThrow("HTTP 403");
+    });
+
+    it("calls the branch/working_hours endpoint with branchId in the query string", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await getWorkingHours("branch-abc");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("branch/working_hours");
+        expect(url).toContain("branchId=branch-abc");
+    });
+});
+
+// ── putWorkingHours ───────────────────────────────────────────────────────────
+
+describe("putWorkingHours", () => {
+    const payload: WorkingHoursRequest = {
+        branchId: "branch-1",
+        schedule: {
+            Sunday: { isOpen: false, shifts: [] },
+            Monday: { isOpen: true, shifts: [["15:00", "24:00"]] },
+            Tuesday: { isOpen: true, shifts: [["15:00", "24:00"]] },
+            Wednesday: { isOpen: true, shifts: [["15:00", "24:00"]] },
+            Thursday: { isOpen: true, shifts: [["16:30", "01:30"]] },
+            Friday: { isOpen: true, shifts: [["16:30", "01:30"]] },
+            Saturday: { isOpen: true, shifts: [["14:00", "24:00"]] },
+        },
+    };
+
+    it("calls authFetch with PUT method and JSON body", async () => {
+        const response: WorkingHoursResponse = {
+            branchId: "branch-1",
+            schedule: payload.schedule,
+            updatedAt: "2026-06-30T10:00:00Z",
+        };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(response), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await putWorkingHours(payload);
+
+        const [, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(init.method).toBe("PUT");
+        const parsed = JSON.parse(init.body as string) as WorkingHoursRequest;
+        expect(parsed.branchId).toBe("branch-1");
+    });
+
+    it("returns WorkingHoursResponse when server responds with 200", async () => {
+        const response: WorkingHoursResponse = {
+            branchId: "branch-1",
+            schedule: payload.schedule,
+            updatedAt: "2026-06-30T10:00:00Z",
+        };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(response), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await putWorkingHours(payload);
+
+        expect(result).toEqual(response);
+    });
+
+    it("throws when server responds with error status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(putWorkingHours(payload)).rejects.toThrow("HTTP 403");
     });
 });

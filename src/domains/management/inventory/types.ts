@@ -17,7 +17,8 @@ export interface IManagementResponse {
 }
 
 export interface IBranch {
-    id: number;
+    // Branch IDs are UUIDs (from the backend BranchTO); TS has no UUID primitive, so string.
+    id: string;
     externalId: string;
     branchNo: number;
     branchName: string;

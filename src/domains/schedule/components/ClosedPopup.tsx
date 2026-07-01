@@ -5,6 +5,7 @@ import {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import sadManData from "../../../assets/animations/сrying-emoji-onclose.json";
 import {getTimeUntilNextOpening} from "../utils/getTimeUntilNextOpening";
+import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
 // cast is needed because lottie-react expects AnimationConfigWithData['animationData']
 // but JSON modules are typed as `unknown` per global.d.ts
@@ -13,19 +14,20 @@ const sadMan = sadManData as object;
 interface ClosedPopupProps {
     open: boolean;
     onClose: () => void;
+    workingHours?: WorkingHoursSchedule | null;
 }
 
-export default function ClosedPopup({ open, onClose }: ClosedPopupProps): JSX.Element {
+export default function ClosedPopup({ open, onClose, workingHours }: ClosedPopupProps): JSX.Element {
     const { t } = useTranslation("schedule");
     const [timeLeft, setTimeLeft] = useState("");
     const [nextOpeningMessage, setNextOpeningMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (!open) return;
-        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening();
+        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening(workingHours);
         setTimeLeft(hours === 0 && minutes === 0 ? t("closed.lessThanMinute") : `${hours}h ${minutes}m`);
         setNextOpeningMessage(nextOpeningMessage);
-    }, [open, t]);
+    }, [open, t, workingHours]);
 
     return (
         <Modal open={open} onClose={onClose}>

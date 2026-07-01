@@ -1,6 +1,6 @@
 import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
-import {Box, Typography, Switch, Button} from "@mui/material";
+import {Box, Typography, Switch, Button, ToggleButton, ToggleButtonGroup} from "@mui/material";
 import {StompSubscription} from "@stomp/stompjs";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import {fetchBaseAppInfo, updateAvailability} from "../../../../shared/api/public";
@@ -13,6 +13,8 @@ import type {DoughInventory, DoughType} from "../../dough/types";
 import {getDoughInventory} from "../../../../shared/api/management";
 import DoughSection from "../../dough/components/DoughSection";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import {StaffRoles} from "../../../auth/types";
+import ScheduleView from "./ScheduleView";
 
 interface SelectedBranch {
     id: string;
@@ -24,6 +26,7 @@ interface ConfigComponentProps {
     isOpen: boolean;
     onClose: () => void;
     selectedBranch: SelectedBranch;
+    role: StaffRoles | null;
 }
 
 // Internal representation of a pending change before it's sent to the API
@@ -43,7 +46,7 @@ type MenuGroup = {
 
 type DoughAvailability = Record<string, boolean>;
 
-function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps): JSX.Element {
+function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponentProps): JSX.Element {
     const [isLoading, setIsLoading] = useState(false)
     const [groups, setGroups] = useState<MenuGroup[]>([]);
     const [originalGroups, setOriginalGroups] = useState<MenuGroup[]>([]);
@@ -52,6 +55,10 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
     const [inventoryBuffer, setInventoryBuffer] = useState<DoughInventory>({S: 0, M: 0, L: 0, Brick: 0});
     const [inventoryDirty, setInventoryDirty] = useState(false);
     const isSaveDisabled = changes.length === 0 && !inventoryDirty;
+    // "Schedule" tab is only available to MANAGER and SUPER_MANAGER.
+    const showScheduleToggle =
+        role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule">("Menu");
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
         M: true,
@@ -237,61 +244,122 @@ function ConfigComponent({isOpen, onClose, selectedBranch}: ConfigComponentProps
 
             <ManagementTopBar title="Config" onBack={onClose} />
 
-            <Box
-                sx={{
-                    flex: 1,
-                    overflowY: "auto",
-                    p: 2,
-                    pb: 4,
-                    "&::-webkit-scrollbar": { display: "none" }
-                }}
-            >
-                <DoughSection
-                    branchId={selectedBranch.id}
-                    inventory={inventoryBuffer}
-                    availability={doughAvailability}
-                    onInventoryChange={handleInventoryChange}
-                    onAvailabilityToggle={handleToggleDough}
-                    loading={isLoading}
-                />
+            {/* Toggle between Menu and Schedule tabs — only visible to MANAGER/SUPER_MANAGER */}
+            {showScheduleToggle && (
+                <Box sx={{
+                    px: 1, pt: 2, pb: 1,
+                    flexShrink: 0,
+                    backgroundColor: "#fbfaf6",
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap'
+                }}>
+                    <ToggleButtonGroup
+                        exclusive
+                        value={activeTab}
+                        // MUI types ToggleButtonGroup's onChange value as `any`; the buttons only
+                        // emit "Menu" | "Schedule", so we narrow it back at this boundary.
+                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule")}
+                        size="small"
+                        sx={{
+                            columnGap: 1,
+                            '& .MuiToggleButtonGroup-grouped': {
+                                border: '1px solid #e0e0e0',
+                                borderRadius: 999,
+                                margin: 0,
+                                '&:not(:first-of-type)': {
+                                    marginLeft: 0,
+                                    borderLeft: '1px solid #e0e0e0',
+                                },
+                            },
+                            '& .MuiToggleButton-root': {
+                                textTransform: 'none',
+                                px: 2,
+                            },
+                            '& .MuiToggleButton-root.Mui-selected': {
+                                backgroundColor: '#E44B4C',
+                                color: '#fff',
+                                borderColor: '#E44B4C',
+                                '&:hover': {backgroundColor: '#d23c3d', borderColor: '#d23c3d'},
+                            },
+                        }}
+                    >
+                        <ToggleButton value="Menu">Menu</ToggleButton>
+                        <ToggleButton value="Schedule">Schedule</ToggleButton>
+                    </ToggleButtonGroup>
+                </Box>
+            )}
 
-                <Typography variant="h5" sx={{ mt: 2, mb: 2, fontWeight: "bold" }}>
-                    Menu Availability
-                </Typography>
-                {groups.map(group => (
-                    <Box key={group.name} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", py: 1 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{group.name}</Typography>
-                        <Switch checked={group.enabled} onChange={() => handleToggleGroup(group.name)} color="primary" />
-                    </Box>
-                ))}
-            </Box>
-
-            <Box
-                sx={{
-                    p: 2,
-                    backgroundColor: "#fff",
-                    borderTop: "1px solid #eee",
-                }}
-            >
-                <Button
-                    onClick={handleSave}
-                    variant="contained"
-                    fullWidth
-                    disabled={isSaveDisabled}
+            {activeTab === "Schedule" ? (
+                <Box
                     sx={{
-                        backgroundColor: "#E44B4C",
-                        borderRadius: "999px",
-                        textTransform: "none",
-                        fontWeight: "bold",
-                        py: 1.25,
-                        fontSize: "1rem",
-                        '&:hover': {
-                            backgroundColor: '#c63b3c',
-                        },
-                    }}>
-                    Save
-                </Button>
-            </Box>
+                        flex: 1,
+                        overflowY: "auto",
+                        p: 2,
+                        pb: 4,
+                        "&::-webkit-scrollbar": { display: "none" }
+                    }}
+                >
+                    <ScheduleView selectedBranch={selectedBranch} role={role} />
+                </Box>
+            ) : (
+                <>
+                    <Box
+                        sx={{
+                            flex: 1,
+                            overflowY: "auto",
+                            p: 2,
+                            pb: 4,
+                            "&::-webkit-scrollbar": { display: "none" }
+                        }}
+                    >
+                        <DoughSection
+                            branchId={selectedBranch.id}
+                            inventory={inventoryBuffer}
+                            availability={doughAvailability}
+                            onInventoryChange={handleInventoryChange}
+                            onAvailabilityToggle={handleToggleDough}
+                            loading={isLoading}
+                        />
+
+                        <Typography variant="h5" sx={{ mt: 2, mb: 2, fontWeight: "bold" }}>
+                            Menu Availability
+                        </Typography>
+                        {groups.map(group => (
+                            <Box key={group.name} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", py: 1 }}>
+                                <Typography variant="body1" sx={{ fontWeight: 500 }}>{group.name}</Typography>
+                                <Switch checked={group.enabled} onChange={() => handleToggleGroup(group.name)} color="primary" />
+                            </Box>
+                        ))}
+                    </Box>
+
+                    <Box
+                        sx={{
+                            p: 2,
+                            backgroundColor: "#fff",
+                            borderTop: "1px solid #eee",
+                        }}
+                    >
+                        <Button
+                            onClick={handleSave}
+                            variant="contained"
+                            fullWidth
+                            disabled={isSaveDisabled}
+                            sx={{
+                                backgroundColor: "#E44B4C",
+                                borderRadius: "999px",
+                                textTransform: "none",
+                                fontWeight: "bold",
+                                py: 1.25,
+                                fontSize: "1rem",
+                                '&:hover': {
+                                    backgroundColor: '#c63b3c',
+                                },
+                            }}>
+                            Save
+                        </Button>
+                    </Box>
+                </>
+            )}
         </Box>
     );
 }

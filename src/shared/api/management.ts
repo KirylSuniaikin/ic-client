@@ -352,7 +352,7 @@ export async function getAccountingCategories(branchId: string, type?: Accountin
     return res.json();
 }
 
-export async function fetchCurrentPrepPlan(branchId: number): Promise<PrepPlanResponse | null> {
+export async function fetchCurrentPrepPlan(branchId: string): Promise<PrepPlanResponse | null> {
     const res = await authFetch(BASE_URL + `/prep-plan/current?branch_id=${branchId}`, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -404,3 +404,44 @@ export async function putDoughAvailability(
     return res.json();
 }
 
+// ── Working Hours ─────────────────────────────────────────────────────────────
+// Types co-located with their API handlers per architecture rules (§5.6).
+
+export type TimeRange = [string, string]; // ["HH:mm", "HH:mm"]
+export type DaySchedule = { isOpen: boolean; shifts: TimeRange[] };
+
+export type WorkingHoursSchedule = Record<
+    "Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday",
+    DaySchedule
+>;
+
+export type WorkingHoursResponse = {
+    branchId: string;
+    schedule: WorkingHoursSchedule;
+    updatedAt: string;
+};
+
+export type WorkingHoursRequest = {
+    branchId: string;
+    schedule: WorkingHoursSchedule;
+};
+
+export async function getWorkingHours(branchId: string): Promise<WorkingHoursResponse | null> {
+    const res = await authFetch(BASE_URL + "/branch/working_hours?branchId=" + branchId, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (res.status === 204) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function putWorkingHours(payload: WorkingHoursRequest): Promise<WorkingHoursResponse> {
+    const res = await authFetch(BASE_URL + "/branch/working_hours", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}

@@ -18,7 +18,8 @@ import type {
 import type { OrderStatusData } from '../../domains/order-status/types';
 import type { ShiftEventResponse } from '../types/EventTypes';
 import type { DoughInventoryAmounts } from '../../domains/management/dough/types';
-import { ItemsUnavailableError } from '../../domains/order/types';
+import { ItemsUnavailableError, BranchClosedError } from '../../domains/order/types';
+import type { BranchClosedResponse } from '../../domains/order/types';
 import type { StatsResponse } from '../../domains/management/statistics/types';
 
 export async function fetchBaseAppInfo(
@@ -66,6 +67,11 @@ export async function createOrder(order: CreateOrderRequest): Promise<Order> {
         },
         body: JSON.stringify(order)
     });
+
+    if (response.status === 423) {
+        const body = await response.json() as BranchClosedResponse;
+        throw new BranchClosedError(body.message);
+    }
 
     if (response.status === 409) {
         const body = await response.json() as Items409Response;

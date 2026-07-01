@@ -14,7 +14,7 @@ export type PrepPlanResponse = {
 };
 
 export type GeneratePrepPlanRequest = {
-    branchId: number;
+    branchId: string;
     fromDate?: string;
     toDate?: string;
 };

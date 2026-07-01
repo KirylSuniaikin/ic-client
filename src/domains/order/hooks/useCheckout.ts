@@ -3,7 +3,7 @@ import { useState, Dispatch, SetStateAction } from "react";
 import { NavigateFunction } from "react-router-dom";
 import { checkCustomer, createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
-import { ItemsUnavailableError } from "../types";
+import { ItemsUnavailableError, BranchClosedError } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 
@@ -128,6 +128,14 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             setCartOpen(false);
             if (!isKiosk) navigate("/order_status?order_id=" + response.id);
         } catch (error) {
+            if (error instanceof BranchClosedError) {
+                // Race: the branch closed between fetching base info and submitting.
+                // Apologise and refetch working hours (refreshMenu reloads base-app-info).
+                setErrorMessage(error.message);
+                setErrorSnackBarOpen(true);
+                refreshMenu().catch(() => {});
+                return;
+            }
             if (error instanceof ItemsUnavailableError) {
                 const removed = originalCartItems.filter(item => error.unavailableIds.includes(item.id));
                 const remaining = originalCartItems.filter(item => !error.unavailableIds.includes(item.id));
