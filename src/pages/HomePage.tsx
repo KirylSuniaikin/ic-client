@@ -140,7 +140,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     onClick={activeOrderIsland.handleClick}
                 />
             )}
-            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} hideTopBar={showActiveOrderCard} />}
+            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} />}
             <Box ref={menuTopRef} />
             <MenuSections
                 groups={groups}

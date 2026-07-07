@@ -2,6 +2,7 @@ import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import { workingHours, ramadanHours } from "./workingHours";
 import { isWithinWorkingHours } from "./isWithinWorkingHours";
 import { getTimeUntilNextOpening } from "./getTimeUntilNextOpening";
+import { getClosingTime } from "./getClosingTime";
 import type { DaySchedule, WorkingHoursSchedule } from "../../../shared/api/management";
 
 const ALL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -173,5 +174,57 @@ describe("getTimeUntilNextOpening", () => {
         expect(result.nextOpeningMessage).toBeNull();
         // There is a future shift (Tuesday 15:00 Bahrain), so time components are non-zero
         expect(result.hours > 0 || result.minutes > 0).toBe(true);
+    });
+});
+
+describe("getClosingTime", () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    it("returns null when schedule is null", () => {
+        expect(getClosingTime(null)).toBeNull();
+    });
+
+    it("returns null when schedule is undefined", () => {
+        expect(getClosingTime(undefined)).toBeNull();
+    });
+
+    it("returns the closing time of the shift currently in progress", () => {
+        // Pin to Monday 2026-01-05 at 10:00 UTC = 13:00 Bahrain; shift 00:00-22:00 covers now
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["00:00", "22:00"]] } });
+        expect(getClosingTime(schedule)).toBe("22:00");
+    });
+
+    it("maps an end-of-day 23:59 closing to 00:00 for display", () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["00:00", "23:59"]] } });
+        expect(getClosingTime(schedule)).toBe("00:00");
+    });
+
+    it("returns null when the day is marked closed even though its shift would cover now", () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: false, shifts: [["00:00", "23:59"]] } });
+        expect(getClosingTime(schedule)).toBeNull();
+    });
+
+    it("returns null when now falls outside every shift for the day", () => {
+        // 13:00 Bahrain, but the shift only starts at 15:00 — not open yet
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } });
+        expect(getClosingTime(schedule)).toBeNull();
+    });
+
+    it("resolves an overnight shift that started the previous day", () => {
+        // Tuesday 2026-01-06 at 00:00 UTC = 03:00 Bahrain; Monday's 16:30-04:00 shift is still running
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-06T00:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["16:30", "04:00"]] } });
+        expect(getClosingTime(schedule)).toBe("04:00");
     });
 });

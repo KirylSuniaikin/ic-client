@@ -10,6 +10,11 @@ interface QuickPickChipsProps {
     menuItemId: number | null | undefined;
     selectedIds: number[];
     onChange: (selectedIds: number[], joinedLabel: string) => void;
+    // Optional note integration. When both are provided, toggling a chip is also reflected in the
+    // free-text note box: selecting a pick appends its label, deselecting removes it — so the
+    // customer sees quick picks in the notes/description box, not only in the cart.
+    note?: string;
+    onNoteChange?: (nextNote: string) => void;
 }
 
 function resolveLabel(pick: QuickPickDto, isArabic: boolean): string {
@@ -21,7 +26,16 @@ function resolveRawLabel(pick: QuickPickDto, isArabic: boolean): string {
     return isArabic && pick.labelAr ? pick.labelAr : pick.label;
 }
 
-export const QuickPickChips: React.FC<QuickPickChipsProps> = ({ menuItemId, selectedIds, onChange }) => {
+// Adds or removes a single quick-pick label within a comma-separated note, leaving the customer's
+// own text intact. Idempotent: a label never appears twice, so re-selecting can't duplicate it.
+export function applyQuickPickLabelToNote(note: string, label: string, selected: boolean): string {
+    const tokens = note.split(",").map((token) => token.trim()).filter(Boolean);
+    const withoutLabel = tokens.filter((token) => token !== label);
+    const nextTokens = selected ? [...withoutLabel, label] : withoutLabel;
+    return nextTokens.join(", ");
+}
+
+export const QuickPickChips: React.FC<QuickPickChipsProps> = ({ menuItemId, selectedIds, onChange, note, onNoteChange }) => {
     const { t, i18n } = useTranslation("menu");
     const isArabic = i18n.language.startsWith("ar");
     const picks = useQuickPicks(menuItemId);
@@ -29,7 +43,8 @@ export const QuickPickChips: React.FC<QuickPickChipsProps> = ({ menuItemId, sele
     if (picks.length === 0) return null;
 
     function handleToggle(pick: QuickPickDto): void {
-        const next = selectedIds.includes(pick.id)
+        const isSelected = selectedIds.includes(pick.id);
+        const next = isSelected
             ? selectedIds.filter((id) => id !== pick.id)
             : [...selectedIds, pick.id];
 
@@ -39,6 +54,11 @@ export const QuickPickChips: React.FC<QuickPickChipsProps> = ({ menuItemId, sele
             .join(", ");
 
         onChange(next, joined);
+
+        if (onNoteChange) {
+            const label = resolveRawLabel(pick, isArabic);
+            onNoteChange(applyQuickPickLabelToNote(note ?? "", label, !isSelected));
+        }
     }
 
     return (

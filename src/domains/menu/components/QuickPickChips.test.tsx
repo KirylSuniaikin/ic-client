@@ -6,7 +6,7 @@ import i18n from "../../../shared/i18n";
 jest.mock("../../../shared/api/public");
 
 import { getQuickPicks } from "../../../shared/api/public";
-import { QuickPickChips } from "./QuickPickChips";
+import { QuickPickChips, applyQuickPickLabelToNote } from "./QuickPickChips";
 import type { QuickPickDto } from "../types";
 
 const mockGetQuickPicks = jest.mocked(getQuickPicks);
@@ -106,5 +106,73 @@ describe("QuickPickChips", () => {
         mockGetQuickPicks.mockResolvedValueOnce(picks);
         await renderChips();
         expect(await screen.findByText("اختيارات سريعة")).toBeTruthy();
+    });
+
+    it("appends the picked label to the note via onNoteChange when a chip is selected", async () => {
+        mockGetQuickPicks.mockResolvedValueOnce(picks);
+        const onNoteChange = jest.fn<void, [string]>();
+        render(
+            <QuickPickChips
+                menuItemId={42}
+                selectedIds={[]}
+                onChange={jest.fn()}
+                note="no onions"
+                onNoteChange={onNoteChange}
+            />
+        );
+
+        fireEvent.click(await screen.findByText("No Tomato"));
+
+        expect(onNoteChange).toHaveBeenCalledWith("no onions, No Tomato");
+    });
+
+    it("removes the label from the note via onNoteChange when a selected chip is deselected", async () => {
+        mockGetQuickPicks.mockResolvedValueOnce(picks);
+        const onNoteChange = jest.fn<void, [string]>();
+        render(
+            <QuickPickChips
+                menuItemId={42}
+                selectedIds={[2]}
+                onChange={jest.fn()}
+                note="no onions, No Tomato"
+                onNoteChange={onNoteChange}
+            />
+        );
+
+        fireEvent.click(await screen.findByText("No Tomato"));
+
+        expect(onNoteChange).toHaveBeenCalledWith("no onions");
+    });
+
+    it("leaves the note untouched when onNoteChange is not provided", async () => {
+        mockGetQuickPicks.mockResolvedValueOnce(picks);
+        // No onNoteChange prop (e.g. the combo popups) — toggling must not throw.
+        const { onChange } = await renderChips([]);
+
+        fireEvent.click(await screen.findByText("No Tomato"));
+
+        expect(onChange).toHaveBeenCalledWith([2], "No Tomato");
+    });
+});
+
+describe("applyQuickPickLabelToNote", () => {
+    it("appends a label to a non-empty note", () => {
+        expect(applyQuickPickLabelToNote("no onions", "Extra cheese", true)).toBe("no onions, Extra cheese");
+    });
+
+    it("returns just the label when the note was empty", () => {
+        expect(applyQuickPickLabelToNote("", "Extra cheese", true)).toBe("Extra cheese");
+    });
+
+    it("removes a label when deselected", () => {
+        expect(applyQuickPickLabelToNote("no onions, Extra cheese", "Extra cheese", false)).toBe("no onions");
+    });
+
+    it("does not duplicate a label that is already present when re-selecting", () => {
+        expect(applyQuickPickLabelToNote("Extra cheese", "Extra cheese", true)).toBe("Extra cheese");
+    });
+
+    it("leaves the customer's own text intact when removing a label", () => {
+        expect(applyQuickPickLabelToNote("Extra cheese, call on arrival", "Extra cheese", false)).toBe("call on arrival");
     });
 });

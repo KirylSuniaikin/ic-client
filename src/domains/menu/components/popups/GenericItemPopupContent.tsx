@@ -42,7 +42,6 @@ function GenericItemPopupContent({
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState( "");
     const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
-    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
 
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
@@ -113,7 +112,6 @@ function GenericItemPopupContent({
 
     useEffect(() => {
         setSelectedQuickPickIds([]);
-        setJoinedQuickPickLabel("");
     }, [quickPickMenuItemId, open]);
 
     if (!item) return null;
@@ -395,10 +393,9 @@ function GenericItemPopupContent({
                                 <QuickPickChips
                                     menuItemId={quickPickMenuItemId}
                                     selectedIds={selectedQuickPickIds}
-                                    onChange={(ids, joined) => {
-                                        setSelectedQuickPickIds(ids);
-                                        setJoinedQuickPickLabel(joined);
-                                    }}
+                                    onChange={(ids) => setSelectedQuickPickIds(ids)}
+                                    note={note}
+                                    onNoteChange={setNote}
                                 />
 
                                 <TextField

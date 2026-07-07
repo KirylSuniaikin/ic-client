@@ -18,20 +18,29 @@ import { getClosingTime } from "../utils/getClosingTime";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import BranchScheduleHeader from "./BranchScheduleHeader";
 import type { IBranch } from "../../management/inventory/types";
+import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
 const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockGetTimeUntilNextOpening = jest.mocked(getTimeUntilNextOpening);
 const mockGetClosingTime = jest.mocked(getClosingTime);
 
-// IBranch.id is typed `number`, but the real API returns UUID-string branch ids
-// (production code coerces this exact mismatch via `String(b.id)`, e.g. in
-// HomePageModals). Mirroring that here to exercise the real match/no-match paths.
+// IBranch.id is a UUID string; use the default branch id so resolveBranchName matches.
 const MATCHING_BRANCH: IBranch = {
-    id: DEFAULT_BRANCH_ID as unknown as number,
+    id: DEFAULT_BRANCH_ID,
     externalId: "ext-1",
     branchNo: 1,
     branchName: "Manama Branch",
     locale: "en",
+};
+
+const SCHEDULE: WorkingHoursSchedule = {
+    Sunday: { isOpen: false, shifts: [] },
+    Monday: { isOpen: true, shifts: [["15:00", "23:59"]] },
+    Tuesday: { isOpen: true, shifts: [["15:00", "23:59"]] },
+    Wednesday: { isOpen: true, shifts: [["15:00", "23:59"]] },
+    Thursday: { isOpen: true, shifts: [["16:30", "01:30"]] },
+    Friday: { isOpen: true, shifts: [["16:30", "01:30"]] },
+    Saturday: { isOpen: true, shifts: [["14:00", "23:59"]] },
 };
 
 describe("BranchScheduleHeader", () => {
@@ -44,7 +53,7 @@ describe("BranchScheduleHeader", () => {
     it("renders the matched default branch's name", () => {
         mockIsWithinWorkingHours.mockReturnValue(true);
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("Manama Branch")).toBeTruthy();
     });
@@ -52,7 +61,7 @@ describe("BranchScheduleHeader", () => {
     it("falls back to 'IC Pizza' when branches is empty", () => {
         mockIsWithinWorkingHours.mockReturnValue(true);
 
-        render(<BranchScheduleHeader branches={[]} />);
+        render(<BranchScheduleHeader branches={[]} workingHours={null} />);
 
         expect(screen.getByText("IC Pizza")).toBeTruthy();
     });
@@ -61,7 +70,7 @@ describe("BranchScheduleHeader", () => {
         mockIsWithinWorkingHours.mockReturnValue(true);
         mockGetClosingTime.mockReturnValue("23:00");
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("Closes at 23:00")).toBeTruthy();
     });
@@ -70,7 +79,7 @@ describe("BranchScheduleHeader", () => {
         mockIsWithinWorkingHours.mockReturnValue(true);
         mockGetClosingTime.mockReturnValue(null);
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("Open now")).toBeTruthy();
     });
@@ -79,7 +88,7 @@ describe("BranchScheduleHeader", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
         mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningMessage: null });
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("Opens in 2h 15m")).toBeTruthy();
     });
@@ -88,9 +97,29 @@ describe("BranchScheduleHeader", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
         mockGetTimeUntilNextOpening.mockReturnValue({ hours: 0, minutes: 0, nextOpeningMessage: null });
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("less than a minute")).toBeTruthy();
+    });
+
+    it("forwards the workingHours prop into the schedule utils when open", () => {
+        mockIsWithinWorkingHours.mockReturnValue(true);
+        mockGetClosingTime.mockReturnValue("23:00");
+
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={SCHEDULE} />);
+
+        // The header must thread the backend schedule through, not call the utils with no argument.
+        expect(mockIsWithinWorkingHours).toHaveBeenCalledWith(SCHEDULE);
+        expect(mockGetClosingTime).toHaveBeenCalledWith(SCHEDULE);
+    });
+
+    it("forwards the workingHours prop into getTimeUntilNextOpening when closed", () => {
+        mockIsWithinWorkingHours.mockReturnValue(false);
+        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningMessage: null });
+
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={SCHEDULE} />);
+
+        expect(mockGetTimeUntilNextOpening).toHaveBeenCalledWith(SCHEDULE);
     });
 
     it("prefers the explicit nextOpeningMessage when provided, mirroring ClosedPopup", () => {
@@ -99,7 +128,7 @@ describe("BranchScheduleHeader", () => {
             hours: 23, minutes: 30, nextOpeningMessage: "We open on Tuesday at 11:30",
         });
 
-        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("We open on Tuesday at 11:30")).toBeTruthy();
     });
@@ -118,7 +147,7 @@ describe("BranchScheduleHeader", () => {
             mockGetClosingTime.mockReturnValue("23:00");
             mockGetTimeUntilNextOpening.mockReturnValue({ hours: 1, minutes: 0, nextOpeningMessage: null });
 
-            render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} />);
+            render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
             expect(screen.getByText("Closes at 23:00")).toBeTruthy();
 

@@ -81,7 +81,6 @@ function PizzaPopup({
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
     const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
-    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -176,7 +175,6 @@ function PizzaPopup({
     // or the popup reopening for a different item) — a quick_pick belongs to exactly one menu_item.
     useEffect(() => {
         setSelectedQuickPickIds([]);
-        setJoinedQuickPickLabel("");
     }, [quickPickMenuItemId, open]);
 
     const ingrsForSize = extraIngredients.filter(ing => (ing as unknown as Record<string, unknown>).size === selectedSize);
@@ -239,8 +237,9 @@ function PizzaPopup({
 
         const currentVariant = matchedItem || item;
 
-        const existingDescriptionValue = getDesc();
-        const finalDescription = [existingDescriptionValue, joinedQuickPickLabel].filter(Boolean).join(", ");
+        // Quick picks are merged into `note` as they are toggled, and getDesc() already appends the
+        // note, so the description carries them without a separate concatenation.
+        const finalDescription = getDesc();
 
         const products: CartItem[] = [{
             ...currentVariant,
@@ -398,10 +397,9 @@ function PizzaPopup({
                         <QuickPickChips
                             menuItemId={quickPickMenuItemId}
                             selectedIds={selectedQuickPickIds}
-                            onChange={(ids, joined) => {
-                                setSelectedQuickPickIds(ids);
-                                setJoinedQuickPickLabel(joined);
-                            }}
+                            onChange={(ids) => setSelectedQuickPickIds(ids)}
+                            note={note}
+                            onNoteChange={setNote}
                         />
 
                         <TextField

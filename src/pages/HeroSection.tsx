@@ -7,16 +7,18 @@ import { CustomerIconButton } from "../domains/customer-auth/components/Customer
 import BranchScheduleHeader from "../domains/schedule/components/BranchScheduleHeader";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
 import type { IBranch } from "../domains/management/inventory/types";
+import type { WorkingHoursSchedule } from "../shared/api/management";
 
 interface HeroSectionProps {
     isKiosk: boolean;
     branches: IBranch[];
+    workingHours: WorkingHoursSchedule | null | undefined;
     // When the customer has an active order the top cluster (branch schedule header +
     // language/account controls) is hidden so the Live-Activity card stands alone.
     hideTopBar?: boolean;
 }
 
-export default function HeroSection({ isKiosk, branches, hideTopBar = false }: HeroSectionProps): JSX.Element {
+export default function HeroSection({ isKiosk, branches, workingHours, hideTopBar = false }: HeroSectionProps): JSX.Element {
     const { t } = useTranslation("home");
     const heroRef = useRef<HTMLDivElement>(null);
     // Hide the branch schedule header once the hero video has scrolled fully above the viewport,
@@ -35,7 +37,7 @@ export default function HeroSection({ isKiosk, branches, hideTopBar = false }: H
                 sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
             />
             <Box sx={{ position: "absolute", bottom: 0, width: "100%", height: "40%", background: "#fbfaf6", maskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))", WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))", pointerEvents: "none", zIndex: 1 }} />
-            {!hideTopBar && !heroScrolledAway && <BranchScheduleHeader branches={branches} />}
+            {!hideTopBar && !heroScrolledAway && <BranchScheduleHeader branches={branches} workingHours={workingHours} />}
             {!hideTopBar && (
                 <Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 2, display: "flex", gap: 1 }}>
                     {/*<Fab size="medium" onClick={() => window.open("https://url-eu.mykeeta.com/4creMhXz", "_blank")} sx={{ p: 0, minHeight: "unset", minWidth: "unset", width: 40, height: 40, borderRadius: "50%", boxShadow: "none" }}>*/}

@@ -18,11 +18,9 @@ import type { IBranch } from "../domains/management/inventory/types";
 
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 
-// IBranch.id is typed `number`, but the real API returns UUID-string branch ids
-// (production code coerces this exact mismatch via `String(b.id)`, e.g. in
-// HomePageModals). Mirroring that here to exercise the real match/no-match paths.
+// IBranch.id is a UUID string; use the default branch id so resolveBranchName matches.
 const MATCHING_BRANCH: IBranch = {
-    id: DEFAULT_BRANCH_ID as unknown as number,
+    id: DEFAULT_BRANCH_ID,
     externalId: "ext-1",
     branchNo: 1,
     branchName: "Manama Branch",
@@ -30,7 +28,7 @@ const MATCHING_BRANCH: IBranch = {
 };
 
 const OTHER_BRANCH: IBranch = {
-    id: 999,
+    id: "999",
     externalId: "ext-2",
     branchNo: 2,
     branchName: "Muharraq Branch",
@@ -41,7 +39,7 @@ function renderHero(branches: IBranch[]) {
     return render(
         <CustomerAuthProvider>
             <CustomerAuthUiProvider>
-                <HeroSection isKiosk={false} branches={branches} />
+                <HeroSection isKiosk={false} branches={branches} workingHours={null} />
             </CustomerAuthUiProvider>
         </CustomerAuthProvider>
     );

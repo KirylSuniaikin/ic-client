@@ -6,12 +6,14 @@ import { getTimeUntilNextOpening } from "../utils/getTimeUntilNextOpening";
 import { getClosingTime } from "../utils/getClosingTime";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import type { IBranch } from "../../management/inventory/types";
+import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
 const POLL_INTERVAL_MS = 60_000;
 const FALLBACK_BRANCH_NAME = "IC Pizza";
 
 interface BranchScheduleHeaderProps {
     branches: IBranch[];
+    workingHours: WorkingHoursSchedule | null | undefined;
 }
 
 function resolveBranchName(branches: IBranch[]): string {
@@ -19,16 +21,16 @@ function resolveBranchName(branches: IBranch[]): string {
     return branch?.branchName ?? FALLBACK_BRANCH_NAME;
 }
 
-export default function BranchScheduleHeader({ branches }: BranchScheduleHeaderProps): JSX.Element {
+export default function BranchScheduleHeader({ branches, workingHours }: BranchScheduleHeaderProps): JSX.Element {
     const { t } = useTranslation("schedule");
-    const [open, setOpen] = useState<boolean>(() => isWithinWorkingHours());
+    const [open, setOpen] = useState<boolean>(() => isWithinWorkingHours(workingHours));
 
     useEffect(() => {
-        const update = (): void => setOpen(isWithinWorkingHours());
+        const update = (): void => setOpen(isWithinWorkingHours(workingHours));
         update();
         const interval = setInterval(update, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
-    }, []);
+    }, [workingHours]);
 
     const branchName = resolveBranchName(branches);
 
@@ -39,12 +41,12 @@ export default function BranchScheduleHeader({ branches }: BranchScheduleHeaderP
     // render, falling back to "less than a minute" when both are zero.
     let scheduleText: string;
     if (open) {
-        const closingTime = getClosingTime();
+        const closingTime = getClosingTime(workingHours);
         scheduleText = closingTime
             ? t("header.closesAt", { time: closingTime })
             : t("header.openNow");
     } else {
-        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening();
+        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening(workingHours);
         scheduleText = nextOpeningMessage
             ?? (hours === 0 && minutes === 0
                 ? t("closed.lessThanMinute")
