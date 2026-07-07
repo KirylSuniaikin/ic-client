@@ -44,7 +44,9 @@ export default function HeroSection({ isKiosk, branches, workingHours, hideTopBa
                     {/*    <Box component="img" src="/keeta-logo.png" alt="Jahez" sx={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "50%", display: "block", padding: "3px" }} />*/}
                     {/*</Fab>*/}
                     <LanguageToggle />
-                    <CustomerIconButton />
+                    {/* Kiosk is a shared guest tablet in the restaurant — no personal account entry
+                        point (and the post-order account proposal is likewise skipped in useCheckout). */}
+                    {!isKiosk && <CustomerIconButton />}
                 </Box>
             )}
             <Box sx={{ position: "absolute", bottom: 18, left: 0, width: "100%", zIndex: 2, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
