@@ -11,6 +11,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import type { MenuItem, CartItem, ExtraIngr, Group } from '../../types';
+import {QuickPickChips} from "../QuickPickChips";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -40,6 +41,7 @@ function GenericItemPopupContent({
     const [selectedToppings, setSelectedToppings] = useState<string[]>([""]);
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState( "");
+    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
 
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
@@ -104,8 +106,13 @@ function GenericItemPopupContent({
                 value: item.price
             });
         }
-
     }, [open, item]);
+
+    const quickPickMenuItemId = item?.id;
+
+    useEffect(() => {
+        setSelectedQuickPickIds([]);
+    }, [quickPickMenuItemId, open]);
 
     if (!item) return null;
 
@@ -382,6 +389,14 @@ function GenericItemPopupContent({
                         </Box>
                         {item.category === "Brick Pizzas" &&
                             <Box>
+
+                                <QuickPickChips
+                                    menuItemId={quickPickMenuItemId}
+                                    selectedIds={selectedQuickPickIds}
+                                    onChange={(ids) => setSelectedQuickPickIds(ids)}
+                                    note={note}
+                                    onNoteChange={setNote}
+                                />
 
                                 <TextField
                                     label={t("genericPopup.addNote")}

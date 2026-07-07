@@ -42,7 +42,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
     const [confirmOpen, setConfirmOpen] = useState(false);
 
     // Used to discard stale in-flight results when the branch changes
-    const currentBranchRef = useRef<number | null>(null);
+    const currentBranchRef = useRef<string | null>(null);
 
     const roundNum = (num: number) => {
         if(num>=1000) return Math.round(num / 50) * 50;
@@ -232,7 +232,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                         <TableBody>
                             {plan.rows.map((row) => (
                                 <TableRow key={row.componentId}>
-                                    <TableCell>{row.name}</TableCell>
+                                    <TableCell>{row.name}({row.yieldMultiplier*100}%)</TableCell>
                                     <TableCell>{roundNum(row.amount*0.85)}</TableCell>
                                     <TableCell>{roundNum(row.amount*1.15)}</TableCell>
                                     <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>

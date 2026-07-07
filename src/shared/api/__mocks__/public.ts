@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
-import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, CustomerCheckResponse } from "../../../domains/order/types";
+import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, CustomerCheckResponse, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
+import type { QuickPickDto } from "../../../domains/menu/types";
 import type { OrderStatusData } from "../../../domains/order-status/types";
 
 // Manual mock for shared/api/public.ts.
@@ -21,3 +22,7 @@ export const checkCustomer = jest.fn<Promise<CustomerCheckResponse | undefined>,
 export const editOrder = jest.fn<Promise<Order>, [unknown, string]>();
 
 export const getAllActiveOrders = jest.fn<Promise<Order[]>, [string]>();
+
+export const getQuickPicks = jest.fn<Promise<QuickPickDto[]>, [number]>();
+
+export const getHistory = jest.fn<Promise<GetHistoryResponse>, [GetHistoryParams]>();

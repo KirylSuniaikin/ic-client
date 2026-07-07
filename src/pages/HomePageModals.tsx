@@ -13,6 +13,7 @@ import ClosedPopup from "../domains/schedule/components/ClosedPopup";
 import ClientInfoPopup from "../domains/order/components/ClientInfoPopup";
 import AdminOrderDetailsPopUp from "../domains/management/orders/components/AdminOrderDetailsPopUp";
 import { PickUpReminderPopup } from "../domains/order/components/PickUpReminderPopup";
+import { GuestAccountPromptPopup } from "../domains/order/components/GuestAccountPromptPopup";
 import OrderConfirmed from "../domains/order/components/OrderConfirmed";
 import GenericItemPopupContent from "../domains/menu/components/popups/GenericItemPopupContent";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
@@ -21,6 +22,7 @@ import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
+import type { WorkingHoursSchedule } from "../shared/api/management";
 
 const BRANCH_KEY = 'kiosk_branch_data';
 
@@ -43,13 +45,14 @@ interface HomePageModalsProps {
     sauces: Group[];
     isAdmin: boolean;
     adminBranchId: string | null;
+    workingHours?: WorkingHoursSchedule | null;
 }
 
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, refreshMenu,
-    pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId,
+    pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
 
@@ -220,7 +223,7 @@ export default function HomePageModals({
                 />
             )}
 
-            {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} />}
+            {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} workingHours={workingHours} />}
 
             {checkout.phonePopupOpen && (
                 <ClientInfoPopup
@@ -230,8 +233,9 @@ export default function HomePageModals({
                     onSave={(tel: string, paymentMethod: string, customerName: string, notes: string, branchId: string) => {
                         checkout.handleCheckout(cart.cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
                     }}
-                    phoneNumber={phone.toString()}
-                    customerName={username}
+                    phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
+                    customerName={checkout.customerPrefill?.name ?? username}
+                    prefillAddress={checkout.customerPrefill?.address ?? undefined}
                 />
             )}
 
@@ -259,6 +263,14 @@ export default function HomePageModals({
 
             {!isAdmin && checkout.showOrderConfirmed && (
                 <OrderConfirmed open onClose={() => checkout.setShowOrderConfirmed(false)} />
+            )}
+
+            {checkout.postOrderProposalOpen && (
+                <GuestAccountPromptPopup
+                    open={checkout.postOrderProposalOpen}
+                    phone={checkout.postOrderProposalPhone}
+                    onDismiss={checkout.resolvePostOrderProposal}
+                />
             )}
 
             {checkout.blacklistSnackBarOpen && (

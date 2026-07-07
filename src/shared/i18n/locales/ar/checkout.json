@@ -11,11 +11,25 @@
         "pickUpBranch": "فرع الاستلام",
         "noteLabel": "أضف ملاحظة إلى طلبك (اختياري)",
         "checkoutTakeOut": "إتمام الطلب (استلام)",
+        "savedAddress": "العنوان المحفوظ لدينا: {{address}}",
         "errors": {
             "onlyDigits": "يُسمح بالأرقام فقط",
             "phoneLength": "يجب أن يتكوّن رقم الهاتف من {{count}} أرقام بالضبط",
             "nameRequired": "الاسم مطلوب"
         }
+    },
+    "guestPrompt": {
+        "title": "احفظ بياناتك للمرة القادمة",
+        "subtitle": "سجّل الدخول برقم هاتفك واستمتع بـ:",
+        "dismiss": "إغلاق",
+        "benefits": {
+            "noRefill": "لا حاجة لإعادة إدخال بياناتك الشخصية",
+            "threeClicks": "اطلب بثلاث نقرات",
+            "tracking": "تتبّع طلبك بسهولة في التطبيق",
+            "history": "سجلّ كامل لطلباتك"
+        },
+        "cta": "احصل على رمز عبر واتساب",
+        "continueAsGuest": "المتابعة كضيف"
     },
     "orderConfirmed": "تم تأكيد الطلب!",
     "crossSell": {

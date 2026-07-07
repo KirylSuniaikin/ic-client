@@ -100,7 +100,7 @@ function AdminHomePage(): JSX.Element {
                 </Box>
             )}
             {ui.isHistoryOpen && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
-            {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} />}
+            {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}
             {ui.isStatisticsOpen && selectedBranch && <StatisticsComponent onClose={() => ui.setIsStatisticsOpen(false)} branchId={String(selectedBranch.id)} role={role} />}
             <AdminPageModals selectedBranch={selectedBranch} userId={userId ?? null} username={username ?? null}
                 purchasePopupOpen={ui.purchasePopupOpen} onPurchaseClose={() => ui.setPurchasePopupOpen(false)}

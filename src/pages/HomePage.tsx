@@ -7,11 +7,15 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useMenuData } from "../domains/menu/hooks/useMenuData";
 import { useCart } from "../domains/cart/hooks/useCart";
 import { useCheckout } from "../domains/order/hooks/useCheckout";
+import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
+import { useActiveOrderIsland } from "../domains/customer-auth/hooks/useActiveOrderIsland";
+import { ActiveOrderIslandPill } from "../domains/customer-auth/components/ActiveOrderIslandPill";
 import { usePixelTracking } from "../domains/order/hooks/usePixelTracking";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import MenuSections from "../domains/menu/components/MenuSections";
 import HomePageModals from "./HomePageModals";
 import HeroSection from "./HeroSection";
+import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
 import { groupItemsByCategory, groupAvailableItemsByName } from "../shared/utils/menuUtils";
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 import { TextButton } from "../shared/components/typography";
@@ -52,6 +56,9 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // instance so they aren't localized to the customer's stored Arabic preference.
     const tr = isAdmin ? enI18n.t : t;
 
+    const { isAnyCustomerAuthPopupOpen } = useCustomerAuthUi();
+    const activeOrderIsland = useActiveOrderIsland();
+
     const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId });
     const cart = useCart(menu.menuData, isAdmin);
     const checkout = useCheckout({
@@ -62,6 +69,11 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     });
 
     usePixelTracking();
+
+    // The active-order pill is position:fixed, so it stays pinned over the menu as the customer
+    // scrolls. Once they scroll past the hero into the menu (menuTop reaches the viewport top),
+    // hide it so the menu gets the full screen; it reappears when scrolled back up.
+    const heroScrolledAway = useScrolledAboveViewport(menuTopRef);
 
     useEffect(() => {
         if (menu.pendingInitialItems.length > 0) cart.handleAddToCart(menu.pendingInitialItems, true);
@@ -86,7 +98,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const groups = groupItemsByCategory(availableGroups as Parameters<typeof groupItemsByCategory>[0]);
 
     function handleOpenCart(): void {
-        if (!isWithinWorkingHours() && !isAdmin) cart.setClosedPopupOpen(true);
+        if (!isWithinWorkingHours(menu.workingHours) && !isAdmin) cart.setClosedPopupOpen(true);
         else cart.setCartOpen(true);
     }
 
@@ -108,13 +120,27 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         }
     }
 
-    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen;
+    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !checkout.postOrderProposalOpen && !isAnyCustomerAuthPopupOpen;
+
+    // When a customer has an active order the homepage top area collapses to just the
+    // Live-Activity card — the branch header + account/language cluster are hidden so the
+    // card stands alone (like the iOS Dynamic Island reference).
+    const showActiveOrderCard = noPopupOpen && activeOrderIsland.isVisible && activeOrderIsland.activeOrder !== null;
 
     // Staff ordering (admin mode) is English-only and must not invert when an Arabic preference
     // is stored in localStorage; the customer-facing flow stays language-dependent (RTL for Arabic).
     const content = (
         <Box sx={{ backgroundColor: "#fbfaf6" }}>
-            {!isAdmin && <HeroSection isKiosk={isKiosk} />}
+            {showActiveOrderCard && !heroScrolledAway && activeOrderIsland.activeOrder && (
+                <ActiveOrderIslandPill
+                    branchName={activeOrderIsland.activeOrder.branchName}
+                    orderNumber={activeOrderIsland.activeOrder.orderNumber}
+                    status={activeOrderIsland.status}
+                    timeLeft={activeOrderIsland.timeLeft}
+                    onClick={activeOrderIsland.handleClick}
+                />
+            )}
+            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} />}
             <Box ref={menuTopRef} />
             <MenuSections
                 groups={groups}
@@ -143,6 +169,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}
                 beverages={groups.beverages} sauces={groups.sauces}
                 isAdmin={isAdmin} adminBranchId={adminBranchId}
+                workingHours={menu.workingHours}
             />
             {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && (
                 <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>

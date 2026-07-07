@@ -5,12 +5,18 @@ import AdminHomePage from '../pages/AdminHomePage';
 import {OrderStatusPage} from '../pages/OrderStatusPage';
 import {AuthPage} from '../pages/AuthPage';
 import {ProtectedRoute} from '../domains/auth/components/ProtectedRoute';
+import {captureFbclid} from '../shared/utils/adAttribution';
 
 function MenuRoute(): JSX.Element {
     const [searchParams] = useSearchParams();
     const userId = searchParams.get('user');
     const recommendedIds = searchParams.getAll('recommended_items');
     const giftId = searchParams.get('gift');
+    const fbclid = searchParams.get('fbclid');
+    if (fbclid) {
+        // Last-click attribution: a newly-arriving fbclid overwrites any previously stored value.
+        captureFbclid(fbclid);
+    }
     return <HomePage userParam={userId} recommendedIds={recommendedIds} giftId={giftId}/>;
 }
 

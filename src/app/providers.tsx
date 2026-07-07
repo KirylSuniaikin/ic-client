@@ -6,6 +6,9 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
 import {useTranslation} from 'react-i18next';
 import {AuthProvider} from '../domains/auth/context/AuthProvider';
+import {CustomerAuthProvider} from '../domains/customer-auth/context/CustomerAuthProvider';
+import {CustomerAuthUiProvider} from '../domains/customer-auth/context/CustomerAuthUiProvider';
+import {CustomerAuthModals} from '../domains/customer-auth/components/CustomerAuthModals';
 import baseTheme from '../shared/utils/theme';
 import '../shared/i18n';
 
@@ -34,7 +37,12 @@ export function AppProviders({children}: AppProvidersProps): React.JSX.Element {
         <CacheProvider value={cache}>
             <ThemeProvider theme={theme}>
                 <AuthProvider>
-                    {children}
+                    <CustomerAuthProvider>
+                        <CustomerAuthUiProvider>
+                            {children}
+                            <CustomerAuthModals />
+                        </CustomerAuthUiProvider>
+                    </CustomerAuthProvider>
                 </AuthProvider>
             </ThemeProvider>
         </CacheProvider>

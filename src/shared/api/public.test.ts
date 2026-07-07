@@ -14,7 +14,7 @@ import {
     getHistory,
     updateOrderStatus,
 } from "./public";
-import { ItemsUnavailableError } from "../../domains/order/types";
+import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
 import type { CreateOrderRequest, AvailabilityChange } from "../../domains/order/types";
 
 const mockAuthFetch = jest.mocked(authFetch);
@@ -76,6 +76,23 @@ describe("createOrder", () => {
 
         expect(caught).toBeInstanceOf(ItemsUnavailableError);
         expect((caught as ItemsUnavailableError).unavailableIds).toEqual([3, 5]);
+    });
+
+    it("throws BranchClosedError when the server responds with 423", async () => {
+        const body = JSON.stringify({ message: "We're sorry, this branch is closed right now." });
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(body, { status: 423, headers: { "Content-Type": "application/json" } })
+        );
+
+        let caught: unknown;
+        try {
+            await createOrder(order);
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).toBeInstanceOf(BranchClosedError);
+        expect((caught as BranchClosedError).message).toBe("We're sorry, this branch is closed right now.");
     });
 
     it("throws a generic Error on non-ok status other than 409", async () => {
@@ -331,19 +348,94 @@ describe("getHistory", () => {
     it("throws when the server responds with a non-ok status", async () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
-        await expect(getHistory("branch-1")).rejects.toThrow();
+        await expect(getHistory({ branchId: "branch-1", page: 0 })).rejects.toThrow();
     });
 
-    it("calls the get_history endpoint with the branchId", async () => {
+    it("includes branchId, page, and size in the request URL", async () => {
         mockAuthFetch.mockResolvedValueOnce(
-            new Response(JSON.stringify([]), { status: 200 })
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
         );
 
-        await getHistory("branch-xyz");
+        await getHistory({ branchId: "branch-xyz", page: 1, size: 20 });
 
         const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
         expect(url).toContain("get_history");
-        expect(url).toContain("branch-xyz");
+        expect(url).toContain("branchId=branch-xyz");
+        expect(url).toContain("page=1");
+        expect(url).toContain("size=20");
+    });
+
+    it("omits size from the URL when not provided", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-xyz", page: 0 });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("size=");
+    });
+
+    it("includes the orderId query param when filtering by orderId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, filter: { type: "orderId", value: 12345678 } });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("orderId=12345678");
+        expect(url).not.toContain("externalId=");
+        expect(url).not.toContain("customerName=");
+    });
+
+    it("includes the externalId query param when filtering by externalId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, filter: { type: "externalId", value: 1234567890123456 } });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("externalId=1234567890123456");
+        expect(url).not.toContain("orderId=");
+        expect(url).not.toContain("customerName=");
+    });
+
+    it("includes the customerName query param when filtering by customerName", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, filter: { type: "customerName", value: "John" } });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("customerName=John");
+        expect(url).not.toContain("orderId=");
+        expect(url).not.toContain("externalId=");
+    });
+
+    it("omits the filter query param entirely when filter type is none", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, filter: { type: "none" } });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("orderId=");
+        expect(url).not.toContain("externalId=");
+        expect(url).not.toContain("customerName=");
+    });
+
+    it("returns the parsed orders and hasMore from the response body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: true }), { status: 200 })
+        );
+
+        const result = await getHistory({ branchId: "branch-1", page: 0 });
+
+        expect(result).toEqual({ orders: [], hasMore: true });
     });
 });
 

@@ -4,6 +4,7 @@ export type PrepPlanRow = {
     componentId: number;
     name: string;
     unit: PrepPlanUnit;
+    yieldMultiplier: number;
     amount: number;
 };
 
@@ -14,7 +15,7 @@ export type PrepPlanResponse = {
 };
 
 export type GeneratePrepPlanRequest = {
-    branchId: number;
+    branchId: string;
     fromDate?: string;
     toDate?: string;
 };

@@ -17,6 +17,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import {CircularTimer} from "../../../../shared/components/CircularTimer";
 import BluetoothPrinterService from "../../../../services/BluetoothPrinterService";
 import {usePreciseCountdown} from "../../../../shared/hooks/usePreciseCountdown";
+import {toEpochMsBahrain} from "../../../../shared/utils/timeUtils";
 import type {Order, OrderItem, ComboItemTO} from '../../../order/types';
 
 const colorRed = '#E44B4C';
@@ -27,15 +28,6 @@ function formatTime(isoString: string): string {
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${hours}:${minutes}`;
-}
-
-function toEpochMsBahrain(s: string | undefined | null): number {
-    if (!s) return Date.now();
-    const withT = s.replace(' ', 'T');
-
-    if (/[Zz]|[+-]\d{2}:?\d{2}$/.test(withT)) return Date.parse(withT);
-
-    return Date.parse(withT + '+03:00');
 }
 
 const CATEGORY_ORDER = [

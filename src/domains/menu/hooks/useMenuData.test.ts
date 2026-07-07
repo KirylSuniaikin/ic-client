@@ -36,7 +36,7 @@ const MENU_RESPONSE: BaseAppInfoResponse = {
 };
 
 const BRANCHES: IBranch[] = [
-    { id: 1, externalId: "ext-1", branchNo: 1, branchName: "Branch One", locale: "en" },
+    { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Branch One", locale: "en" },
 ];
 
 function makeParams(
