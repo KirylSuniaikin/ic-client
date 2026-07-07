@@ -4,10 +4,11 @@ import {
     Typography,
     Button,
 } from "@mui/material";
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
+import {QuickPickChips} from "../../QuickPickChips";
 import CloseIcon from "@mui/icons-material/Close";
 import { Fab } from "@mui/material";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
@@ -101,6 +102,19 @@ export function DetroitComboPopup({
     const [editorItems, setEditorItems] = useState<MenuItem[]>([]);
     const [editorTarget, setEditorTarget] = useState<string | null>(null);
 
+    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
+    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
+
+    const quickPickMenuItemId = brick.item?.id;
+
+    // Resets stale selections whenever the customized brick pizza (menu_item row) changes
+    // (via "Change") or the popup reopens for a different item — a quick_pick belongs to
+    // exactly one menu_item.
+    useEffect(() => {
+        setSelectedQuickPickIds([]);
+        setJoinedQuickPickLabel("");
+    }, [quickPickMenuItemId, open]);
+
     if (!combo) return null;
     // combo can be a Group object with .items or a raw MenuItem array
     const comboGroup = (combo as Group).items?.[0] || (combo as MenuItem[])[0] || {};
@@ -121,6 +135,9 @@ export function DetroitComboPopup({
 
     function handleAdd(): void {
         if (!brick?.item || !drink?.item || !sauce?.item) return;
+
+        const existingDescriptionValue = "";
+        const finalDescription = [existingDescriptionValue, joinedQuickPickLabel].filter(Boolean).join(", ");
 
         const orderItem = {
             id: (comboGroup as MenuItem).id,
@@ -146,7 +163,7 @@ export function DetroitComboPopup({
                     isGarlicCrust: false,
                     isThinDough: false,
                     quantity: 1,
-                    description: "",
+                    description: finalDescription,
                 },
                 {
                     id: drink.item.id,
@@ -245,6 +262,15 @@ export function DetroitComboPopup({
                                 {localizeDescription(comboGroup as MenuItem)}
                             </Typography>
                         </Box>
+
+                        <QuickPickChips
+                            menuItemId={quickPickMenuItemId}
+                            selectedIds={selectedQuickPickIds}
+                            onChange={(ids, joined) => {
+                                setSelectedQuickPickIds(ids);
+                                setJoinedQuickPickLabel(joined);
+                            }}
+                        />
 
                         <ItemCard
                             item={brick.item}

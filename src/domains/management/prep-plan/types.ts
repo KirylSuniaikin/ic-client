@@ -4,6 +4,7 @@ export type PrepPlanRow = {
     componentId: number;
     name: string;
     unit: PrepPlanUnit;
+    yieldMultiplier: number;
     amount: number;
 };
 

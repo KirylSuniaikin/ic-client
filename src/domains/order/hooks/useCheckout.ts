@@ -1,8 +1,13 @@
 import { logger } from "../../../shared/utils/logger";
-import { useState, Dispatch, SetStateAction } from "react";
+import { useState, useRef, Dispatch, SetStateAction } from "react";
 import { NavigateFunction } from "react-router-dom";
 import { checkCustomer, createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
+import { fetchCustomerMe } from "../../../shared/api/customerAuth";
+import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
+import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
+import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
+import type { CustomerMeResponse } from "../../customer-auth/types";
 import { ItemsUnavailableError } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
@@ -29,6 +34,7 @@ export interface UseCheckoutResult {
     checkoutLoading: boolean;
     phonePopupOpen: boolean;
     setPhonePopupOpen: Dispatch<SetStateAction<boolean>>;
+    customerPrefill: CustomerMeResponse | null;
     adminOrderDetailsPopUp: boolean;
     setAdminOrderDetailsPopUpOpen: Dispatch<SetStateAction<boolean>>;
     isCrossSellOpen: boolean;
@@ -50,6 +56,9 @@ export interface UseCheckoutResult {
     errorMessage: string;
     showOrderConfirmed: boolean;
     setShowOrderConfirmed: Dispatch<SetStateAction<boolean>>;
+    postOrderProposalOpen: boolean;
+    postOrderProposalPhone: string;
+    resolvePostOrderProposal: () => void;
     generalCrossSellItems: MenuItem[];
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null) => Promise<void>;
@@ -63,8 +72,12 @@ function isCustomerBanned(blackList: Array<{ telephoneNo: string }>, phoneNumber
 export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const { isAdmin, isKiosk, isEditMode, adminBranchId, menuData, cartItems, setCartItems, setCartOpen, refreshMenu, navigate } = params;
 
+    const { token } = useCustomerAuth();
+    const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
+
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
+    const [customerPrefill, setCustomerPrefill] = useState<CustomerMeResponse | null>(null);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
@@ -78,6 +91,20 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
     const [showOrderConfirmed, setShowOrderConfirmed] = useState(false);
+    // Guest post-order account proposal: after a guest's order is created we keep them on
+    // the current page to show the proposal (prefilled with this order's phone) and defer
+    // the tracking-page redirect until they resolve it. pendingTrackPathRef holds the
+    // deferred navigation target; a ref (not state) since it's only read on user action.
+    const [postOrderProposalOpen, setPostOrderProposalOpen] = useState(false);
+    const [postOrderProposalPhone, setPostOrderProposalPhone] = useState("");
+    const pendingTrackPathRef = useRef<string | null>(null);
+
+    function resolvePostOrderProposal(): void {
+        setPostOrderProposalOpen(false);
+        const path = pendingTrackPathRef.current;
+        pendingTrackPathRef.current = null;
+        if (path) navigate(path);
+    }
 
     const generalCrossSellItems = GENERAL_CROSS_SELL
         .map(name => menuData.find(item => item.name === name && item.available))
@@ -126,7 +153,33 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             setPickUpReminder(false);
             await localStorage.removeItem("orderToEdit");
             setCartOpen(false);
-            if (!isKiosk) navigate("/order_status?order_id=" + response.id);
+            if (!isKiosk) {
+                // Logged-in customers land on CustomerProfilePopup + CustomerOrderDetailPopup
+                // for the new order instead of the anonymous OrderStatusPage (task-spec.md
+                // §4.15) — admin/kiosk checkout flows never reach this branch (they don't call
+                // executeOrderCreation), so a truthy token here always reflects a genuine
+                // customer session.
+                if (token) {
+                    // Seed the homepage island with the just-placed order so the widget
+                    // is ready underneath and appears the moment the popups close.
+                    refreshActiveOrder();
+                    openOrderDetail(Number(response.id));
+                    return;
+                }
+                const path = "/order_status?order_id=" + response.id;
+                // Guest post-order account proposal: a guest who submitted a phone stays on
+                // the current page to see the proposal first (prefilled with this order's
+                // phone); navigation to the tracking page is deferred until they decline or
+                // finish creating an account (resolvePostOrderProposal). Phone-less guest
+                // orders navigate immediately, as before.
+                if (orderData.tel) {
+                    pendingTrackPathRef.current = path;
+                    setPostOrderProposalPhone(orderData.tel);
+                    setPostOrderProposalOpen(true);
+                } else {
+                    navigate(path);
+                }
+            }
         } catch (error) {
             if (error instanceof ItemsUnavailableError) {
                 const removed = originalCartItems.filter(item => error.unavailableIds.includes(item.id));
@@ -147,6 +200,21 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
+    // Logged-in customer at the paymentMethod===null checkout gate (§6.7 step 1): fetch the
+    // profile and open ClientInfoPopup pre-filled. A fetch failure (e.g. token expired mid-flow)
+    // falls back to the unfilled popup instead of blocking checkout entirely.
+    async function openClientInfoForLoggedInCustomer(): Promise<void> {
+        if (token) {
+            try {
+                const me = await fetchCustomerMe(token);
+                setCustomerPrefill(me);
+            } catch (error) {
+                logger.error("Error fetching customer profile for checkout prefill:", error);
+            }
+        }
+        setPhonePopupOpen(true);
+    }
+
     async function handleCheckout(
         items: CartItem[],
         tel: string,
@@ -163,8 +231,13 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
         if (paymentMethod === null) {
             setCartOpen(false);
-            if (isAdmin) setAdminOrderDetailsPopUpOpen(true);
-            else setPhonePopupOpen(true);
+            if (isAdmin) {
+                setAdminOrderDetailsPopUpOpen(true);
+            } else if (token) {
+                await openClientInfoForLoggedInCustomer();
+            } else {
+                setPhonePopupOpen(true);
+            }
             return;
         }
         if (isAdmin && isEditMode) {
@@ -207,6 +280,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             amount_paid: parseFloat(items.reduce((acc, item) => {
                 return acc + item.amount * (1 - (item.discountAmount ?? 0) / 100) * item.quantity;
             }, 0).toFixed(3)),
+            fbc: resolveFbc(),
+            fbp: resolveFbp(),
         };
         const submittedItems = [...items];
 
@@ -282,6 +357,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
 
     return {
         checkoutLoading, phonePopupOpen, setPhonePopupOpen,
+        customerPrefill,
         adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen,
         isCrossSellOpen, setIsCrossSellOpen,
         pickUpReminder, setPickUpReminder,
@@ -292,6 +368,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         blacklistSnackBarOpen, setBlacklistSnackBarOpen,
         errorSnackBarOpen, setErrorSnackBarOpen, errorMessage,
         showOrderConfirmed, setShowOrderConfirmed,
+        postOrderProposalOpen, postOrderProposalPhone, resolvePostOrderProposal,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, executeOrderCreation,
     };

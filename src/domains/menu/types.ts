@@ -65,3 +65,10 @@ export type Group = {
     name: string;
     items: MenuItem[];
 }
+
+export type QuickPickDto = {
+    id: number;
+    label: string;
+    labelAr: string | null;
+    isPopular: boolean;
+}

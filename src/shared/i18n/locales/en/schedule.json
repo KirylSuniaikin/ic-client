@@ -1,4 +1,9 @@
 {
+    "header": {
+        "openNow": "Open now",
+        "opensIn": "Opens in {{hours}}h {{minutes}}m",
+        "closesAt": "Closes at {{time}}"
+    },
     "closed": {
         "title": "Unfortunately we are closed right now",
         "enjoyIn": "But you can enjoy our pizza in:",

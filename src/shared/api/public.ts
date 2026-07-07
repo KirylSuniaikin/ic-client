@@ -14,7 +14,10 @@ import type {
     WorkloadLevel,
     CreateOrderRequest,
     EditOrderRequest,
+    GetHistoryParams,
+    GetHistoryResponse,
 } from '../../domains/order/types';
+import type { QuickPickDto } from '../../domains/menu/types';
 import type { OrderStatusData } from '../../domains/order-status/types';
 import type { ShiftEventResponse } from '../types/EventTypes';
 import type { DoughInventoryAmounts } from '../../domains/management/dough/types';
@@ -146,8 +149,23 @@ export async function getAllActiveOrders(branchId: string): Promise<Order[]> {
     return mapOrdersImages(JSON.parse(text));
 }
 
-export async function getHistory(branchId: string): Promise<Order[]> {
-    const response = await authFetch(BASE_URL + `/get_history?branchId=${branchId}`, {
+export async function getHistory(params: GetHistoryParams): Promise<GetHistoryResponse> {
+    const { branchId, page, size, filter } = params;
+
+    const queryParams = new URLSearchParams({
+        branchId,
+        page: String(page),
+    });
+
+    if (size !== undefined) {
+        queryParams.append('size', String(size));
+    }
+
+    if (filter && filter.type !== 'none') {
+        queryParams.append(filter.type, String(filter.value));
+    }
+
+    const response = await authFetch(BASE_URL + `/get_history?${queryParams.toString()}`, {
         method: "GET",
     });
     if (!response.ok) {
@@ -157,7 +175,8 @@ export async function getHistory(branchId: string): Promise<Order[]> {
     if (text.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
     }
-    return mapOrdersImages(JSON.parse(text));
+    const body: GetHistoryResponse = JSON.parse(text);
+    return { orders: mapOrdersImages(body.orders), hasMore: body.hasMore };
 }
 
 export async function fetchStatistics(
@@ -343,5 +362,22 @@ export async function checkCustomer(telephoneNumber: string): Promise<CustomerCh
         return await response.json();
     } catch (error) {
         logger.error("Failed to check customer", error);
+    }
+}
+
+export async function getQuickPicks(menuItemId: number): Promise<QuickPickDto[]> {
+    try {
+        const response = await fetch(BASE_URL + `/menu-items/${menuItemId}/quick-picks`, {
+            method: "GET",
+        });
+
+        if (!response.ok) {
+            return [];
+        }
+
+        return await response.json();
+    } catch (error) {
+        logger.error("Failed to get quick picks", error);
+        return [];
     }
 }

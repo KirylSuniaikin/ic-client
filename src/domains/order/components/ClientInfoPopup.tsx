@@ -2,33 +2,14 @@ import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { countries, localizedCountryName } from "../../../shared/utils/countries";
 
 const brandRed = "#E44B4C";
-
-interface Country {
-    name: string;
-    code: string;
-    digits: number;
-}
 
 interface Branch {
     id: string;
     branchName: string;
 }
-
-const countries: Country[] = [
-    {name: "Bahrain", code: "973", digits: 8},
-    {name: "Saudi Arabia", code: "966", digits: 9},
-    {name: "Oman", code: "968", digits: 8 },
-    {name: "Kuwait", code: "965", digits: 8 },
-    {name: "United Arab Emirates", code: "971", digits: 9 },
-    {name: "Egypt", code: "20", digits: 10},
-    {name: "Italy", code: "39", digits: 10},
-    {name: "United Kingdom", code: "44", digits: 10},
-    {name: "United States", code: "1", digits: 10},
-    {name: "France", code: "33", digits: 9},
-    {name: "Poland", code: "48", digits: 9}
-];
 
 const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
 
@@ -39,10 +20,14 @@ interface ClientInfoPopupProps {
     phoneNumber: string;
     customerName: string;
     branches: Branch[];
+    // Optional — populated from GET /customer/me for a logged-in customer (task-spec.md §4
+    // req. 23). Pick-Up orders (the only flow this popup drives) have no address field to save,
+    // so this is shown as read-only reference info rather than wired into onSave.
+    prefillAddress?: string;
 }
 
-function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches}: ClientInfoPopupProps): JSX.Element {
-    const { t } = useTranslation("checkout");
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress}: ClientInfoPopupProps): JSX.Element {
+    const { t, i18n } = useTranslation("checkout");
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -119,6 +104,12 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         {t("clientInfo.title")}
                     </Typography>
 
+                    {prefillAddress && (
+                        <Typography sx={{ mb: 2, color: "#666", fontSize: 13 }}>
+                            {t("clientInfo.savedAddress", { address: prefillAddress })}
+                        </Typography>
+                    )}
+
                     <TextField
                         select
                         label={t("clientInfo.country")}
@@ -130,7 +121,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                     >
                         {countries.map((option) => (
                             <MenuItem key={option.name} value={option.name}>
-                                {option.name} ({option.code})
+                                {localizedCountryName(option, i18n.language)} ({option.code})
                             </MenuItem>
                         ))}
                     </TextField>

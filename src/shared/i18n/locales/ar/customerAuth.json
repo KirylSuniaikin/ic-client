@@ -1,0 +1,77 @@
+{
+  "login": {
+    "phoneTitle": "سجّل الدخول برقم هاتفك",
+    "codeTitle": "أدخل الرمز",
+    "phoneSubtitle": "سنرسل رمزاً مكوّناً من 4 أرقام إلى واتساب لتسجيل دخولك.",
+    "codeSubtitle": "تم الإرسال إلى واتساب ({{phone}}).",
+    "phoneLabel": "رقم الهاتف",
+    "phonePlaceholder": "5555 5555",
+    "country": "الدولة",
+    "codeGroup": "رمز التحقق",
+    "digit": "الرقم {{index}}",
+    "back": "رجوع",
+    "close": "إغلاق",
+    "getCode": "احصل على الرمز",
+    "submit": "تأكيد"
+  },
+  "profile": {
+    "title": "حسابي",
+    "close": "إغلاق",
+    "guest": "ضيف",
+    "orderSingular": "طلب",
+    "orderPlural": "طلبات",
+    "orderHistory": "سجل الطلبات",
+    "noOrders": "لا توجد طلبات بعد.",
+    "orderNumber": "طلب رقم {{number}}",
+    "page": "صفحة {{page}}",
+    "prev": "السابق",
+    "next": "التالي",
+    "logout": "تسجيل الخروج"
+  },
+  "iconButton": {
+    "account": "حساب العميل",
+    "login": "تسجيل الدخول"
+  },
+  "orderDetail": {
+    "title": "تفاصيل الطلب",
+    "orderIdLabel": "رقم الطلب #{{number}}",
+    "qty": "الكمية : {{count}} قطعة",
+    "amount": "المبلغ",
+    "discount": "الخصم",
+    "paymentMethod": "طريقة الدفع",
+    "paid": "مدفوع",
+    "unpaid": "غير مدفوع",
+    "notes": "ملاحظات",
+    "timeline": "خط سير الطلب",
+    "status": {
+      "orderPlaced": "تم استلام الطلب",
+      "inProgress": "الطلب قيد التنفيذ",
+      "inOven": "في الفرن",
+      "readyForPickup": "جاهز للاستلام",
+      "pickedUp": "تم الاستلام"
+    }
+  },
+  "island": {
+    "readyIn": "جاهز خلال",
+    "ready": "جاهز!",
+    "anyMinute": "في أي لحظة",
+    "minutes": "{{value}} دقيقة",
+    "orderNumber": "طلب رقم #{{number}}",
+    "stage": {
+      "preparing": "قيد التحضير",
+      "inOven": "في الفرن",
+      "ready": "جاهز"
+    }
+  },
+  "errors": {
+    "tooManyAttempts": "محاولات كثيرة جداً — يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.",
+    "invalidPhone": "أدخل رقم هاتف صحيحاً مكوّناً من {{digits}} أرقام لـ {{country}}.",
+    "sendFailed": "تعذّر إرسال الرمز. يرجى المحاولة مرة أخرى.",
+    "enterCode": "أدخل الرمز المكوّن من 4 أرقام.",
+    "invalidCode": "رمز غير صحيح. يرجى المحاولة مرة أخرى.",
+    "sessionExpired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
+    "profileLoadFailed": "تعذّر تحميل ملفك الشخصي. يرجى المحاولة مرة أخرى.",
+    "ordersLoadFailed": "تعذّر تحميل طلباتك. يرجى المحاولة مرة أخرى.",
+    "orderDetailLoadFailed": "تعذّر تحميل تفاصيل الطلب. يرجى المحاولة مرة أخرى."
+  }
+}

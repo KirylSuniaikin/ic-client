@@ -52,6 +52,9 @@
   "itemEditor": {
     "add": "Add"
   },
+  "quickPicks": {
+    "header": "Quick picks"
+  },
   "options": {
     "doughHeading": "Dough",
     "crustHeading": "Crust",

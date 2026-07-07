@@ -13,6 +13,7 @@ import ClosedPopup from "../domains/schedule/components/ClosedPopup";
 import ClientInfoPopup from "../domains/order/components/ClientInfoPopup";
 import AdminOrderDetailsPopUp from "../domains/management/orders/components/AdminOrderDetailsPopUp";
 import { PickUpReminderPopup } from "../domains/order/components/PickUpReminderPopup";
+import { GuestAccountPromptPopup } from "../domains/order/components/GuestAccountPromptPopup";
 import OrderConfirmed from "../domains/order/components/OrderConfirmed";
 import GenericItemPopupContent from "../domains/menu/components/popups/GenericItemPopupContent";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
@@ -230,8 +231,9 @@ export default function HomePageModals({
                     onSave={(tel: string, paymentMethod: string, customerName: string, notes: string, branchId: string) => {
                         checkout.handleCheckout(cart.cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
                     }}
-                    phoneNumber={phone.toString()}
-                    customerName={username}
+                    phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
+                    customerName={checkout.customerPrefill?.name ?? username}
+                    prefillAddress={checkout.customerPrefill?.address ?? undefined}
                 />
             )}
 
@@ -259,6 +261,14 @@ export default function HomePageModals({
 
             {!isAdmin && checkout.showOrderConfirmed && (
                 <OrderConfirmed open onClose={() => checkout.setShowOrderConfirmed(false)} />
+            )}
+
+            {checkout.postOrderProposalOpen && (
+                <GuestAccountPromptPopup
+                    open={checkout.postOrderProposalOpen}
+                    phone={checkout.postOrderProposalPhone}
+                    onDismiss={checkout.resolvePostOrderProposal}
+                />
             )}
 
             {checkout.blacklistSnackBarOpen && (

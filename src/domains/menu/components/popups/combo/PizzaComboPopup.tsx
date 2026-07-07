@@ -10,6 +10,7 @@ import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
+import {QuickPickChips} from "../../QuickPickChips";
 import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
 import type {MenuItem, CartItem, Group} from '../../../types';
@@ -148,6 +149,19 @@ export function PizzaComboPopup({
     const [editorItems, setEditorItems] = useState<MenuItem[]>([]);
     const [editorTarget, setEditorTarget] = useState<string | null>(null);
 
+    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
+    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
+
+    const quickPickMenuItemId = pizza.item?.id;
+
+    // Resets stale selections whenever the customized combo pizza (menu_item row) changes
+    // (size toggle, or "Change" via ItemEditorPopup) or the popup reopens for a different
+    // item — a quick_pick belongs to exactly one menu_item.
+    useEffect(() => {
+        setSelectedQuickPickIds([]);
+        setJoinedQuickPickLabel("");
+    }, [quickPickMenuItemId, open]);
+
     const sizeItem = comboGroup?.find((i) => i.size === selectedSize);
     const basePrice = sizeItem ? sizeItem.price : 0;
 
@@ -217,6 +231,9 @@ export function PizzaComboPopup({
     function handleAdd(): void {
         if (!pizza?.item || !drink?.item || !sauce?.item || !sizeItem) return;
 
+        const existingDescriptionValue = description;
+        const finalDescription = [existingDescriptionValue, joinedQuickPickLabel].filter(Boolean).join(", ");
+
         const orderItem = {
             id: sizeItem.id,
             amount: basePrice,
@@ -240,7 +257,7 @@ export function PizzaComboPopup({
                     size: selectedSize,
                     isGarlicCrust: pizza.crust === "Garlic Crust",
                     isThinDough: pizza.dough === "Thin Dough",
-                    description: description,
+                    description: finalDescription,
                     quantity: 1,
                 },
                 {
@@ -341,6 +358,15 @@ export function PizzaComboPopup({
                                 {sizeItem ? localizeDescription(sizeItem) : ""}
                             </Typography>
                         </Box>
+
+                        <QuickPickChips
+                            menuItemId={quickPickMenuItemId}
+                            selectedIds={selectedQuickPickIds}
+                            onChange={(ids, joined) => {
+                                setSelectedQuickPickIds(ids);
+                                setJoinedQuickPickLabel(joined);
+                            }}
+                        />
 
                         <ItemCard
                             item={pizza.item}

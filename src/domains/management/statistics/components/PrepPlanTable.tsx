@@ -232,7 +232,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                         <TableBody>
                             {plan.rows.map((row) => (
                                 <TableRow key={row.componentId}>
-                                    <TableCell>{row.name}</TableCell>
+                                    <TableCell>{row.name}({row.yieldMultiplier*100}%)</TableCell>
                                     <TableCell>{roundNum(row.amount*0.85)}</TableCell>
                                     <TableCell>{roundNum(row.amount*1.15)}</TableCell>
                                     <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>

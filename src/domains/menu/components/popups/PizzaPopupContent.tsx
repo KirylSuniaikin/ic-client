@@ -14,6 +14,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import {ToppingsScroll} from "../ToppingsScroll";
+import {QuickPickChips} from "../QuickPickChips";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
@@ -79,6 +80,8 @@ function PizzaPopup({
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
+    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
+    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -167,6 +170,15 @@ function PizzaPopup({
     const matchedItem = group.items.find(it => it.size === selectedSize);
     const basePrice = matchedItem ? matchedItem.price : 0;
 
+    const quickPickMenuItemId = matchedItem?.id ?? item?.id;
+
+    // Resets stale selections whenever the customized menu_item row changes (size toggle,
+    // or the popup reopening for a different item) — a quick_pick belongs to exactly one menu_item.
+    useEffect(() => {
+        setSelectedQuickPickIds([]);
+        setJoinedQuickPickLabel("");
+    }, [quickPickMenuItemId, open]);
+
     const ingrsForSize = extraIngredients.filter(ing => (ing as unknown as Record<string, unknown>).size === selectedSize);
 
     const extraCost = (selectedIngr || []).reduce((sum, ingrName) => {
@@ -227,6 +239,9 @@ function PizzaPopup({
 
         const currentVariant = matchedItem || item;
 
+        const existingDescriptionValue = getDesc();
+        const finalDescription = [existingDescriptionValue, joinedQuickPickLabel].filter(Boolean).join(", ");
+
         const products: CartItem[] = [{
             ...currentVariant,
             name: item.name,
@@ -238,7 +253,7 @@ function PizzaPopup({
             toppings: selectedToppings as unknown as Topping[],
             note: note,
             quantity,
-            description: getDesc(),
+            description: finalDescription,
             amount: finalPizzaPricePerItem,
             discountAmount: 0,
             comboItems: [],
@@ -378,6 +393,15 @@ function PizzaPopup({
                             setQuantity={setQuantity}
                             showDoughSelector={showDoughSelector}
                             isAdmin={isAdmin}
+                        />
+
+                        <QuickPickChips
+                            menuItemId={quickPickMenuItemId}
+                            selectedIds={selectedQuickPickIds}
+                            onChange={(ids, joined) => {
+                                setSelectedQuickPickIds(ids);
+                                setJoinedQuickPickLabel(joined);
+                            }}
                         />
 
                         <TextField

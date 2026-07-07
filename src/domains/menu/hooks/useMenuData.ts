@@ -95,7 +95,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
             return DEFAULT_BRANCH_ID;
         }
         if (isAdmin && adminBranchId) return adminBranchId;
-        console.log(DEFAULT_BRANCH_ID);
         return DEFAULT_BRANCH_ID;
     }
 

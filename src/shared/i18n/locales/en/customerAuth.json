@@ -1,0 +1,77 @@
+{
+  "login": {
+    "phoneTitle": "Log in with your phone",
+    "codeTitle": "Enter your code",
+    "phoneSubtitle": "We'll send a 4-digit code to your WhatsApp to sign you in.",
+    "codeSubtitle": "Sent to your WhatsApp ({{phone}}).",
+    "phoneLabel": "Phone number",
+    "phonePlaceholder": "5555 5555",
+    "country": "Country",
+    "codeGroup": "Verification code",
+    "digit": "Digit {{index}}",
+    "back": "Back",
+    "close": "Close",
+    "getCode": "Get code",
+    "submit": "Submit"
+  },
+  "profile": {
+    "title": "My Account",
+    "close": "Close",
+    "guest": "Guest",
+    "orderSingular": "order",
+    "orderPlural": "orders",
+    "orderHistory": "Order history",
+    "noOrders": "No orders yet.",
+    "orderNumber": "Order #{{number}}",
+    "page": "Page {{page}}",
+    "prev": "Prev",
+    "next": "Next",
+    "logout": "Logout"
+  },
+  "iconButton": {
+    "account": "customer account",
+    "login": "log in"
+  },
+  "orderDetail": {
+    "title": "Detail Order",
+    "orderIdLabel": "Order ID #{{number}}",
+    "qty": "Qty : {{count}} Item",
+    "amount": "Amount",
+    "discount": "Discount",
+    "paymentMethod": "Payment Method",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "notes": "Notes",
+    "timeline": "Timeline Order",
+    "status": {
+      "orderPlaced": "Order Placed",
+      "inProgress": "Order in Progress",
+      "inOven": "In the Oven",
+      "readyForPickup": "Ready for Pickup",
+      "pickedUp": "Picked Up"
+    }
+  },
+  "island": {
+    "readyIn": "Estimated Ready in",
+    "ready": "Come In And Pick Up Your Order!",
+    "anyMinute": "Short",
+    "minutes": "{{value}} min",
+    "orderNumber": "Order #{{number}}",
+    "stage": {
+      "preparing": "Preparing",
+      "inOven": "In the oven",
+      "ready": "Ready"
+    }
+  },
+  "errors": {
+    "tooManyAttempts": "Too many attempts — please wait a bit before trying again.",
+    "invalidPhone": "Enter a valid {{digits}}-digit phone number for {{country}}.",
+    "sendFailed": "Could not send the code. Please try again.",
+    "enterCode": "Enter the 4-digit code.",
+    "invalidCode": "Invalid code. Please try again.",
+    "sessionExpired": "Your session has expired. Please log in again.",
+    "profileLoadFailed": "Could not load your profile. Please try again.",
+    "ordersLoadFailed": "Could not load your orders. Please try again.",
+    "orderDetailLoadFailed": "Could not load order details. Please try again."
+  }
+}
