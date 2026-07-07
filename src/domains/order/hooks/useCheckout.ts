@@ -8,7 +8,7 @@ import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
-import { ItemsUnavailableError } from "../types";
+import { ItemsUnavailableError, BranchClosedError } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 
@@ -181,6 +181,14 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 }
             }
         } catch (error) {
+            if (error instanceof BranchClosedError) {
+                // Race: the branch closed between fetching base info and submitting.
+                // Apologise and refetch working hours (refreshMenu reloads base-app-info).
+                setErrorMessage(error.message);
+                setErrorSnackBarOpen(true);
+                refreshMenu().catch(() => {});
+                return;
+            }
             if (error instanceof ItemsUnavailableError) {
                 const removed = originalCartItems.filter(item => error.unavailableIds.includes(item.id));
                 const remaining = originalCartItems.filter(item => !error.unavailableIds.includes(item.id));

@@ -7,7 +7,7 @@ import type { IBranch } from "../../inventory/types";
 
 jest.mock("../../../../shared/api/management");
 
-const mockBranch: IBranch = { id: 1, externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en" };
+const mockBranch: IBranch = { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en" };
 
 describe("ManagementTopBar", () => {
     beforeEach(() => {

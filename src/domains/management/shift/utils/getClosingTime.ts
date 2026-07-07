@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { ramadanHours, workingHours } from "../../../schedule/utils/workingHours";
+import { ramadanHours } from "../../../schedule/utils/workingHours";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -13,13 +13,13 @@ export function getClosingTime(now?: Dayjs): Dayjs | null {
     const currentNow = now ?? dayjs().tz(tz);
     const dayName = currentNow.format("dddd");
 
-    const shifts = ramadanHours[dayName];
+    const daySchedule = ramadanHours[dayName];
 
-    if (!shifts || shifts.length === 0) return null;
+    if (!daySchedule || !daySchedule.isOpen || daySchedule.shifts.length === 0) return null;
 
     let targetClosingTime: Dayjs | null = null;
 
-    for (const [start, end] of shifts) {
+    for (const [start, end] of daySchedule.shifts) {
         if (typeof start !== "string" || typeof end !== "string") continue;
 
         const [startH, startM] = start.split(":").map(Number);

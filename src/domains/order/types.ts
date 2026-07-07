@@ -1,4 +1,5 @@
 import type {MenuItem, ExtraIngr, Topping} from '../menu/types';
+import type { WorkingHoursSchedule } from '../../shared/api/management';
 
 export class ItemsUnavailableError extends Error {
     readonly unavailableIds: number[];
@@ -9,6 +10,15 @@ export class ItemsUnavailableError extends Error {
         this.unavailableIds = unavailableIds;
     }
 }
+
+export class BranchClosedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'BranchClosedError';
+    }
+}
+
+export type BranchClosedResponse = { message: string };
 
 export type OrderStatus =
     | 'Kitchen Phase'
@@ -85,11 +95,13 @@ export type Order = {
 };
 
 export type BaseAppInfoResponse = {
-    menu: MenuItem[];
-    extraIngr: ExtraIngr[];
-    toppings: Topping[];
-    isSDoughAvailable: boolean;
-    userInfo: { name: string; phone: string } | null;
+
+  menu: MenuItem[];
+  extraIngr: ExtraIngr[];
+  toppings: Topping[];
+  isSDoughAvailable: boolean;
+  userInfo: { name: string; phone: string } | null;
+  workingHours?: WorkingHoursSchedule | null;
 };
 
 export type CustomerCheckResponse = {

@@ -14,7 +14,7 @@ import {
     getHistory,
     updateOrderStatus,
 } from "./public";
-import { ItemsUnavailableError } from "../../domains/order/types";
+import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
 import type { CreateOrderRequest, AvailabilityChange } from "../../domains/order/types";
 
 const mockAuthFetch = jest.mocked(authFetch);
@@ -76,6 +76,23 @@ describe("createOrder", () => {
 
         expect(caught).toBeInstanceOf(ItemsUnavailableError);
         expect((caught as ItemsUnavailableError).unavailableIds).toEqual([3, 5]);
+    });
+
+    it("throws BranchClosedError when the server responds with 423", async () => {
+        const body = JSON.stringify({ message: "We're sorry, this branch is closed right now." });
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(body, { status: 423, headers: { "Content-Type": "application/json" } })
+        );
+
+        let caught: unknown;
+        try {
+            await createOrder(order);
+        } catch (err) {
+            caught = err;
+        }
+
+        expect(caught).toBeInstanceOf(BranchClosedError);
+        expect((caught as BranchClosedError).message).toBe("We're sorry, this branch is closed right now.");
     });
 
     it("throws a generic Error on non-ok status other than 409", async () => {

@@ -6,6 +6,7 @@ import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
 import type { MenuItem, ExtraIngr, Topping, CartItem } from "../types";
 import type { IBranch } from "../../management/inventory/types";
+import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -22,6 +23,7 @@ export interface UseMenuDataResult {
     pendingInitialItems: CartItem[];
     pendingUnavailableNames: string[];
     refreshMenu: () => Promise<void>;
+    workingHours: WorkingHoursSchedule | null;
 }
 
 interface UseMenuDataParams {
@@ -102,6 +104,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const [extraIngredients, setExtraIngredients] = useState<ExtraIngr[]>([]);
     const [toppings, setToppings] = useState<Topping[]>([]);
     const [isSDoughAvailable, setSDoughAvailable] = useState(false);
+    const [workingHours, setWorkingHours] = useState<WorkingHoursSchedule | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [username, setUsername] = useState("");
@@ -126,6 +129,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                 setExtraIngredients(baseInfo.extraIngr);
                 setToppings(baseInfo.toppings);
                 setSDoughAvailable(baseInfo.isSDoughAvailable);
+                setWorkingHours(baseInfo.workingHours ?? null);
 
                 const branches = await fetchAllBranches();
                 setAvailableBranches(branches);
@@ -251,6 +255,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     return {
         menuData, extraIngredients, toppings, isSDoughAvailable,
         loading, error, username, phone, availableBranches, branchSelector, setBranchSelector,
-        pendingInitialItems, pendingUnavailableNames, refreshMenu,
+        pendingInitialItems, pendingUnavailableNames, refreshMenu, workingHours,
     };
 }

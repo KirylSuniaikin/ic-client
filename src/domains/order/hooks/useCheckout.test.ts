@@ -1,14 +1,6 @@
 import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
-
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
-jest.mock("../../../shared/api/public");
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
-jest.mock("../../../shared/api/management");
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/customerAuth.ts
-jest.mock("../../../shared/api/customerAuth");
-
 import { createOrder, checkCustomer } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { refreshCustomerToken, fetchCustomerMe } from "../../../shared/api/customerAuth";
@@ -18,6 +10,15 @@ import { useCheckout } from "./useCheckout";
 import type { CartItem, MenuItem } from "../../menu/types";
 import type { Order } from "../types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
+import { BranchClosedError } from "../types";
+
+// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
+jest.mock("../../../shared/api/public");
+// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
+jest.mock("../../../shared/api/management");
+// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/customerAuth.ts
+jest.mock("../../../shared/api/customerAuth");
+
 
 const mockCreateOrder = jest.mocked(createOrder);
 const mockCheckCustomer = jest.mocked(checkCustomer);
@@ -534,6 +535,23 @@ describe("useCheckout — executeOrderCreation", () => {
         });
 
         expect(result.current.errorSnackBarOpen).toBe(true);
+    });
+
+    it("opens error snackbar and refetches the menu when the branch is closed (423)", async () => {
+        mockCreateOrder.mockRejectedValue(new BranchClosedError("We're sorry, this branch is closed right now."));
+        const params = makeParams();
+
+        const { result } = renderHook(() => useCheckout(params));
+
+        await act(async () => {
+            await result.current.executeOrderCreation(
+                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
+                ITEMS,
+            );
+        });
+
+        expect(result.current.errorSnackBarOpen).toBe(true);
+        expect(params.refreshMenu).toHaveBeenCalled();
     });
 });
 
