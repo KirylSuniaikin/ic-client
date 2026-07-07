@@ -35,11 +35,11 @@ const OTHER_BRANCH: IBranch = {
     locale: "en",
 };
 
-function renderHero(branches: IBranch[]) {
+function renderHero(branches: IBranch[], isKiosk = false) {
     return render(
         <CustomerAuthProvider>
             <CustomerAuthUiProvider>
-                <HeroSection isKiosk={false} branches={branches} workingHours={null} />
+                <HeroSection isKiosk={isKiosk} branches={branches} workingHours={null} />
             </CustomerAuthUiProvider>
         </CustomerAuthProvider>
     );
@@ -73,6 +73,14 @@ describe("HeroSection", () => {
 
         expect(screen.getByRole("button", { name: "toggle language" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "log in" })).toBeTruthy();
+    });
+
+    it("hides the account button in kiosk mode but keeps the language toggle", () => {
+        // Kiosk is a shared guest tablet — no personal account entry point.
+        renderHero([MATCHING_BRANCH], true);
+
+        expect(screen.getByRole("button", { name: "toggle language" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "log in" })).toBeNull();
     });
 
     // The hero-scrolled-away check reads getBoundingClientRect().bottom; jsdom returns 0 for every
