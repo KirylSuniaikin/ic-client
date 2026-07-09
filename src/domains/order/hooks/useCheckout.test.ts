@@ -3,8 +3,8 @@ import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { createOrder, checkCustomer } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
-import { refreshCustomerToken, fetchCustomerMe } from "../../../shared/api/customerAuth";
-import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
+import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../../../shared/api/customerAuth";
+import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import { useCheckout } from "./useCheckout";
 import type { CartItem, MenuItem } from "../../menu/types";
@@ -25,6 +25,7 @@ const mockCheckCustomer = jest.mocked(checkCustomer);
 const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
+const mockVerifyOtp = jest.mocked(verifyOtp);
 
 // useCheckout calls useCustomerAuth() and useCustomerAuthUi() internally (task-spec.md
 // §4 req. 22/23, and Phase 3 req. 15), so every renderHook needs both providers as
@@ -43,7 +44,8 @@ function wrapper({ children }: { children: React.ReactNode }): React.JSX.Element
 function useCheckoutWithUi(params: Parameters<typeof useCheckout>[0]) {
     const checkout = useCheckout(params);
     const ui = useCustomerAuthUi();
-    return { checkout, ui };
+    const auth = useCustomerAuth();
+    return { checkout, ui, auth };
 }
 
 // Awaits CustomerAuthProvider's mount-time silent refresh settling, so its state update happens
@@ -73,6 +75,7 @@ beforeEach(() => {
     mockRefreshCustomerToken.mockReset();
     mockRefreshCustomerToken.mockRejectedValue(new Error("no session"));
     mockFetchCustomerMe.mockReset();
+    mockVerifyOtp.mockReset();
 });
 
 function makeCartItem(name: string, amount: number, quantity = 1): CartItem {
@@ -421,12 +424,48 @@ describe("useCheckout — executeOrderCreation", () => {
         expect(result.current.postOrderProposalPhone).toBe("12345678");
         expect(navigateSpy).not.toHaveBeenCalled();
 
-        // Resolving the proposal (declined, or account created) navigates to the tracking page.
+        // Declining the proposal (still a guest) navigates to the anonymous tracking page.
         act(() => {
             result.current.resolvePostOrderProposal();
         });
         expect(navigateSpy).toHaveBeenCalledWith("/order_status?order_id=order-123");
         expect(result.current.postOrderProposalOpen).toBe(false);
+    });
+
+    it("opens the just-placed order's detail (no navigate) when a guest creates an account from the proposal", async () => {
+        mockCreateOrder.mockResolvedValue({ ...MOCK_ORDER, id: "789" });
+        // The proposal's CTA drives OTP login; verifyOtp resolving flips the auth token to non-null.
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-guest" });
+        const navigateSpy = jest.fn<void, [string, unknown?]>();
+
+        const { result } = renderHook(() =>
+            useCheckoutWithUi(makeParams({ isAdmin: false, isKiosk: false, navigate: navigateSpy })),
+        { wrapper });
+        await waitForAuthReady();
+
+        // Guest (token null) places an order with a phone → proposal opens, redirect deferred.
+        await act(async () => {
+            await result.current.checkout.executeOrderCreation(
+                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
+                ITEMS,
+            );
+        });
+        expect(result.current.checkout.postOrderProposalOpen).toBe(true);
+
+        // Guest accepts the proposal and completes OTP → the account is created and token becomes non-null.
+        await act(async () => {
+            await result.current.auth.login("12345678", "0000");
+        });
+
+        // Resolving now lands on the profile popup with THIS order's detail, not the tracking page.
+        act(() => {
+            result.current.checkout.resolvePostOrderProposal();
+        });
+
+        expect(navigateSpy).not.toHaveBeenCalled();
+        expect(result.current.ui.isProfileOpen).toBe(true);
+        expect(result.current.ui.selectedOrderId).toBe(789);
+        expect(result.current.checkout.postOrderProposalOpen).toBe(false);
     });
 
     it("calls openOrderDetail with the numeric order id and does not navigate for a logged-in customer", async () => {
@@ -541,7 +580,7 @@ describe("useCheckout — executeOrderCreation", () => {
         mockCreateOrder.mockRejectedValue(new BranchClosedError("We're sorry, this branch is closed right now."));
         const params = makeParams();
 
-        const { result } = renderHook(() => useCheckout(params));
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
 
         await act(async () => {
             await result.current.executeOrderCreation(

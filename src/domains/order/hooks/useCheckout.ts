@@ -98,11 +98,22 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [postOrderProposalOpen, setPostOrderProposalOpen] = useState(false);
     const [postOrderProposalPhone, setPostOrderProposalPhone] = useState("");
     const pendingTrackPathRef = useRef<string | null>(null);
+    const pendingOrderIdRef = useRef<number | null>(null);
 
     function resolvePostOrderProposal(): void {
         setPostOrderProposalOpen(false);
         const path = pendingTrackPathRef.current;
+        const orderId = pendingOrderIdRef.current;
         pendingTrackPathRef.current = null;
+        pendingOrderIdRef.current = null;
+        // If the guest created an account from the proposal (now logged in), give them the same
+        // landing a logged-in checkout gets — the profile popup with this order's detail — instead
+        // of the anonymous order-status page. Declining (still a guest) navigates as before.
+        if (token !== null && orderId !== null) {
+            refreshActiveOrder();
+            openOrderDetail(orderId);
+            return;
+        }
         if (path) navigate(path);
     }
 
@@ -174,6 +185,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 // orders navigate immediately, as before.
                 if (orderData.tel) {
                     pendingTrackPathRef.current = path;
+                    pendingOrderIdRef.current = Number(response.id);
                     setPostOrderProposalPhone(orderData.tel);
                     setPostOrderProposalOpen(true);
                 } else {

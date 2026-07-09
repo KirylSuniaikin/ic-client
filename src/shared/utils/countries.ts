@@ -22,7 +22,8 @@ export const countries: Country[] = [
     {name: "United Kingdom", nameAr: "المملكة المتحدة", code: "44", digits: 10},
     {name: "United States", nameAr: "الولايات المتحدة", code: "1", digits: 10},
     {name: "France", nameAr: "فرنسا", code: "33", digits: 9},
-    {name: "Poland", nameAr: "بولندا", code: "48", digits: 9}
+    {name: "Poland", nameAr: "بولندا", code: "48", digits: 9},
+    {name: "Czech Republic", nameAr: "جمهورية التشيك", code: "420", digits: 9}
 ];
 
 // Picks the display name for the active UI language. English `name` is the
