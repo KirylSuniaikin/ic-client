@@ -86,7 +86,7 @@ describe("BranchScheduleHeader", () => {
 
     it("shows next-opening text when isWithinWorkingHours is false", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
-        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningMessage: null });
+        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningDay: null, nextOpeningTime: null });
 
         render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
@@ -95,7 +95,7 @@ describe("BranchScheduleHeader", () => {
 
     it("shows the 'less than a minute' fallback when hours and minutes are both 0, mirroring ClosedPopup", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
-        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 0, minutes: 0, nextOpeningMessage: null });
+        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 0, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
 
         render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
@@ -115,22 +115,25 @@ describe("BranchScheduleHeader", () => {
 
     it("forwards the workingHours prop into getTimeUntilNextOpening when closed", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
-        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningMessage: null });
+        mockGetTimeUntilNextOpening.mockReturnValue({ hours: 2, minutes: 15, nextOpeningDay: null, nextOpeningTime: null });
 
         render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={SCHEDULE} />);
 
         expect(mockGetTimeUntilNextOpening).toHaveBeenCalledWith(SCHEDULE);
     });
 
-    it("prefers the explicit nextOpeningMessage when provided, mirroring ClosedPopup", () => {
+    // A countdown across a day boundary is unreadable ("opens in 23h 30m" on a closed Sunday),
+    // so the day is named instead — and the countdown must NOT be shown in that case.
+    it("names the day and opening time when the branch reopens on a later day", () => {
         mockIsWithinWorkingHours.mockReturnValue(false);
         mockGetTimeUntilNextOpening.mockReturnValue({
-            hours: 23, minutes: 30, nextOpeningMessage: "We open on Tuesday at 11:30",
+            hours: 23, minutes: 30, nextOpeningDay: "Monday", nextOpeningTime: "15:30",
         });
 
         render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
-        expect(screen.getByText("We open on Tuesday at 11:30")).toBeTruthy();
+        expect(screen.getByText("Opens on Monday at 15:30")).toBeTruthy();
+        expect(screen.queryByText(/Opens in/)).toBeNull();
     });
 
     describe("60s re-poll", () => {
@@ -145,7 +148,7 @@ describe("BranchScheduleHeader", () => {
         it("re-checks isWithinWorkingHours every 60s and updates the rendered copy", () => {
             mockIsWithinWorkingHours.mockReturnValue(true);
             mockGetClosingTime.mockReturnValue("23:00");
-            mockGetTimeUntilNextOpening.mockReturnValue({ hours: 1, minutes: 0, nextOpeningMessage: null });
+            mockGetTimeUntilNextOpening.mockReturnValue({ hours: 1, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
 
             render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 

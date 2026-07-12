@@ -10,13 +10,13 @@ import { useCheckout } from "./useCheckout";
 import type { CartItem, MenuItem } from "../../menu/types";
 import type { Order } from "../types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
-import { BranchClosedError } from "../types";
+import { BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
 
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
+// Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../shared/api/public");
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
+// Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../shared/api/management");
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/customerAuth.ts
+// Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/customerAuth.ts
 jest.mock("../../../shared/api/customerAuth");
 
 
@@ -27,9 +27,8 @@ const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
 const mockVerifyOtp = jest.mocked(verifyOtp);
 
-// useCheckout calls useCustomerAuth() and useCustomerAuthUi() internally (task-spec.md
-// §4 req. 22/23, and Phase 3 req. 15), so every renderHook needs both providers as
-// ancestors — mirrors app/providers.tsx wiring.
+// useCheckout calls useCustomerAuth() and useCustomerAuthUi() internally, so every
+// renderHook needs both providers as ancestors -- mirrors app/providers.tsx wiring.
 function wrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
     return React.createElement(
         CustomerAuthProvider,
@@ -38,9 +37,9 @@ function wrapper({ children }: { children: React.ReactNode }): React.JSX.Element
     );
 }
 
-// Combines useCheckout with useCustomerAuthUi under the same render, so a test can
-// observe the openOrderDetail side effect (isProfileOpen/selectedOrderId) that
-// executeOrderCreation triggers for a logged-in customer, without mocking the context.
+// Combines useCheckout with useCustomerAuthUi/useCustomerAuth under the same render, so a
+// test can observe the context side effects (openLogin/isLoginOpen/openOrderDetail/token)
+// that the mandatory-account gate triggers, without mocking the context.
 function useCheckoutWithUi(params: Parameters<typeof useCheckout>[0]) {
     const checkout = useCheckout(params);
     const ui = useCustomerAuthUi();
@@ -144,7 +143,7 @@ function makeParams(overrides: {
         setCartItems,
         setCartOpen,
         refreshMenu,
-        // react-router NavigateFunction is typed as a function — jest.fn() satisfies it at runtime
+        // react-router NavigateFunction is typed as a function -- jest.fn() satisfies it at runtime
         navigate: navigate as unknown as import("react-router-dom").NavigateFunction,
     };
 }
@@ -173,19 +172,14 @@ describe("useCheckout — initial state", () => {
         expect(result.current.customerPrefill).toBeNull();
     });
 
-    // task-spec.md §5.8/§9: guestPromptOpen/setGuestPromptOpen/dismissGuestPrompt/
-    // continueCheckoutAfterLogin are removed from UseCheckoutResult entirely -- assert their
-    // absence at runtime (in addition to the `yarn tsc --noEmit` gate, which only proves the
-    // *type* no longer declares them, not that some other path doesn't still attach them to
-    // the returned object).
-    it("does not include guestPromptOpen/setGuestPromptOpen/dismissGuestPrompt/continueCheckoutAfterLogin on the returned result", async () => {
+    it("does not include postOrderProposalOpen/Phone/Name/resolvePostOrderProposal on the returned result", async () => {
         const { result } = renderHook(() => useCheckout(makeParams()), { wrapper });
         await waitForAuthReady();
 
-        expect(Object.prototype.hasOwnProperty.call(result.current, "guestPromptOpen")).toBe(false);
-        expect(Object.prototype.hasOwnProperty.call(result.current, "setGuestPromptOpen")).toBe(false);
-        expect(Object.prototype.hasOwnProperty.call(result.current, "dismissGuestPrompt")).toBe(false);
-        expect(Object.prototype.hasOwnProperty.call(result.current, "continueCheckoutAfterLogin")).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(result.current, "postOrderProposalOpen")).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(result.current, "postOrderProposalPhone")).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(result.current, "postOrderProposalName")).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(result.current, "resolvePostOrderProposal")).toBe(false);
     });
 });
 
@@ -223,19 +217,15 @@ describe("useCheckout — handleCheckout cross-sell gate (non-admin)", () => {
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // first call: opens cross-sell
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
         expect(result.current.isCrossSellOpen).toBe(true);
 
-        // second call: cross-sell already shown, falls through to payment check
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        // paymentMethod is null, not logged in: guest goes straight to ClientInfoPopup unfilled
-        // (task-spec.md section 6.3), no account-prompt detour.
         expect(result.current.phonePopupOpen).toBe(true);
     });
 });
@@ -249,13 +239,10 @@ describe("useCheckout — handleCheckout payment gate (non-admin, guest)", () =>
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // Prime: first call to set wasCrossSellShown=true
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        // Second call with null payment, guest: opens ClientInfoPopup unfilled directly
-        // (task-spec.md section 6.3), no account-prompt detour.
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
@@ -270,11 +257,9 @@ describe("useCheckout — handleCheckout payment gate (non-admin, guest)", () =>
         await waitForAuthReady();
 
         await act(async () => {
-            // call 1: cross-sell
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
         await act(async () => {
-            // call 2: payment null → guest prompt
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
@@ -287,32 +272,83 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         jest.clearAllMocks();
     });
 
-    it("skips the guest prompt and opens ClientInfoPopup pre-filled from /customer/me when logged in", async () => {
+    it("skips ClientInfoPopup and places the order straight from the cart when the profile has a name", async () => {
         mockRefreshCustomerToken.mockReset();
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCheckCustomer.mockResolvedValue({ name: MOCK_CUSTOMER_ME.name, isBlacklisted: false, isNewCustomer: false });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // Prime: first call to set wasCrossSellShown=true
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        // Second call with null payment, logged in → prefilled ClientInfoPopup directly
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(result.current.phonePopupOpen).toBe(false);
+    });
+
+    it("sends the profile's phone/name, the default payment method and the cart note on a skipped-popup order", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCheckCustomer.mockResolvedValue({ name: MOCK_CUSTOMER_ME.name, isBlacklisted: false, isNewCustomer: false });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        act(() => {
+            result.current.setCartNote("no onions");
+        });
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            tel: MOCK_CUSTOMER_ME.phone,
+            customer_name: MOCK_CUSTOMER_ME.name,
+            payment_type: DEFAULT_PAYMENT_METHOD,
+            type: "Pick Up",
+            notes: "no onions",
+        }));
+    });
+
+    it("falls back to ClientInfoPopup instead of sending a nameless order when the profile has no name", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, name: null });
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
         expect(result.current.phonePopupOpen).toBe(true);
-        expect(result.current.customerPrefill).toEqual(MOCK_CUSTOMER_ME);
-        expect(mockFetchCustomerMe).toHaveBeenCalledWith("tok-1");
+        expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
     it("falls back to an unfilled ClientInfoPopup when the profile fetch fails", async () => {
         mockRefreshCustomerToken.mockReset();
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockRejectedValueOnce(new Error("network error"));
 
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
@@ -328,6 +364,27 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         expect(result.current.phonePopupOpen).toBe(true);
         expect(result.current.customerPrefill).toBeNull();
     });
+
+    it("places the order directly with no OTP gate when already logged in and paymentMethod is provided", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCheckCustomer.mockResolvedValue({ name: "Sara", isBlacklisted: false, isNewCustomer: false });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", "branch-1");
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(result.current.ui.isLoginOpen).toBe(false);
+    });
 });
 
 describe("useCheckout — blacklist check", () => {
@@ -339,18 +396,15 @@ describe("useCheckout — blacklist check", () => {
         mockGetAllBannedCstmrs.mockResolvedValue([{ id: 1, telephoneNo: "99999999" }]);
         mockCheckCustomer.mockResolvedValue(undefined);
 
-        // Use a navigate spy
         const navigateSpy = jest.fn<void, [string]>();
         const params = makeParams({ isAdmin: false, navigate: navigateSpy });
 
         const { result } = renderHook(() => useCheckout(params), { wrapper });
         await waitForAuthReady();
 
-        // prime cross-sell
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
         });
-        // second call — cross-sell gate cleared, paymentMethod provided → blacklist check
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
         });
@@ -379,6 +433,113 @@ describe("useCheckout — blacklist check", () => {
 
         expect(mockCreateOrder).not.toHaveBeenCalled();
     });
+
+    it("checks the blacklist before opening the login sheet, for a guest who is not banned", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+        });
+
+        expect(mockGetAllBannedCstmrs).toHaveBeenCalled();
+        expect(result.current.ui.isLoginOpen).toBe(true);
+    });
+});
+
+describe("useCheckout — mandatory account verification gate (guest checkout)", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    async function primeToGate(result: { current: ReturnType<typeof useCheckoutWithUi> }): Promise<void> {
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+        });
+    }
+
+    it("does not call createOrder and opens the login sheet in checkout mode, prefilled with the typed phone", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await primeToGate(result);
+
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        expect(result.current.ui.isLoginOpen).toBe(true);
+        expect(result.current.ui.loginPrefillPhone).toBe("12345678");
+        expect(result.current.ui.loginCheckoutMode).toBe(true);
+        expect(result.current.checkout.phonePopupOpen).toBe(false);
+    });
+
+    it("dismissing the sheet without verifying reopens the cart and creates no order", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        const params = makeParams({ isAdmin: false });
+
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
+        await waitForAuthReady();
+
+        await primeToGate(result);
+        expect(result.current.ui.isLoginOpen).toBe(true);
+
+        act(() => {
+            result.current.ui.closeAll();
+        });
+
+        await waitFor(() => expect(params.setCartOpen).toHaveBeenCalledWith(true));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+
+    it("submits the order with the verified phone, not the typed phone, when they differ", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "99998888", name: "Verified Name" });
+        mockCheckCustomer.mockResolvedValue({ name: "Verified Name", isBlacklisted: false, isNewCustomer: false });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await primeToGate(result);
+        expect(result.current.ui.isLoginOpen).toBe(true);
+
+        await act(async () => {
+            await result.current.auth.login("99998888", "0000");
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ tel: "99998888" }));
+    });
+
+    it("submits the order with the typed phone when verification confirms the same number", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "12345678", name: "Same Name" });
+        mockCheckCustomer.mockResolvedValue({ name: "Same Name", isBlacklisted: false, isNewCustomer: false });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await primeToGate(result);
+
+        await act(async () => {
+            await result.current.auth.login("12345678", "0000");
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ tel: "12345678" }));
+        expect(mockGetAllBannedCstmrs).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("useCheckout — executeOrderCreation", () => {
@@ -402,40 +563,8 @@ describe("useCheckout — executeOrderCreation", () => {
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     });
 
-    it("defers navigation and opens the account proposal for a guest with a phone", async () => {
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
-        const navigateSpy = jest.fn<void, [string, unknown?]>();
-
-        const { result } = renderHook(() =>
-            useCheckout(makeParams({ isAdmin: false, isKiosk: false, navigate: navigateSpy })),
-        { wrapper });
-        await waitForAuthReady();
-
-        await act(async () => {
-            await result.current.executeOrderCreation(
-                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
-                ITEMS,
-            );
-        });
-
-        // Guest stays on the page: the proposal opens (prefilled with the order phone) and the
-        // tracking-page redirect is held back until the proposal is resolved.
-        expect(result.current.postOrderProposalOpen).toBe(true);
-        expect(result.current.postOrderProposalPhone).toBe("12345678");
-        expect(navigateSpy).not.toHaveBeenCalled();
-
-        // Declining the proposal (still a guest) navigates to the anonymous tracking page.
-        act(() => {
-            result.current.resolvePostOrderProposal();
-        });
-        expect(navigateSpy).toHaveBeenCalledWith("/order_status?order_id=order-123");
-        expect(result.current.postOrderProposalOpen).toBe(false);
-    });
-
-    it("opens the just-placed order's detail (no navigate) when a guest creates an account from the proposal", async () => {
+    it("opens the just-created order's detail (not navigate) when isKiosk is false", async () => {
         mockCreateOrder.mockResolvedValue({ ...MOCK_ORDER, id: "789" });
-        // The proposal's CTA drives OTP login; verifyOtp resolving flips the auth token to non-null.
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-guest" });
         const navigateSpy = jest.fn<void, [string, unknown?]>();
 
         const { result } = renderHook(() =>
@@ -443,34 +572,21 @@ describe("useCheckout — executeOrderCreation", () => {
         { wrapper });
         await waitForAuthReady();
 
-        // Guest (token null) places an order with a phone → proposal opens, redirect deferred.
         await act(async () => {
             await result.current.checkout.executeOrderCreation(
                 { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
                 ITEMS,
             );
         });
-        expect(result.current.checkout.postOrderProposalOpen).toBe(true);
-
-        // Guest accepts the proposal and completes OTP → the account is created and token becomes non-null.
-        await act(async () => {
-            await result.current.auth.login("12345678", "0000");
-        });
-
-        // Resolving now lands on the profile popup with THIS order's detail, not the tracking page.
-        act(() => {
-            result.current.checkout.resolvePostOrderProposal();
-        });
 
         expect(navigateSpy).not.toHaveBeenCalled();
         expect(result.current.ui.isProfileOpen).toBe(true);
         expect(result.current.ui.selectedOrderId).toBe(789);
-        expect(result.current.checkout.postOrderProposalOpen).toBe(false);
     });
 
     it("calls openOrderDetail with the numeric order id and does not navigate for a logged-in customer", async () => {
         mockRefreshCustomerToken.mockReset();
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-3" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-3", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
         mockCreateOrder.mockResolvedValue({ ...MOCK_ORDER, id: "555" });
         const navigateSpy = jest.fn<void, [string, unknown?]>();
@@ -480,10 +596,6 @@ describe("useCheckout — executeOrderCreation", () => {
         { wrapper });
         await waitFor(() => expect(mockRefreshCustomerToken).toHaveBeenCalled());
 
-        // Prime: drive the hook through the logged-in checkout gate first (cross-sell gate,
-        // then payment-null gate), so the customer-auth token (set asynchronously by the
-        // mount-time silent refresh) has definitely propagated into this hook render before
-        // executeOrderCreation reads it.
         await act(async () => {
             await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
@@ -502,27 +614,6 @@ describe("useCheckout — executeOrderCreation", () => {
         expect(navigateSpy).not.toHaveBeenCalled();
         expect(result.current.ui.isProfileOpen).toBe(true);
         expect(result.current.ui.selectedOrderId).toBe(555);
-        expect(result.current.checkout.postOrderProposalOpen).toBe(false);
-    });
-
-    it("navigates immediately for a guest order with no phone", async () => {
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
-        const navigateSpy = jest.fn<void, [string, unknown?]>();
-
-        const { result } = renderHook(() =>
-            useCheckout(makeParams({ isAdmin: false, isKiosk: false, navigate: navigateSpy })),
-        { wrapper });
-        await waitForAuthReady();
-
-        await act(async () => {
-            await result.current.executeOrderCreation(
-                { tel: "", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
-                ITEMS,
-            );
-        });
-
-        expect(navigateSpy).toHaveBeenCalledWith("/order_status?order_id=order-123");
-        expect(result.current.postOrderProposalOpen).toBe(false);
     });
 
     it("does not call navigate at all when isKiosk is true", async () => {
@@ -611,7 +702,6 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
         });
 
-        // No cross-sell in admin mode — goes straight to creating order
         expect(result.current.isCrossSellOpen).toBe(false);
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     });
@@ -644,5 +734,44 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         });
 
         expect(result.current.adminOrderDetailsPopUp).toBe(true);
+    });
+
+    it("never opens the login sheet for an admin checkout", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+
+        expect(result.current.ui.isLoginOpen).toBe(false);
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("useCheckout — kiosk flow never gated", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("never opens the login sheet for a kiosk checkout", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const params = makeParams({ isAdmin: false, isKiosk: true });
+
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+
+        expect(result.current.ui.isLoginOpen).toBe(false);
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     });
 });

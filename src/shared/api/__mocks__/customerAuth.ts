@@ -15,6 +15,7 @@ export const requestOtp = jest.fn<Promise<void>, [OtpRequestPayload]>();
 export const verifyOtp = jest.fn<Promise<CustomerTokenResponse>, [OtpVerifyPayload]>();
 export const refreshCustomerToken = jest.fn<Promise<CustomerTokenResponse>, []>();
 export const logoutCustomer = jest.fn<Promise<void>, []>();
+export const registerCustomerName = jest.fn<Promise<void>, [string, string]>();
 export const fetchCustomerMe = jest.fn<Promise<CustomerMeResponse>, [string]>();
 export const fetchMyOrders = jest.fn<Promise<CustomerOrdersPageResponse>, [string, number, number]>();
 export const fetchOrderDetail = jest.fn<Promise<CustomerOrderDetail>, [string, number]>();

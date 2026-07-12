@@ -60,8 +60,8 @@ export type ReportTO = {
 export type InventoryRow = {
     productId: number;
     name: string;
-    kitchenQuantity: Decimal;
-    storageQuantity: Decimal;
+    kitchenQuantity: Decimal | null;
+    storageQuantity: Decimal | null;
     finalPrice: Decimal;
     price: Decimal;
     isInventory: boolean;

@@ -4,6 +4,9 @@
     "codeTitle": "أدخل الرمز",
     "phoneSubtitle": "سنرسل رمزاً مكوّناً من 4 أرقام إلى واتساب لتسجيل دخولك.",
     "codeSubtitle": "تم الإرسال إلى واتساب ({{phone}}).",
+    "checkoutCodeTitle": "لنؤكد رقم هاتفك",
+    "checkoutCodeSubtitle": "أرسلنا رمزاً مكوّناً من 4 أرقام إلى {{phone}} عبر واتساب.",
+    "checkoutSubmit": "تأكيد ومتابعة",
     "phoneLabel": "رقم الهاتف",
     "phonePlaceholder": "5555 5555",
     "country": "الدولة",
@@ -12,7 +15,14 @@
     "back": "رجوع",
     "close": "إغلاق",
     "getCode": "احصل على الرمز",
-    "submit": "تأكيد"
+    "submit": "تأكيد",
+    "resend": "إعادة إرسال الرمز",
+    "resendIn": "إعادة الإرسال خلال {{time}}",
+    "nameTitle": "ما اسمك؟",
+    "nameSubtitle": "سنستخدمه لتخصيص طلباتك.",
+    "nameLabel": "الاسم الكامل",
+    "namePlaceholder": "اسمك",
+    "continue": "متابعة"
   },
   "profile": {
     "title": "حسابي",
@@ -72,6 +82,8 @@
     "sessionExpired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
     "profileLoadFailed": "تعذّر تحميل ملفك الشخصي. يرجى المحاولة مرة أخرى.",
     "ordersLoadFailed": "تعذّر تحميل طلباتك. يرجى المحاولة مرة أخرى.",
-    "orderDetailLoadFailed": "تعذّر تحميل تفاصيل الطلب. يرجى المحاولة مرة أخرى."
+    "orderDetailLoadFailed": "تعذّر تحميل تفاصيل الطلب. يرجى المحاولة مرة أخرى.",
+    "nameRequired": "يرجى إدخال اسمك.",
+    "nameSaveFailed": "تعذّر حفظ اسمك. يرجى المحاولة مرة أخرى."
   }
 }

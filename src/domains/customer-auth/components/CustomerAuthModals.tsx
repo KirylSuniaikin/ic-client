@@ -9,11 +9,17 @@ import { CustomerProfilePopup } from "./CustomerProfilePopup";
 // CustomerAuthUiProvider's state. Both popups are always mounted with an
 // `open` boolean, matching today's CustomerIconButton pattern.
 export function CustomerAuthModals(): React.JSX.Element {
-    const { isLoginOpen, isProfileOpen, loginPrefillPhone, closeAll } = useCustomerAuthUi();
+    const { isLoginOpen, isProfileOpen, loginPrefillPhone, loginPrefillName, loginCheckoutMode, closeAll } = useCustomerAuthUi();
 
     return (
         <>
-            <CustomerLoginPopup open={isLoginOpen} onClose={closeAll} prefillPhone={loginPrefillPhone ?? undefined} />
+            <CustomerLoginPopup
+                open={isLoginOpen}
+                onClose={closeAll}
+                prefillPhone={loginPrefillPhone ?? undefined}
+                prefillName={loginPrefillName ?? undefined}
+                checkoutMode={loginCheckoutMode}
+            />
             <CustomerProfilePopup open={isProfileOpen} onClose={closeAll} />
         </>
     );

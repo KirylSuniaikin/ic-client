@@ -42,7 +42,7 @@ const DAYS: DayKey[] = [
     "Saturday",
 ];
 
-const DEFAULT_SHIFT: TimeRange = ["12:00", "24:00"];
+const DEFAULT_SHIFT: TimeRange = ["12:00", "23:59"];
 
 // Fallback schedule used when no schedule has been loaded yet.
 const EMPTY_SCHEDULE: WorkingHoursSchedule = {

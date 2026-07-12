@@ -65,7 +65,7 @@ describe("CustomerIconButton", () => {
     });
 
     it("does not open CustomerLoginPopup when already logged in", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue({
             id: "acct-1",
             phone: "97333607710",
@@ -94,7 +94,7 @@ describe("CustomerIconButton", () => {
     });
 
     it("opens CustomerProfilePopup when logged in and clicked", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue({
             id: "acct-1",
             phone: "97333607710",
@@ -135,7 +135,7 @@ describe("CustomerIconButton", () => {
     });
 
     it("does not show the add-account (person-plus) icon when logged in", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "already-logged-in", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue({
             id: "acct-1",
             phone: "97333607710",

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import Decimal from "decimal.js-light";
-import { toDecimal, p2, q3 } from "./decimalUtils";
+import { toDecimal, p2, q3, toDecimalOrNull, fmt3, normalizeDecimal } from "./decimalUtils";
 
 describe("toDecimal", () => {
     describe("Decimal input", () => {
@@ -143,5 +143,89 @@ describe("q3", () => {
 
     it("handles a value that already has 3 decimal places", () => {
         expect(q3(new Decimal("2.500")).toFixed(3)).toBe("2.500");
+    });
+});
+
+
+describe("toDecimalOrNull", () => {
+    it("returns null for null input", () => {
+        expect(toDecimalOrNull(null)).toBeNull();
+    });
+
+    it("returns null for undefined input", () => {
+        expect(toDecimalOrNull(undefined)).toBeNull();
+    });
+
+    it("returns a Decimal for a valid numeric string", () => {
+        const result = toDecimalOrNull("3.14");
+
+        expect(result).not.toBeNull();
+        expect(result?.toNumber()).toBeCloseTo(3.14);
+    });
+
+    it("returns a Decimal(0) for an explicit 0 (not null)", () => {
+        const result = toDecimalOrNull(0);
+
+        expect(result).not.toBeNull();
+        expect(result?.toNumber()).toBe(0);
+    });
+
+    it("returns the same Decimal instance unchanged", () => {
+        const d = new Decimal("2.5");
+
+        expect(toDecimalOrNull(d)).toBe(d);
+    });
+});
+
+describe("fmt3", () => {
+    it("returns an empty string for null (renders placeholder, not a literal 0.000)", () => {
+        expect(fmt3(null)).toBe("");
+    });
+
+    it("returns an empty string for undefined", () => {
+        expect(fmt3(undefined)).toBe("");
+    });
+
+    it("formats a Decimal to a fixed-3 string", () => {
+        expect(fmt3(new Decimal("1.5"))).toBe("1.500");
+    });
+
+    it("formats a plain number to a fixed-3 string", () => {
+        expect(fmt3(2)).toBe("2.000");
+    });
+
+    it("formats Decimal(0) as \"0.000\" (a real stored zero, not a never-touched cell)", () => {
+        expect(fmt3(new Decimal(0))).toBe("0.000");
+    });
+});
+
+describe("normalizeDecimal", () => {
+    it("returns an empty string for an empty input", () => {
+        expect(normalizeDecimal("")).toBe("");
+    });
+
+    it("passes through a plain integer string", () => {
+        expect(normalizeDecimal("123")).toBe("123");
+    });
+
+    it("converts a comma decimal separator to a dot", () => {
+        expect(normalizeDecimal("3,14")).toBe("3.14");
+    });
+
+    it("strips non-numeric characters", () => {
+        expect(normalizeDecimal("12a3.4b5")).toBe("123.45");
+    });
+
+    it("keeps only the first minus sign, at the start", () => {
+        expect(normalizeDecimal("1-2-3")).toBe("123");
+    });
+
+    it("keeps only the first dot when multiple are present", () => {
+        expect(normalizeDecimal("1.2.3")).toBe("1.23");
+    });
+
+    it("returns an empty string for null/undefined-ish input", () => {
+        expect(normalizeDecimal(null)).toBe("");
+        expect(normalizeDecimal(undefined)).toBe("");
     });
 });

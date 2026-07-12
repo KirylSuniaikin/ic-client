@@ -120,7 +120,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         }
     }
 
-    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !checkout.postOrderProposalOpen && !isAnyCustomerAuthPopupOpen;
+    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !isAnyCustomerAuthPopupOpen;
 
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the

@@ -2,7 +2,7 @@ import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import { workingHours, ramadanHours } from "./workingHours";
 import { isWithinWorkingHours } from "./isWithinWorkingHours";
 import { getTimeUntilNextOpening } from "./getTimeUntilNextOpening";
-import { getClosingTime } from "./getClosingTime";
+import { getClosingTime, toDisplayClosing } from "./getClosingTime";
 import type { DaySchedule, WorkingHoursSchedule } from "../../../shared/api/management";
 
 const ALL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -154,26 +154,68 @@ describe("getTimeUntilNextOpening", () => {
         jest.useRealTimers();
     });
 
-    it("returns zeros and null message when schedule is null", () => {
+    it("returns zeros and no next-opening day when schedule is null", () => {
         const result = getTimeUntilNextOpening(null);
-        expect(result).toEqual({ hours: 0, minutes: 0, nextOpeningMessage: null });
+        expect(result).toEqual({ hours: 0, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
     });
 
-    it("returns zeros and null message when schedule is undefined", () => {
+    it("returns zeros and no next-opening day when schedule is undefined", () => {
         const result = getTimeUntilNextOpening(undefined);
-        expect(result).toEqual({ hours: 0, minutes: 0, nextOpeningMessage: null });
+        expect(result).toEqual({ hours: 0, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
     });
 
-    it("returns non-zero time and null message when a future shift exists in the schedule", () => {
-        // Pin to Monday 2026-01-05 at 10:00 UTC = 13:00 Bahrain; next open is Tuesday 15:00
+    // The reported bug: on a closed Sunday the header read "opens in 4 hours" because
+    // dayjs duration components are modular — a 28h gap reports hours() === 4, silently
+    // dropping the day. The day must be named instead.
+    it("names the day and opening time when the branch is closed all of today (Sunday → Monday)", () => {
+        // Sunday 2026-07-12, 08:00 UTC = 11:00 Bahrain. Sunday closed; Monday opens 15:00.
         jest.useFakeTimers();
-        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
-        const schedule = fullSchedule({ Tuesday: { isOpen: true, shifts: [["15:00", "23:59"]] } });
+        jest.setSystemTime(new Date("2026-07-12T08:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } });
+
         const result = getTimeUntilNextOpening(schedule);
-        // nextOpeningMessage is always null after removing the Monday hardcode
-        expect(result.nextOpeningMessage).toBeNull();
-        // There is a future shift (Tuesday 15:00 Bahrain), so time components are non-zero
-        expect(result.hours > 0 || result.minutes > 0).toBe(true);
+
+        expect(result.nextOpeningDay).toBe("Monday");
+        expect(result.nextOpeningTime).toBe("15:00");
+    });
+
+    it("reports the true whole-hour gap across a day boundary rather than the modular remainder", () => {
+        // Sunday 11:00 Bahrain → Monday 15:00 Bahrain is 28h. The old code reported 4.
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-07-12T08:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } });
+
+        const result = getTimeUntilNextOpening(schedule);
+
+        expect(result.hours).toBe(28);
+        expect(result.minutes).toBe(0);
+    });
+
+    // Same-day reopening keeps the countdown — naming the day would be silly ("opens on Sunday").
+    it("returns a countdown and no day name when the branch reopens later the same day", () => {
+        // Sunday 11:00 Bahrain, a shift starts 15:00 the same day → 4h away, genuinely.
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-07-12T08:00:00.000Z"));
+        const schedule = fullSchedule({ Sunday: { isOpen: true, shifts: [["15:00", "23:59"]] } });
+
+        const result = getTimeUntilNextOpening(schedule);
+
+        expect(result).toEqual({ hours: 4, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
+    });
+
+    // A split shift: the earlier one has already ended, but the branch reopens later today, so
+    // the answer is today's second shift — not tomorrow's first.
+    it("picks a later shift on the same day instead of skipping to the next day", () => {
+        // Sunday 13:00 Bahrain; shifts 10:00-12:00 and 18:00-23:59 → next opening is 18:00 today.
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-07-12T10:00:00.000Z"));
+        const schedule = fullSchedule({
+            Sunday: { isOpen: true, shifts: [["10:00", "12:00"], ["18:00", "23:59"]] },
+        });
+
+        const result = getTimeUntilNextOpening(schedule);
+
+        expect(result).toEqual({ hours: 5, minutes: 0, nextOpeningDay: null, nextOpeningTime: null });
     });
 });
 
@@ -205,6 +247,14 @@ describe("getClosingTime", () => {
         expect(getClosingTime(schedule)).toBe("00:00");
     });
 
+    it("maps an end-of-day 24:00 closing to 00:00 for display", () => {
+        // Phase 3: a shift end stored as the legacy "24:00" sentinel must also display as "00:00".
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
+        const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["00:00", "24:00"]] } });
+        expect(getClosingTime(schedule)).toBe("00:00");
+    });
+
     it("returns null when the day is marked closed even though its shift would cover now", () => {
         jest.useFakeTimers();
         jest.setSystemTime(new Date("2026-01-05T10:00:00.000Z"));
@@ -226,5 +276,24 @@ describe("getClosingTime", () => {
         jest.setSystemTime(new Date("2026-01-06T00:00:00.000Z"));
         const schedule = fullSchedule({ Monday: { isOpen: true, shifts: [["16:30", "04:00"]] } });
         expect(getClosingTime(schedule)).toBe("04:00");
+    });
+});
+
+
+describe("toDisplayClosing", () => {
+    it("maps \"23:59\" to \"00:00\"", () => {
+        expect(toDisplayClosing("23:59")).toBe("00:00");
+    });
+
+    it("maps \"24:00\" to \"00:00\"", () => {
+        expect(toDisplayClosing("24:00")).toBe("00:00");
+    });
+
+    it("passes through a regular end time unchanged", () => {
+        expect(toDisplayClosing("14:00")).toBe("14:00");
+    });
+
+    it("passes through \"00:00\" unchanged when given directly as an end time", () => {
+        expect(toDisplayClosing("00:00")).toBe("00:00");
     });
 });

@@ -5,7 +5,7 @@ import {TopProductsTable} from "../TopProductsTable";
 import {RevenueByHourTable} from "../RevenueByHourTable";
 import {DateRangePickerPopover} from "./DateRangePickerPopover";
 import {StatEmptyState, StatSkeleton} from "./statPlaceholders";
-import {formatStatDate} from "./statsFormat";
+import {formatStatDate, formatStatRange} from "./statsFormat";
 import {useStatsLayout} from "../../hooks/useStatsLayout";
 import type {DateRangeState, SellsByHourStat, StatsResponse} from "../../types";
 
@@ -66,7 +66,7 @@ export function DateRangeStatsCard({stats, dateRange, sellStats, onRangeChange, 
                                 </Typography>
                                 {stats.previous && (
                                     <Typography variant="caption" color="text.secondary" sx={{display: "block", mb: 1}}>
-                                        revenue trend vs {formatStatDate(new Date(stats.previous.startDate))} — {formatStatDate(new Date(stats.previous.finishDate))}
+                                        revenue trend vs {formatStatRange(stats.previous.startDate, stats.previous.finishDate)}
                                     </Typography>
                                 )}
                                 <PlatformsStatisticsGrid stats={stats}/>

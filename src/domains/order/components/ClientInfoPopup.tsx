@@ -3,6 +3,7 @@ import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
+import { DEFAULT_PAYMENT_METHOD } from "../types";
 
 const brandRed = "#E44B4C";
 
@@ -11,7 +12,7 @@ interface Branch {
     branchName: string;
 }
 
-const paymentOptions = ["Cash", "Card (Through card machine)", "Benefit"];
+const paymentOptions = ["Cash", DEFAULT_PAYMENT_METHOD, "Benefit"];
 
 interface ClientInfoPopupProps {
     isPhonePopupOpen: boolean;
@@ -24,17 +25,20 @@ interface ClientInfoPopupProps {
     // req. 23). Pick-Up orders (the only flow this popup drives) have no address field to save,
     // so this is shown as read-only reference info rather than wired into onSave.
     prefillAddress?: string;
+    // Carries over a note the customer already typed in the cart, so it survives the fallback
+    // to this popup (a logged-in customer with no name on file still lands here).
+    prefillNote?: string;
 }
 
-function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress}: ClientInfoPopupProps): JSX.Element {
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress, prefillNote}: ClientInfoPopupProps): JSX.Element {
     const { t, i18n } = useTranslation("checkout");
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
     const [name, setName] = useState("");
     const [nameError, setNameError] = useState("");
-    const [note, setNote] = useState("");
-    const [paymentMethod, setPaymentMethod] = useState("Card (Through card machine)");
+    const [note, setNote] = useState(prefillNote ?? "");
+    const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
     const IS_MULTI_BRANCH_ENABLED =  false;
 

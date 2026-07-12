@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from "react";
-import {endOfDay, startOfDay} from "date-fns";
+import {endOfDay, format, startOfDay} from "date-fns";
 import {formatInTimeZone} from "date-fns-tz";
 import {fetchStatistics} from "../../../../shared/api/public";
 import {logger} from "../../../../shared/utils/logger";
@@ -38,8 +38,8 @@ export function useStatistics(branchId: string): UseStatistics {
     const refresh = useCallback(async (): Promise<void> => {
         try {
             setLoading(true);
-            const start = formatInTimeZone(dateRange[0].startDate, BAHRAIN_TZ, "yyyy-MM-dd");
-            const end = formatInTimeZone(dateRange[0].endDate, BAHRAIN_TZ, "yyyy-MM-dd");
+            const start = format(dateRange[0].startDate, "yyyy-MM-dd");
+            const end = format(dateRange[0].endDate, "yyyy-MM-dd");
             const retentionDate = formatInTimeZone(selectedDate, BAHRAIN_TZ, "yyyy-MM-dd");
             const response = await fetchStatistics(start, end, retentionDate, branchId.toString());
             setGlobalStats(response);

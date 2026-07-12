@@ -39,16 +39,16 @@ describe("mapProductToRow", () => {
         expect(result.price.toNumber()).toBeCloseTo(12.5);
     });
 
-    it("sets kitchenQuantity to Decimal(0)", () => {
+    it("sets kitchenQuantity to null (never-touched cell, not a stored zero)", () => {
         const result = mapProductToRow(baseProduct);
 
-        expect(result.kitchenQuantity.toNumber()).toBe(0);
+        expect(result.kitchenQuantity).toBeNull();
     });
 
-    it("sets storageQuantity to Decimal(0)", () => {
+    it("sets storageQuantity to null (never-touched cell, not a stored zero)", () => {
         const result = mapProductToRow(baseProduct);
 
-        expect(result.storageQuantity.toNumber()).toBe(0);
+        expect(result.storageQuantity).toBeNull();
     });
 
     it("sets finalPrice to Decimal(0)", () => {
@@ -151,6 +151,22 @@ describe("rowToPayloadNumber", () => {
         const result = rowToPayloadNumber(row);
 
         expect(result.finalPrice).toBe(11.1234);
+    });
+
+    it("serialises a null kitchenQuantity as 0 (never-touched cell)", () => {
+        const nullRow: InventoryRow = { ...row, kitchenQuantity: null };
+
+        const result = rowToPayloadNumber(nullRow);
+
+        expect(result.kitchenQuantity).toBe(0);
+    });
+
+    it("serialises a null storageQuantity as 0 (never-touched cell)", () => {
+        const nullRow: InventoryRow = { ...row, storageQuantity: null };
+
+        const result = rowToPayloadNumber(nullRow);
+
+        expect(result.storageQuantity).toBe(0);
     });
 });
 

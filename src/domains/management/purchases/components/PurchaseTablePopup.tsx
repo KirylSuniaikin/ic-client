@@ -36,7 +36,7 @@ import {
     getUser
 } from "../../../../shared/api/management";
 import { toDecimal, toPayloadLine, validateRows} from "../mappers/purchaseMapper";
-import {normalizeDecimal} from "./DecimalCellEditor";
+import {fmt3, normalizeDecimal} from "../../../../shared/utils/decimalUtils";
 import {DatePicker, LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -135,10 +135,19 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     }, [open, mode, purchaseId, userId]);
 
 
-    const asDec = useCallback((v: unknown): Decimal => toDecimal(v), []);
     const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
-    const fixedSafe = useCallback((d: Decimal, dp: number) => (isDecFinite(d) ? d.toFixed(dp) : ""), [isDecFinite]);
-    const fmt3 = useCallback((value: unknown): string => fixedSafe(asDec(value), 3), [fixedSafe, asDec]);
+
+    // Per-row, per-field edit-in-progress string (raw keystrokes, not yet normalized/committed
+    // into `rows`). Absent entry -> cell shows the committed value via `fmt3`.
+    const [editingCells, setEditingCells] = useState<Record<string, string>>({});
+    const cellKey = (rowId: string, field: "quantity" | "finalPrice") => `${rowId}:${field}`;
+    const cellDisplayValue = useCallback(
+        (row: PurchaseRow, field: "quantity" | "finalPrice"): string => {
+            const key = cellKey(row.id, field);
+            return key in editingCells ? editingCells[key] : fmt3(row[field]);
+        },
+        [editingCells]
+    );
 
 
     const unitFromRow = useCallback((row: PurchaseRow) => {
@@ -164,10 +173,14 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
             if (r.id !== id) return r;
             const next = { ...r, ...patch };
 
-            const q   = toDecimal(next.quantity);
-            const tot = toDecimal(next.finalPrice);
-            if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
-                next.price = Number(tot.div(q).toFixed(3));
+            // A genuinely-empty quantity or finalPrice must not derive a bogus 0.000
+            // target price — leave next.price untouched in that case.
+            if (next.quantity != null && next.finalPrice != null) {
+                const q   = toDecimal(next.quantity);
+                const tot = toDecimal(next.finalPrice);
+                if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
+                    next.price = Number(tot.div(q).toFixed(3));
+                }
             }
             return next;
         }));
@@ -234,14 +247,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
             const lines = readyRows.map(toPayloadLine);
 
-            let totalDecimal = new Decimal(0);
-            for (const r of readyRows) {
-                try {
-                    totalDecimal = totalDecimal.add( r.finalPrice );
-                } catch (e) {
-                    logger.error("[total fail on row]", r, e);
-                }
-            }
             const base: CreatePurchasePayload = {
                 title,
                 finalPrice: Number(total),
@@ -423,11 +428,21 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                                     <TextField
                                                         type="text"
                                                         inputMode="decimal"
-                                                        defaultValue={fmt3(row.quantity)}
-                                                        key={`qty-${row.id}-${fmt3(row.quantity)}`}
+                                                        placeholder="0.000"
+                                                        value={cellDisplayValue(row, "quantity")}
+                                                        onChange={(e) => {
+                                                            const key = cellKey(row.id, "quantity");
+                                                            setEditingCells(prev => ({ ...prev, [key]: e.target.value }));
+                                                        }}
                                                         onBlur={(e) => {
-                                                            const norm = normalizeDecimal(e.target.value);
-                                                            updateRow(row.id, { quantity: norm === "" ? 0 : (Number(norm) as PurchaseRow["quantity"]) });
+                                                            const key = cellKey(row.id, "quantity");
+                                                            const norm = normalizeDecimal(editingCells[key] ?? e.target.value);
+                                                            updateRow(row.id, { quantity: norm === "" ? null : Number(norm) });
+                                                            setEditingCells(prev => {
+                                                                const next = { ...prev };
+                                                                delete next[key];
+                                                                return next;
+                                                            });
                                                         }}
                                                         size="small"
                                                         variant="standard"
@@ -452,11 +467,21 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                                     <TextField
                                                         type="text"
                                                         inputMode="decimal"
-                                                        defaultValue={fmt3(row.finalPrice)}
-                                                        key={`fp-${row.id}-${fmt3(row.finalPrice)}`}
+                                                        placeholder="0.000"
+                                                        value={cellDisplayValue(row, "finalPrice")}
+                                                        onChange={(e) => {
+                                                            const key = cellKey(row.id, "finalPrice");
+                                                            setEditingCells(prev => ({ ...prev, [key]: e.target.value }));
+                                                        }}
                                                         onBlur={(e) => {
-                                                            const norm = normalizeDecimal(e.target.value);
-                                                            updateRow(row.id, { finalPrice: norm === "" ? 0 : (Number(norm) as PurchaseRow["finalPrice"]) });
+                                                            const key = cellKey(row.id, "finalPrice");
+                                                            const norm = normalizeDecimal(editingCells[key] ?? e.target.value);
+                                                            updateRow(row.id, { finalPrice: norm === "" ? null : Number(norm) });
+                                                            setEditingCells(prev => {
+                                                                const next = { ...prev };
+                                                                delete next[key];
+                                                                return next;
+                                                            });
                                                         }}
                                                         size="small"
                                                         variant="standard"

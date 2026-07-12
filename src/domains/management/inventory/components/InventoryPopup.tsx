@@ -4,7 +4,8 @@ import {
     ReportTO
 } from "../types";
 import {useEffect, useMemo, useRef, useState} from "react";
-import {mapProductToRow, normalizeReportPayload, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/inventoryMapper";
+import {mapProductToRow, normalizeReportPayload, p2, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/inventoryMapper";
+import {fmt3} from "../../../../shared/utils/decimalUtils";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {createReport, editReport, fetchProducts, getReport} from "../../../../shared/api/management";
 import Decimal from "decimal.js-light";
@@ -130,13 +131,28 @@ export default function InventoryPopup({
     function updateQuantity(productId: number, field: "kitchenQuantity" | "storageQuantity", value: string) {
         setRows(prev => prev.map(r => {
             if (r.productId !== productId) return r;
-            const oldKitchen = field === "kitchenQuantity" ? r.kitchenQuantity : r.kitchenQuantity;
-            const oldStorage = field === "storageQuantity" ? r.storageQuantity : r.storageQuantity;
-            const next = withRecalc(
-                r,
-                field === "kitchenQuantity" ? value : oldKitchen?.toString?.() ?? "",
-                field === "storageQuantity" ? value : oldStorage?.toString?.() ?? "",
-            );
+            const oldKitchen = r.kitchenQuantity;
+            const oldStorage = r.storageQuantity;
+            let next: InventoryRow;
+            if (value.trim() === "") {
+                // Blurring an empty cell must leave it null (placeholder state), not
+                // coerce to a literal "0.000" — finalPrice is recomputed treating the
+                // null field as 0, same as getFinalPrice/total already do elsewhere.
+                const kitchen = field === "kitchenQuantity" ? null : oldKitchen;
+                const storage = field === "storageQuantity" ? null : oldStorage;
+                next = {
+                    ...r,
+                    kitchenQuantity: kitchen,
+                    storageQuantity: storage,
+                    finalPrice: p2(toDecimal(kitchen).add(toDecimal(storage)).mul(r.price)),
+                };
+            } else {
+                next = withRecalc(
+                    r,
+                    field === "kitchenQuantity" ? value : oldKitchen?.toString?.() ?? "",
+                    field === "storageQuantity" ? value : oldStorage?.toString?.() ?? "",
+                );
+            }
             setDirty(prev => {
                 const s = new Set(prev);
                 s.add(productId);
@@ -163,10 +179,6 @@ export default function InventoryPopup({
         const storage = row.storageQuantity instanceof Decimal ? row.storageQuantity : new Decimal(row.storageQuantity ?? 0);
         const price = row.price instanceof Decimal ? row.price : new Decimal(row.price ?? 0);
         return kitchen.add(storage).mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
-    }
-
-    function fmt3(val: any): string {
-        return val instanceof Decimal ? val.toFixed(3) : new Decimal(val ?? 0).toFixed(3);
     }
 
     const handleSave = async () => {
@@ -313,7 +325,9 @@ export default function InventoryPopup({
                                                     fontSize: "0.9rem",
                                                 }}>
                                                     <TextField
-                                                        type="number"
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        placeholder="0.000"
                                                         value={
                                                             focusedCell?.productId === row.productId && focusedCell?.field === "storageQuantity"
                                                                 ? editValue
@@ -326,13 +340,12 @@ export default function InventoryPopup({
                                                         }}
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         onBlur={() => {
-                                                            updateQuantity(row.productId, "storageQuantity", editValue || "0");
+                                                            updateQuantity(row.productId, "storageQuantity", editValue);
                                                             setFocusedCell(null);
                                                             setEditValue("");
                                                         }}
                                                         size="small"
                                                         variant="standard"
-                                                        inputProps={{ min: 0, step: "0.001" }}
                                                         sx={{
                                                             width: 80,
                                                             ...noUnderlineSx,
@@ -356,7 +369,9 @@ export default function InventoryPopup({
                                                     fontSize: "0.9rem",
                                                 }}>
                                                     <TextField
-                                                        type="number"
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        placeholder="0.000"
                                                         value={
                                                             focusedCell?.productId === row.productId && focusedCell?.field === "kitchenQuantity"
                                                                 ? editValue
@@ -369,13 +384,12 @@ export default function InventoryPopup({
                                                         }}
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         onBlur={() => {
-                                                            updateQuantity(row.productId, "kitchenQuantity", editValue || "0");
+                                                            updateQuantity(row.productId, "kitchenQuantity", editValue);
                                                             setFocusedCell(null);
                                                             setEditValue("");
                                                         }}
                                                         size="small"
                                                         variant="standard"
-                                                        inputProps={{ min: 0, step: "0.001" }}
                                                         sx={{
                                                             width: 80,
                                                             ...noUnderlineSx,

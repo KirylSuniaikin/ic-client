@@ -36,9 +36,8 @@ export default function BranchScheduleHeader({ branches, workingHours }: BranchS
 
     // When open, show the closing time ("Closes at 23:00"); fall back to "Open now"
     // only if no active interval can be resolved.
-    // When closed, mirror ClosedPopup's next-opening formatting: a special
-    // nextOpeningMessage (e.g. the Monday case) wins outright, otherwise hours/minutes
-    // render, falling back to "less than a minute" when both are zero.
+    // When closed, a countdown only makes sense within the same day — across a day boundary
+    // ("opens in 22h" on a closed Sunday) it is unreadable, so name the day instead.
     let scheduleText: string;
     if (open) {
         const closingTime = getClosingTime(workingHours);
@@ -46,11 +45,14 @@ export default function BranchScheduleHeader({ branches, workingHours }: BranchS
             ? t("header.closesAt", { time: closingTime })
             : t("header.openNow");
     } else {
-        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening(workingHours);
-        scheduleText = nextOpeningMessage
-            ?? (hours === 0 && minutes === 0
+        const { hours, minutes, nextOpeningDay, nextOpeningTime } = getTimeUntilNextOpening(workingHours);
+        if (nextOpeningDay && nextOpeningTime) {
+            scheduleText = t("header.opensOnDay", { day: t(`days.${nextOpeningDay}`), time: nextOpeningTime });
+        } else {
+            scheduleText = hours === 0 && minutes === 0
                 ? t("closed.lessThanMinute")
-                : t("header.opensIn", { hours, minutes }));
+                : t("header.opensIn", { hours, minutes });
+        }
     }
 
     return (

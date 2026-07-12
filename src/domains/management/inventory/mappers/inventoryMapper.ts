@@ -12,8 +12,8 @@ export const mapProductToRow = (p: ProductTO): InventoryRow => {
         name: p.name,
         price,
         isInventory: !!p.isInventory,
-        kitchenQuantity: q3(new Decimal(0)),
-        storageQuantity: q3(new Decimal(0)),
+        kitchenQuantity: null,
+        storageQuantity: null,
         finalPrice: q3(new Decimal(0)),
     };
 };
@@ -31,8 +31,8 @@ export const withRecalc = (row: InventoryRow, kitchenQuantity: string, storageQu
 
 export const rowToPayloadNumber = (r: InventoryRow): { id: number; kitchenQuantity: number; storageQuantity: number; finalPrice: number } => ({
     id: r.productId,
-    kitchenQuantity: Number(r.kitchenQuantity.toFixed(3)),
-    storageQuantity: Number(r.storageQuantity.toFixed(3)),
+    kitchenQuantity: Number((r.kitchenQuantity ?? new Decimal(0)).toFixed(3)),
+    storageQuantity: Number((r.storageQuantity ?? new Decimal(0)).toFixed(3)),
     finalPrice: Number(r.finalPrice.toFixed(4)),
 });
 

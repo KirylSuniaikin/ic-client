@@ -4,9 +4,9 @@
 
 export type OtpRequestPayload = { phone: string };
 
-export type OtpVerifyPayload = { phone: string; code: string; branchId?: string };
+export type OtpVerifyPayload = { phone: string; code: string; branchId?: string; name?: string };
 
-export type CustomerTokenResponse = { accessToken: string };
+export type CustomerTokenResponse = { accessToken: string; refreshToken?: string; isNewAccount: boolean };
 
 export type CustomerMeResponse = {
     id: string;
@@ -90,7 +90,7 @@ export type CustomerActiveOrder = {
 
 export type CustomerAuthContextType = {
     token: string | null;
-    login: (phone: string, code: string, branchId?: string) => Promise<void>;
+    login: (phone: string, code: string, branchId?: string, name?: string) => Promise<{ isNewAccount: boolean; accessToken: string }>;
     logout: () => Promise<void>;
     isAuthLoading: boolean;
 };
@@ -122,8 +122,13 @@ export type CustomerAuthUiContextType = {
     isLoginOpen: boolean;
     isProfileOpen: boolean;
     loginPrefillPhone: string | null;
+    loginPrefillName: string | null;
+    // True when this login sheet is part of a mandatory checkout verification (task-spec.md
+    // §1) — drives CustomerLoginPopup's auto-send-and-skip-phone-step behaviour and its
+    // checkout-specific copy on the code step.
+    loginCheckoutMode: boolean;
     selectedOrderId: number | null;
-    openLogin: (prefillPhone?: string) => void;
+    openLogin: (prefillPhone?: string, prefillName?: string, checkoutMode?: boolean) => void;
     openProfile: () => void;
     openOrderDetail: (orderId: number) => void;
     closeOrderDetail: () => void;

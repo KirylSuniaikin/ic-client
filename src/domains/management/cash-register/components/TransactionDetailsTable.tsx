@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import { getBranchEvents } from "../../../../shared/api/management";
+import { useProgressiveList } from "../../../../shared/hooks/useProgressiveList";
 import { CashRegisterEventTO, CashUpdateType } from "../types";
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
 };
 
 const brandGray = "#f3f3f3";
+const CHUNK_SIZE = 20;
 
 
 const styles = {
@@ -44,6 +46,7 @@ const styles = {
 export default function TransactionDetailsTable({ branchId, open, onClose }: Props) {
     const [events, setEvents] = useState<CashRegisterEventTO[]>([]);
     const [loading, setLoading] = useState(false);
+    const { visibleItems, hasMore, sentinelRef } = useProgressiveList<CashRegisterEventTO, HTMLTableRowElement>(events, CHUNK_SIZE);
 
     useEffect(() => {
         if (open) {
@@ -90,7 +93,7 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {events.map((row) => {
+                                {visibleItems.map((row) => {
                                     const isIncome = row.type === CashUpdateType.CASH_IN;
                                     const isCheck = row.type === CashUpdateType.CLOSE_SHIFT_CASH_CHECK || row.type === CashUpdateType.OPEN_SHIFT_CASH_CHECK;
                                     const style = isCheck ? styles.cashCheck : isIncome ? styles.cashIn : styles.cashOut;
@@ -131,6 +134,13 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                                     <TableRow>
                                         <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                                             No transactions found
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {hasMore && (
+                                    <TableRow ref={sentinelRef}>
+                                        <TableCell colSpan={3} align="center" sx={{ py: 2, border: 0 }}>
+                                            <CircularProgress size={20} />
                                         </TableCell>
                                     </TableRow>
                                 )}

@@ -10,8 +10,8 @@ const tz = "Asia/Bahrain";
 
 // The schedule stores an end-of-day closing as "23:59" (the inclusive last minute).
 // ClosedPopup already presents that boundary as "00:00", so mirror it for a consistent look.
-function toDisplayClosing(end: string): string {
-    return end === "23:59" ? "00:00" : end;
+export function toDisplayClosing(end: string): string {
+    return (end === "23:59" || end === "24:00") ? "00:00" : end;
 }
 
 // Returns the closing time ("HH:MM") of the shift currently in progress, or null when closed

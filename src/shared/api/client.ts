@@ -1,7 +1,10 @@
 import { logger } from "../utils/logger";
-const PROD_BASE_URL = 'https://icpizza-back.onrender.com/api';
+// Served from a host under the storefront's own domain (a CNAME to Render) rather than
+// *.onrender.com: that is what makes the customer refresh cookie first-party, so it is
+// shared by the apex and www and no longer dropped by Safari's third-party cookie block.
+const PROD_BASE_URL = 'https://api.ic-pizza.com/api';
 const DEV_BASE_URL = 'http://localhost:8000/api';
-const PROD_WS_URL = 'https://icpizza-back.onrender.com/ws';
+const PROD_WS_URL = 'https://api.ic-pizza.com/ws';
 const DEV_WS_URL = 'http://localhost:8000/ws';
 
 export const BASE_URL: string = process.env.NODE_ENV === 'production' ? PROD_BASE_URL : DEV_BASE_URL;

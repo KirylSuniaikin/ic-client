@@ -3,6 +3,8 @@
   "totalVatIncl": "الإجمالي (شامل الضريبة)",
   "checkoutTakeOutOnly": "إتمام الطلب (استلام فقط)",
   "discount": "خصم",
+  "noteLabel": "ملاحظة على الطلب (اختياري)",
+  "notePlaceholder": "مثال: بدون بصل",
   "extras": {
     "thinDough": "عجينة رقيقة",
     "garlicCrust": "حافة بالثوم"

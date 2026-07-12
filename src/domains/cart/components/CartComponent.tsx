@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Box, Typography, IconButton, Button } from "@mui/material";
+import { Modal, Box, Typography, IconButton, Button, TextField } from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
@@ -29,6 +29,11 @@ interface CartPopupProps {
     unavailableItems?: string[];
     unavailableMessage?: string | null;
     onCloseUnavailablePopup?: () => void;
+    // Order note. Shown only to logged-in customers, who skip ClientInfoPopup and would
+    // otherwise lose the note field it carries; guests still write theirs in that popup.
+    showNoteField?: boolean;
+    note?: string;
+    onNoteChange?: (note: string) => void;
 }
 
 function CartPopup({
@@ -51,6 +56,9 @@ function CartPopup({
                        unavailableItems = [],
                        unavailableMessage,
                        onCloseUnavailablePopup,
+                       showNoteField = false,
+                       note = "",
+                       onNoteChange,
                    }: CartPopupProps): JSX.Element {
     const { t } = useTranslation("cart");
     const totalPrice = items
@@ -141,6 +149,23 @@ function CartPopup({
                     ))}
                 </Box>
 
+                {/* Order note — logged-in customers only (they skip ClientInfoPopup) */}
+                {showNoteField && (
+                    <Box sx={{ flexShrink: 0, px: 3, pt: 1, pb: 1.5 }}>
+                        <TextField
+                            fullWidth
+                            multiline
+                            size="small"
+                            maxRows={3}
+                            value={note}
+                            onChange={(e) => onNoteChange?.(e.target.value)}
+                            label={t("noteLabel")}
+                            placeholder={t("notePlaceholder")}
+                            InputProps={{ sx: { borderRadius: 3, bgcolor: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" } }}
+                        />
+                    </Box>
+                )}
+
                 {/* Total */}
                 <Box
                     sx={{
@@ -179,7 +204,7 @@ function CartPopup({
                 >
                     <Button
                         variant="contained"
-                        onClick={() => onCheckout?.(items, tel, null, null, null)}
+                        onClick={() => onCheckout?.(items, tel, null, null, null, note)}
                         sx={{
                             backgroundColor: brandRed,
                             color: "#fff",

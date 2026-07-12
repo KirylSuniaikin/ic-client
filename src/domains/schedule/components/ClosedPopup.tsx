@@ -1,10 +1,11 @@
 import React from "react";
 import {Box, Button, Modal, Typography} from "@mui/material";
 import Lottie from "lottie-react";
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useTranslation} from "react-i18next";
 import sadManData from "../../../assets/animations/сrying-emoji-onclose.json";
 import {getTimeUntilNextOpening} from "../utils/getTimeUntilNextOpening";
+import {formatWeeklyHours} from "../utils/formatWeeklyHours";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
 // cast is needed because lottie-react expects AnimationConfigWithData['animationData']
@@ -21,12 +22,21 @@ export default function ClosedPopup({ open, onClose, workingHours }: ClosedPopup
     const { t } = useTranslation("schedule");
     const [timeLeft, setTimeLeft] = useState("");
     const [nextOpeningMessage, setNextOpeningMessage] = useState<string | null>(null);
+    // Derived from the branch's real schedule — these used to be hardcoded strings, so editing
+    // a branch's hours in the admin panel left this popup advertising the old ones.
+    const weeklyHours = useMemo(() => formatWeeklyHours(workingHours), [workingHours]);
 
     useEffect(() => {
         if (!open) return;
-        const { hours, minutes, nextOpeningMessage } = getTimeUntilNextOpening(workingHours);
+        const { hours, minutes, nextOpeningDay, nextOpeningTime } = getTimeUntilNextOpening(workingHours);
+        // Across a day boundary a raw countdown is unreadable ("22h 30m"), so name the day the
+        // branch actually reopens; the countdown is kept for a reopening later the same day.
+        setNextOpeningMessage(
+            nextOpeningDay && nextOpeningTime
+                ? t("header.opensOnDay", { day: t(`days.${nextOpeningDay}`), time: nextOpeningTime })
+                : null
+        );
         setTimeLeft(hours === 0 && minutes === 0 ? t("closed.lessThanMinute") : `${hours}h ${minutes}m`);
-        setNextOpeningMessage(nextOpeningMessage);
     }, [open, t, workingHours]);
 
     return (
@@ -75,9 +85,11 @@ export default function ClosedPopup({ open, onClose, workingHours }: ClosedPopup
                 </Typography>
 
                 <Box sx={{ mt: 1, fontSize: 14, lineHeight: 1.6 }}>
-                    <Typography>{t("closed.hoursWeekdays")}</Typography>
-                    <Typography>{t("closed.hoursThuFri")}</Typography>
-                    <Typography>{t("closed.hoursSun")}</Typography>
+                    {weeklyHours.map((row) => (
+                        <Typography key={row.days.join(",")}>
+                            {`${row.days.map((day) => t(`daysShort.${day}`)).join(", ")} — ${row.shifts ? row.shifts.join(", ") : t("closed.closedDay")}`}
+                        </Typography>
+                    ))}
                 </Box>
 
                 <Button

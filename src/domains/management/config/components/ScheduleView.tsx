@@ -6,6 +6,7 @@ import { BranchSelectorComponent } from "../../_shared/components/BranchSelector
 import { useBranchSelection } from "../../_shared/hooks/useBranchSelection";
 import { useSchedule } from "../hooks/useSchedule";
 import EditScheduleDialog from "./EditScheduleDialog";
+import { toDisplayClosing } from "../../../schedule/utils/getClosingTime";
 
 interface SelectedBranch {
     id: string;
@@ -29,7 +30,7 @@ const DAYS = [
 ] as const;
 
 function formatShift(start: string, end: string): string {
-    return `${start} - ${end}`;
+    return `${start} - ${toDisplayClosing(end)}`;
 }
 
 export default function ScheduleView({ selectedBranch, role }: ScheduleViewProps): JSX.Element {

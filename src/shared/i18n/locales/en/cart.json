@@ -3,6 +3,8 @@
   "totalVatIncl": "Total(VAT incl.)",
   "checkoutTakeOutOnly": "Checkout (Take Out Only)",
   "discount": "Discount",
+  "noteLabel": "Order note (optional)",
+  "notePlaceholder": "e.g. no onions",
   "extras": {
     "thinDough": "Thin Dough",
     "garlicCrust": "Garlic Crust"

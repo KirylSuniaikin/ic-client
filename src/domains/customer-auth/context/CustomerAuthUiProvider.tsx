@@ -12,6 +12,10 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
     const [isLoginOpen, setIsLoginOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [loginPrefillPhone, setLoginPrefillPhone] = useState<string | null>(null);
+    const [loginPrefillName, setLoginPrefillName] = useState<string | null>(null);
+    // task-spec.md §1 -- carries whether this login sheet is a mandatory checkout
+    // verification, so CustomerLoginPopup can auto-send the code and skip the phone step.
+    const [loginCheckoutMode, setLoginCheckoutMode] = useState(false);
     const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
     const [activeOrderRefreshKey, setActiveOrderRefreshKey] = useState(0);
 
@@ -21,11 +25,13 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
     // from an already-open profile (order-history row), closing it keeps the profile.
     const detailOpenedStandaloneRef = useRef(false);
 
-    const openLogin = useCallback((prefillPhone?: string): void => {
+    const openLogin = useCallback((prefillPhone?: string, prefillName?: string, checkoutMode?: boolean): void => {
         detailOpenedStandaloneRef.current = false;
         setIsLoginOpen(true);
         setIsProfileOpen(false);
         setLoginPrefillPhone(prefillPhone ?? null);
+        setLoginPrefillName(prefillName ?? null);
+        setLoginCheckoutMode(checkoutMode ?? false);
         setSelectedOrderId(null);
     }, []);
 
@@ -34,6 +40,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
         setIsProfileOpen(true);
         setIsLoginOpen(false);
         setLoginPrefillPhone(null);
+        setLoginPrefillName(null);
+        setLoginCheckoutMode(false);
         setSelectedOrderId(null);
     }, []);
 
@@ -42,6 +50,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
         setIsLoginOpen(false);
         setIsProfileOpen(false);
         setLoginPrefillPhone(null);
+        setLoginPrefillName(null);
+        setLoginCheckoutMode(false);
         setSelectedOrderId(null);
     }, []);
 
@@ -53,6 +63,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
         setIsProfileOpen(true);
         setIsLoginOpen(false);
         setLoginPrefillPhone(null);
+        setLoginPrefillName(null);
+        setLoginCheckoutMode(false);
         setSelectedOrderId(orderId);
     }, [isProfileOpen]);
 
@@ -79,6 +91,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             isLoginOpen,
             isProfileOpen,
             loginPrefillPhone,
+            loginPrefillName,
+            loginCheckoutMode,
             selectedOrderId,
             openLogin,
             openProfile,
@@ -93,6 +107,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             isLoginOpen,
             isProfileOpen,
             loginPrefillPhone,
+            loginPrefillName,
+            loginCheckoutMode,
             selectedOrderId,
             openLogin,
             openProfile,
