@@ -111,7 +111,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("is not visible when logged in but the customer has no active order", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(null);
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
@@ -123,7 +123,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("is visible with correct timeLeft/totalSec derivation when an active order exists", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
@@ -136,7 +136,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("falls back to a 15-minute totalSec when estimation is null", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, estimation: null });
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
@@ -147,7 +147,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("hides the pill once a live frame advances the tracked order to Picked Up", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
         mockFetchActiveOrder.mockResolvedValueOnce(null);
 
@@ -167,7 +167,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("handleClick calls openOrderDetail with the active order's id", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
 
         const { result } = renderHook(() => useIslandWithUi(), { wrapper });
@@ -196,7 +196,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("treats a fetchActiveOrder 401 like a logged-out state, without calling logout()", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockRejectedValueOnce(new CustomerAuthApiError("unauthorized", 401));
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
@@ -211,7 +211,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("hides the pill and does not throw when fetchActiveOrder fails with a non-401 error", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockRejectedValueOnce(new Error("network down"));
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
@@ -223,7 +223,7 @@ describe("useActiveOrderIsland", () => {
     });
 
     it("re-fetches the active order on a live status advance and hides the pill when the refetch reports none active", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
         mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, status: "Ready" });
 

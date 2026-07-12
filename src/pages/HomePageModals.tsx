@@ -13,7 +13,6 @@ import ClosedPopup from "../domains/schedule/components/ClosedPopup";
 import ClientInfoPopup from "../domains/order/components/ClientInfoPopup";
 import AdminOrderDetailsPopUp from "../domains/management/orders/components/AdminOrderDetailsPopUp";
 import { PickUpReminderPopup } from "../domains/order/components/PickUpReminderPopup";
-import { GuestAccountPromptPopup } from "../domains/order/components/GuestAccountPromptPopup";
 import OrderConfirmed from "../domains/order/components/OrderConfirmed";
 import GenericItemPopupContent from "../domains/menu/components/popups/GenericItemPopupContent";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
@@ -220,6 +219,9 @@ export default function HomePageModals({
                     unavailableItems={checkout.unavailableItems}
                     unavailableMessage={checkout.unavailableMessage}
                     onCloseUnavailablePopup={() => { checkout.setUnavailablePopupOpen(false); checkout.setUnavailableMessage(null); }}
+                    showNoteField={!isAdmin && checkout.isCustomerLoggedIn}
+                    note={checkout.cartNote}
+                    onNoteChange={checkout.setCartNote}
                 />
             )}
 
@@ -236,6 +238,7 @@ export default function HomePageModals({
                     phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
                     customerName={checkout.customerPrefill?.name ?? username}
                     prefillAddress={checkout.customerPrefill?.address ?? undefined}
+                    prefillNote={checkout.cartNote}
                 />
             )}
 
@@ -263,14 +266,6 @@ export default function HomePageModals({
 
             {!isAdmin && checkout.showOrderConfirmed && (
                 <OrderConfirmed open onClose={() => checkout.setShowOrderConfirmed(false)} />
-            )}
-
-            {checkout.postOrderProposalOpen && (
-                <GuestAccountPromptPopup
-                    open={checkout.postOrderProposalOpen}
-                    phone={checkout.postOrderProposalPhone}
-                    onDismiss={checkout.resolvePostOrderProposal}
-                />
             )}
 
             {checkout.blacklistSnackBarOpen && (

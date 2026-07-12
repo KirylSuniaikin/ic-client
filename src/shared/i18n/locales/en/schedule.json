@@ -2,16 +2,33 @@
     "header": {
         "openNow": "Open now",
         "opensIn": "Opens in {{hours}}h {{minutes}}m",
+        "opensOnDay": "Opens on {{day}} at {{time}}",
         "closesAt": "Closes at {{time}}"
+    },
+    "days": {
+        "Sunday": "Sunday",
+        "Monday": "Monday",
+        "Tuesday": "Tuesday",
+        "Wednesday": "Wednesday",
+        "Thursday": "Thursday",
+        "Friday": "Friday",
+        "Saturday": "Saturday"
+    },
+    "daysShort": {
+        "Sunday": "Sun",
+        "Monday": "Mon",
+        "Tuesday": "Tue",
+        "Wednesday": "Wed",
+        "Thursday": "Thu",
+        "Friday": "Fri",
+        "Saturday": "Sat"
     },
     "closed": {
         "title": "Unfortunately we are closed right now",
         "enjoyIn": "But you can enjoy our pizza in:",
         "lessThanMinute": "less than a minute",
         "workingHours": "Working hours:",
-        "hoursWeekdays": "Mon, Tue, Wed, Sat — 14:00–00:00",
-        "hoursThuFri": "Thu, Fri — 15:30–01:00",
-        "hoursSun": "Sun — Closed",
+        "closedDay": "Closed",
         "seeYouSoon": "See you soon!"
     }
 }

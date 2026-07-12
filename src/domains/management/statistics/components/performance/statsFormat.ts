@@ -2,6 +2,22 @@ export function formatStatDate(date: Date): string {
     return date.toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
 }
 
+// Parses a "YYYY-MM-DD" string as a LOCAL date (never new Date(string), which is UTC
+// midnight and reparsing-shifts in negative-offset browser timezones).
+function parseLocalDate(isoDate: string): Date {
+    const [year, month, day] = isoDate.split("-").map(Number);
+    return new Date(year, month - 1, day);
+}
+
+export function formatStatRange(startISO: string, finishISO: string): string {
+    const start = parseLocalDate(startISO);
+    const finish = parseLocalDate(finishISO);
+    if (start.getTime() === finish.getTime()) {
+        return formatStatDate(start);
+    }
+    return `${formatStatDate(start)} — ${formatStatDate(finish)}`;
+}
+
 export function countPercentage(total: number, value: number): string {
     if (!total || Number.isNaN(total)) return "0";
     return ((value / total) * 100).toFixed(2);

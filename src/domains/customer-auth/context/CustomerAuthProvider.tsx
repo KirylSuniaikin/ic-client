@@ -71,9 +71,15 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
         };
     }, []);
 
-    const login = useCallback(async (phone: string, code: string, branchId?: string): Promise<void> => {
-        const response = await verifyOtp({ phone, code, branchId });
+    const login = useCallback(async (
+        phone: string,
+        code: string,
+        branchId?: string,
+        name?: string
+    ): Promise<{ isNewAccount: boolean; accessToken: string }> => {
+        const response = await verifyOtp({ phone, code, branchId, name });
         setAccessToken(response.accessToken);
+        return { isNewAccount: response.isNewAccount, accessToken: response.accessToken };
     }, []);
 
     const logout = useCallback(async (): Promise<void> => {

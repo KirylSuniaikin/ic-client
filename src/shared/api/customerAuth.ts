@@ -85,6 +85,22 @@ export async function logoutCustomer(): Promise<void> {
     }
 }
 
+// Mirrors fetchCustomerMe's pattern exactly (Bearer token, credentials: include) —
+// task-spec.md §5.5a. Registers the customer's name once, keyed by the phone the
+// backend derives from this same accessToken (never sent in the body).
+export async function registerCustomerName(accessToken: string, name: string): Promise<void> {
+    const response = await fetch(`${BASE_URL}/customer/name`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+        throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);
+    }
+}
+
 export async function fetchCustomerMe(accessToken: string): Promise<CustomerMeResponse> {
     const response = await fetch(`${BASE_URL}/customer/me`, {
         method: 'GET',

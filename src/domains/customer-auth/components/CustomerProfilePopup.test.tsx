@@ -148,7 +148,7 @@ beforeEach(() => {
 
 describe("CustomerProfilePopup", () => {
     it("shows name and phone from GET /customer/me and order cards from GET /customer/orders", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(profile);
         mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
 
@@ -166,7 +166,7 @@ describe("CustomerProfilePopup", () => {
     });
 
     it("resets to page 0 on every open", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(profile);
         mockFetchMyOrders.mockResolvedValue(ordersPage());
 
@@ -176,7 +176,7 @@ describe("CustomerProfilePopup", () => {
     });
 
     it("Next fetches the next page and is disabled when hasNext is false", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(profile);
         mockFetchMyOrders
             .mockResolvedValueOnce(ordersPage({ page: 0, hasNext: true }))
@@ -196,7 +196,7 @@ describe("CustomerProfilePopup", () => {
     });
 
     it("Prev is disabled at page 0 and fetches the previous page after Next", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(profile);
         mockFetchMyOrders
             .mockResolvedValueOnce(ordersPage({ page: 0, hasNext: true }))
@@ -217,7 +217,7 @@ describe("CustomerProfilePopup", () => {
     });
 
     it("Logout calls logout() and closes the popup", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(profile);
         mockFetchMyOrders.mockResolvedValue(ordersPage());
         mockLogoutCustomer.mockResolvedValueOnce(undefined);
@@ -233,7 +233,7 @@ describe("CustomerProfilePopup", () => {
 
     it("on a 401 from /customer/me, logs out and shows a session-expired message instead of crashing", async () => {
         const { CustomerAuthApiError } = await import("../types");
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
         mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
         mockLogoutCustomer.mockResolvedValueOnce(undefined);
@@ -246,7 +246,7 @@ describe("CustomerProfilePopup", () => {
 
     it("on a 401 from /customer/orders, logs out and shows a session-expired message instead of crashing", async () => {
         const { CustomerAuthApiError } = await import("../types");
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(profile);
         mockFetchMyOrders.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
         mockLogoutCustomer.mockResolvedValueOnce(undefined);
@@ -258,7 +258,7 @@ describe("CustomerProfilePopup", () => {
     });
 
     it("tapping an order card opens CustomerOrderDetailPopup for that orderId, and closing it returns to the profile list without closing the profile popup", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(profile);
         mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
         mockFetchOrderDetail.mockResolvedValueOnce(orderDetail());

@@ -124,7 +124,7 @@ beforeEach(() => {
 
 describe("CustomerOrderDetailPopup", () => {
     it("renders items, totals, notes, and the status timeline from a mocked fetchOrderDetail response", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail());
 
         await renderPopup();
@@ -151,7 +151,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("hides the Notes card when notes is empty/null", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ notes: null }));
 
         await renderPopup();
@@ -161,7 +161,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("hides the Notes card when notes is blank after trim", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ notes: "   " }));
 
         await renderPopup();
@@ -171,7 +171,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("shows Unpaid (not Paid) when the order's isPaid flag is false", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ isPaid: false }));
 
         await renderPopup();
@@ -182,7 +182,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("falls back to the raw status string for an unmapped status", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({ statusHistory: [{ status: "Some Unknown Status", changedAt: "2026-06-20 18:10" }] })
         );
@@ -195,7 +195,7 @@ describe("CustomerOrderDetailPopup", () => {
 
     it("on a 401 from fetchOrderDetail, logs out and shows a session-expired message instead of crashing", async () => {
         const { CustomerAuthApiError } = await import("../types");
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
         mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
@@ -207,7 +207,7 @@ describe("CustomerOrderDetailPopup", () => {
 
     it("shows an inline error message on a non-401 error and keeps the popup usable", async () => {
         const { CustomerAuthApiError } = await import("../types");
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockRejectedValueOnce(new CustomerAuthApiError("boom", 500));
 
         await renderPopup();
@@ -217,7 +217,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("does not fetch when orderId is null", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
 
         await renderPopup(null);
 
@@ -226,7 +226,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("shows a brand-red loading spinner while fetchOrderDetail is pending", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         // Never-resolving promise: only the pending/loading state is under test here.
         mockFetchOrderDetail.mockImplementationOnce(() => new Promise<CustomerOrderDetail>(() => undefined));
 
@@ -236,7 +236,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("calls onClose when the close icon is clicked", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail());
 
         await renderPopup();
@@ -248,7 +248,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("shows the date parsed from createdAt alongside the time in the sub-row", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail());
 
         await renderPopup();
@@ -257,7 +257,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders without crashing and shows zero totals when the order has no items and no status history", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({ items: [], statusHistory: [], amount: 0, discount: 0 })
         );
@@ -271,7 +271,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders an item row without a literal 'null' size label when item.size is null", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({
                 items: [
@@ -295,7 +295,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders combo item name/size and description-derived extras when comboItems is non-empty", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({
                 items: [
@@ -327,7 +327,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders no combo markup when comboItems is empty", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail());
 
         await renderPopup();
@@ -337,7 +337,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders a combo item's name/size with no red extras block when its description is empty", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({
                 items: [
@@ -367,7 +367,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("renders each combo item's name/size and extras when an item has multiple comboItems", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({
                 items: [
@@ -405,7 +405,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("does not render a combo sub-item's quantity anywhere in its row", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(
             detail({
                 items: [
@@ -439,7 +439,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("subscribes to the order's branch topic and refetches detail on a forward-status live frame", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ status: "Kitchen Phase" }));
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ status: "Oven" }));
 
@@ -459,7 +459,7 @@ describe("CustomerOrderDetailPopup", () => {
     });
 
     it("ignores a stale/lower-rank live frame — no second fetchOrderDetail call", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockResolvedValueOnce(detail({ status: "Ready" }));
 
         await renderPopup();

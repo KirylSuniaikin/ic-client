@@ -1,14 +1,15 @@
 import { logger } from "../../../shared/utils/logger";
-import { useState, useRef, Dispatch, SetStateAction } from "react";
+import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { NavigateFunction } from "react-router-dom";
 import { checkCustomer, createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
-import { ItemsUnavailableError, BranchClosedError } from "../types";
+import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 
@@ -35,6 +36,11 @@ export interface UseCheckoutResult {
     phonePopupOpen: boolean;
     setPhonePopupOpen: Dispatch<SetStateAction<boolean>>;
     customerPrefill: CustomerMeResponse | null;
+    cartNote: string;
+    setCartNote: Dispatch<SetStateAction<string>>;
+    // Drives the cart's note field: only logged-in customers skip the popup, so only they need
+    // to write the note in the cart.
+    isCustomerLoggedIn: boolean;
     adminOrderDetailsPopUp: boolean;
     setAdminOrderDetailsPopUpOpen: Dispatch<SetStateAction<boolean>>;
     isCrossSellOpen: boolean;
@@ -56,9 +62,6 @@ export interface UseCheckoutResult {
     errorMessage: string;
     showOrderConfirmed: boolean;
     setShowOrderConfirmed: Dispatch<SetStateAction<boolean>>;
-    postOrderProposalOpen: boolean;
-    postOrderProposalPhone: string;
-    resolvePostOrderProposal: () => void;
     generalCrossSellItems: MenuItem[];
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null) => Promise<void>;
@@ -73,11 +76,14 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const { isAdmin, isKiosk, isEditMode, adminBranchId, menuData, cartItems, setCartItems, setCartOpen, refreshMenu, navigate } = params;
 
     const { token } = useCustomerAuth();
-    const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
+    const { openOrderDetail, refreshActiveOrder, openLogin, isLoginOpen } = useCustomerAuthUi();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [customerPrefill, setCustomerPrefill] = useState<CustomerMeResponse | null>(null);
+    // Order note for logged-in customers, who skip ClientInfoPopup (and its note field) and so
+    // would otherwise have no way to attach one. Guests still type theirs in the popup.
+    const [cartNote, setCartNote] = useState("");
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
@@ -91,31 +97,15 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
     const [showOrderConfirmed, setShowOrderConfirmed] = useState(false);
-    // Guest post-order account proposal: after a guest's order is created we keep them on
-    // the current page to show the proposal (prefilled with this order's phone) and defer
-    // the tracking-page redirect until they resolve it. pendingTrackPathRef holds the
-    // deferred navigation target; a ref (not state) since it's only read on user action.
-    const [postOrderProposalOpen, setPostOrderProposalOpen] = useState(false);
-    const [postOrderProposalPhone, setPostOrderProposalPhone] = useState("");
-    const pendingTrackPathRef = useRef<string | null>(null);
-    const pendingOrderIdRef = useRef<number | null>(null);
-
-    function resolvePostOrderProposal(): void {
-        setPostOrderProposalOpen(false);
-        const path = pendingTrackPathRef.current;
-        const orderId = pendingOrderIdRef.current;
-        pendingTrackPathRef.current = null;
-        pendingOrderIdRef.current = null;
-        // If the guest created an account from the proposal (now logged in), give them the same
-        // landing a logged-in checkout gets — the profile popup with this order's detail — instead
-        // of the anonymous order-status page. Declining (still a guest) navigates as before.
-        if (token !== null && orderId !== null) {
-            refreshActiveOrder();
-            openOrderDetail(orderId);
-            return;
-        }
-        if (path) navigate(path);
-    }
+    // Mandatory-account checkout gate: a guest order build is held here while the OTP
+    // sheet verifies their phone. A ref, not state -- the
+    // resolution effect below must never read a stale closure of the pending order/items.
+    const [awaitingVerification, setAwaitingVerification] = useState(false);
+    const verificationRef = useRef<{ order: CreateOrderRequest; items: CartItem[] } | null>(null);
+    // Guards against misreading the render before isLoginOpen flips true (in the same
+    // commit a successful login opens and closes the sheet) as a dismissal -- see the
+    // resolution effect below.
+    const seenLoginOpenRef = useRef(false);
 
     const generalCrossSellItems = GENERAL_CROSS_SELL
         .map(name => menuData.find(item => item.name === name && item.available))
@@ -160,37 +150,22 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             // window.ttq is the TikTok pixel SDK; a global.d.ts augmentation would be cleaner but is not available
             (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({ phone_number: "+" + orderData.tel });
             setCartItems([]);
+            setCartNote("");
             setPendingOrder(null);
             setPickUpReminder(false);
             await localStorage.removeItem("orderToEdit");
             setCartOpen(false);
+            // executeOrderCreation is reached only by the non-admin, non-kiosk customer
+            // path -- admin/kiosk call createOrder directly in their own branches, and
+            // finalizeOrder is only invoked once the mandatory-account gate has confirmed
+            // token !== null. Logged-in customers land on
+            // CustomerProfilePopup + CustomerOrderDetailPopup for the new order instead of
+            // the anonymous OrderStatusPage.
             if (!isKiosk) {
-                // Logged-in customers land on CustomerProfilePopup + CustomerOrderDetailPopup
-                // for the new order instead of the anonymous OrderStatusPage (task-spec.md
-                // §4.15) — admin/kiosk checkout flows never reach this branch (they don't call
-                // executeOrderCreation), so a truthy token here always reflects a genuine
-                // customer session.
-                if (token) {
-                    // Seed the homepage island with the just-placed order so the widget
-                    // is ready underneath and appears the moment the popups close.
-                    refreshActiveOrder();
-                    openOrderDetail(Number(response.id));
-                    return;
-                }
-                const path = "/order_status?order_id=" + response.id;
-                // Guest post-order account proposal: a guest who submitted a phone stays on
-                // the current page to see the proposal first (prefilled with this order's
-                // phone); navigation to the tracking page is deferred until they decline or
-                // finish creating an account (resolvePostOrderProposal). Phone-less guest
-                // orders navigate immediately, as before.
-                if (orderData.tel) {
-                    pendingTrackPathRef.current = path;
-                    pendingOrderIdRef.current = Number(response.id);
-                    setPostOrderProposalPhone(orderData.tel);
-                    setPostOrderProposalOpen(true);
-                } else {
-                    navigate(path);
-                }
+                // Seed the homepage island with the just-placed order so the widget
+                // is ready underneath and appears the moment the popups close.
+                refreshActiveOrder();
+                openOrderDetail(Number(response.id));
             }
         } catch (error) {
             if (error instanceof BranchClosedError) {
@@ -220,18 +195,82 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
-    // Logged-in customer at the paymentMethod===null checkout gate (§6.7 step 1): fetch the
-    // profile and open ClientInfoPopup pre-filled. A fetch failure (e.g. token expired mid-flow)
-    // falls back to the unfilled popup instead of blocking checkout entirely.
-    async function openClientInfoForLoggedInCustomer(): Promise<void> {
-        if (token) {
-            try {
-                const me = await fetchCustomerMe(token);
-                setCustomerPrefill(me);
-            } catch (error) {
-                logger.error("Error fetching customer profile for checkout prefill:", error);
+    // Extracted terminal step shared by the logged-in-from-the-start path and the
+    // freshly-verified-guest path (completeVerifiedCheckout below) -- checks whether the
+    // phone belongs to a known customer and either creates the order straight away or
+    // routes through the Pick-Up reminder first.
+    async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
+        const customerResponse = await checkCustomer(order.tel ?? "");
+        if (customerResponse?.isNewCustomer === false) {
+            await executeOrderCreation(order, items);
+        } else {
+            setPendingCartItems(items);
+            setPendingOrder(order);
+            setPickUpReminder(true);
+        }
+    }
+
+    // Logged-in customer at the paymentMethod===null checkout gate: fetch the profile so the
+    // caller can decide between placing the order straight from the cart and falling back to
+    // ClientInfoPopup. A fetch failure (e.g. token expired mid-flow) returns null, which routes
+    // to the unfilled popup rather than blocking checkout entirely.
+    async function fetchProfileForCheckout(): Promise<CustomerMeResponse | null> {
+        if (!token) return null;
+        try {
+            const me = await fetchCustomerMe(token);
+            setCustomerPrefill(me);
+            return me;
+        } catch (error) {
+            logger.error("Error fetching customer profile for checkout prefill:", error);
+            return null;
+        }
+    }
+
+    // Rebuilds the order against the phone the customer actually verified -- the login
+    // sheet lets them go back and change the number on the code step, so the typed and
+    // verified phones can diverge; POST /api/create_order links the order to a CRM row
+    // purely by string-matching tel, so submitting anything but the verified phone would
+    // silently misfile the order.
+    async function completeVerifiedCheckout(): Promise<void> {
+        const pending = verificationRef.current;
+        verificationRef.current = null;
+        if (!pending) return;
+        const me = await fetchProfileForCheckout();
+        const verified: CreateOrderRequest = {
+            ...pending.order,
+            tel: me?.phone ?? pending.order.tel,
+            customer_name: pending.order.customer_name || me?.name || null,
+        };
+        if (verified.tel !== pending.order.tel) {
+            const blacklist = await getAllBannedCstmrs();
+            if (isCustomerBanned(blacklist, verified.tel ?? "")) {
+                setBlacklistSnackBarOpen(true);
+                return;
             }
         }
+        await finalizeOrder(verified, pending.items);
+    }
+
+    // Routed through a ref so the resolution effect below can call the latest closure
+    // without listing completeVerifiedCheckout in its dependency array (its identity
+    // changes every render) -- mirrors the loadProfileRef/loadOrdersRef pattern in
+    // CustomerProfilePopup.tsx, keeping the effect free of an eslint-disable.
+    const completeVerifiedCheckoutRef = useRef(completeVerifiedCheckout);
+    completeVerifiedCheckoutRef.current = completeVerifiedCheckout;
+
+    useEffect(() => {
+        if (!awaitingVerification) { seenLoginOpenRef.current = false; return; }
+        if (token !== null) { setAwaitingVerification(false); void completeVerifiedCheckoutRef.current(); return; }
+        if (isLoginOpen) { seenLoginOpenRef.current = true; return; }
+        if (seenLoginOpenRef.current) {
+            setAwaitingVerification(false);
+            verificationRef.current = null;
+            setCartOpen(true);
+        }
+    }, [awaitingVerification, token, isLoginOpen, setCartOpen]);
+
+    function openClientInfoPopup(): void {
+        setCartOpen(false);
         setPhonePopupOpen(true);
     }
 
@@ -250,14 +289,29 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             return;
         }
         if (paymentMethod === null) {
-            setCartOpen(false);
             if (isAdmin) {
+                setCartOpen(false);
                 setAdminOrderDetailsPopUpOpen(true);
-            } else if (token) {
-                await openClientInfoForLoggedInCustomer();
-            } else {
-                setPhonePopupOpen(true);
+                return;
             }
+            if (token) {
+                const me = await fetchProfileForCheckout();
+                // A logged-in customer whose name we know needs nothing else from the popup:
+                // the phone and name come from the profile, payment defaults (every web order
+                // is a counter-paid Pick Up), and the note is collected in the cart. Re-enter
+                // with a non-null payment method so the order runs through the same blacklist /
+                // known-customer path as any other checkout instead of a parallel one.
+                if (me?.name) {
+                    await handleCheckout(items, me.phone, me.name, "Pick Up", DEFAULT_PAYMENT_METHOD, cartNote, DEFAULT_BRANCH_ID);
+                    return;
+                }
+                // No name on file — a legacy account, or the customer closed the popup before
+                // the name step. Ask via ClientInfoPopup rather than send a nameless order to
+                // the kitchen.
+                openClientInfoPopup();
+                return;
+            }
+            openClientInfoPopup();
             return;
         }
         if (isAdmin && isEditMode) {
@@ -357,14 +411,17 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     setBlacklistSnackBarOpen(true);
                     return;
                 }
-                const customerResponse = await checkCustomer(order.tel ?? "");
-                if (customerResponse?.isNewCustomer === false) {
-                    await executeOrderCreation(order, submittedItems);
-                } else {
-                    setPendingCartItems(submittedItems);
-                    setPendingOrder(order);
-                    setPickUpReminder(true);
+                // Mandatory account: a guest must verify this phone via OTP before the
+                // order is created. Hold the order/items in a ref
+                // (not state) so the resolution effect above can never read a stale closure.
+                if (token === null) {
+                    verificationRef.current = { order, items: submittedItems };
+                    setPhonePopupOpen(false);
+                    setAwaitingVerification(true);
+                    openLogin(order.tel ?? "", order.customer_name ?? undefined, true);
+                    return;
                 }
+                await finalizeOrder(order, submittedItems);
             }
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -378,6 +435,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     return {
         checkoutLoading, phonePopupOpen, setPhonePopupOpen,
         customerPrefill,
+        cartNote, setCartNote,
+        isCustomerLoggedIn: token !== null,
         adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen,
         isCrossSellOpen, setIsCrossSellOpen,
         pickUpReminder, setPickUpReminder,
@@ -388,7 +447,6 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         blacklistSnackBarOpen, setBlacklistSnackBarOpen,
         errorSnackBarOpen, setErrorSnackBarOpen, errorMessage,
         showOrderConfirmed, setShowOrderConfirmed,
-        postOrderProposalOpen, postOrderProposalPhone, resolvePostOrderProposal,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, executeOrderCreation,
     };

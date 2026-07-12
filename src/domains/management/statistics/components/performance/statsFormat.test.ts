@@ -1,5 +1,5 @@
-import { describe, it, expect } from "@jest/globals";
-import { formatPrepTime } from "./statsFormat";
+import { describe, it, expect, afterEach } from "@jest/globals";
+import { formatPrepTime, formatStatRange } from "./statsFormat";
 
 describe("formatPrepTime", () => {
     it("renders minutes and seconds for durations of a minute or more", () => {
@@ -26,3 +26,32 @@ describe("formatPrepTime", () => {
         expect(result).toBe("—");
     });
 });
+
+describe("formatStatRange", () => {
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+        process.env.TZ = originalTz;
+    });
+
+    it("renders a single date when the start and finish are the same calendar day", () => {
+        const result = formatStatRange("2026-07-10", "2026-07-10");
+
+        expect(result).toBe("Jul 10, 2026");
+    });
+
+    it("renders a start — finish range when the dates differ", () => {
+        const result = formatStatRange("2026-07-04", "2026-07-10");
+
+        expect(result).toBe("Jul 4, 2026 — Jul 10, 2026");
+    });
+
+    it("does not UTC-shift the date in a negative-offset browser timezone", () => {
+        process.env.TZ = "America/Los_Angeles";
+
+        const result = formatStatRange("2026-07-10", "2026-07-10");
+
+        expect(result).toBe("Jul 10, 2026");
+    });
+});
+

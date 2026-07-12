@@ -8,14 +8,16 @@ import SmsRoundedIcon from "@mui/icons-material/SmsRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import { motion } from "framer-motion";
-import { requestOtp } from "../../../shared/api/customerAuth";
+import { registerCustomerName, requestOtp } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { CustomerAuthApiError } from "../types";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
+import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
 
 const brandRed = "#E44B4C";
 const brandRedTint = "#FCE9E9";
 const CODE_LENGTH = 4;
+const RESEND_COOLDOWN_MS = 45_000;
 
 type Step = "phone" | "code";
 
@@ -23,6 +25,11 @@ type Props = {
     open: boolean;
     onClose: () => void;
     prefillPhone?: string; // full phone string, e.g. "97333607710" — see task-spec.md §5.5
+    prefillName?: string; // task-spec.md §5.5a — post-order "create an account" name prefill
+    // task-spec.md §1 — this login is part of a mandatory checkout verification: the code is
+    // sent automatically and the phone-entry step is skipped (the phone was already collected
+    // by ClientInfoPopup), and the code step's copy switches to checkout-specific wording.
+    checkoutMode?: boolean;
 };
 
 // Maps a failed request/verify attempt to a user-facing message. A plain rate
@@ -38,7 +45,15 @@ function resolveErrorMessage(error: unknown, fallback: string, rateLimitMessage:
     return fallback;
 }
 
-export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): React.JSX.Element {
+// Formats a remaining-seconds count as M:SS (no leading zero on minutes) for
+// the resend countdown label, e.g. 45 -> "0:45".
+function formatCountdown(totalSeconds: number): string {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, checkoutMode }: Props): React.JSX.Element {
     const { t, i18n } = useTranslation("customerAuth");
     const { login } = useCustomerAuth();
     const [step, setStep] = useState<Step>("phone");
@@ -46,8 +61,22 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
     const [nationalDigits, setNationalDigits] = useState("");
     const [fullPhone, setFullPhone] = useState("");
     const [code, setCode] = useState("");
+    const [name, setName] = useState("");
+    // True once a brand-new, cold (no prefill) customer's code has been accepted —
+    // task-spec.md §5.5a requirement 6. Login already succeeded (token issued); the
+    // popup stays open, showing a mandatory name prompt in place of the code step's
+    // digit boxes, until the name is submitted.
+    const [awaitingName, setAwaitingName] = useState(false);
+    // The access token returned by the login() call that triggered awaitingName —
+    // needed to call registerCustomerName (an authenticated endpoint) immediately,
+    // without depending on a context re-render.
+    const [pendingAccessToken, setPendingAccessToken] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Epoch ms of the most recent successful requestOtp call; drives the 45s
+    // resend cooldown. Reset to null on popup open so a stale countdown never
+    // carries over into a fresh session.
+    const [codeSentAt, setCodeSentAt] = useState<number | null>(null);
 
     // Refs to the 4 segmented OTP boxes — used only for focus movement. The
     // code value itself stays the single `code` string; each box derives its
@@ -66,8 +95,12 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
             setStep("phone");
             setFullPhone("");
             setCode("");
+            setName(prefillName ?? "");
+            setAwaitingName(false);
+            setPendingAccessToken(null);
             setError(null);
             setIsSubmitting(false);
+            setCodeSentAt(null);
 
             const matchedCountry = prefillPhone ? countries.find((c) => prefillPhone.startsWith(c.code)) : undefined;
             if (prefillPhone && matchedCountry) {
@@ -78,10 +111,37 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                 setNationalDigits("");
             }
         }
-    }, [open, prefillPhone]);
+    }, [open, prefillPhone, prefillName]);
 
     const isPhoneValid = /^\d+$/.test(nationalDigits) && nationalDigits.length === countryObj.digits;
     const isCodeValid = /^\d{4}$/.test(code);
+
+    const resendRemainingMs = usePreciseCountdown(
+        codeSentAt !== null ? codeSentAt + RESEND_COOLDOWN_MS : Date.now(),
+        1000
+    );
+    const resendRemainingSeconds = Math.max(0, Math.floor(resendRemainingMs / 1000));
+    const isResendReady = resendRemainingSeconds <= 0;
+
+    // The send half of the old handleGetCode, extracted so checkoutMode's auto-send
+    // effect (below) can trigger it directly with a phone that is already known --
+    // ClientInfoPopup already collected and validated it, so there is no separate
+    // phone-step submission here. A failed send drops back to the phone step with the
+    // error, a real fallback rather than a dead end.
+    async function sendCode(candidatePhone: string): Promise<void> {
+        setFullPhone(candidatePhone);
+        setIsSubmitting(true);
+        try {
+            await requestOtp({ phone: candidatePhone });
+            setStep("code");
+            setCodeSentAt(Date.now());
+        } catch (err) {
+            setError(resolveErrorMessage(err, t("errors.sendFailed"), t("errors.tooManyAttempts")));
+            setStep("phone");
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
 
     async function handleGetCode(): Promise<void> {
         if (!isPhoneValid) {
@@ -92,12 +152,39 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
             return;
         }
         setError(null);
+        await sendCode(countryObj.code + nationalDigits);
+    }
+
+    // Routed through a ref so the checkoutMode auto-send effect below can call the
+    // latest sendCode without listing it in the effect dependency array (its identity
+    // changes every render) -- mirrors the loadProfileRef/loadOrdersRef pattern in
+    // CustomerProfilePopup.tsx.
+    const sendCodeRef = useRef(sendCode);
+    sendCodeRef.current = sendCode;
+
+    // A checkout customer already gave us their phone via ClientInfoPopup, so send the OTP
+    // immediately and open straight on the code step; the phone-entry step is never shown.
+    // Declared after the open-reset effect above
+    // so it wins within the same commit (a successful open both resets to the phone
+    // step and, here, optimistically re-sets to the code step before the request
+    // settles -- isSubmitting already renders the CTA button's spinner, so there is no
+    // flash of the phone input while the request is in flight).
+    useEffect(() => {
+        if (!open || !checkoutMode || !prefillPhone) return;
+        const matched = countries.find((c) => prefillPhone.startsWith(c.code));
+        if (!matched || prefillPhone.slice(matched.code.length).length !== matched.digits) return;
+        setStep("code");
+        void sendCodeRef.current(prefillPhone);
+    }, [open, checkoutMode, prefillPhone]);
+
+    async function handleResend(): Promise<void> {
+        if (!isResendReady || isSubmitting) return;
+        setError(null);
         setIsSubmitting(true);
-        const candidatePhone = countryObj.code + nationalDigits;
         try {
-            await requestOtp({ phone: candidatePhone });
-            setFullPhone(candidatePhone);
-            setStep("code");
+            await requestOtp({ phone: fullPhone });
+            setCode("");
+            setCodeSentAt(Date.now());
         } catch (err) {
             setError(resolveErrorMessage(err, t("errors.sendFailed"), t("errors.tooManyAttempts")));
         } finally {
@@ -113,10 +200,42 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
         setError(null);
         setIsSubmitting(true);
         try {
-            await login(fullPhone, code);
-            onClose();
+            const result = await login(fullPhone, code, undefined, name.trim() || undefined);
+            // A brand-new account with no name sent yet (no prefill was available) must be
+            // asked before login completes (task-spec.md §5.5a requirement 6); any other case
+            // (returning customer, or a new customer whose name was already sent via prefill)
+            // closes exactly as today.
+            if (result.isNewAccount && name.trim() === "") {
+                setPendingAccessToken(result.accessToken);
+                setAwaitingName(true);
+            } else {
+                onClose();
+            }
         } catch (err) {
             setError(resolveErrorMessage(err, t("errors.invalidCode"), t("errors.tooManyAttempts")));
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    async function handleContinueName(): Promise<void> {
+        if (name.trim() === "") {
+            setError(t("errors.nameRequired"));
+            return;
+        }
+        if (!pendingAccessToken) {
+            setError(t("errors.nameSaveFailed"));
+            return;
+        }
+        setError(null);
+        setIsSubmitting(true);
+        try {
+            await registerCustomerName(pendingAccessToken, name.trim());
+            onClose();
+        } catch (err) {
+            // Retryable — the user stays on the name prompt with their entered name intact
+            // and remains logged in (token already issued).
+            setError(resolveErrorMessage(err, t("errors.nameSaveFailed"), t("errors.tooManyAttempts")));
         } finally {
             setIsSubmitting(false);
         }
@@ -210,11 +329,15 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
         >
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
                 {/* A full-screen sheet needs an explicit way out: on the code step
-                    the back chevron returns to the phone step, otherwise it closes. */}
+                    the back chevron returns to the phone step, otherwise it closes.
+                    While awaitingName, going back to the phone step would let a new
+                    customer re-verify without ever being asked for a name again (their
+                    account already exists by then) — so this closes instead, same as
+                    the tolerated "dismiss while awaitingName" edge case. */}
                 <Box sx={{ display: "flex", alignItems: "center", minHeight: 56, px: 1 }}>
                     <IconButton
-                        aria-label={step === "code" ? t("login.back") : t("login.close")}
-                        onClick={step === "code" ? handleChangeNumber : onClose}
+                        aria-label={step === "code" && !awaitingName ? t("login.back") : t("login.close")}
+                        onClick={step === "code" && !awaitingName ? handleChangeNumber : onClose}
                         sx={{ color: "#333" }}
                     >
                         <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
@@ -248,13 +371,27 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                                     <SmsRoundedIcon sx={{ fontSize: 36, color: brandRed }} />
                                 )}
                             </Box>
+                            {/* Assumed: swapping the copy for the mandatory name prompt (still
+                                the "code" step, no new Step value) so it doesn't keep showing
+                                stale "Enter your code" text once the code has already been
+                                accepted — task-spec.md §5.5a requirement 6. */}
                             <Typography sx={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.01em" }}>
-                                {step === "phone" ? t("login.phoneTitle") : t("login.codeTitle")}
+                                {step === "phone"
+                                    ? t("login.phoneTitle")
+                                    : awaitingName
+                                        ? t("login.nameTitle")
+                                        : checkoutMode
+                                            ? t("login.checkoutCodeTitle")
+                                            : t("login.codeTitle")}
                             </Typography>
                             <Typography sx={{ mt: 1, color: "#6b6b6b", fontSize: 15, lineHeight: 1.45, maxWidth: 320 }}>
                                 {step === "phone"
                                     ? t("login.phoneSubtitle")
-                                    : t("login.codeSubtitle", { phone: fullPhone })}
+                                    : awaitingName
+                                        ? t("login.nameSubtitle")
+                                        : checkoutMode
+                                            ? t("login.checkoutCodeSubtitle", { phone: fullPhone })
+                                            : t("login.codeSubtitle", { phone: fullPhone })}
                             </Typography>
                         </Box>
 
@@ -316,7 +453,7 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                             />
                         )}
 
-                        {step === "code" && (
+                        {step === "code" && !awaitingName && (
                             <Stack
                                 direction="row"
                                 spacing={1.5}
@@ -365,6 +502,44 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                             </Stack>
                         )}
 
+                        {step === "code" && !awaitingName && (
+                            <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
+                                <Button
+                                    variant="text"
+                                    onClick={handleResend}
+                                    disabled={isSubmitting || !isResendReady}
+                                    sx={{ textTransform: "none", fontWeight: 700, color: brandRed }}
+                                >
+                                    {isResendReady
+                                        ? t("login.resend")
+                                        : t("login.resendIn", { time: formatCountdown(resendRemainingSeconds) })}
+                                </Button>
+                            </Box>
+                        )}
+
+                        {step === "code" && awaitingName && (
+                            <TextField
+                                label={t("login.nameLabel")}
+                                placeholder={t("login.namePlaceholder")}
+                                fullWidth
+                                value={name}
+                                onChange={(e) => {
+                                    setName(e.target.value);
+                                    setError(null);
+                                }}
+                                error={Boolean(error)}
+                                InputLabelProps={{ shrink: true }}
+                                InputProps={{
+                                    sx: {
+                                        borderRadius: 3,
+                                        fontSize: "1.05rem",
+                                        bgcolor: "#fff",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                                    },
+                                }}
+                            />
+                        )}
+
                         {error && (
                             <Box
                                 sx={{
@@ -388,8 +563,11 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                     <Button
                         fullWidth
                         variant="contained"
-                        onClick={step === "phone" ? handleGetCode : handleVerifyCode}
-                        disabled={isSubmitting || (step === "phone" ? !isPhoneValid : !isCodeValid)}
+                        onClick={step === "phone" ? handleGetCode : awaitingName ? handleContinueName : handleVerifyCode}
+                        // The name prompt intentionally does NOT pre-disable on a blank value —
+                        // Continue is clickable and surfaces an inline validation error instead
+                        // (task-spec.md §5.5a requirement 5/step 5), unlike the phone/code steps.
+                        disabled={isSubmitting || (step === "phone" ? !isPhoneValid : awaitingName ? false : !isCodeValid)}
                         sx={{
                             py: 1.6,
                             color: "#fff",
@@ -410,6 +588,10 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone }: Props): Reac
                             <CircularProgress size={24} sx={{ color: "#fff" }} />
                         ) : step === "phone" ? (
                             t("login.getCode")
+                        ) : awaitingName ? (
+                            t("login.continue")
+                        ) : checkoutMode ? (
+                            t("login.checkoutSubmit")
                         ) : (
                             t("login.submit")
                         )}

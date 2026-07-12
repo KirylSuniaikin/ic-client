@@ -16,6 +16,7 @@ describe("CustomerAuthUiProvider", () => {
         expect(result.current.isLoginOpen).toBe(false);
         expect(result.current.isProfileOpen).toBe(false);
         expect(result.current.loginPrefillPhone).toBeNull();
+        expect(result.current.loginPrefillName).toBeNull();
         expect(result.current.selectedOrderId).toBeNull();
         expect(result.current.isAnyCustomerAuthPopupOpen).toBe(false);
     });
@@ -30,6 +31,7 @@ describe("CustomerAuthUiProvider", () => {
         expect(result.current.isLoginOpen).toBe(true);
         expect(result.current.isProfileOpen).toBe(false);
         expect(result.current.loginPrefillPhone).toBeNull();
+        expect(result.current.loginPrefillName).toBeNull();
         expect(result.current.isAnyCustomerAuthPopupOpen).toBe(true);
     });
 
@@ -42,6 +44,19 @@ describe("CustomerAuthUiProvider", () => {
 
         expect(result.current.isLoginOpen).toBe(true);
         expect(result.current.loginPrefillPhone).toBe("97333607710");
+        expect(result.current.loginPrefillName).toBeNull();
+    });
+
+    it("openLogin(phone, name) opens the login popup with both prefills", () => {
+        const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed");
+        });
+
+        expect(result.current.isLoginOpen).toBe(true);
+        expect(result.current.loginPrefillPhone).toBe("97333607710");
+        expect(result.current.loginPrefillName).toBe("Ahmed");
     });
 
     it("openLogin() closes the profile popup if it was open", () => {
@@ -65,7 +80,7 @@ describe("CustomerAuthUiProvider", () => {
         const { result } = renderCustomerAuthUi();
 
         act(() => {
-            result.current.openLogin("97333607710");
+            result.current.openLogin("97333607710", "Ahmed");
         });
         expect(result.current.isLoginOpen).toBe(true);
 
@@ -76,6 +91,7 @@ describe("CustomerAuthUiProvider", () => {
         expect(result.current.isProfileOpen).toBe(true);
         expect(result.current.isLoginOpen).toBe(false);
         expect(result.current.loginPrefillPhone).toBeNull();
+        expect(result.current.loginPrefillName).toBeNull();
         expect(result.current.isAnyCustomerAuthPopupOpen).toBe(true);
     });
 
@@ -83,7 +99,7 @@ describe("CustomerAuthUiProvider", () => {
         const { result } = renderCustomerAuthUi();
 
         act(() => {
-            result.current.openLogin("97333607710");
+            result.current.openLogin("97333607710", "Ahmed");
         });
 
         act(() => {
@@ -93,11 +109,16 @@ describe("CustomerAuthUiProvider", () => {
         expect(result.current.isLoginOpen).toBe(false);
         expect(result.current.isProfileOpen).toBe(false);
         expect(result.current.loginPrefillPhone).toBeNull();
+        expect(result.current.loginPrefillName).toBeNull();
         expect(result.current.isAnyCustomerAuthPopupOpen).toBe(false);
     });
 
     it("openOrderDetail(orderId) opens the profile popup with that order selected", () => {
         const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed");
+        });
 
         act(() => {
             result.current.openOrderDetail(1234);
@@ -106,6 +127,8 @@ describe("CustomerAuthUiProvider", () => {
         expect(result.current.isProfileOpen).toBe(true);
         expect(result.current.isLoginOpen).toBe(false);
         expect(result.current.selectedOrderId).toBe(1234);
+        expect(result.current.loginPrefillPhone).toBeNull();
+        expect(result.current.loginPrefillName).toBeNull();
     });
 
     it("closeOrderDetail() keeps the profile open when the detail was opened from within it", () => {
@@ -190,6 +213,65 @@ describe("CustomerAuthUiProvider", () => {
             result.current.closeAll();
         });
         expect(result.current.isAnyCustomerAuthPopupOpen).toBe(false);
+    });
+
+    it("starts with loginCheckoutMode false", () => {
+        const { result } = renderCustomerAuthUi();
+
+        expect(result.current.loginCheckoutMode).toBe(false);
+    });
+
+    it("openLogin(phone, name, true) exposes loginCheckoutMode true", () => {
+        const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed", true);
+        });
+
+        expect(result.current.isLoginOpen).toBe(true);
+        expect(result.current.loginPrefillPhone).toBe("97333607710");
+        expect(result.current.loginPrefillName).toBe("Ahmed");
+        expect(result.current.loginCheckoutMode).toBe(true);
+    });
+
+    it("openLogin() without a third argument defaults loginCheckoutMode to false", () => {
+        const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed");
+        });
+
+        expect(result.current.loginCheckoutMode).toBe(false);
+    });
+
+    it("closeAll() resets loginCheckoutMode to false", () => {
+        const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed", true);
+        });
+        expect(result.current.loginCheckoutMode).toBe(true);
+
+        act(() => {
+            result.current.closeAll();
+        });
+
+        expect(result.current.loginCheckoutMode).toBe(false);
+    });
+
+    it("openProfile() resets loginCheckoutMode to false", () => {
+        const { result } = renderCustomerAuthUi();
+
+        act(() => {
+            result.current.openLogin("97333607710", "Ahmed", true);
+        });
+        expect(result.current.loginCheckoutMode).toBe(true);
+
+        act(() => {
+            result.current.openProfile();
+        });
+
+        expect(result.current.loginCheckoutMode).toBe(false);
     });
 });
 

@@ -18,19 +18,6 @@
             "nameRequired": "Name is required"
         }
     },
-    "guestPrompt": {
-        "title": "Save your details for next time",
-        "subtitle": "Log in with your phone number and enjoy:",
-        "dismiss": "dismiss",
-        "benefits": {
-            "noRefill": "No need to refill your personal details",
-            "threeClicks": "Order in 3 clicks",
-            "tracking": "Convenient order tracking in the app",
-            "history": "Full order history"
-        },
-        "cta": "Get a code on WhatsApp",
-        "continueAsGuest": "Continue as guest"
-    },
     "orderConfirmed": "Order Confirmed!",
     "crossSell": {
         "title": "Customers also buy",

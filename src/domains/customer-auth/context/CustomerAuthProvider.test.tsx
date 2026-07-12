@@ -47,7 +47,7 @@ afterEach(() => {
 
 describe("CustomerAuthProvider — silent refresh on mount", () => {
     it("populates the token when the cookie-driven refresh succeeds", async () => {
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "silent-refresh-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "silent-refresh-token", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
 
@@ -94,7 +94,7 @@ describe("CustomerAuthProvider — silent refresh on mount", () => {
 describe("CustomerAuthProvider — login", () => {
     it("populates the token in context state on a successful login", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
@@ -109,7 +109,7 @@ describe("CustomerAuthProvider — login", () => {
 
     it("passes an optional branchId through to verifyOtp", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
@@ -121,9 +121,38 @@ describe("CustomerAuthProvider — login", () => {
         expect(mockVerifyOtp).toHaveBeenCalledWith({ phone: "97333607710", code: "4821", branchId: "branch-9" });
     });
 
+    it("forwards a provided name into verifyOtp's payload", async () => {
+        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: true });
+
+        const { result } = renderCustomerAuth();
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        await act(async () => {
+            await result.current.login("97333607710", "4821", undefined, "Ahmed");
+        });
+
+        expect(mockVerifyOtp).toHaveBeenCalledWith({ phone: "97333607710", code: "4821", branchId: undefined, name: "Ahmed" });
+    });
+
+    it("resolves with isNewAccount and accessToken from the verify response", async () => {
+        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: true });
+
+        const { result } = renderCustomerAuth();
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        let loginResult: { isNewAccount: boolean; accessToken: string } | undefined;
+        await act(async () => {
+            loginResult = await result.current.login("97333607710", "4821");
+        });
+
+        expect(loginResult).toEqual({ isNewAccount: true, accessToken: "login-token" });
+    });
+
     it("never writes the access token to localStorage or sessionStorage", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "should-not-persist" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "should-not-persist", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
@@ -140,7 +169,7 @@ describe("CustomerAuthProvider — login", () => {
 describe("CustomerAuthProvider — logout", () => {
     it("clears the token from context state", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: false });
         mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
         const { result } = renderCustomerAuth();
@@ -160,7 +189,7 @@ describe("CustomerAuthProvider — logout", () => {
 
     it("clears the token even when the logout request fails", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: false });
         mockLogoutCustomer.mockRejectedValueOnce(new Error("network error"));
 
         const { result } = renderCustomerAuth();
@@ -202,7 +231,7 @@ describe("customerAuthFetch", () => {
 
     it("attaches the Authorization header from the in-memory token store after login", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
-        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "stored-token" });
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "stored-token", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
@@ -247,7 +276,7 @@ describe("customerAuthFetch", () => {
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
 
         mockRefreshCustomerToken.mockClear();
-        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "refreshed-token" });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "refreshed-token", isNewAccount: false });
 
         savedFetch = global.fetch;
         mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();

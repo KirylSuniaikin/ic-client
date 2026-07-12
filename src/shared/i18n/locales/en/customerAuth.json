@@ -4,6 +4,9 @@
     "codeTitle": "Enter your code",
     "phoneSubtitle": "We'll send a 4-digit code to your WhatsApp to sign you in.",
     "codeSubtitle": "Sent to your WhatsApp ({{phone}}).",
+    "checkoutCodeTitle": "Let's confirm your number",
+    "checkoutCodeSubtitle": "We sent a 4-digit code to {{phone}} on WhatsApp.",
+    "checkoutSubmit": "Confirm & continue",
     "phoneLabel": "Phone number",
     "phonePlaceholder": "5555 5555",
     "country": "Country",
@@ -12,7 +15,14 @@
     "back": "Back",
     "close": "Close",
     "getCode": "Get code",
-    "submit": "Submit"
+    "submit": "Submit",
+    "resend": "Resend code",
+    "resendIn": "Resend in {{time}}",
+    "nameTitle": "What's your name?",
+    "nameSubtitle": "We'll use it to personalize your orders.",
+    "nameLabel": "Full name",
+    "namePlaceholder": "Your name",
+    "continue": "Continue"
   },
   "profile": {
     "title": "My Account",
@@ -72,6 +82,8 @@
     "sessionExpired": "Your session has expired. Please log in again.",
     "profileLoadFailed": "Could not load your profile. Please try again.",
     "ordersLoadFailed": "Could not load your orders. Please try again.",
-    "orderDetailLoadFailed": "Could not load order details. Please try again."
+    "orderDetailLoadFailed": "Could not load order details. Please try again.",
+    "nameRequired": "Please enter your name.",
+    "nameSaveFailed": "Could not save your name. Please try again."
   }
 }

@@ -78,6 +78,30 @@ describe("toPayloadLine", () => {
 
         expect(result.price).toBe(0);
     });
+
+    it("converts a null quantity (never-touched cell) to 0 without throwing", () => {
+        const row: PurchaseRow = { ...baseRow, quantity: null };
+
+        const result = toPayloadLine(row);
+
+        expect(result.quantity).toBe(0);
+    });
+
+    it("converts a null price (never-touched cell) to 0 without throwing", () => {
+        const row: PurchaseRow = { ...baseRow, price: null };
+
+        const result = toPayloadLine(row);
+
+        expect(result.price).toBe(0);
+    });
+
+    it("converts a null finalPrice (never-touched cell) to 0 without throwing", () => {
+        const row: PurchaseRow = { ...baseRow, finalPrice: null };
+
+        const result = toPayloadLine(row);
+
+        expect(result.finalPrice).toBe(0);
+    });
 });
 
 describe("validateRows", () => {
@@ -127,6 +151,22 @@ describe("validateRows", () => {
         const result = validateRows([row]);
 
         expect(result.get("row-1")?.has("quantity")).toBe(true);
+    });
+
+    it("flags quantity field when quantity is null (never-touched cell), same as an explicit 0", () => {
+        const row: PurchaseRow = { ...baseRow, quantity: null };
+
+        const result = validateRows([row]);
+
+        expect(result.get("row-1")?.has("quantity")).toBe(true);
+    });
+
+    it("flags price field when price is null (never-touched cell), same as an explicit 0", () => {
+        const row: PurchaseRow = { ...baseRow, price: null };
+
+        const result = validateRows([row]);
+
+        expect(result.get("row-1")?.has("price")).toBe(true);
     });
 
     it("does not include valid rows in the result map", () => {

@@ -8,6 +8,7 @@ import {
     fetchCustomerMe,
     fetchMyOrders,
     fetchActiveOrder,
+    registerCustomerName,
 } from "./customerAuth";
 import { CustomerAuthApiError } from "../../domains/customer-auth/types";
 
@@ -123,6 +124,31 @@ describe("logoutCustomer", () => {
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(logoutCustomer()).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+// task-spec.md §5.5a — mirrors fetchCustomerMe's pattern (Bearer token, credentials: include).
+describe("registerCustomerName", () => {
+    it("posts to /customer/name with credentials: 'include', the Bearer token, and the name body", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await registerCustomerName("my-access-token", "Sara");
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/customer/name`);
+        expect(init.method).toBe("POST");
+        expect(init.credentials).toBe("include");
+        const headers = new Headers(init.headers);
+        expect(headers.get("Authorization")).toBe("Bearer my-access-token");
+        expect(init.body).toBe(JSON.stringify({ name: "Sara" }));
+    });
+
+    it("throws a CustomerAuthApiError on a 400", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ message: "Name is required" }), { status: 400 })
+        );
+
+        await expect(registerCustomerName("my-access-token", "")).rejects.toThrow(CustomerAuthApiError);
     });
 });
 

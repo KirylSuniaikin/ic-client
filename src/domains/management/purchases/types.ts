@@ -51,8 +51,8 @@ export type PurchaseRow = {
     id: string;
     purchaseDate: string;
     productId: number | null;
-    price: number;
-    quantity: number;
-    finalPrice: number;
+    price: number | null;
+    quantity: number | null;
+    finalPrice: number | null;
     vendorName: string | null;
 };

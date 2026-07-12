@@ -37,6 +37,13 @@ export type OrderType =
 
 export type PaymentType = 'Cash' | 'Online' | 'Card';
 
+// Recorded on web Pick-Up orders that skip ClientInfoPopup (logged-in customers — see
+// useCheckout's checkout gate). The customer profile carries no payment method, and every
+// web order is paid at the counter on collection, so staff correct this via PaymentPopup if
+// the customer pays another way. Kept as the single source of the string ClientInfoPopup
+// also defaults to — a null payment_type would NPE the admin edit path server-side.
+export const DEFAULT_PAYMENT_METHOD = 'Card (Through card machine)';
+
 export type WorkloadLevel =
     | 'IDLE'
     | 'BUSY'
