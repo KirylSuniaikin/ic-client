@@ -22,6 +22,7 @@ import { TextButton } from "../shared/components/typography";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
 import { ScrollHintArrow } from "../domains/kiosk/components/ScrollHintArrow";
 import { enI18n } from "../shared/i18n";
+import { isKioskSearch } from "../shared/utils/kioskMode";
 import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
 
@@ -36,7 +37,7 @@ const brandRed = "#E44B4C";
 function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Element {
     const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = searchParams.get('isAdmin') === 'true';
-    const isKiosk = searchParams.get('mode') === 'kiosk';
+    const isKiosk = isKioskSearch(searchParams);
     const adminBranchId = searchParams.get('branchId');
     const isEditMode = searchParams.get('isEditMode') === 'true';
     const navigate = useNavigate();
