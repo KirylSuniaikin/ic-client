@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type React from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { logoutCustomer, refreshCustomerToken, verifyOtp } from '../../../shared/api/customerAuth';
+import { isKioskSearch } from '../../../shared/utils/kioskMode';
 import { CustomerAuthContextMissingError } from '../types';
 import type { CustomerAuthContextType } from '../types';
 
@@ -29,6 +30,11 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     const [token, setToken] = useState<string | null>(getAccessToken());
     const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
+    // Latched at mount, deliberately not re-read on navigation: a kiosk tab is a kiosk for
+    // its whole (months-long) life, and re-reading would let any navigation that drops the
+    // ?mode=kiosk param silently switch customer sessions back on.
+    const [isKiosk] = useState<boolean>(() => isKioskSearch(new URLSearchParams(window.location.search)));
+
     // Mirror the module-level store into this provider's render state so
     // updates from customerAuthFetch (which may run outside this component)
     // are reflected in context consumers too.
@@ -45,6 +51,20 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
         let cancelled = false;
 
         async function silentRefresh(): Promise<void> {
+            // The kiosk is a shared walk-up device and has no login entry point at all, so a
+            // session restored here can only belong to SOMEONE ELSE — and it leaks: checkout
+            // reads the profile whenever a token exists (useCheckout's `if (token)` branch) and
+            // would put a stranger's phone and name on the order, while the active-order island
+            // would show a stranger's order. Don't merely skip the refresh: clear the store, so
+            // a token an in-tab session left behind can't survive into kiosk mode either.
+            // A refresh cookie really can be sitting on the device — the storefront opened once
+            // on it without ?mode=kiosk leaves one for months — so never trust its absence.
+            if (isKiosk) {
+                setAccessToken(null);
+                setIsAuthLoading(false);
+                return;
+            }
+
             if (getAccessToken() !== null) {
                 setIsAuthLoading(false);
                 return;
@@ -69,7 +89,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [isKiosk]);
 
     const login = useCallback(async (
         phone: string,

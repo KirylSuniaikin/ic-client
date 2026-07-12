@@ -36,6 +36,10 @@ beforeEach(() => {
     mockLogoutCustomer.mockReset();
     localStorage.clear();
     sessionStorage.clear();
+    // The provider latches kiosk mode from the URL at mount, so reset the tab to a
+    // plain storefront URL — a ?mode=kiosk left over from another test would silently
+    // turn off silent refresh for everyone.
+    window.history.replaceState({}, "", "/");
     // Every test starts from a clean, logged-out module-level store — the
     // real singleton (module-scoped, in-memory) otherwise leaks across tests.
     __resetCustomerAuthStoreForTests();
@@ -88,6 +92,53 @@ describe("CustomerAuthProvider — silent refresh on mount", () => {
         });
 
         expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("CustomerAuthProvider — kiosk mode", () => {
+    it("never restores a session on a kiosk tab, even when a valid refresh cookie is present", async () => {
+        window.history.replaceState({}, "", "/menu?mode=kiosk");
+        // A cookie left on the shared device WOULD resolve — the kiosk must not even ask.
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "someone-elses-token", isNewAccount: false });
+
+        const { result } = renderCustomerAuth();
+
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        expect(mockRefreshCustomerToken).not.toHaveBeenCalled();
+        expect(result.current.token).toBeNull();
+    });
+
+    it("drops a token the in-memory store carried into a kiosk tab", async () => {
+        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "previous-customer", isNewAccount: false });
+
+        const storefront = renderCustomerAuth();
+        await waitFor(() => expect(storefront.result.current.isAuthLoading).toBe(false));
+        await act(async () => {
+            await storefront.result.current.login("97333607710", "4821");
+        });
+        expect(storefront.result.current.token).toBe("previous-customer");
+        storefront.unmount();
+
+        // Same tab, now navigated into kiosk mode: the module-scoped store still holds the
+        // previous customer's token, so skipping the refresh alone would not be enough.
+        window.history.replaceState({}, "", "/menu?mode=kiosk");
+        const kiosk = renderCustomerAuth();
+        await waitFor(() => expect(kiosk.result.current.isAuthLoading).toBe(false));
+
+        expect(kiosk.result.current.token).toBeNull();
+    });
+
+    it("treats a non-kiosk mode param as an ordinary storefront tab", async () => {
+        window.history.replaceState({}, "", "/menu?mode=table");
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "silent-refresh-token", isNewAccount: false });
+
+        const { result } = renderCustomerAuth();
+
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        expect(result.current.token).toBe("silent-refresh-token");
     });
 });
 
