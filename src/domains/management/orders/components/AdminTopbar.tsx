@@ -147,7 +147,14 @@ export default function AdminTopbar({
         {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
     ]
 
-    const items = role === StaffRoles.COOK ? cookItems : managerItems;
+    const reviewerItems = [
+        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
+        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+    ]
+
+    const isReviewer = role === StaffRoles.REVIEWER;
+
+    const items = isReviewer ? reviewerItems : role === StaffRoles.COOK ? cookItems : managerItems;
 
     const levels: WorkloadLevel[] = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
 
@@ -236,28 +243,32 @@ export default function AdminTopbar({
                     ></BranchSelectorComponent>
                 )}
 
-                <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
-                    <InputLabel>Workload</InputLabel>
-                    <Select
-                        value={workloadLevel ?? "IDLE"}
-                        onChange={handleChangeWorkloadLevel}
-                        label="Workload"
-                        sx={{
-                            borderRadius: "9999px",
-                            border: colorRed,
-                            fontWeight: 500,
-                            textTransform: "capitalize",
-                        }}
-                    >
-                        {levels.map((lvl) => (
-                            <MenuItem key={lvl} value={lvl}>
-                                {getWorkloadData(lvl)}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                {/* Workload, Cash and Shift all mutate branch state, and the backend 403s a
+                    REVIEWER on every one of them. Hide rather than let them fail on click. */}
+                {!isReviewer && (
+                    <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
+                        <InputLabel>Workload</InputLabel>
+                        <Select
+                            value={workloadLevel ?? "IDLE"}
+                            onChange={handleChangeWorkloadLevel}
+                            label="Workload"
+                            sx={{
+                                borderRadius: "9999px",
+                                border: colorRed,
+                                fontWeight: 500,
+                                textTransform: "capitalize",
+                            }}
+                        >
+                            {levels.map((lvl) => (
+                                <MenuItem key={lvl} value={lvl}>
+                                    {getWorkloadData(lvl)}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                )}
 
-                {!isMobile && (
+                {!isMobile && !isReviewer && (
                     <>
                         <ShiftButton
                             onClick={onCashClick}
@@ -315,7 +326,7 @@ export default function AdminTopbar({
                         },
                     }}
                 >
-                    {isMobile && (
+                    {isMobile && !isReviewer && (
                         <>
                             <Box
                                 onClick={() => {

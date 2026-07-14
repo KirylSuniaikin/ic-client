@@ -28,6 +28,10 @@ export function PickUpReminderPopup({onClose, onClick}: Props) {
             }}
         >
         <Box
+            // The backdrop dismisses on tap; without this the same tap bubbles up from
+            // anywhere on the card (title, icons, padding) and silently discards the
+            // order that finalizeOrder parked in pendingOrder.
+            onClick={(e) => e.stopPropagation()}
             sx={{
                 width: "100%",
                 maxWidth: "400px",

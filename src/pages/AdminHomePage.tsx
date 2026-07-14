@@ -3,6 +3,7 @@ import { Alert, Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import { useAuth } from "../domains/auth/context/AuthProvider";
+import { StaffRoles } from "../domains/auth/types";
 import { useAdminOrders } from "../domains/management/orders/hooks/useAdminOrders";
 import { useDough } from "../domains/management/dough/hooks/useDough";
 import { useDeleteOrder } from "../domains/management/orders/hooks/useDeleteOrder";
@@ -38,13 +39,16 @@ function AdminHomePage(): JSX.Element {
     // Proxy breaks circular dep: useAdminOrders needs stopSound before useAlertAudio can provide it
     const audioStopRef = useRef<() => void>(() => {});
     const stopSoundProxy = (): void => audioStopRef.current();
+    const isReviewer = role === StaffRoles.REVIEWER;
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
         cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
-    } = useAdminOrders(selectedBranchIdStr, stopSoundProxy);
+    } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, !isReviewer);
     const { stopSound } = useAlertAudio(alertOrder, editedOrder);
     audioStopRef.current = stopSound;
     const { deleteDialogOpen, orderToDelete, handleDeleteClick, confirmDelete, cancelDelete } = useDeleteOrder(id => setOrders(prev => prev.filter(o => o.id !== id)));
-    const { doughLoading, onDoughInventoryChange, onDoughAvailabilityToggle } = useDough(selectedBranchIdStr, doughStatus, setDoughStatus);
+    // Major 4 fix: a REVIEWER has no business reading dough inventory (backend also denies it) --
+    // pass useDough no branchId so its effect early-returns without ever calling the endpoint.
+    const { doughLoading, onDoughInventoryChange, onDoughAvailabilityToggle } = useDough(isReviewer ? null : selectedBranchIdStr, doughStatus, setDoughStatus);
     const orderActions = useOrderActions({ setAlertOrder, setOrders });
     useWakeLock();
     useClosingAlarm(true);
@@ -66,7 +70,7 @@ function AdminHomePage(): JSX.Element {
                 </Box>
             )}
             <PaymentPopup open={ui.paymentDialogOpen} onClose={() => ui.setPaymentDialogOpen(false)} order={ui.selectedOrder} onPaymentSuccess={handlePaymentSuccess} />
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !ui.managementPageOpen && selectedBranch && (
+            {(!ui.isHistoryOpen || isReviewer) && !ui.isConfigOpen && !ui.isStatisticsOpen && !ui.managementPageOpen && selectedBranch && (
                 <AdminTopbar
                     onOpenHistory={() => ui.setIsHistoryOpen(true)} onOpenStatistics={() => ui.setIsStatisticsOpen(true)}
                     onOpenConfig={() => ui.setIsConfigOpen(true)} onGoToMenu={() => navigate('/menu?isAdmin=true&branchId=' + selectedBranch.id)}
@@ -83,7 +87,7 @@ function AdminHomePage(): JSX.Element {
                 <ShiftPopup isOpen={ui.shiftPopupOpen} onClose={() => ui.setShiftPopupOpen(false)} stage={eventStage} branchId={String(selectedBranch.id)} />
                 <CashPopup isOpen={ui.cashPopupOpen} onClose={() => ui.setCashPopupOpen(false)} stage={cashStage} branchId={String(selectedBranch.id)} onCashWarning={ui.setCashWarning} />
             </>)}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && (
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && (
                 <Box sx={{ p: 1, boxSizing: 'border-box', backgroundColor: "#fbfaf6", minHeight: '100vh', width: '100%',
                     display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
                     gap: 1, gridAutoRows: 'max-content' }}>
@@ -99,7 +103,7 @@ function AdminHomePage(): JSX.Element {
                         onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))} />)}
                 </Box>
             )}
-            {ui.isHistoryOpen && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
+            {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}
             {ui.isStatisticsOpen && selectedBranch && <StatisticsComponent onClose={() => ui.setIsStatisticsOpen(false)} branchId={String(selectedBranch.id)} role={role} />}
             <AdminPageModals selectedBranch={selectedBranch} userId={userId ?? null} username={username ?? null}

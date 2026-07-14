@@ -19,13 +19,19 @@ const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 // Classifies raw search input per the resolved rule: exactly 8 digits -> orderId,
-// exactly 16 digits -> externalId, any other non-empty text -> customerName,
-// blank/whitespace-only -> no filter (plain browsing).
+// exactly 16 digits -> externalId, exactly 4 digits -> orderNo (raw digit string, leading
+// zeros preserved, so the backend can compare it against RIGHT(CAST(external_id AS text), 4)
+// as well as order_no), 11-15 digits after stripping one optional leading '+' -> phone
+// (digits-only string; the 15-digit upper bound mirrors the backend's sanitizePhone cap
+// \d{6,15}), any other non-empty text -> customerName, blank/whitespace-only -> no filter
+// (plain browsing). 8-digit/16-digit checks run first so they always win over the phone rule.
 function classifySearchInput(raw: string): OrderHistoryFilter {
     const trimmed = raw.trim();
     if (/^\d{8}$/.test(trimmed)) return { type: "orderId", value: Number(trimmed) };
     if (/^\d{16}$/.test(trimmed)) return { type: "externalId", value: Number(trimmed) };
-    if (/^\d{4}$/.test(trimmed)) return { type: "orderNo", value: Number(trimmed) };
+    if (/^\d{4}$/.test(trimmed)) return { type: "orderNo", value: trimmed };
+    const withoutLeadingPlus = trimmed.startsWith("+") ? trimmed.slice(1) : trimmed;
+    if (/^\d{11,15}$/.test(withoutLeadingPlus)) return { type: "phone", value: withoutLeadingPlus };
     if (trimmed.length > 0) return { type: "customerName", value: trimmed };
     return { type: "none" };
 }

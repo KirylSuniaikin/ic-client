@@ -161,6 +161,19 @@ describe("HistoryComponent", () => {
             expect(screen.getByPlaceholderText(/search by order id/i)).toBeTruthy();
         });
 
+        it("shows the search-format examples on hovering the info icon", async () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            fireEvent.click(screen.getByRole("button", { name: /search/i }));
+            fireEvent.mouseOver(screen.getByTestId("InfoOutlinedIcon"));
+
+            const tooltip = await screen.findByRole("tooltip");
+
+            expect(tooltip.textContent).toContain("97311111111");
+            expect(tooltip.textContent).toContain("1234");
+        });
+
         it("hides the search input again when the toggle is clicked a second time", () => {
             mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
 

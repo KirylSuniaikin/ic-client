@@ -98,6 +98,62 @@ describe("useAdminOrders — subscription lifecycle", () => {
     });
 });
 
+describe("useAdminOrders — enabled flag", () => {
+    const stopSound = jest.fn<void, []>();
+    let capturedSubs: StompSubscription[];
+
+    beforeEach(() => {
+        capturedSubs = [];
+
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+
+        mockSubscribe.mockImplementation(() => {
+            const sub = makeSub(`sub-${capturedSubs.length}`);
+            capturedSubs.push(sub);
+            return sub;
+        });
+
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+        mockGetAllActiveOrders.mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+        capturedSubs = [];
+    });
+
+    it("registers 0 STOMP subscriptions when enabled is false", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound, false));
+        });
+
+        expect(capturedSubs).toHaveLength(0);
+        expect(mockConnectSocket).not.toHaveBeenCalled();
+        expect(mockGetAllActiveOrders).not.toHaveBeenCalled();
+        expect(mockGetBaseAdminInfo).not.toHaveBeenCalled();
+    });
+
+    it("loading is false immediately when enabled is false", async () => {
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound, false));
+        });
+
+        expect(view.result.current.loading).toBe(false);
+    });
+
+    it("still registers 9 STOMP subscriptions and starts loading when enabled defaults to true", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        expect(capturedSubs).toHaveLength(9);
+    });
+});
+
 describe("useAdminOrders — resync on reconnect", () => {
     const stopSound = jest.fn<void, []>();
 

@@ -1,15 +1,39 @@
 import React, {useEffect, useRef, useState} from "react";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import OrderCard from "./OrderCard";
-import {Box, IconButton, InputBase, Typography} from "@mui/material";
+import {Box, IconButton, InputBase, Tooltip, Typography} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {Masonry} from "@mui/lab";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import type { Order } from '../../../order/types';
 import {useDeleteOrder} from "../hooks/useDeleteOrder";
 import {useOrderHistory} from "../hooks/useOrderHistory";
 import {DeleteOrderDialog} from "./DeleteOrderDialog";
+
+// The search field has no mode switch -- what you type IS the filter, picked purely by shape.
+// Mirrors classifySearchInput() in useOrderHistory.ts; keep the two in sync.
+const searchLegend = (
+    <Box sx={{p: 0.5, maxWidth: 280}}>
+        <Typography variant="caption" component="div" sx={{mb: 0.5}}>
+            <b>4 digits</b> — order no, or the last 4 digits of a Keeta/Jahez/Talabat id (the number
+            printed on the ticket) — e.g. <b>1234</b>
+        </Typography>
+        <Typography variant="caption" component="div" sx={{mb: 0.5}}>
+            <b>8 digits</b> — internal order id — e.g. <b>10004523</b>
+        </Typography>
+        <Typography variant="caption" component="div" sx={{mb: 0.5}}>
+            <b>11+ digits</b> — telephone no, with country code — e.g. <b>97311111111</b>
+        </Typography>
+        <Typography variant="caption" component="div" sx={{mb: 0.5}}>
+            <b>16 digits</b> — full external id — e.g. <b>1234567890123456</b>
+        </Typography>
+        <Typography variant="caption" component="div">
+            <b>anything else</b> — customer name — e.g. <b>Ahmed</b>
+        </Typography>
+    </Box>
+);
 
 interface SelectedBranch {
     id: string;
@@ -114,9 +138,14 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                     <InputBase
                         autoFocus
                         fullWidth
-                        placeholder="Search by order id, external id, or customer name"
+                        placeholder="Search by order id, external id, telephone no, or customer name"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
+                        endAdornment={
+                            <Tooltip title={searchLegend} arrow enterTouchDelay={0} leaveTouchDelay={8000}>
+                                <InfoOutlinedIcon fontSize="small" sx={{color: "text.disabled", cursor: "pointer"}}/>
+                            </Tooltip>
+                        }
                         sx={{
                             px: 1.5,
                             py: 0.5,

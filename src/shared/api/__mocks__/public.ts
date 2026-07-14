@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, CustomerCheckResponse, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
+import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
 import type { QuickPickDto } from "../../../domains/menu/types";
 import type { OrderStatusData } from "../../../domains/order-status/types";
 import type { StatsResponse } from "../../../domains/management/statistics/types";
@@ -17,8 +17,6 @@ export const getOrderStatus = jest.fn<
 export const fetchBaseAppInfo = jest.fn<Promise<BaseAppInfoResponse>, [string | null, string]>();
 
 export const createOrder = jest.fn<Promise<Order>, [CreateOrderRequest]>();
-
-export const checkCustomer = jest.fn<Promise<CustomerCheckResponse | undefined>, [string]>();
 
 export const editOrder = jest.fn<Promise<Order>, [unknown, string]>();
 
