@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { createOrder, checkCustomer } from "../../../shared/api/public";
+import { createOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../../../shared/api/customerAuth";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
@@ -21,7 +21,6 @@ jest.mock("../../../shared/api/customerAuth");
 
 
 const mockCreateOrder = jest.mocked(createOrder);
-const mockCheckCustomer = jest.mocked(checkCustomer);
 const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
@@ -212,7 +211,6 @@ describe("useCheckout — handleCheckout cross-sell gate (non-admin)", () => {
 
     it("skips the cross-sell gate on the second checkout call and opens ClientInfoPopup directly (logged out)", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
-        mockCheckCustomer.mockResolvedValue({ name: null, isBlacklisted: false });
 
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
@@ -277,7 +275,6 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
         mockGetAllBannedCstmrs.mockResolvedValue([]);
-        mockCheckCustomer.mockResolvedValue({ name: MOCK_CUSTOMER_ME.name, isBlacklisted: false, isNewCustomer: false });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
@@ -300,7 +297,6 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
         mockGetAllBannedCstmrs.mockResolvedValue([]);
-        mockCheckCustomer.mockResolvedValue({ name: MOCK_CUSTOMER_ME.name, isBlacklisted: false, isNewCustomer: false });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
@@ -369,7 +365,8 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockGetAllBannedCstmrs.mockResolvedValue([]);
-        mockCheckCustomer.mockResolvedValue({ name: "Sara", isBlacklisted: false, isNewCustomer: false });
+        // Returning customer (amountOfOrders > 0) -> no pick-up reminder, straight to createOrder.
+        mockFetchCustomerMe.mockResolvedValue({ ...MOCK_CUSTOMER_ME, name: "Sara" });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
@@ -394,7 +391,6 @@ describe("useCheckout — blacklist check", () => {
 
     it("opens the blacklist snackbar when the customer's phone is blacklisted", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([{ id: 1, telephoneNo: "99999999" }]);
-        mockCheckCustomer.mockResolvedValue(undefined);
 
         const navigateSpy = jest.fn<void, [string]>();
         const params = makeParams({ isAdmin: false, navigate: navigateSpy });
@@ -503,7 +499,6 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
         mockGetAllBannedCstmrs.mockResolvedValue([]);
         mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "99998888", name: "Verified Name" });
-        mockCheckCustomer.mockResolvedValue({ name: "Verified Name", isBlacklisted: false, isNewCustomer: false });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
@@ -524,7 +519,6 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
         mockGetAllBannedCstmrs.mockResolvedValue([]);
         mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "12345678", name: "Same Name" });
-        mockCheckCustomer.mockResolvedValue({ name: "Same Name", isBlacklisted: false, isNewCustomer: false });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
@@ -749,6 +743,99 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
 
         expect(result.current.ui.isLoginOpen).toBe(false);
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    });
+});
+
+// The new-customer branch of finalizeOrder: the order is NOT created, it is parked in
+// pendingOrder/pendingCartItems while PickUpReminderPopup asks the customer to confirm.
+// HomePageModals is what turns that into a createOrder call (or, on dismiss, hands the
+// cart back) -- so if these stay unset the order is lost with nothing to re-surface it.
+describe("useCheckout — new customer parks the order behind the pick-up reminder", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    async function checkoutAsNewCustomer() {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        // Has an account, but has never completed an order — this, not the presence of an
+        // account, is what routes a customer through the pick-up reminder.
+        mockFetchCustomerMe.mockResolvedValue({ ...MOCK_CUSTOMER_ME, name: "Newcomer", amountOfOrders: 0 });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const params = makeParams({ isAdmin: false });
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
+        await waitForAuthReady();
+
+        // First call is swallowed by the cross-sell gate; the second one checks out.
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Newcomer", null, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Newcomer", null, "Cash", "", "branch-1");
+        });
+
+        return { result, params };
+    }
+
+    // The cart is a Drawer at the same modal z-index and portals in later, so an open cart
+    // buries the reminder and checkout reads as a dead button.
+    it("closes the cart when the reminder opens, so it is not buried behind the cart", async () => {
+        const { result, params } = await checkoutAsNewCustomer();
+
+        await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
+        expect(params.setCartOpen).toHaveBeenCalledWith(false);
+    });
+
+    it("opens the reminder and holds the order instead of creating it", async () => {
+        const { result } = await checkoutAsNewCustomer();
+
+        await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        expect(result.current.checkout.pendingOrder).toMatchObject({ tel: "12345678", customer_name: "Newcomer" });
+        expect(result.current.checkout.pendingCartItems).toEqual(ITEMS);
+    });
+
+    // The order count is unknowable when the profile fetch fails. Treat that as a first-time
+    // customer: showing the reminder to a returning customer costs one tap, whereas skipping
+    // it would drop a genuine first-timer's pick-up warning.
+    it("falls back to the reminder when the profile fetch fails, rather than skipping it", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockFetchCustomerMe.mockRejectedValue(new Error("profile unavailable"));
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1");
+        });
+
+        await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        expect(result.current.checkout.pendingOrder).not.toBeNull();
+    });
+
+    it("creates the held order when the reminder is confirmed", async () => {
+        const { result } = await checkoutAsNewCustomer();
+        await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
+
+        const held = result.current.checkout.pendingOrder;
+        const heldItems = result.current.checkout.pendingCartItems;
+        if (!held) throw new Error("pendingOrder was not parked for the reminder");
+
+        await act(async () => {
+            await result.current.checkout.executeOrderCreation(held, heldItems);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        expect(mockCreateOrder).toHaveBeenCalledWith(held);
     });
 });
 

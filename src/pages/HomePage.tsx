@@ -123,6 +123,18 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
 
     const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !isAnyCustomerAuthPopupOpen;
 
+    // Superset of noPopupOpen: also covers popups noPopupOpen omits (baguette/closed/unavailable/
+    // cross-sell/pickup-reminder/order-confirmed/branch-selector) plus everything noPopupOpen already
+    // covers. Used only to gate ScrollHintArrow -- must not affect noPopupOpen or its consumers.
+    const anyPopupOpen = !noPopupOpen
+        || cart.baguettePizzaPopupOpen
+        || cart.closedPopup
+        || checkout.unavailablePopupOpen
+        || checkout.isCrossSellOpen
+        || checkout.pickUpReminder
+        || checkout.showOrderConfirmed
+        || !!menu.branchSelector;
+
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the
     // card stands alone (like the iOS Dynamic Island reference).
@@ -172,7 +184,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 isAdmin={isAdmin} adminBranchId={adminBranchId}
                 workingHours={menu.workingHours}
             />
-            {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && (
+            {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && !checkout.pickUpReminder && (
                 <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>
                     {cart.totalPrice !== "0.00" && <Box sx={{ flexGrow: 1, textAlign: "center" }}><TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>{cart.totalPrice} {tr("common:currency")}</TextButton></Box>}
                     <Badge badgeContent={cart.cartItems.length} color="error" sx={{ "& .MuiBadge-badge": { fontSize: "12px", height: "22px", minWidth: "22px", backgroundColor: brandRed, color: "white", top: 2, right: 2 } }}>
@@ -180,7 +192,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     </Badge>
                 </Box>
             )}
-            {isKiosk && <ScrollHintArrow targetRef={menuTopRef} />}
+            {isKiosk && !anyPopupOpen && <ScrollHintArrow targetRef={menuTopRef} />}
         </Box>
     );
 

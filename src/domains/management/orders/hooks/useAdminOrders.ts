@@ -71,6 +71,7 @@ async function fetchActiveOrders(branchId: string): Promise<Order[]> {
 export function useAdminOrders(
     branchId: string | null,
     stopSound: () => void,
+    enabled: boolean = true,
 ): UseAdminOrdersResult {
     const [orders, setOrders] = useState<Order[]>([]);
     const [alertOrder, setAlertOrder] = useState<Order | null>(null);
@@ -81,17 +82,17 @@ export function useAdminOrders(
     const [doughStatus, setDoughStatus] = useState<DoughStatus | null>(null);
     const [doughAlertOpen, setDoughAlertOpen] = useState(false);
     const [doughAlertMessage, setDoughAlertMessage] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
 
     useEffect(() => {
-        if (!branchId) return;
+        if (!enabled || !branchId) return;
         void (async (): Promise<void> => {
             try {
                 setLoading(true);
                 setOrders(await fetchActiveOrders(branchId));
             } finally { setLoading(false); }
         })();
-    }, [branchId]);
+    }, [branchId, enabled]);
 
     const suppressedIdsRef = useRef(new Set<string>());
     const ordersRef = useRef<Order[]>([]);
@@ -105,7 +106,7 @@ export function useAdminOrders(
     const isFirstConnectRef = useRef(true);
 
     useEffect(() => {
-        if (!branchId) return;
+        if (!enabled || !branchId) return;
         isFirstConnectRef.current = true;
 
         // Fetch initial admin base info via REST (same state as admin-base-info subscription)
@@ -343,7 +344,7 @@ export function useAdminOrders(
             unregister();
             subscriptions.forEach(sub => sub.unsubscribe());
         };
-    }, [branchId]);
+    }, [branchId, enabled]);
 
     const clearDoughAlert = (): void => {
         setDoughAlertOpen(false);

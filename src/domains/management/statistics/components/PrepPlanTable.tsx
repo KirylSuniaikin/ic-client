@@ -11,6 +11,7 @@ import {
     Table,
     TableBody,
     TableCell,
+    TableContainer,
     TableHead,
     TableRow,
     Typography,
@@ -220,26 +221,28 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                         </Button>
                     </Box>
 
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{ fontWeight: 600 }}>Component</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Workday Amount</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Weekend Amount</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {plan.rows.map((row) => (
-                                <TableRow key={row.componentId}>
-                                    <TableCell>{row.name}({(row.yieldMultiplier*100).toFixed(0)}%)</TableCell>
-                                    <TableCell>{roundNum(row.amount*0.85)}</TableCell>
-                                    <TableCell>{roundNum(row.amount*1.15)}</TableCell>
-                                    <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>
+                    <TableContainer sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                        <Table size="small" sx={{ minWidth: 360, "& .MuiTableCell-root": { whiteSpace: "nowrap" } }}>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 600 }}>Component</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Workday Amount</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Weekend Amount</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHead>
+                            <TableBody>
+                                {plan.rows.map((row) => (
+                                    <TableRow key={row.componentId}>
+                                        <TableCell>{row.name}({(row.yieldMultiplier*100).toFixed(0)}%)</TableCell>
+                                        <TableCell>{roundNum(row.amount*0.85)}</TableCell>
+                                        <TableCell>{roundNum(row.amount*1.15)}</TableCell>
+                                        <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
                 </>
             )}
 

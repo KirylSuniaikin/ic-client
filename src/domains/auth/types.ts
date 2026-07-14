@@ -28,5 +28,6 @@ export interface AuthContextType {
 export enum StaffRoles {
     COOK = "COOK",
     MANAGER = "MANAGER",
-    SUPER_MANAGER = "SUPER_MANAGER"
+    SUPER_MANAGER = "SUPER_MANAGER",
+    REVIEWER = "REVIEWER"
 }

@@ -201,6 +201,90 @@ describe("useOrderHistory", () => {
             );
         });
 
+        it("classifies an 11-digit input as a phone filter", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("97333607710"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "phone", value: "97333607710" } })
+            );
+        });
+
+        it("classifies a 15-digit input as a phone filter (upper bound)", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("123456789012345"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "phone", value: "123456789012345" } })
+            );
+        });
+
+        it("classifies a +-prefixed 12-character input as a phone filter with the + stripped", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("+97333607710"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "phone", value: "97333607710" } })
+            );
+        });
+
+        it('classifies a 4-digit input with a leading zero as an orderNo filter, preserving the string', async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("0042"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "orderNo", value: "0042" } })
+            );
+        });
+
+        it("classifies a 10-digit numeric-only input as customerName", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("1234567890"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "customerName", value: "1234567890" } })
+            );
+        });
+
+        it("classifies a 17-digit numeric-only input as customerName", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("12345678901234567"));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ filter: { type: "customerName", value: "12345678901234567" } })
+            );
+        });
+
         it("classifies empty/whitespace input as no filter", async () => {
             mockGetHistory.mockResolvedValue(response([], false));
             const { result } = renderHook(() => useOrderHistory("branch-1"));

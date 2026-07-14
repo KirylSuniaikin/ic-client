@@ -1,7 +1,7 @@
 import { logger } from "../../../shared/utils/logger";
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { NavigateFunction } from "react-router-dom";
-import { checkCustomer, createOrder, editOrder } from "../../../shared/api/public";
+import { createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
@@ -81,6 +81,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [customerPrefill, setCustomerPrefill] = useState<CustomerMeResponse | null>(null);
+    // The same profile as customerPrefill, readable synchronously by resolveOrderCount.
+    const customerProfileRef = useRef<CustomerMeResponse | null>(null);
     // Order note for logged-in customers, who skip ClientInfoPopup (and its note field) and so
     // would otherwise have no way to attach one. Guests still type theirs in the popup.
     const [cartNote, setCartNote] = useState("");
@@ -195,17 +197,38 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
+    // Live order count for the phone this order is for. GET /customer/me counts the
+    // customer's orders directly, so it is preferred over GET /check_customer, which reads
+    // the denormalized (drift-prone) Customer.amountOfOrders counter and needs a second
+    // round-trip. Reuses the profile checkout already fetched when it belongs to the SAME
+    // phone -- a logged-in customer can still type a different number into ClientInfoPopup,
+    // and the reminder must reflect the phone the order is actually filed under.
+    // null means "unknown" (no session, or the fetch failed); callers treat that as a
+    // first-time customer rather than skip a genuine first-timer's pick-up warning.
+    async function resolveOrderCount(tel: string | null): Promise<number | null> {
+        const cached = customerProfileRef.current;
+        if (cached && cached.phone === tel) {
+            return cached.amountOfOrders ?? null;
+        }
+        const me = await fetchProfileForCheckout();
+        return me && me.phone === tel ? me.amountOfOrders ?? null : null;
+    }
+
     // Extracted terminal step shared by the logged-in-from-the-start path and the
-    // freshly-verified-guest path (completeVerifiedCheckout below) -- checks whether the
-    // phone belongs to a known customer and either creates the order straight away or
-    // routes through the Pick-Up reminder first.
+    // freshly-verified-guest path (completeVerifiedCheckout below) -- a customer who has
+    // never completed an order goes through the Pick-Up reminder first; everyone else
+    // has their order created straight away.
     async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
-        const customerResponse = await checkCustomer(order.tel ?? "");
-        if (customerResponse?.isNewCustomer === false) {
+        const orderCount = await resolveOrderCount(order.tel ?? null);
+        if (orderCount !== null && orderCount > 0) {
             await executeOrderCreation(order, items);
         } else {
             setPendingCartItems(items);
             setPendingOrder(order);
+            // The cart must give way to the reminder: it is a Drawer at the same MUI modal
+            // z-index and portals in later, so leaving it open buries the reminder behind it
+            // and checkout looks like a no-op. Dismissing the reminder reopens the cart.
+            setCartOpen(false);
             setPickUpReminder(true);
         }
     }
@@ -219,6 +242,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         try {
             const me = await fetchCustomerMe(token);
             setCustomerPrefill(me);
+            // Mirrored into a ref because the logged-in path re-enters handleCheckout from
+            // within the same closure, where the customerPrefill state is still the stale
+            // pre-fetch value -- same reason verificationRef exists above.
+            customerProfileRef.current = me;
             return me;
         } catch (error) {
             logger.error("Error fetching customer profile for checkout prefill:", error);

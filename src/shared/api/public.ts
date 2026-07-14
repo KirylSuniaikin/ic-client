@@ -10,7 +10,6 @@ import type {
     OrderPaymentPayload,
     UpdateOrderStatusPayload,
     AdminBaseInfo,
-    CustomerCheckResponse,
     WorkloadLevel,
     CreateOrderRequest,
     EditOrderRequest,
@@ -353,21 +352,6 @@ export async function getBaseAdminInfo(branchId: string): Promise<AdminBaseInfo 
         return await response.json();
     } catch (error) {
         logger.error("Failed to get base admin info", error);
-    }
-}
-
-export async function checkCustomer(telephoneNumber: string): Promise<CustomerCheckResponse | undefined> {
-    try {
-        const response = await fetch(BASE_URL + "/check_customer?tel=" + telephoneNumber, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        });
-
-        return await response.json();
-    } catch (error) {
-        logger.error("Failed to check customer", error);
     }
 }
 

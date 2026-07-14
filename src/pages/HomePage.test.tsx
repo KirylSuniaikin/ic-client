@@ -2,7 +2,7 @@
 // no real UI control to open the login/profile popup in that mode -- a small test-only
 // trigger against the shared context is used instead, alongside one case that drives the
 // real CustomerIconButton for the non-admin path (per the task spec's test plan).
-import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -15,6 +15,11 @@ import "../shared/i18n";
 jest.mock("../shared/api/public");
 jest.mock("../shared/api/management");
 jest.mock("../shared/api/customerAuth");
+
+// Manual mock (src/domains/schedule/utils/__mocks__/isWithinWorkingHours.ts) -- lets the
+// ScrollHintArrow "closed branch" popup test below force cart.closedPopup open via the real
+// handleOpenCart entry point, without needing a real working-hours schedule fixture.
+jest.mock("../domains/schedule/utils/isWithinWorkingHours");
 
 // lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
 // provide (no canvas backend installed) -- stub the whole package so HomePage's PizzaLoader
@@ -33,7 +38,10 @@ import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-a
 import HomePage from "./HomePage";
 import type { BaseAppInfoResponse } from "../domains/order/types";
 
+import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
+
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
+const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 
@@ -121,7 +129,40 @@ beforeEach(() => {
     mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
     mockFetchAllBranches.mockReset();
     mockFetchAllBranches.mockResolvedValue([]);
+    // Default: branch open, matching the real isWithinWorkingHours(null) behavior every existing
+    // test above already relies on. Only the closed-branch ScrollHintArrow test overrides this.
+    mockIsWithinWorkingHours.mockReset();
+    mockIsWithinWorkingHours.mockReturnValue(true);
+    localStorage.clear();
 });
+
+function makeDomRect(top: number): DOMRect {
+    return { top, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => undefined } as DOMRect;
+}
+
+// ScrollHintArrow own internal visibility (hero-scroll-away) is unrelated to this tasks
+// popup-gating change, but it must stay visible for the tests below to observe anything at all.
+// jsdom reports getBoundingClientRect() as all-zero by default, so the arrows own top-greater-than-
+// zero check is false on mount and it hides itself regardless of popup state (confirmed empirically,
+// see the task specs open question). Mocking the rect of every element to a positive top keeps the
+// arrows own gate open, isolating these assertions to the new outer isKiosk-and-not-anyPopupOpen gate.
+let restoreMenuTopRect: (() => void) | null = null;
+
+function mockMenuTopScrolledIntoView(): void {
+    const original = HTMLDivElement.prototype.getBoundingClientRect;
+    HTMLDivElement.prototype.getBoundingClientRect = (): DOMRect => makeDomRect(1);
+    restoreMenuTopRect = (): void => {
+        HTMLDivElement.prototype.getBoundingClientRect = original;
+    };
+}
+
+// useMenuData opens menu.branchSelector automatically for a kiosk tab with no branch chosen yet
+// (localStorage key "kiosk_branch_data" absent) -- seed it so the kiosk tests below start from a
+// steady "device already configured" state and can isolate the assertions to the flags under test,
+// exactly as a real kiosk would be after its one-time setup.
+function seedKioskBranchSelected(): void {
+    localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
+}
 
 describe("HomePage -- noPopupOpen suppression", () => {
     it("shows the floating cart bar when no popup is open and the cart has items", async () => {
@@ -184,5 +225,69 @@ describe("HomePage -- noPopupOpen suppression", () => {
             expect(screen.getByText("Some items are no longer available")).toBeTruthy();
         });
         expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
+    });
+});
+
+describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
+    afterEach(() => {
+        restoreMenuTopRect?.();
+        restoreMenuTopRect = null;
+    });
+
+    it("shows the ScrollHintArrow in kiosk mode when no popup is open", async () => {
+        mockMenuTopScrolledIntoView();
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(screen.getByRole("button", { name: "Scroll down to the menu" })).toBeTruthy();
+    });
+
+    it("hides the ScrollHintArrow in kiosk mode while a customer-auth popup is open, and shows it again after closeAll()", async () => {
+        mockMenuTopScrolledIntoView();
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(screen.getByRole("button", { name: "Scroll down to the menu" })).toBeTruthy();
+
+        fireEvent.click(screen.getByText("test-open-login"));
+        await waitFor(() => expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull());
+
+        fireEvent.click(screen.getByText("test-close-all"));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Scroll down to the menu" })).toBeTruthy());
+    });
+
+    it("hides the ScrollHintArrow in kiosk mode while the closed-branch popup is open", async () => {
+        mockMenuTopScrolledIntoView();
+        seedKioskBranchSelected();
+        // Real handleOpenCart entry point: when the branch is not within working hours, clicking
+        // the cart bar opens cart.closedPopup instead of the cart drawer -- a flag noPopupOpen
+        // (and therefore the pre-existing part of anyPopupOpen) omits, exercised here directly.
+        mockIsWithinWorkingHours.mockReturnValue(false);
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(screen.getByRole("button", { name: "Scroll down to the menu" })).toBeTruthy();
+
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+
+        await waitFor(() => expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull());
+    });
+
+    it("does not render the ScrollHintArrow outside kiosk mode regardless of popup state", async () => {
+        mockMenuTopScrolledIntoView();
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull();
+
+        fireEvent.click(screen.getByText("test-open-login"));
+        await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
+        expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull();
     });
 });

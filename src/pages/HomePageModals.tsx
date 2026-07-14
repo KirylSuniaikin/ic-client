@@ -55,6 +55,10 @@ export default function HomePageModals({
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
 
+    // Local const so the null-check below narrows inside PickUpReminderPopup's onClick
+    // (narrowing a property access would not survive into the callback).
+    const pendingOrder = checkout.pendingOrder;
+
     function openPizzaEditPopUp(item: CartItem): void {
         cart.setEditItem(item);
         cart.setEditMode(true);
@@ -254,12 +258,18 @@ export default function HomePageModals({
                 />
             )}
 
-            {checkout.pickUpReminder && (
+            {checkout.pickUpReminder && pendingOrder && (
                 <PickUpReminderPopup
-                    onClose={() => checkout.setPickUpReminder(false)}
+                    // Dismissing must never lose the order the customer already built (and
+                    // verified over OTP): hand them back their cart, same as the OTP-dismissal
+                    // branch in useCheckout.
+                    onClose={() => {
+                        checkout.setPickUpReminder(false);
+                        cart.setCartOpen(true);
+                    }}
                     onClick={() => {
                         checkout.setPickUpReminder(false);
-                        checkout.executeOrderCreation(checkout.pendingOrder, checkout.pendingCartItems);
+                        checkout.executeOrderCreation(pendingOrder, checkout.pendingCartItems);
                     }}
                 />
             )}

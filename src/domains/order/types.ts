@@ -111,12 +111,6 @@ export type BaseAppInfoResponse = {
   workingHours?: WorkingHoursSchedule | null;
 };
 
-export type CustomerCheckResponse = {
-    name: string | null;
-    isBlacklisted: boolean;
-    isNewCustomer?: boolean;
-};
-
 export type AdminBaseInfo = {
     branchId: string;
     workloadLevel: WorkloadLevel;
@@ -218,7 +212,8 @@ export type OrderHistoryFilter =
     | { type: 'orderId'; value: number }
     | { type: 'externalId'; value: number }
     | { type: 'customerName'; value: string }
-    | { type: 'orderNo'; value: number }
+    | { type: 'orderNo'; value: string }
+    | { type: 'phone'; value: string }
     | { type: 'none' };
 
 export type GetHistoryParams = {
