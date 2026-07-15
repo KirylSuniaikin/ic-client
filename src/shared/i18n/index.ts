@@ -27,12 +27,16 @@ export const resources = {
 export const SUPPORTED_LANGUAGES = ["en", "ar"] as const;
 export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
+// The language every customer starts in unless the browser (or a stored choice) says otherwise.
+// Also the language a shared kiosk tab is reset to between customers -- see useCheckout.
+export const DEFAULT_LANGUAGE: AppLanguage = "en";
+
 void i18n
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
         resources,
-        fallbackLng: "en",
+        fallbackLng: DEFAULT_LANGUAGE,
         supportedLngs: [...SUPPORTED_LANGUAGES],
         nonExplicitSupportedLngs: true, // treat "ar-BH" etc. as "ar"
         ns: ["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth"],

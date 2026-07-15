@@ -6,6 +6,7 @@ import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../../../shared/api/customerAuth";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
+import i18n, { DEFAULT_LANGUAGE } from "../../../shared/i18n";
 import { useCheckout } from "./useCheckout";
 import type { CartItem, MenuItem } from "../../menu/types";
 import type { Order } from "../types";
@@ -860,5 +861,74 @@ describe("useCheckout — kiosk flow never gated", () => {
 
         expect(result.current.ui.isLoginOpen).toBe(false);
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    });
+});
+
+// The kiosk is a single long-lived tab shared by walk-up customers, and the language detector
+// caches the chosen language in localStorage ("ic_lang"), which outranks navigator. Without a
+// reset, one customer switching to Arabic would leave every customer after them in Arabic.
+describe("useCheckout — kiosk resets the shared tab's language after checkout", () => {
+    beforeEach(async () => {
+        await act(async () => { await i18n.changeLanguage("ar"); });
+    });
+
+    afterEach(async () => {
+        jest.clearAllMocks();
+        await act(async () => { await i18n.changeLanguage(DEFAULT_LANGUAGE); });
+    });
+
+    it("resets an Arabic kiosk back to English once the order is placed", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
+        await waitForAuthReady();
+
+        // The first call is swallowed by the cross-sell gate; the second places the order.
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(i18n.language).toBe("en"));
+        // Persisted too, so the next customer still starts in English if the tab reloads.
+        expect(localStorage.getItem("ic_lang")).toBe("en");
+    });
+
+    it("leaves the language in Arabic when the order fails, so the same customer can retry", async () => {
+        mockCreateOrder.mockRejectedValue(new Error("network down"));
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        expect(result.current.errorSnackBarOpen).toBe(true);
+        expect(i18n.language).toBe("ar");
+    });
+
+    it("does not touch the language on a non-kiosk order — a customer keeps their own choice", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.executeOrderCreation(
+                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
+                ITEMS,
+            );
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        expect(i18n.language).toBe("ar");
     });
 });

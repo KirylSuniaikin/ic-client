@@ -1,6 +1,8 @@
 import { logger } from "../../../shared/utils/logger";
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import { NavigateFunction } from "react-router-dom";
+import { DEFAULT_LANGUAGE } from "../../../shared/i18n";
 import { createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
@@ -77,6 +79,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
 
     const { token } = useCustomerAuth();
     const { openOrderDetail, refreshActiveOrder, openLogin, isLoginOpen } = useCustomerAuthUi();
+    const { i18n } = useTranslation();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
@@ -416,6 +419,15 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     const response = await createOrder(order);
                     setCartItems([]);
                     localStorage.setItem('suppressSoundIds', JSON.stringify([String(response.id)]));
+                    // The kiosk is one long-lived tab shared by walk-up customers. Without this, a
+                    // customer who switched to Arabic would leave the NEXT customer in Arabic: the
+                    // detector caches the choice in localStorage ("ic_lang"), and localStorage
+                    // outranks navigator in the detection order, so browser detection never
+                    // re-applies. Only on the success path -- a failed order means the same
+                    // customer is still mid-checkout and about to retry.
+                    if (!i18n.language.startsWith(DEFAULT_LANGUAGE)) {
+                        void i18n.changeLanguage(DEFAULT_LANGUAGE);
+                    }
                 } catch (e) {
                     if (e instanceof ItemsUnavailableError) {
                         const removed = submittedItems.filter(item => e.unavailableIds.includes(item.id));

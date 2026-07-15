@@ -3,9 +3,8 @@ import {
     InventoryRow, IUser,
     ReportTO
 } from "../types";
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {mapProductToRow, normalizeReportPayload, p2, rowToPayloadNumber, toDecimal, withRecalc} from "../mappers/inventoryMapper";
-import {fmt3} from "../../../../shared/utils/decimalUtils";
 import CloseIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import {createReport, editReport, fetchProducts, getReport} from "../../../../shared/api/management";
 import Decimal from "decimal.js-light";
@@ -27,6 +26,7 @@ import {
     Typography
 } from "@mui/material";
 import {dateFormatter} from "../../../../shared/utils/dateFormatter";
+import {InventoryTableRow, QuantityField} from "./InventoryTableRow";
 
 type InventoryPopupProps = {
     open: boolean;
@@ -36,22 +36,6 @@ type InventoryPopupProps = {
     author: IUser;
     onClose: () => void;
     onSaved?: (report: IManagementResponse) => void;
-};
-
-const noUnderlineSx = {
-    "& .MuiInput-underline:before": { borderBottom: "none" },
-    "& .MuiInput-underline:after": { borderBottom: "none" },
-    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
-};
-
-const pillSx = {
-    bg: "rgba(0,0,0,0.06)",
-    text: "#333",
-};
-
-const finalPricePillSx = {
-    bg: "rgba(52, 199, 89, 0.12)",
-    text: "#008a00",
 };
 
 export default function InventoryPopup({
@@ -70,8 +54,6 @@ export default function InventoryPopup({
     const [error, setError] = useState<string | null>(null);
     const [title, setTitle] = useState<string>("");
     const [filterText, setFilterText] = useState("");
-    const [focusedCell, setFocusedCell] = useState<{ productId: number; field: "storageQuantity" | "kitchenQuantity" } | null>(null);
-    const [editValue, setEditValue] = useState<string>("");
     const isDataLoadedRef = useRef<boolean>(false);
 
     useEffect(() => {
@@ -128,39 +110,38 @@ export default function InventoryPopup({
         return () => { alive = false; };
     }, [open, mode, reportId, author?.id, branch?.id]);
 
-    function updateQuantity(productId: number, field: "kitchenQuantity" | "storageQuantity", value: string) {
+    // Stable identity: InventoryTableRow is memoized on it, so a new closure per render
+    // would re-render every row on any table-level state change (e.g. typing in the filter).
+    const updateQuantity = useCallback((productId: number, field: QuantityField, value: string) => {
         setRows(prev => prev.map(r => {
             if (r.productId !== productId) return r;
             const oldKitchen = r.kitchenQuantity;
             const oldStorage = r.storageQuantity;
-            let next: InventoryRow;
             if (value.trim() === "") {
                 // Blurring an empty cell must leave it null (placeholder state), not
                 // coerce to a literal "0.000" — finalPrice is recomputed treating the
                 // null field as 0, same as getFinalPrice/total already do elsewhere.
                 const kitchen = field === "kitchenQuantity" ? null : oldKitchen;
                 const storage = field === "storageQuantity" ? null : oldStorage;
-                next = {
+                return {
                     ...r,
                     kitchenQuantity: kitchen,
                     storageQuantity: storage,
                     finalPrice: p2(toDecimal(kitchen).add(toDecimal(storage)).mul(r.price)),
                 };
-            } else {
-                next = withRecalc(
-                    r,
-                    field === "kitchenQuantity" ? value : oldKitchen?.toString?.() ?? "",
-                    field === "storageQuantity" ? value : oldStorage?.toString?.() ?? "",
-                );
             }
-            setDirty(prev => {
-                const s = new Set(prev);
-                s.add(productId);
-                return s;
-            });
-            return next;
+            return withRecalc(
+                r,
+                field === "kitchenQuantity" ? value : oldKitchen?.toString?.() ?? "",
+                field === "storageQuantity" ? value : oldStorage?.toString?.() ?? "",
+            );
         }));
-    }
+        setDirty(prev => {
+            const s = new Set(prev);
+            s.add(productId);
+            return s;
+        });
+    }, []);
 
     const filteredRows = useMemo(
         () => filterText
@@ -173,13 +154,6 @@ export default function InventoryPopup({
         () => rows.reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0)).toFixed(3),
         [rows]
     );
-
-    function getFinalPrice(row: InventoryRow): Decimal {
-        const kitchen = row.kitchenQuantity instanceof Decimal ? row.kitchenQuantity : new Decimal(row.kitchenQuantity ?? 0);
-        const storage = row.storageQuantity instanceof Decimal ? row.storageQuantity : new Decimal(row.storageQuantity ?? 0);
-        const price = row.price instanceof Decimal ? row.price : new Decimal(row.price ?? 0);
-        return kitchen.add(storage).mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
-    }
 
     const handleSave = async () => {
         if (!Number.isFinite(branch.branchNo)) throw new Error("branchNo is required");
@@ -302,125 +276,11 @@ export default function InventoryPopup({
 
                                 <TableBody>
                                     {filteredRows.map((row) => (
-                                        <TableRow
+                                        <InventoryTableRow
                                             key={row.productId}
-                                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                                        >
-                                            {/* Name */}
-                                            <TableCell sx={{ color: "#333", fontSize: "0.9rem", minWidth: 140 }}>
-                                                {row.name}
-                                            </TableCell>
-
-                                            {/* Storage Quantity */}
-                                            <TableCell sx={{ minWidth: 130 }}>
-                                                <Box sx={{
-                                                    backgroundColor: pillSx.bg,
-                                                    color: pillSx.text,
-                                                    py: 0.5,
-                                                    px: 1.5,
-                                                    borderRadius: 2,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    fontWeight: "bold",
-                                                    fontSize: "0.9rem",
-                                                }}>
-                                                    <TextField
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        placeholder="0.000"
-                                                        value={
-                                                            focusedCell?.productId === row.productId && focusedCell?.field === "storageQuantity"
-                                                                ? editValue
-                                                                : fmt3(row.storageQuantity)
-                                                        }
-                                                        onFocus={() => {
-                                                            setFocusedCell({ productId: row.productId, field: "storageQuantity" });
-                                                            const raw = new Decimal(row.storageQuantity ?? 0);
-                                                            setEditValue(raw.equals(0) ? "" : raw.toFixed(3));
-                                                        }}
-                                                        onChange={(e) => setEditValue(e.target.value)}
-                                                        onBlur={() => {
-                                                            updateQuantity(row.productId, "storageQuantity", editValue);
-                                                            setFocusedCell(null);
-                                                            setEditValue("");
-                                                        }}
-                                                        size="small"
-                                                        variant="standard"
-                                                        sx={{
-                                                            width: 80,
-                                                            ...noUnderlineSx,
-                                                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Kitchen Quantity */}
-                                            <TableCell sx={{ minWidth: 130 }}>
-                                                <Box sx={{
-                                                    backgroundColor: pillSx.bg,
-                                                    color: pillSx.text,
-                                                    py: 0.5,
-                                                    px: 1.5,
-                                                    borderRadius: 2,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    fontWeight: "bold",
-                                                    fontSize: "0.9rem",
-                                                }}>
-                                                    <TextField
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        placeholder="0.000"
-                                                        value={
-                                                            focusedCell?.productId === row.productId && focusedCell?.field === "kitchenQuantity"
-                                                                ? editValue
-                                                                : fmt3(row.kitchenQuantity)
-                                                        }
-                                                        onFocus={() => {
-                                                            setFocusedCell({ productId: row.productId, field: "kitchenQuantity" });
-                                                            const raw = new Decimal(row.kitchenQuantity ?? 0);
-                                                            setEditValue(raw.equals(0) ? "" : raw.toFixed(3));
-                                                        }}
-                                                        onChange={(e) => setEditValue(e.target.value)}
-                                                        onBlur={() => {
-                                                            updateQuantity(row.productId, "kitchenQuantity", editValue);
-                                                            setFocusedCell(null);
-                                                            setEditValue("");
-                                                        }}
-                                                        size="small"
-                                                        variant="standard"
-                                                        sx={{
-                                                            width: 80,
-                                                            ...noUnderlineSx,
-                                                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Price per unit */}
-                                            <TableCell sx={{ minWidth: 130, color: "text.secondary", fontSize: "0.9rem" }}>
-                                                {fmt3(row.price)}
-                                            </TableCell>
-
-                                            {/* Final Price — green pill, read-only */}
-                                            <TableCell sx={{ minWidth: 130 }}>
-                                                <Box sx={{
-                                                    backgroundColor: finalPricePillSx.bg,
-                                                    color: finalPricePillSx.text,
-                                                    py: 0.5,
-                                                    px: 1.5,
-                                                    borderRadius: 2,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    fontWeight: "bold",
-                                                    fontSize: "0.9rem",
-                                                }}>
-                                                    {getFinalPrice(row).toFixed(3)}
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
+                                            row={row}
+                                            onCommitQuantity={updateQuantity}
+                                        />
                                     ))}
 
                                     {filteredRows.length === 0 && (

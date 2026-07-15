@@ -3,6 +3,11 @@ html, body, #root {
     padding: 0;
     height: 100%;
     overflow-x: hidden;
+    color-scheme: light;
+}
+
+html, body {
+    background-color: #fff;
 }
 
 ::-webkit-scrollbar {

@@ -1,7 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
-import {CssBaseline} from '@mui/material';
 import {AppProviders} from './app/providers';
 import {AppRouter} from './app/router';
 
@@ -11,7 +10,6 @@ const root = ReactDOM.createRoot(rootElement);
 
 root.render(
     <React.StrictMode>
-        <CssBaseline/>
         <BrowserRouter>
             <AppProviders>
                 <AppRouter/>

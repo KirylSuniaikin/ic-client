@@ -4,6 +4,7 @@ import createCache from '@emotion/cache';
 import {prefixer} from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
+import {CssBaseline} from '@mui/material';
 import {useTranslation} from 'react-i18next';
 import {AuthProvider} from '../domains/auth/context/AuthProvider';
 import {CustomerAuthProvider} from '../domains/customer-auth/context/CustomerAuthProvider';
@@ -36,6 +37,7 @@ export function AppProviders({children}: AppProvidersProps): React.JSX.Element {
     return (
         <CacheProvider value={cache}>
             <ThemeProvider theme={theme}>
+                <CssBaseline enableColorScheme />
                 <AuthProvider>
                     <CustomerAuthProvider>
                         <CustomerAuthUiProvider>

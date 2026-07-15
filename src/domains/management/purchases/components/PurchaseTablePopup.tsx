@@ -10,10 +10,8 @@ import {
     VendorTO
 } from "../types";
 import {
-    Autocomplete,
     Box, Button,
     Dialog,
-    IconButton,
     Paper,
     Table,
     TableBody,
@@ -21,8 +19,6 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
-    Tooltip,
     Typography
 } from "@mui/material";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
@@ -36,10 +32,8 @@ import {
     getUser
 } from "../../../../shared/api/management";
 import { toDecimal, toPayloadLine, validateRows} from "../mappers/purchaseMapper";
-import {fmt3, normalizeDecimal} from "../../../../shared/utils/decimalUtils";
-import {DatePicker, LocalizationProvider} from "@mui/x-date-pickers";
-import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import {normalizeDecimal} from "../../../../shared/utils/decimalUtils";
+import {NumericField, PurchaseTableRow} from "./PurchaseTableRow";
 import Decimal from "decimal.js-light";
 
 type Props = {
@@ -51,17 +45,6 @@ type Props = {
     onClose: () => void;
     onSaved?: (report: BasePurchaseResponse) => void;
 }
-
-const pillSx = {
-    bg: "rgba(0,0,0,0.06)",
-    text: "#333",
-};
-
-const noUnderlineSx = {
-    "& .MuiInput-underline:before": { borderBottom: "none" },
-    "& .MuiInput-underline:after": { borderBottom: "none" },
-    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
-};
 
 const headerCellSx = { fontWeight: "bold", color: "text.secondary" } as const;
 
@@ -81,7 +64,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>(null);
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
-    const hasErr = useCallback((id: string, field: string) => invalid.get(id)?.has(field) === true, [invalid]);
 
 
     useEffect(() => {
@@ -137,36 +119,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
     const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
 
-    // Per-row, per-field edit-in-progress string (raw keystrokes, not yet normalized/committed
-    // into `rows`). Absent entry -> cell shows the committed value via `fmt3`.
-    const [editingCells, setEditingCells] = useState<Record<string, string>>({});
-    const cellKey = (rowId: string, field: "quantity" | "finalPrice") => `${rowId}:${field}`;
-    const cellDisplayValue = useCallback(
-        (row: PurchaseRow, field: "quantity" | "finalPrice"): string => {
-            const key = cellKey(row.id, field);
-            return key in editingCells ? editingCells[key] : fmt3(row[field]);
-        },
-        [editingCells]
-    );
-
-
-    const unitFromRow = useCallback((row: PurchaseRow) => {
-        const price = toDecimal(row.price);
-        if (row.price != null && isDecFinite(price)) return price;
-
-        const tot = toDecimal(row.finalPrice);
-        const qty = toDecimal(row.quantity);
-        return (isDecFinite(tot) && isDecFinite(qty) && !qty.isZero())
-            ? tot.div(qty)
-            : toDecimal(NaN);
-    }, [isDecFinite]);
-
-    const isOverTarget = useCallback((row: PurchaseRow) => {
-        const unit   = unitFromRow(row);
-        const target = toDecimal(productById.get(row.productId ?? -1)?.targetPrice ?? NaN);
-        return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
-    }, [productById, unitFromRow, isDecFinite]);
-
     // Recompute target unit price (price = finalPrice / quantity) on edits, keeping rows in sync + marking dirty.
     const updateRow = useCallback((id: string, patch: Partial<PurchaseRow>) => {
         setRows(prev => prev.map(r => {
@@ -186,6 +138,17 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         }));
         setDirty(true);
     }, [isDecFinite]);
+
+    // Raw keystrokes are held inside DecimalCellInput; the table only sees the value on blur.
+    const commitNumericCell = useCallback((id: string, field: NumericField, raw: string) => {
+        const norm = normalizeDecimal(raw);
+        updateRow(id, { [field]: norm === "" ? null : Number(norm) });
+    }, [updateRow]);
+
+    const deleteRow = useCallback((id: string) => {
+        setRows(prev => prev.filter(r => r.id !== id));
+        setDirty(true);
+    }, []);
 
     const applyProduct = useCallback((id: string, val: ProductTO | null) => {
         const productId = val?.id ?? null;
@@ -345,208 +308,20 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             </TableHead>
 
                             <TableBody>
-                                {rows.map((row) => {
-                                    const overTarget = isOverTarget(row);
-                                    const rowInvalid = invalid.has(row.id);
-                                    const productName = productById.get(row.productId ?? -1)?.name;
-                                    const selectedProduct = row.productId != null
-                                        ? products.find(p => p.id === row.productId) ?? null
-                                        : null;
-                                    const vendorTrimmed = String(row.vendorName ?? "").trim();
-                                    const selectedVendor = vendorTrimmed !== ""
-                                        ? vendors.find(v => v.vendorName === vendorTrimmed) ?? null
-                                        : null;
-
-                                    // Invalid-cell highlight (validateRows result) as plain sx, merged onto the TableCell.
-                                    const cellErrSx = (field: string) =>
-                                        hasErr(row.id, field)
-                                            ? {
-                                                backgroundColor: "rgba(244,67,54,0.20)",
-                                                color: "error.main",
-                                                fontWeight: 700,
-                                            }
-                                            : {};
-
-                                    return (
-                                        <TableRow
-                                            key={row.id}
-                                            sx={{
-                                                "&:last-child td, &:last-child th": { border: 0 },
-                                                ...(rowInvalid
-                                                    ? { "& td": (t: any) => ({ backgroundColor: `${t.palette.error.light}1a` }) }
-                                                    : {}),
-                                            }}
-                                        >
-                                            {/* Date of purchase */}
-                                            <TableCell sx={{ minWidth: 160, ...cellErrSx("purchaseDate") }}>
-                                                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                                    <DatePicker
-                                                        reduceAnimations
-                                                        format="DD.MM.YYYY"
-                                                        value={row.purchaseDate ? dayjs(row.purchaseDate) : null}
-                                                        onChange={(val) => {
-                                                            const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
-                                                            updateRow(row.id, { purchaseDate: iso });
-                                                        }}
-                                                        slotProps={{ textField: { size: "small", fullWidth: true, variant: "standard", sx: noUnderlineSx } }}
-                                                    />
-                                                </LocalizationProvider>
-                                            </TableCell>
-
-                                            {/* Product */}
-                                            <TableCell sx={{ minWidth: 200, ...cellErrSx("productId") }}>
-                                                <Autocomplete<ProductTO, false, false, false>
-                                                    openOnFocus
-                                                    options={products}
-                                                    value={selectedProduct}
-                                                    autoHighlight
-                                                    getOptionLabel={(o) => o.name}
-                                                    isOptionEqualToValue={(o, v) => o.id === v.id}
-                                                    onChange={(_, val) => applyProduct(row.id, val)}
-                                                    renderInput={(p) => (
-                                                        <TextField
-                                                            {...p}
-                                                            size="small"
-                                                            variant="standard"
-                                                            placeholder={productName ?? "Select Product"}
-                                                            sx={noUnderlineSx}
-                                                        />
-                                                    )}
-                                                    fullWidth
-                                                />
-                                            </TableCell>
-
-                                            {/* Amount (quantity) */}
-                                            <TableCell sx={{ minWidth: 130, ...cellErrSx("quantity") }}>
-                                                <Box sx={{
-                                                    backgroundColor: pillSx.bg,
-                                                    color: pillSx.text,
-                                                    py: 0.5, px: 1.5, borderRadius: 2,
-                                                    display: "inline-flex", alignItems: "center",
-                                                    fontWeight: "bold", fontSize: "0.9rem",
-                                                }}>
-                                                    <TextField
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        placeholder="0.000"
-                                                        value={cellDisplayValue(row, "quantity")}
-                                                        onChange={(e) => {
-                                                            const key = cellKey(row.id, "quantity");
-                                                            setEditingCells(prev => ({ ...prev, [key]: e.target.value }));
-                                                        }}
-                                                        onBlur={(e) => {
-                                                            const key = cellKey(row.id, "quantity");
-                                                            const norm = normalizeDecimal(editingCells[key] ?? e.target.value);
-                                                            updateRow(row.id, { quantity: norm === "" ? null : Number(norm) });
-                                                            setEditingCells(prev => {
-                                                                const next = { ...prev };
-                                                                delete next[key];
-                                                                return next;
-                                                            });
-                                                        }}
-                                                        size="small"
-                                                        variant="standard"
-                                                        sx={{
-                                                            width: 90,
-                                                            ...noUnderlineSx,
-                                                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Total Price (finalPrice) */}
-                                            <TableCell sx={{ minWidth: 140, ...cellErrSx("finalPrice") }}>
-                                                <Box sx={(t) => ({
-                                                    backgroundColor: overTarget ? `${t.palette.error.light}33` : pillSx.bg,
-                                                    color: overTarget ? t.palette.error.main : pillSx.text,
-                                                    py: 0.5, px: 1.5, borderRadius: 2,
-                                                    display: "inline-flex", alignItems: "center",
-                                                    fontWeight: "bold", fontSize: "0.9rem",
-                                                })}>
-                                                    <TextField
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        placeholder="0.000"
-                                                        value={cellDisplayValue(row, "finalPrice")}
-                                                        onChange={(e) => {
-                                                            const key = cellKey(row.id, "finalPrice");
-                                                            setEditingCells(prev => ({ ...prev, [key]: e.target.value }));
-                                                        }}
-                                                        onBlur={(e) => {
-                                                            const key = cellKey(row.id, "finalPrice");
-                                                            const norm = normalizeDecimal(editingCells[key] ?? e.target.value);
-                                                            updateRow(row.id, { finalPrice: norm === "" ? null : Number(norm) });
-                                                            setEditingCells(prev => {
-                                                                const next = { ...prev };
-                                                                delete next[key];
-                                                                return next;
-                                                            });
-                                                        }}
-                                                        size="small"
-                                                        variant="standard"
-                                                        sx={(t) => ({
-                                                            width: 100,
-                                                            ...noUnderlineSx,
-                                                            "& input": {
-                                                                color: overTarget ? t.palette.error.main : pillSx.text,
-                                                                fontWeight: "bold", fontSize: "0.9rem", padding: 0,
-                                                            },
-                                                        })}
-                                                    />
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Target Price (price) — read-only */}
-                                            <TableCell sx={(t) => ({
-                                                minWidth: 160,
-                                                fontSize: "0.9rem",
-                                                ...(overTarget
-                                                    ? { backgroundColor: `${t.palette.error.light}33`, color: t.palette.error.main, fontWeight: 700 }
-                                                    : { color: "text.secondary" }),
-                                            })}>
-                                                {fmt3(row.price)}
-                                            </TableCell>
-
-                                            {/* Vendor */}
-                                            <TableCell sx={{ minWidth: 200, ...cellErrSx("vendorName") }}>
-                                                <Autocomplete<VendorTO, false, false, false>
-                                                    openOnFocus
-                                                    options={vendors}
-                                                    value={selectedVendor}
-                                                    getOptionLabel={(o) => o.vendorName}
-                                                    isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
-                                                    onChange={(_, val) => updateRow(row.id, { vendorName: val?.vendorName ?? "" })}
-                                                    renderInput={(p) => (
-                                                        <TextField
-                                                            {...p}
-                                                            size="small"
-                                                            variant="standard"
-                                                            placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
-                                                            sx={noUnderlineSx}
-                                                        />
-                                                    )}
-                                                    fullWidth
-                                                />
-                                            </TableCell>
-
-                                            {/* Delete action */}
-                                            <TableCell sx={{ width: 64 }}>
-                                                <Tooltip title="Delete Line">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => {
-                                                            setRows(prev => prev.filter(r => r.id !== row.id));
-                                                            setDirty(true);
-                                                        }}
-                                                    >
-                                                        <DeleteOutlineIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                {rows.map((row) => (
+                                    <PurchaseTableRow
+                                        key={row.id}
+                                        row={row}
+                                        products={products}
+                                        vendors={vendors}
+                                        product={productById.get(row.productId ?? -1) ?? null}
+                                        invalidFields={invalid.get(row.id)}
+                                        onUpdateRow={updateRow}
+                                        onCommitNumeric={commitNumericCell}
+                                        onApplyProduct={applyProduct}
+                                        onDelete={deleteRow}
+                                    />
+                                ))}
 
                                 {rows.length === 0 && (
                                     <TableRow>
