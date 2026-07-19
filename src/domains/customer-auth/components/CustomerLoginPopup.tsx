@@ -12,6 +12,7 @@ import { registerCustomerName, requestOtp } from "../../../shared/api/customerAu
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { CustomerAuthApiError } from "../types";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
+import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
 
 const brandRed = "#E44B4C";
@@ -132,7 +133,7 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
         setFullPhone(candidatePhone);
         setIsSubmitting(true);
         try {
-            await requestOtp({ phone: candidatePhone });
+            await requestOtp({ phone: candidatePhone, language: resolveCustomerLanguage(i18n.language) });
             setStep("code");
             setCodeSentAt(Date.now());
         } catch (err) {
@@ -182,7 +183,7 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
         setError(null);
         setIsSubmitting(true);
         try {
-            await requestOtp({ phone: fullPhone });
+            await requestOtp({ phone: fullPhone, language: resolveCustomerLanguage(i18n.language) });
             setCode("");
             setCodeSentAt(Date.now());
         } catch (err) {

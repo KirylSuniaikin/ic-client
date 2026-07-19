@@ -116,8 +116,11 @@ function recomputeBalances(rows: EntryRow[], baseBalance: number | null): EntryR
 }
 
 function deriveBaseBalance(report: AccountingReportTO): number | null {
-    if (!report.entries.length) return null;
-    const sorted = [...report.entries].sort((a, b) =>
+    // Defend against a malformed response (missing/null `entries`): spreading or
+    // reading `.length` on undefined throws and masks as a react-dom internal error.
+    const entries = report.entries ?? [];
+    if (!entries.length) return null;
+    const sorted = [...entries].sort((a, b) =>
         a.occurredAt.localeCompare(b.occurredAt)
     );
     const first = sorted[0];
@@ -172,7 +175,9 @@ export function AccountingReportPopup({
             try {
                 const cats = await getAccountingCategories(branch.id.toString());
                 if (!alive) return;
-                setCategories(cats);
+                // `categoriesForType` calls `.filter` on this in render; a non-array
+                // response would crash the render, so normalize to an array here.
+                setCategories(Array.isArray(cats) ? cats : []);
 
                 if (mode === "edit" && reportId != null) {
                     const report = await getAccountingReport(reportId);
@@ -182,7 +187,7 @@ export function AccountingReportPopup({
                     const base = isSuperManager ? deriveBaseBalance(report) : null;
                     setBaseBalance(base);
                     setRows(
-                        [...report.entries]
+                        [...(report.entries ?? [])]
                             .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
                             .map((e) => ({
                                 _key: `loaded-${e.id}`,
@@ -225,7 +230,7 @@ export function AccountingReportPopup({
     }
 
     function categoriesForType(type: AccountingType): AccountingCategoryTO[] {
-        return categories.filter((c) => c.type === type && !c.archived);
+        return categories.filter((c) => c.type === type);
     }
 
     function deleteRow(key: string) {

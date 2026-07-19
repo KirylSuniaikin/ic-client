@@ -1,10 +1,11 @@
-import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React, { useState } from "react";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 
 // CustomerOrderDetailPopup renders its copy via useTranslation — initialize the real
-// i18n instance (side-effect import) so keys resolve to English under the default language.
-import "../../../shared/i18n";
+// i18n instance so keys resolve to English under the default language (also gives the
+// Arabic-locale status-chip tests below a handle to drive i18n.changeLanguage).
+import i18n, { DEFAULT_LANGUAGE } from "../../../shared/i18n";
 
 jest.mock("../../../shared/api/customerAuth");
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/socket.ts
@@ -13,8 +14,9 @@ jest.mock("../../../shared/api/socket");
 import { refreshCustomerToken, logoutCustomer, fetchOrderDetail } from "../../../shared/api/customerAuth";
 import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
+import { CustomerAuthUiProvider, useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
-import type { CustomerOrderDetail } from "../types";
+import type { CustomerOrderDetail, MenuLocalizationCatalog } from "../types";
 
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockLogoutCustomer = jest.mocked(logoutCustomer);
@@ -69,15 +71,29 @@ function detail(overrides: Partial<CustomerOrderDetail> = {}): CustomerOrderDeta
 function DetailPopupHarness({
     orderId,
     onClose,
+    menuLocalizationData,
 }: {
     orderId: number | null;
     onClose: () => void;
+    menuLocalizationData?: MenuLocalizationCatalog;
 }): React.JSX.Element {
     const { isAuthLoading } = useCustomerAuth();
+    // Publishes the catalog CustomerOrderDetailPopup reads via useCustomerAuthUi() —
+    // mirrors HomePage publishing its own useMenuData() result in production.
+    const { setMenuLocalizationData } = useCustomerAuthUi();
     const [open, setOpen] = useState(false);
     return (
         <>
-            {!isAuthLoading && <button onClick={() => setOpen(true)}>open-detail</button>}
+            {!isAuthLoading && (
+                <button
+                    onClick={() => {
+                        if (menuLocalizationData) setMenuLocalizationData(menuLocalizationData);
+                        setOpen(true);
+                    }}
+                >
+                    open-detail
+                </button>
+            )}
             <CustomerOrderDetailPopup
                 open={open}
                 orderId={orderId}
@@ -90,11 +106,16 @@ function DetailPopupHarness({
     );
 }
 
-async function renderPopup(orderId: number | null = 1234): Promise<{ onClose: () => void }> {
+async function renderPopup(
+    orderId: number | null = 1234,
+    menuLocalizationData?: MenuLocalizationCatalog,
+): Promise<{ onClose: () => void }> {
     const onClose = jest.fn<void, []>();
     render(
         <CustomerAuthProvider>
-            <DetailPopupHarness orderId={orderId} onClose={onClose} />
+            <CustomerAuthUiProvider>
+                <DetailPopupHarness orderId={orderId} onClose={onClose} menuLocalizationData={menuLocalizationData} />
+            </CustomerAuthUiProvider>
         </CustomerAuthProvider>
     );
     fireEvent.click(await screen.findByRole("button", { name: "open-detail" }));
@@ -120,6 +141,13 @@ beforeEach(() => {
     });
     mockSubscribe.mockReset();
     mockSubscribe.mockReturnValue({ id: "detail-sub", unsubscribe: jest.fn() });
+});
+
+afterEach(async () => {
+    // Reset the shared i18n singleton so a language change in one test doesn't leak into others.
+    await act(async () => {
+        await i18n.changeLanguage(DEFAULT_LANGUAGE);
+    });
 });
 
 describe("CustomerOrderDetailPopup", () => {
@@ -191,6 +219,25 @@ describe("CustomerOrderDetailPopup", () => {
 
         await screen.findByText("Order ID #88");
         expect(screen.getByText("Some Unknown Status")).toBeTruthy();
+    });
+
+    // Task T6 §6: the header status chip must show the TRANSLATED label in Arabic, not the raw
+    // English status string leaking through untranslated.
+    it("shows the translated Arabic status on the header chip and timeline when the locale is Arabic", async () => {
+        await act(async () => {
+            await i18n.changeLanguage("ar");
+        });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(detail());
+
+        await renderPopup();
+
+        await screen.findByText("رقم الطلب #88");
+        // "تم الاستلام" (Picked Up) appears twice: the header status chip and the timeline's
+        // label for the last statusHistory entry — same duplication the English test asserts.
+        expect(screen.getAllByText("تم الاستلام").length).toBe(2);
+        // Raw English must never leak through onto the chip/timeline in Arabic.
+        expect(screen.queryByText("Picked Up")).toBeNull();
     });
 
     it("on a 401 from fetchOrderDetail, logs out and shows a session-expired message instead of crashing", async () => {
@@ -481,5 +528,113 @@ describe("CustomerOrderDetailPopup", () => {
         // Give any (unwanted) async refetch a chance to happen, then assert it didn't.
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(mockFetchOrderDetail).toHaveBeenCalledTimes(2);
+    });
+});
+
+// Task RW: the customer ingredient text is built from structured `customizations` (+ dough/crust
+// flags), and the per-item `note` renders as its own separate line — never mixed into the
+// (localized) ingredient text or shown from the raw stored `description`.
+describe("CustomerOrderDetailPopup — structural display + note (task RW)", () => {
+    it("builds the ingredient text from customizations and renders note as a separate line, not from the stored description", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(
+            detail({
+                items: [
+                    {
+                        name: "Margherita",
+                        quantity: 1,
+                        size: "M",
+                        unitAmount: 5,
+                        description: "STALE-DESCRIPTION-SHOULD-NOT-RENDER",
+                        note: "cut in triangles please",
+                        customizations: [{ action: "ADD", extraIngrId: 5, name: "Mushroom" }],
+                        comboItems: [],
+                    },
+                ],
+            })
+        );
+
+        await renderPopup(1234, { menuData: [], toppings: [], extraIngredients: [{ id: 5, name: "Mushroom", name_ar: "فطر" }] });
+
+        await screen.findByText("Margherita");
+        expect(screen.getByText("+ Mushroom", { exact: false })).toBeTruthy();
+        expect(screen.getByText("cut in triangles please")).toBeTruthy();
+        expect(screen.queryByText("STALE-DESCRIPTION-SHOULD-NOT-RENDER")).toBeNull();
+    });
+
+    it("resolves the addition name via name_ar by id when the locale is Arabic", async () => {
+        await act(async () => {
+            await i18n.changeLanguage("ar");
+        });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(
+            detail({
+                items: [
+                    {
+                        name: "Margherita",
+                        quantity: 1,
+                        size: "M",
+                        unitAmount: 5,
+                        description: "",
+                        customizations: [{ action: "ADD", toppingId: 900, name: "Garlic" }],
+                        comboItems: [],
+                    },
+                ],
+            })
+        );
+
+        await renderPopup(1234, { menuData: [], toppings: [{ id: 900, name: "Garlic", name_ar: "ثوم" }], extraIngredients: [] });
+
+        await screen.findByText("Margherita");
+        expect(screen.getByText("ثوم Topping", { exact: false })).toBeTruthy();
+    });
+
+    it("shows the stored description as-is (legacy fallback) for a top-level item with no customizations and no dough/crust flags", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(
+            detail({
+                items: [
+                    {
+                        name: "Old Order Pizza",
+                        quantity: 1,
+                        size: "M",
+                        unitAmount: 5,
+                        description: "-(Onion) old-style legacy line",
+                        comboItems: [],
+                    },
+                ],
+            })
+        );
+
+        await renderPopup();
+
+        await screen.findByText("Old Order Pizza");
+        expect(screen.getByText("+ -Onion old-style legacy line", { exact: false })).toBeTruthy();
+    });
+
+    it("routes a dough-only item (isThinDough true, zero customizations) through the structural builder, not the legacy description fallback", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(
+            detail({
+                items: [
+                    {
+                        name: "Margherita",
+                        quantity: 1,
+                        size: "M",
+                        unitAmount: 5,
+                        description: "LEGACY-RAW-TEXT-SHOULD-NOT-RENDER",
+                        customizations: [],
+                        isThinDough: true,
+                        comboItems: [],
+                    },
+                ],
+            })
+        );
+
+        await renderPopup();
+
+        await screen.findByText("Margherita");
+        expect(screen.queryByText("LEGACY-RAW-TEXT-SHOULD-NOT-RENDER")).toBeNull();
+        expect(screen.getByText("+ Thin Dough", { exact: false })).toBeTruthy();
     });
 });

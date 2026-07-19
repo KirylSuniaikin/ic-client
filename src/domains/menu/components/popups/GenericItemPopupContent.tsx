@@ -10,8 +10,13 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
-import type { MenuItem, CartItem, ExtraIngr, Group } from '../../types';
-import {QuickPickChips} from "../QuickPickChips";
+import type { MenuItem, CartItem, ExtraIngr, Group, RecipeComponent } from '../../types';
+import {RecipeComponentsLine} from "../RecipeComponentsLine";
+import {
+    buildRemovalTokens,
+    toRemoveCustomizations,
+    RemovedComponent,
+} from "../../utils/customizations";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -41,7 +46,7 @@ function GenericItemPopupContent({
     const [selectedToppings, setSelectedToppings] = useState<string[]>([""]);
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState( "");
-    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
+    const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
 
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
@@ -108,13 +113,21 @@ function GenericItemPopupContent({
         }
     }, [open, item]);
 
-    const quickPickMenuItemId = item?.id;
+    const itemId = item?.id;
 
     useEffect(() => {
-        setSelectedQuickPickIds([]);
-    }, [quickPickMenuItemId, open]);
+        setRemovedComponents([]);
+    }, [itemId, open]);
 
     if (!item) return null;
+
+    const recipeComponents: RecipeComponent[] = item.recipe_components ?? [];
+
+    function handleToggleComponent(component: RecipeComponent): void {
+        setRemovedComponents(prev => prev.some(r => r.id === component.id)
+            ? prev.filter(r => r.id !== component.id)
+            : [...prev, {id: component.id, name: component.name}]);
+    }
 
     const finalPizzaPricePerItem = item.price;
 
@@ -130,6 +143,8 @@ function GenericItemPopupContent({
     }
 
     function handleAdd(): void {
+        // Removal tokens only — the free-text note lives on CartItem.note, never folded in here.
+        const brickDescription = buildRemovalTokens(removedComponents);
         const products: CartItem[] = [{
             ...item,
             name: item.name,
@@ -137,14 +152,22 @@ function GenericItemPopupContent({
             category: item.category,
             quantity: quantity,
             amount: finalPizzaPricePerItem,
-            description: item.category === "Brick Pizzas" ? note : description,
+            description: item.category === "Brick Pizzas" ? brickDescription : description,
             isThinDough: false,
             isGarlicCrust: false,
             extraIngredients: [],
             toppings: [],
-            note: "",
+            // Assumed: note was previously folded into brickDescription (unprefixed) with no
+            // separate CartItem.note assignment for this popup — a genuine gap where a typed
+            // Brick Pizza note was silently dropped from CartItem.note. Wiring it here (like
+            // every other popup already does) is required so the note keeps flowing at all
+            // now that it can no longer live inside the description string.
+            note: item.category === "Brick Pizzas" ? note : "",
             discountAmount: 0,
             comboItems: [],
+            customizations: item.category === "Brick Pizzas"
+                ? toRemoveCustomizations(removedComponents)
+                : [],
         }];
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
@@ -390,12 +413,10 @@ function GenericItemPopupContent({
                         {item.category === "Brick Pizzas" &&
                             <Box>
 
-                                <QuickPickChips
-                                    menuItemId={quickPickMenuItemId}
-                                    selectedIds={selectedQuickPickIds}
-                                    onChange={(ids) => setSelectedQuickPickIds(ids)}
-                                    note={note}
-                                    onNoteChange={setNote}
+                                <RecipeComponentsLine
+                                    components={recipeComponents}
+                                    removedIds={removedComponents.map(r => r.id)}
+                                    onToggle={handleToggleComponent}
                                 />
 
                                 <TextField

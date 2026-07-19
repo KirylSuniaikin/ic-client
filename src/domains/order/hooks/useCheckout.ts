@@ -8,6 +8,7 @@ import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
+import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
@@ -38,11 +39,11 @@ export interface UseCheckoutResult {
     phonePopupOpen: boolean;
     setPhonePopupOpen: Dispatch<SetStateAction<boolean>>;
     customerPrefill: CustomerMeResponse | null;
-    cartNote: string;
-    setCartNote: Dispatch<SetStateAction<string>>;
-    // Drives the cart's note field: only logged-in customers skip the popup, so only they need
-    // to write the note in the cart.
-    isCustomerLoggedIn: boolean;
+    // Delivery type and payment method are picked directly in the cart (customer flow).
+    paymentMethod: string;
+    setPaymentMethod: Dispatch<SetStateAction<string>>;
+    orderType: string;
+    setOrderType: Dispatch<SetStateAction<string>>;
     adminOrderDetailsPopUp: boolean;
     setAdminOrderDetailsPopUpOpen: Dispatch<SetStateAction<boolean>>;
     isCrossSellOpen: boolean;
@@ -66,7 +67,7 @@ export interface UseCheckoutResult {
     setShowOrderConfirmed: Dispatch<SetStateAction<boolean>>;
     generalCrossSellItems: MenuItem[];
     finalCrossSellItems: MenuItem[];
-    handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null) => Promise<void>;
+    handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null, infoCollected?: boolean) => Promise<void>;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
 }
 
@@ -86,9 +87,11 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [customerPrefill, setCustomerPrefill] = useState<CustomerMeResponse | null>(null);
     // The same profile as customerPrefill, readable synchronously by resolveOrderCount.
     const customerProfileRef = useRef<CustomerMeResponse | null>(null);
-    // Order note for logged-in customers, who skip ClientInfoPopup (and its note field) and so
-    // would otherwise have no way to attach one. Guests still type theirs in the popup.
-    const [cartNote, setCartNote] = useState("");
+    // Delivery type and payment method are chosen in the cart. Owned here rather than in the cart
+    // component so the ClientInfoPopup detour (guests / logged-in customers with no name on file)
+    // can recover the customer's choices when it re-enters checkout.
+    const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+    const [orderType, setOrderType] = useState("Pick Up");
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
@@ -133,12 +136,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             items: items.map(item => ({
                 id: item.id, name: item.name, quantity: item.quantity, amount: item.amount,
                 size: item.size || "", category: item.category, description: item.description || "",
+                note: item.note ?? "",
                 isGarlicCrust: !!item.isGarlicCrust, isThinDough: !!item.isThinDough,
                 discountAmount: item.discountAmount ?? 0,
+                customizations: item.customizations ?? [],
                 comboItems: (item.comboItems || []).map(ci => ({
                     id: ci.id, name: ci.name, category: ci.category, size: ci.size || "",
                     quantity: ci.quantity || 1, isGarlicCrust: !!ci.isGarlicCrust,
-                    isThinDough: !!ci.isThinDough, description: ci.description || ""
+                    isThinDough: !!ci.isThinDough, description: ci.description || "",
+                    note: ci.note ?? "",
+                    customizations: ci.customizations ?? []
                 }))
             })),
             amount_paid: parseFloat(items.reduce((acc, item) => {
@@ -155,7 +162,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             // window.ttq is the TikTok pixel SDK; a global.d.ts augmentation would be cleaner but is not available
             (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({ phone_number: "+" + orderData.tel });
             setCartItems([]);
-            setCartNote("");
+            setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+            setOrderType("Pick Up");
             setPendingOrder(null);
             setPickUpReminder(false);
             await localStorage.removeItem("orderToEdit");
@@ -312,13 +320,18 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         paymentMethod: string | null,
         notes: string,
         branchId?: string | null,
+        infoCollected: boolean = false,
     ): Promise<void> {
         if (!wasCrossSellShown && !isAdmin) {
             setIsCrossSellOpen(true);
             setWasCrossSellShown(true);
             return;
         }
-        if (paymentMethod === null) {
+        // infoCollected is the "identity has been gathered" gate. The cart supplies a real
+        // payment method up-front, so it can no longer double as the sentinel — the first
+        // checkout click arrives with infoCollected=false and routes to the admin popup,
+        // the logged-in re-entry, or ClientInfoPopup for guests.
+        if (!infoCollected) {
             if (isAdmin) {
                 setCartOpen(false);
                 setAdminOrderDetailsPopUpOpen(true);
@@ -327,12 +340,12 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             if (token) {
                 const me = await fetchProfileForCheckout();
                 // A logged-in customer whose name we know needs nothing else from the popup:
-                // the phone and name come from the profile, payment defaults (every web order
-                // is a counter-paid Pick Up), and the note is collected in the cart. Re-enter
-                // with a non-null payment method so the order runs through the same blacklist /
-                // known-customer path as any other checkout instead of a parallel one.
+                // the phone and name come from the profile, and the delivery type / payment
+                // method are the choices they made in the cart. Re-enter with infoCollected so
+                // the order runs through the same blacklist / known-customer path as any other
+                // checkout instead of a parallel one.
                 if (me?.name) {
-                    await handleCheckout(items, me.phone, me.name, "Pick Up", DEFAULT_PAYMENT_METHOD, cartNote, DEFAULT_BRANCH_ID);
+                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", DEFAULT_BRANCH_ID, true);
                     return;
                 }
                 // No name on file — a legacy account, or the customer closed the popup before
@@ -373,12 +386,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 id: item.id, name: item.name, quantity: item.quantity,
                 amount: parseFloat(String(item.amount)), size: item.size || "",
                 category: item.category, description: item.description || "",
+                note: item.note ?? "",
                 isGarlicCrust: !!item.isGarlicCrust, isThinDough: !!item.isThinDough,
                 discountAmount: item.discountAmount ?? 0,
+                customizations: item.customizations ?? [],
                 comboItems: (item.comboItems || []).map(ci => ({
                     id: ci.id, name: ci.name, category: ci.category, size: ci.size || "",
                     quantity: ci.quantity || 1, isGarlicCrust: !!ci.isGarlicCrust,
-                    isThinDough: !!ci.isThinDough, description: ci.description || ""
+                    isThinDough: !!ci.isThinDough, description: ci.description || "",
+                    note: ci.note ?? "",
+                    customizations: ci.customizations ?? []
                 }))
             })),
             amount_paid: parseFloat(items.reduce((acc, item) => {
@@ -386,6 +403,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             }, 0).toFixed(3)),
             fbc: resolveFbc(),
             fbp: resolveFbp(),
+            // Kiosk browser locale is the store's device, not the walk-up customer's -- skip navigator.
+            language: resolveCustomerLanguage(i18n.language, !isKiosk),
         };
         const submittedItems = [...items];
 
@@ -420,14 +439,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     setCartItems([]);
                     localStorage.setItem('suppressSoundIds', JSON.stringify([String(response.id)]));
                     // The kiosk is one long-lived tab shared by walk-up customers. Without this, a
-                    // customer who switched to Arabic would leave the NEXT customer in Arabic: the
-                    // detector caches the choice in localStorage ("ic_lang"), and localStorage
-                    // outranks navigator in the detection order, so browser detection never
-                    // re-applies. Only on the success path -- a failed order means the same
-                    // customer is still mid-checkout and about to retry.
+                    // customer who switched to Arabic would leave the NEXT customer in Arabic. The
+                    // detector no longer auto-caches, so we persist the reset explicitly: writing
+                    // "ic_lang" = DEFAULT_LANGUAGE (localStorage outranks navigator in the detection
+                    // order) pins the kiosk back to English until the next customer chooses again.
+                    // Only on the success path -- a failed order means the same customer is still
+                    // mid-checkout and about to retry.
                     if (!i18n.language.startsWith(DEFAULT_LANGUAGE)) {
                         void i18n.changeLanguage(DEFAULT_LANGUAGE);
                     }
+                    localStorage.setItem("ic_lang", DEFAULT_LANGUAGE);
                 } catch (e) {
                     if (e instanceof ItemsUnavailableError) {
                         const removed = submittedItems.filter(item => e.unavailableIds.includes(item.id));
@@ -474,8 +495,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     return {
         checkoutLoading, phonePopupOpen, setPhonePopupOpen,
         customerPrefill,
-        cartNote, setCartNote,
-        isCustomerLoggedIn: token !== null,
+        paymentMethod, setPaymentMethod,
+        orderType, setOrderType,
         adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen,
         isCrossSellOpen, setIsCrossSellOpen,
         pickUpReminder, setPickUpReminder,

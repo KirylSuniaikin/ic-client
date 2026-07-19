@@ -27,8 +27,8 @@
         "offer": "{{product}} + Sauce + Drink just for {{price}}",
         "productPizza": "Pizza",
         "productDetroitBrick": "Detroit Brick",
-        "decline": "Next time",
-        "accept": "Yes, show me!"
+        "decline": "No",
+        "accept": "Yes"
     },
     "betterTogether": "Better together",
     "pickUpReminder": {

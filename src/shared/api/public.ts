@@ -16,7 +16,6 @@ import type {
     GetHistoryParams,
     GetHistoryResponse,
 } from '../../domains/order/types';
-import type { QuickPickDto } from '../../domains/menu/types';
 import type { OrderStatusData } from '../../domains/order-status/types';
 import type { ShiftEventResponse } from '../types/EventTypes';
 import type { DoughInventoryAmounts } from '../../domains/management/dough/types';
@@ -352,22 +351,5 @@ export async function getBaseAdminInfo(branchId: string): Promise<AdminBaseInfo 
         return await response.json();
     } catch (error) {
         logger.error("Failed to get base admin info", error);
-    }
-}
-
-export async function getQuickPicks(menuItemId: number): Promise<QuickPickDto[]> {
-    try {
-        const response = await fetch(BASE_URL + `/menu-items/${menuItemId}/quick-picks`, {
-            method: "GET",
-        });
-
-        if (!response.ok) {
-            return [];
-        }
-
-        return await response.json();
-    } catch (error) {
-        logger.error("Failed to get quick picks", error);
-        return [];
     }
 }

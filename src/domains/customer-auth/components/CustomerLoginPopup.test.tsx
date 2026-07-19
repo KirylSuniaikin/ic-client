@@ -65,7 +65,7 @@ describe("CustomerLoginPopup", () => {
             fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "33607710" } });
             fireEvent.click(screen.getByRole("button", { name: "Get code" }));
 
-            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710" }));
+            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710", language: "en" }));
             expect(await screen.findByLabelText("Digit 1")).toBeTruthy();
         });
 
@@ -105,7 +105,7 @@ describe("CustomerLoginPopup", () => {
             fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "3360771099" } });
             fireEvent.click(screen.getByRole("button", { name: "Get code" }));
 
-            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "203360771099" }));
+            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "203360771099", language: "en" }));
         });
 
         it("keeps Get code disabled and does not call requestOtp when the digit count doesn't match the selected country", async () => {
@@ -355,7 +355,7 @@ describe("CustomerLoginPopup", () => {
                 fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
 
                 await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledTimes(2));
-                expect(mockRequestOtp).toHaveBeenLastCalledWith({ phone: "97333607710" });
+                expect(mockRequestOtp).toHaveBeenLastCalledWith({ phone: "97333607710", language: "en" });
 
                 // getByLabelText returns a generic HTMLElement; each OTP box is always an
                 // <input>, so this narrows it to read .value. Wrapped in waitFor: the
@@ -443,7 +443,7 @@ describe("CustomerLoginPopup", () => {
             renderPopup(jest.fn(), "97333607710", undefined, true);
             await waitForAuthReady();
 
-            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710" }));
+            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710", language: "en" }));
             expect(await screen.findByLabelText("Digit 1")).toBeTruthy();
             expect(screen.queryByLabelText("Phone number")).toBeNull();
         });

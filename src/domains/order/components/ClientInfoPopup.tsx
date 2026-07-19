@@ -3,7 +3,6 @@ import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
-import { DEFAULT_PAYMENT_METHOD } from "../types";
 
 const brandRed = "#E44B4C";
 
@@ -12,12 +11,10 @@ interface Branch {
     branchName: string;
 }
 
-const paymentOptions = ["Cash", DEFAULT_PAYMENT_METHOD, "Benefit"];
-
 interface ClientInfoPopupProps {
     isPhonePopupOpen: boolean;
     onClose: () => void;
-    onSave: (phone: string, paymentMethod: string, name: string, note: string, branchId: string) => void;
+    onSave: (phone: string, name: string, branchId: string) => void;
     phoneNumber: string;
     customerName: string;
     branches: Branch[];
@@ -25,20 +22,15 @@ interface ClientInfoPopupProps {
     // req. 23). Pick-Up orders (the only flow this popup drives) have no address field to save,
     // so this is shown as read-only reference info rather than wired into onSave.
     prefillAddress?: string;
-    // Carries over a note the customer already typed in the cart, so it survives the fallback
-    // to this popup (a logged-in customer with no name on file still lands here).
-    prefillNote?: string;
 }
 
-function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress, prefillNote}: ClientInfoPopupProps): JSX.Element {
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress}: ClientInfoPopupProps): JSX.Element {
     const { t, i18n } = useTranslation("checkout");
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
     const [name, setName] = useState("");
     const [nameError, setNameError] = useState("");
-    const [note, setNote] = useState(prefillNote ?? "");
-    const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
     const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
     const IS_MULTI_BRANCH_ENABLED =  false;
 
@@ -78,9 +70,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
         const fullPhone = countryObj.code + phoneDigits;
         onSave?.(
             fullPhone,
-            paymentMethod,
             name,
-            note,
             selectedBranch?.id || DEFAULT_BRANCH_ID
         );
         onClose?.();
@@ -158,22 +148,6 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         InputProps={{ sx: { borderRadius: 4 } }}
                     />
 
-                    <TextField
-                        select
-                        label={t("clientInfo.paymentMethod")}
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        fullWidth
-                        sx={{ mb: 2 }}
-                        InputProps={{ sx: { borderRadius: 4 } }}
-                    >
-                        {paymentOptions.map((option) => (
-                            <MenuItem key={option} value={option}>
-                                {option}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-
                     {IS_MULTI_BRANCH_ENABLED &&
                         <TextField
                         select
@@ -191,17 +165,6 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                         ))}
                     </TextField>
                     }
-
-                    <TextField
-                        label={t("clientInfo.noteLabel")}
-                        fullWidth
-                        multiline
-                        rows={2}
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        sx={{ mb: 3 }}
-                        InputProps={{ sx: { borderRadius: 4 } }}
-                    />
                 </Box>
 
                 <Box sx={{

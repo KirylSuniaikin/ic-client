@@ -4,15 +4,23 @@ import {
     Typography,
     Button,
 } from "@mui/material";
-import React, {useState, useEffect} from "react";
+import React, {useState} from "react";
 import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
-import {QuickPickChips} from "../../QuickPickChips";
 import CloseIcon from "@mui/icons-material/Close";
 import { Fab } from "@mui/material";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
-import type { MenuItem, CartItem, Group } from '../../../types';
+import type { MenuItem, CartItem, Group, RecipeComponent } from '../../../types';
+import {
+    buildRemovalTokens,
+    matchRemovalNames,
+    parseRemovalNames,
+    removedFromCustomizations,
+    intersectRemovals,
+    toRemoveCustomizations,
+    RemovedComponent,
+} from "../../../utils/customizations";
 
 const brandRed = "#E44B4C";
 
@@ -97,23 +105,43 @@ export function DetroitComboPopup({
         }
     });
 
+    const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>(() => {
+        if (isEditMode && editItem) {
+            const editedBrick = editItem.comboItems[0];
+            const editRecipe = bricks
+                .flatMap(b => b.items)
+                .find(i => i.name === editedBrick.name)
+                ?.recipe_components ?? [];
+            // Structural removals win; legacy lines fall back to parsing the `-(x)` tokens.
+            const structural = removedFromCustomizations(editedBrick.customizations);
+            return structural.length > 0
+                ? intersectRemovals(structural, editRecipe)
+                : matchRemovalNames(parseRemovalNames(editedBrick.description ?? ""), editRecipe);
+        }
+        if (selectedDetroitPizza) {
+            // Upsell flow: carry the pending brick's removals into the combo instead of dropping them.
+            const upsellRecipe = bricks
+                .flatMap(b => b.items)
+                .find(i => i.name === selectedDetroitPizza.name)
+                ?.recipe_components ?? [];
+            const structural = removedFromCustomizations(selectedDetroitPizza.customizations);
+            return structural.length > 0
+                ? intersectRemovals(structural, upsellRecipe)
+                : matchRemovalNames(parseRemovalNames(selectedDetroitPizza.description ?? ""), upsellRecipe);
+        }
+        return [];
+    });
+
+    function handleToggleComponent(component: RecipeComponent): void {
+        setRemovedComponents(prev => prev.some(r => r.id === component.id)
+            ? prev.filter(r => r.id !== component.id)
+            : [...prev, {id: component.id, name: component.name}]);
+    }
+
     const [initialEditorItem, setInitialEditorItem] = useState<MenuItem | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editorItems, setEditorItems] = useState<MenuItem[]>([]);
     const [editorTarget, setEditorTarget] = useState<string | null>(null);
-
-    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
-    const [joinedQuickPickLabel, setJoinedQuickPickLabel] = useState("");
-
-    const quickPickMenuItemId = brick.item?.id;
-
-    // Resets stale selections whenever the customized brick pizza (menu_item row) changes
-    // (via "Change") or the popup reopens for a different item — a quick_pick belongs to
-    // exactly one menu_item.
-    useEffect(() => {
-        setSelectedQuickPickIds([]);
-        setJoinedQuickPickLabel("");
-    }, [quickPickMenuItemId, open]);
 
     if (!combo) return null;
     // combo can be a Group object with .items or a raw MenuItem array
@@ -128,7 +156,11 @@ export function DetroitComboPopup({
     }
 
     function handleEditorSave(updated: EditorSaveResult): void {
-        if (editorTarget === "brick") setBrick(updated);
+        if (editorTarget === "brick") {
+            setBrick(updated);
+            // Switching the brick invalidates its customizations.
+            setRemovedComponents([]);
+        }
         if (editorTarget === "drink") setDrink(updated);
         if (editorTarget === "sauce") setSauce(updated);
     }
@@ -136,8 +168,10 @@ export function DetroitComboPopup({
     function handleAdd(): void {
         if (!brick?.item || !drink?.item || !sauce?.item) return;
 
-        const existingDescriptionValue = "";
-        const finalDescription = [existingDescriptionValue, joinedQuickPickLabel].filter(Boolean).join(", ");
+        // Assumed: ItemCard only renders its note TextField for category "Pizzas" (see
+        // ItemCard.tsx), so a Detroit Combo's brick has never had a note-entry UI — there is no
+        // note to move onto comboItems[0].note here, unlike PizzaComboPopup.
+        const finalDescription = buildRemovalTokens(removedComponents);
 
         const orderItem = {
             id: (comboGroup as MenuItem).id,
@@ -164,6 +198,7 @@ export function DetroitComboPopup({
                     isThinDough: false,
                     quantity: 1,
                     description: finalDescription,
+                    customizations: toRemoveCustomizations(removedComponents),
                 },
                 {
                     id: drink.item.id,
@@ -263,21 +298,15 @@ export function DetroitComboPopup({
                             </Typography>
                         </Box>
 
-                        <QuickPickChips
-                            menuItemId={quickPickMenuItemId}
-                            selectedIds={selectedQuickPickIds}
-                            onChange={(ids, joined) => {
-                                setSelectedQuickPickIds(ids);
-                                setJoinedQuickPickLabel(joined);
-                            }}
-                        />
-
                         <ItemCard
                             item={brick.item}
                             onChange={() => {
                                 openEditor("brick", bricks.flatMap((b) => b.items), brick.item
                                 );
                             }}
+                            components={brick.item?.recipe_components ?? []}
+                            removedIds={removedComponents.map(r => r.id)}
+                            onToggleComponent={handleToggleComponent}
                         />
                         <ItemCard
                             item={drink.item}

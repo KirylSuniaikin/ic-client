@@ -27,8 +27,8 @@
         "offer": "{{product}} + صوص + مشروب مقابل {{price}} فقط",
         "productPizza": "بيتزا",
         "productDetroitBrick": "ديترويت بريك",
-        "decline": "في المرة القادمة",
-        "accept": "نعم، أرني!"
+        "decline": "لا",
+        "accept": "نعم"
     },
     "betterTogether": "ألذّ معاً",
     "pickUpReminder": {

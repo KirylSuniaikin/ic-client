@@ -1,10 +1,18 @@
 {
   "title": "السلة",
   "totalVatIncl": "الإجمالي (شامل الضريبة)",
-  "checkoutTakeOutOnly": "إتمام الطلب (استلام فقط)",
+  "checkout": "إتمام الطلب",
   "discount": "خصم",
-  "noteLabel": "ملاحظة على الطلب (اختياري)",
-  "notePlaceholder": "مثال: بدون بصل",
+  "deliveryTitle": "نوع الاستلام",
+  "pickup": "استلام",
+  "delivery": "توصيل",
+  "comingSoon": "قريباً",
+  "paymentTitle": "طريقة الدفع",
+  "payment": {
+    "cash": "نقداً",
+    "card": "بطاقة",
+    "benefit": "بنفت"
+  },
   "extras": {
     "thinDough": "عجينة رقيقة",
     "garlicCrust": "حافة بالثوم"

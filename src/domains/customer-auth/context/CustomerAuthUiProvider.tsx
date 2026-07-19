@@ -1,12 +1,14 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { CustomerAuthUiContextMissingError } from '../types';
-import type { CustomerAuthUiContextType } from '../types';
+import type { CustomerAuthUiContextType, MenuLocalizationCatalog } from '../types';
 
 // Dedicated UI-only context for the CustomerLoginPopup/CustomerProfilePopup
 // open-state (task-spec.md §5.2). Deliberately independent of
 // CustomerAuthProvider/token — this only tracks which popup (if any) is open.
 const CustomerAuthUiContext = createContext<CustomerAuthUiContextType | undefined>(undefined);
+
+const EMPTY_MENU_LOCALIZATION_DATA: MenuLocalizationCatalog = { menuData: [], toppings: [], extraIngredients: [] };
 
 export function CustomerAuthUiProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
     const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -18,6 +20,10 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
     const [loginCheckoutMode, setLoginCheckoutMode] = useState(false);
     const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
     const [activeOrderRefreshKey, setActiveOrderRefreshKey] = useState(0);
+    // Task T6 §Part A: published by HomePage from its own useMenuData() so the root-mounted
+    // profile/order-detail popups can localize description text without a second fetch.
+    const [menuLocalizationData, setMenuLocalizationData] =
+        useState<MenuLocalizationCatalog>(EMPTY_MENU_LOCALIZATION_DATA);
 
     // True when the detail popup was opened WITHOUT the profile already being open
     // (i.e. from the homepage island / post-checkout), so closing the detail should
@@ -102,6 +108,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             isAnyCustomerAuthPopupOpen,
             activeOrderRefreshKey,
             refreshActiveOrder,
+            menuLocalizationData,
+            setMenuLocalizationData,
         }),
         [
             isLoginOpen,
@@ -118,6 +126,7 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             isAnyCustomerAuthPopupOpen,
             activeOrderRefreshKey,
             refreshActiveOrder,
+            menuLocalizationData,
         ]
     );
 

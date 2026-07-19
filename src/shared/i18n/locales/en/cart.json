@@ -1,10 +1,18 @@
 {
   "title": "Cart",
   "totalVatIncl": "Total(VAT incl.)",
-  "checkoutTakeOutOnly": "Checkout (Take Out Only)",
+  "checkout": "Checkout",
   "discount": "Discount",
-  "noteLabel": "Order note (optional)",
-  "notePlaceholder": "e.g. no onions",
+  "deliveryTitle": "Delivery type",
+  "pickup": "Pickup",
+  "delivery": "Delivery",
+  "comingSoon": "Coming soon",
+  "paymentTitle": "Payment method",
+  "payment": {
+    "cash": "Cash",
+    "card": "Card",
+    "benefit": "Benefit"
+  },
   "extras": {
     "thinDough": "Thin Dough",
     "garlicCrust": "Garlic Crust"

@@ -7,19 +7,26 @@ type Props = {
     sx?: SxProps<Theme>;
 };
 
-// One-tap switch between English and Arabic. Persists via the i18next language
-// detector (localStorage "ic_lang"); the RTL direction flip is handled in AppProviders.
+// One-tap switch between English and Arabic. This is an EXPLICIT customer choice, so it
+// persists it to localStorage ("ic_lang") itself -- the detector no longer auto-caches
+// (see i18n/index.ts), so a stored value now means "the customer deliberately picked this"
+// and outranks the browser preference. The RTL direction flip is handled in AppProviders.
 export function LanguageToggle({sx}: Props): JSX.Element {
     const {t, i18n} = useTranslation();
     const isArabic = i18n.language.startsWith("ar");
     const nextLanguage = isArabic ? "en" : "ar";
     const label = isArabic ? t("language.switchToEnglish") : t("language.switchToArabic");
 
+    function handleToggle(): void {
+        void i18n.changeLanguage(nextLanguage);
+        localStorage.setItem("ic_lang", nextLanguage);
+    }
+
     return (
         <Fab
             size="medium"
             aria-label="toggle language"
-            onClick={() => i18n.changeLanguage(nextLanguage)}
+            onClick={handleToggle}
             sx={{
                 p: 0,
                 minHeight: "unset",

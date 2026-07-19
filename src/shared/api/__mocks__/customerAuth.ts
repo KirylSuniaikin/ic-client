@@ -7,6 +7,7 @@ import type {
     CustomerOrdersPageResponse,
     CustomerOrderDetail,
     CustomerActiveOrder,
+    SuggestedOrderResponse,
 } from "../../../domains/customer-auth/types";
 
 // Manual mock for shared/api/customerAuth.ts.
@@ -20,3 +21,4 @@ export const fetchCustomerMe = jest.fn<Promise<CustomerMeResponse>, [string]>();
 export const fetchMyOrders = jest.fn<Promise<CustomerOrdersPageResponse>, [string, number, number]>();
 export const fetchOrderDetail = jest.fn<Promise<CustomerOrderDetail>, [string, number]>();
 export const fetchActiveOrder = jest.fn<Promise<CustomerActiveOrder | null>, [string]>();
+export const fetchSuggestedItems = jest.fn<Promise<SuggestedOrderResponse>, [string]>();

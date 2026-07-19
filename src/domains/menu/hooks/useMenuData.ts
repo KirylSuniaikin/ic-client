@@ -4,7 +4,8 @@ import { fetchBaseAppInfo } from "../../../shared/api/public";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
-import type { MenuItem, ExtraIngr, Topping, CartItem } from "../types";
+import type { MenuItem, ExtraIngr, Topping, CartItem, Customization } from "../types";
+import { parseExtrasNames, splitNote } from "../utils/customizations";
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
 
@@ -40,43 +41,37 @@ interface UseMenuDataParams {
 
 const BRANCH_KEY = 'kiosk_branch_data';
 
-function parseItemNote(desc: string): string {
-    let note = "";
-    const hasParentheses = /\(.*?\)/.test(desc);
-    let restPart = desc;
-    if (hasParentheses) {
-        const lastParenIndex = desc.lastIndexOf(")");
-        restPart = desc.substring(lastParenIndex + 1);
-    }
-    const plusRegex = /\+([^+]+)/g;
-    let match;
-    while ((match = plusRegex.exec(restPart)) !== null) {
-        const text = match[1].trim();
-        if (text !== "Thin") note += (note ? " " : "") + text;
-    }
-    return note.trim();
+function parseItemNote(rawDesc: string): string {
+    // Delegate to the shared note-boundary heuristic (customizations.ts) so this stays in
+    // lockstep with localizeDescription.ts, which needs the same boundary to leave the note
+    // untouched during localization.
+    return splitNote(rawDesc).noteText;
 }
 
-function parseExtraIngr(desc: string): string[] {
-    const extras: string[] = [];
-    const regex = /\((.*?)\)/g;
-    let match;
-    while ((match = regex.exec(desc)) !== null) {
-        const ingr = match[1].split("+").map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-        extras.push(...ingr);
-    }
-    return extras;
+function parseExtraIngr(rawDesc: string): string[] {
+    // Delegate to the shared additions parser (customizations.ts) so this stays in lockstep
+    // with the grammar it emits — it already accepts both the new grouped `+(a, b)` and the
+    // legacy `(+X +Y)` shape, and its regexes only ever match `+`-prefixed groups so `-(x)`
+    // removal tokens can't be misread as extras.
+    return parseExtrasNames(rawDesc);
 }
 
 function normalizeComboItem(ci: Partial<CartItem>): {
     id: number | undefined; name: string; category: string; size: string;
     quantity: number; isGarlicCrust: boolean; isThinDough: boolean;
-    note: string; extraIngredients: string[];
+    note: string; extraIngredients: string[]; description: string;
+    customizations: Customization[];
 } {
     return {
         id: ci?.id, name: ci?.name ?? "", category: ci?.category ?? "", size: ci?.size ?? "",
         quantity: ci?.quantity ?? 1, isGarlicCrust: !!ci?.isGarlicCrust, isThinDough: !!ci?.isThinDough,
-        note: parseItemNote(ci?.description ?? ""), extraIngredients: parseExtraIngr(ci?.description ?? ""),
+        // Prefer the real note field the response now carries; fall back to parsing the legacy
+        // `+<note>` tail out of description for pre-migration orders that never had it.
+        note: ci?.note ?? parseItemNote(ci?.description ?? ""), extraIngredients: parseExtraIngr(ci?.description ?? ""),
+        // Raw description + structural customizations pass through so combo popups can
+        // re-hydrate removal state (legacy orders fall back to the `-(x)` tokens in description).
+        description: ci?.description ?? "",
+        customizations: ci?.customizations ?? [],
     };
 }
 
@@ -211,10 +206,12 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                             isGarlicCrust: boolean;
                             toppings: Topping[];
                             description: string;
+                            note?: string;
                             quantity: number;
                             amount: number | string;
                             discountAmount?: number;
                             photo: string;
+                            customizations?: Customization[];
                             comboItemTO?: Array<Partial<CartItem> & { description?: string }>;
                         }>;
                     };
@@ -225,8 +222,14 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                             quantity: item.quantity || 1,
                             discountAmount: item.discountAmount ?? 0,
                             amount: parseFloat(String(item.amount)),
-                            note: parseItemNote(item.description),
+                            // Prefer the real note field the response now carries; fall back to
+                            // parsing the legacy `+<note>` tail out of description for
+                            // pre-migration orders that never had it.
+                            note: item.note ?? parseItemNote(item.description),
                             extraIngredients: parseExtraIngr(item.description),
+                            // Structural customizations pass through; legacy orders without them
+                            // are re-hydrated by the popups from the `-(x)` description tokens.
+                            customizations: item.customizations ?? [],
                             comboItems: Array.isArray(item.comboItemTO)
                                 ? item.comboItemTO.map((ci: Partial<CartItem> & { description?: string }) => ({
                                     ...normalizeComboItem(ci),

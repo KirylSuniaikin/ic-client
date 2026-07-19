@@ -8,6 +8,7 @@ import type {
     CustomerOrdersPageResponse,
     CustomerOrderDetail,
     CustomerActiveOrder,
+    SuggestedOrderResponse,
 } from '../../domains/customer-auth/types';
 
 // Type guard for a JSON error body shaped like `{ message: string }`.
@@ -160,6 +161,20 @@ export async function fetchActiveOrder(accessToken: string): Promise<CustomerAct
     if (response.status === 204) {
         return null;
     }
+
+    if (!response.ok) {
+        throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);
+    }
+
+    return await response.json();
+}
+
+export async function fetchSuggestedItems(accessToken: string): Promise<SuggestedOrderResponse> {
+    const response = await fetch(`${BASE_URL}/customer/orders/suggested`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (!response.ok) {
         throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);

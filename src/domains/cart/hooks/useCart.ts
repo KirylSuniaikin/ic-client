@@ -1,5 +1,6 @@
 import { useState, Dispatch, SetStateAction } from "react";
 import type { MenuItem, CartItem, ExtraIngr, Group } from "../../menu/types";
+import { sameRemovals } from "../../menu/utils/customizations";
 
 export interface UseCartResult {
     cartItems: CartItem[];
@@ -133,11 +134,27 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
                 const existing = updated[idx];
 
                 if (item.category !== "Combo Deals" && item.category !== "Pizzas") {
+                    // Brick pizzas carry note/removal customizations like pizzas do — different
+                    // customizations must stay separate lines instead of merging by name. The
+                    // note left `description` for its own field, so it needs its own comparison.
+                    if (item.category === "Brick Pizzas" &&
+                        (existing.description !== item.description ||
+                            existing.note !== item.note ||
+                            !sameRemovals(existing.customizations, item.customizations))) {
+                        updated.push({ ...item });
+                        return;
+                    }
                     updated[idx] = { ...existing, quantity: existing.quantity + item.quantity };
                     return;
                 }
                 if (item.category === "Combo Deals" && item.name === "Detroit Combo") {
+                    // The brick's removal tokens live on comboItems[0].description and its note on
+                    // comboItems[0].note — different customizations must stay separate lines
+                    // (structural check as the safety net).
                     const same = existing.comboItems?.[0]?.name === item.comboItems?.[0]?.name &&
+                        existing.comboItems?.[0]?.description === item.comboItems?.[0]?.description &&
+                        existing.comboItems?.[0]?.note === item.comboItems?.[0]?.note &&
+                        sameRemovals(existing.comboItems?.[0]?.customizations, item.comboItems?.[0]?.customizations) &&
                         existing.comboItems?.[1]?.name === item.comboItems?.[1]?.name &&
                         existing.comboItems?.[2]?.name === item.comboItems?.[2]?.name;
                     if (same) updated[idx] = { ...existing, quantity: existing.quantity + item.quantity };
@@ -149,6 +166,9 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
                     const same = existing.comboItems?.[0]?.name === item.comboItems?.[0]?.name &&
                         existing.comboItems?.[0]?.isGarlicCrust === item.comboItems?.[0]?.isGarlicCrust &&
                         existing.comboItems?.[0]?.isThinDough === item.comboItems?.[0]?.isThinDough &&
+                        existing.comboItems?.[0]?.description === item.comboItems?.[0]?.description &&
+                        existing.comboItems?.[0]?.note === item.comboItems?.[0]?.note &&
+                        sameRemovals(existing.comboItems?.[0]?.customizations, item.comboItems?.[0]?.customizations) &&
                         existing.comboItems?.[1]?.name === item.comboItems?.[1]?.name &&
                         existing.comboItems?.[2]?.name === item.comboItems?.[2]?.name;
                     if (same) updated[idx] = { ...existing, quantity: existing.quantity + item.quantity };
@@ -156,8 +176,13 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
                     return;
                 }
                 if (item.category === "Pizzas") {
+                    // Removal tokens live in description, so baseChanged already splits different
+                    // removals; the structural check guards against description drift. The note
+                    // left `description` for its own field, so it needs its own comparison.
                     const baseChanged = existing.description !== item.description || existing.size !== item.size ||
-                        existing.isThinDough !== item.isThinDough || existing.isGarlicCrust !== item.isGarlicCrust;
+                        existing.isThinDough !== item.isThinDough || existing.isGarlicCrust !== item.isGarlicCrust ||
+                        existing.note !== item.note ||
+                        !sameRemovals(existing.customizations, item.customizations);
                     if (baseChanged) { updated.push({ ...item }); return; }
                     const ee = existing.extraIngredients || [];
                     const ne = item.extraIngredients || [];

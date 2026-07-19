@@ -46,9 +46,16 @@ void i18n
         // an empty value is treated as missing and falls back to English (fallbackLng).
         returnEmptyString: false,
         detection: {
+            // caches:[] disables auto-persistence. The detector must NOT cache the first-load
+            // value, or a stale "ic_lang" from an old visit would outrank a freshly-changed
+            // browser preference forever. (Note: the plugin DEFAULTS `caches` to ["localStorage"],
+            // so it must be set to [] explicitly -- omitting the key re-enables caching.) navigator
+            // is therefore re-read on every load. Only an EXPLICIT choice is persisted --
+            // LanguageToggle and the kiosk reset write "ic_lang" themselves -- and localStorage
+            // still comes first so that deliberate choice keeps winning over the browser.
             order: ["localStorage", "navigator"],
             lookupLocalStorage: "ic_lang",
-            caches: ["localStorage"],
+            caches: [],
         },
         react: {useSuspense: false}, // resources are bundled, so no Suspense needed
     });

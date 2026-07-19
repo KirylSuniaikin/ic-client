@@ -43,6 +43,7 @@ interface HomePageModalsProps {
     beverages: Group[];
     sauces: Group[];
     isAdmin: boolean;
+    isKiosk: boolean;
     adminBranchId: string | null;
     workingHours?: WorkingHoursSchedule | null;
 }
@@ -51,7 +52,7 @@ export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, refreshMenu,
-    pizzas, brickPizzas, beverages, sauces, isAdmin, adminBranchId, workingHours,
+    pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
 
@@ -138,6 +139,8 @@ export default function HomePageModals({
                     removeFromCart={cart.removeFromCart}
                     isSDoughAvailable={isSDoughAvailable}
                     isAdmin={isAdmin}
+                    extraIngredients={extraIngredients}
+                    toppings={toppings}
                 />
             )}
 
@@ -187,7 +190,7 @@ export default function HomePageModals({
                     crossSellItems={checkout.finalCrossSellItems}
                     onClose={() => checkout.setIsCrossSellOpen(false)}
                     onAddToCart={cart.handleAddToCart}
-                    onCheckout={() => checkout.handleCheckout(cart.cartItems, phone, null, null, null, "", null)}
+                    onCheckout={() => checkout.handleCheckout(cart.cartItems, null, null, checkout.orderType, checkout.paymentMethod, "", null, false)}
                 />
             )}
 
@@ -223,9 +226,11 @@ export default function HomePageModals({
                     unavailableItems={checkout.unavailableItems}
                     unavailableMessage={checkout.unavailableMessage}
                     onCloseUnavailablePopup={() => { checkout.setUnavailablePopupOpen(false); checkout.setUnavailableMessage(null); }}
-                    showNoteField={!isAdmin && checkout.isCustomerLoggedIn}
-                    note={checkout.cartNote}
-                    onNoteChange={checkout.setCartNote}
+                    paymentMethod={checkout.paymentMethod}
+                    onPaymentChange={checkout.setPaymentMethod}
+                    orderType={checkout.orderType}
+                    onDeliveryTypeChange={checkout.setOrderType}
+                    isKiosk={isKiosk}
                 />
             )}
 
@@ -236,13 +241,12 @@ export default function HomePageModals({
                     isPhonePopupOpen={checkout.phonePopupOpen}
                     branches={availableBranches.map(b => ({ ...b, id: String(b.id) }))}
                     onClose={() => checkout.setPhonePopupOpen(false)}
-                    onSave={(tel: string, paymentMethod: string, customerName: string, notes: string, branchId: string) => {
-                        checkout.handleCheckout(cart.cartItems, tel, customerName, "Pick Up", paymentMethod, notes, branchId);
+                    onSave={(tel: string, customerName: string, branchId: string) => {
+                        checkout.handleCheckout(cart.cartItems, tel, customerName, checkout.orderType, checkout.paymentMethod, "", branchId, true);
                     }}
                     phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
                     customerName={checkout.customerPrefill?.name ?? username}
                     prefillAddress={checkout.customerPrefill?.address ?? undefined}
-                    prefillNote={checkout.cartNote}
                 />
             )}
 
@@ -251,7 +255,7 @@ export default function HomePageModals({
                     isAdminOrderDetailsPopUpOpen={checkout.adminOrderDetailsPopUp}
                     onClose={() => checkout.setAdminOrderDetailsPopUpOpen(false)}
                     onSave={(tel: string, customerName: string, deliveryMethod: string, paymentMethod: string, notes: string) =>
-                        checkout.handleCheckout(cart.cartItems, tel, customerName, deliveryMethod, paymentMethod, notes, adminBranchId)
+                        checkout.handleCheckout(cart.cartItems, tel, customerName, deliveryMethod, paymentMethod, notes, adminBranchId, true)
                     }
                     cartItems={cart.cartItems}
                     setCartItems={cart.setCartItems}

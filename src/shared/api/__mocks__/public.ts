@@ -1,6 +1,5 @@
 import { jest } from "@jest/globals";
 import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
-import type { QuickPickDto } from "../../../domains/menu/types";
 import type { OrderStatusData } from "../../../domains/order-status/types";
 import type { StatsResponse } from "../../../domains/management/statistics/types";
 
@@ -21,8 +20,6 @@ export const createOrder = jest.fn<Promise<Order>, [CreateOrderRequest]>();
 export const editOrder = jest.fn<Promise<Order>, [unknown, string]>();
 
 export const getAllActiveOrders = jest.fn<Promise<Order[]>, [string]>();
-
-export const getQuickPicks = jest.fn<Promise<QuickPickDto[]>, [number]>();
 
 export const getHistory = jest.fn<Promise<GetHistoryResponse>, [GetHistoryParams]>();
 

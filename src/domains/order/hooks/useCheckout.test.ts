@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { createOrder } from "../../../shared/api/public";
+import { createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../../../shared/api/customerAuth";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
@@ -22,6 +22,7 @@ jest.mock("../../../shared/api/customerAuth");
 
 
 const mockCreateOrder = jest.mocked(createOrder);
+const mockEditOrder = jest.mocked(editOrder);
 const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
@@ -75,6 +76,8 @@ beforeEach(() => {
     mockRefreshCustomerToken.mockRejectedValue(new Error("no session"));
     mockFetchCustomerMe.mockReset();
     mockVerifyOtp.mockReset();
+    mockEditOrder.mockReset();
+    localStorage.clear();
 });
 
 function makeCartItem(name: string, amount: number, quantity = 1): CartItem {
@@ -293,7 +296,7 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         expect(result.current.phonePopupOpen).toBe(false);
     });
 
-    it("sends the profile's phone/name, the default payment method and the cart note on a skipped-popup order", async () => {
+    it("sends the profile's phone/name and the cart's payment method (no note) on a skipped-popup order", async () => {
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
@@ -303,15 +306,13 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        act(() => {
-            result.current.setCartNote("no onions");
-        });
-
+        // The cart supplies the delivery type ("Pick Up") and payment method; the logged-in
+        // re-entry forwards those choices rather than re-collecting them in ClientInfoPopup.
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
         });
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
@@ -320,7 +321,7 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
             customer_name: MOCK_CUSTOMER_ME.name,
             payment_type: DEFAULT_PAYMENT_METHOD,
             type: "Pick Up",
-            notes: "no onions",
+            notes: "",
         }));
     });
 
@@ -385,6 +386,94 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
     });
 });
 
+// Task RW: the per-item free-text note is sent as its own `note` payload field (item AND
+// combo-item), never folded into `description`.
+describe("useCheckout — sends note as its own payload field (task RW)", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    function itemWithNoteAndCombo(): CartItem {
+        return {
+            ...makeCartItem("Margherita", 5),
+            description: "+(Mushroom)",
+            note: "no onions please",
+            comboItems: [
+                {
+                    id: 1,
+                    name: "Cola",
+                    category: "Beverages",
+                    size: "",
+                    isThinDough: false,
+                    isGarlicCrust: false,
+                    description: "",
+                    note: "extra ice",
+                    quantity: 1,
+                },
+            ],
+        };
+    }
+
+    it("sends note on the item and each combo item in the create-order payload", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout([itemWithNoteAndCombo()], "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            items: [expect.objectContaining({
+                note: "no onions please",
+                comboItems: [expect.objectContaining({ note: "extra ice" })],
+            })],
+        }));
+    });
+
+    it("defaults item note to an empty string when the CartItem carries none", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            items: [expect.objectContaining({ note: "" })],
+        }));
+    });
+
+    it("sends note on the item and each combo item in the edit-order payload", async () => {
+        mockEditOrder.mockResolvedValue(MOCK_ORDER);
+        localStorage.setItem("orderToEdit", JSON.stringify({ id: "555", order_no: 5, address: "" }));
+        const navigateSpy = jest.fn<void, [string]>();
+        const params = makeParams({ isAdmin: true, isEditMode: true, adminBranchId: "branch-admin", navigate: navigateSpy });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout([itemWithNoteAndCombo()], "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        await waitFor(() => expect(mockEditOrder).toHaveBeenCalled());
+        expect(mockEditOrder).toHaveBeenCalledWith(
+            expect.objectContaining({
+                items: [expect.objectContaining({
+                    note: "no onions please",
+                    comboItems: [expect.objectContaining({ note: "extra ice" })],
+                })],
+            }),
+            "555",
+        );
+    });
+});
+
 describe("useCheckout — blacklist check", () => {
     afterEach(() => {
         jest.clearAllMocks();
@@ -400,10 +489,10 @@ describe("useCheckout — blacklist check", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
+            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1", true);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
+            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1", true);
         });
 
         await waitFor(() => {
@@ -418,10 +507,10 @@ describe("useCheckout — blacklist check", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
+            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1", true);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1");
+            await result.current.handleCheckout(ITEMS, "99999999", null, null, "Cash", "", "branch-1", true);
         });
 
         await waitFor(() => {
@@ -438,10 +527,10 @@ describe("useCheckout — blacklist check", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
         });
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
         });
 
         expect(mockGetAllBannedCstmrs).toHaveBeenCalled();
@@ -456,10 +545,10 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
 
     async function primeToGate(result: { current: ReturnType<typeof useCheckoutWithUi> }): Promise<void> {
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
         });
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
         });
     }
 
@@ -694,7 +783,7 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         expect(result.current.isCrossSellOpen).toBe(false);
@@ -710,7 +799,7 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         await waitFor(() => {
@@ -718,7 +807,7 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         });
     });
 
-    it("opens the adminOrderDetailsPopUp when paymentMethod is null (admin flow), regardless of auth state", async () => {
+    it("opens the adminOrderDetailsPopUp when info is not yet collected (admin flow), regardless of auth state", async () => {
         const { result } = renderHook(() =>
             useCheckout(makeParams({ isAdmin: true, adminBranchId: "branch-admin" })),
         { wrapper });
@@ -739,7 +828,7 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         expect(result.current.ui.isLoginOpen).toBe(false);
@@ -812,10 +901,10 @@ describe("useCheckout — new customer parks the order behind the pick-up remind
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1", true);
         });
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1");
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", "Nobody", null, "Cash", "", "branch-1", true);
         });
 
         await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
@@ -853,10 +942,10 @@ describe("useCheckout — kiosk flow never gated", () => {
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         expect(result.current.ui.isLoginOpen).toBe(false);
@@ -885,10 +974,10 @@ describe("useCheckout — kiosk resets the shared tab's language after checkout"
 
         // The first call is swallowed by the cross-sell gate; the second places the order.
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
@@ -904,10 +993,10 @@ describe("useCheckout — kiosk resets the shared tab's language after checkout"
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
@@ -930,5 +1019,99 @@ describe("useCheckout — kiosk resets the shared tab's language after checkout"
 
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
         expect(i18n.language).toBe("ar");
+    });
+});
+
+// The Customer CRM row records which language the order was placed in; the frontend stamps it
+// on the built order from the active i18n language (normalized to "en" | "ar").
+describe("useCheckout — stamps the checkout language on the built order", () => {
+    afterEach(async () => {
+        jest.clearAllMocks();
+        await act(async () => { await i18n.changeLanguage(DEFAULT_LANGUAGE); });
+    });
+
+    it("stamps language 'en' by default", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: true, adminBranchId: "branch-admin" })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "en" }));
+    });
+
+    it("stamps language 'ar' when the UI is in Arabic", async () => {
+        await act(async () => { await i18n.changeLanguage("ar"); });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: true, adminBranchId: "branch-admin" })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "ar" }));
+    });
+});
+
+// resolveCustomerLanguage also falls back to the browser locale when the app itself is English
+// (a customer who never touched the language toggle but whose device/browser is set to Arabic),
+// except on the kiosk where the shared tab's browser locale reflects the store, not the customer.
+describe("useCheckout — stamps language from the browser locale when the app itself is English", () => {
+    const NAVIGATOR_LANGUAGE = Object.getOwnPropertyDescriptor(window.navigator, "language");
+    const NAVIGATOR_LANGUAGES = Object.getOwnPropertyDescriptor(window.navigator, "languages");
+
+    // jsdom's navigator.language is a read-only getter, so it has to be redefined rather than
+    // assigned -- mirrors src/shared/i18n/languageDetection.test.ts's setBrowserLanguage helper.
+    function setBrowserLanguages(languages: string[]): void {
+        Object.defineProperty(window.navigator, "language", { value: languages[0], configurable: true });
+        Object.defineProperty(window.navigator, "languages", { value: languages, configurable: true });
+    }
+
+    beforeEach(async () => {
+        await act(async () => { await i18n.changeLanguage(DEFAULT_LANGUAGE); });
+    });
+
+    afterEach(async () => {
+        jest.clearAllMocks();
+        await act(async () => { await i18n.changeLanguage(DEFAULT_LANGUAGE); });
+        if (NAVIGATOR_LANGUAGE) Object.defineProperty(window.navigator, "language", NAVIGATOR_LANGUAGE);
+        if (NAVIGATOR_LANGUAGES) Object.defineProperty(window.navigator, "languages", NAVIGATOR_LANGUAGES);
+    });
+
+    it("stamps language 'ar' when the app is English but the browser locale is Arabic (non-kiosk)", async () => {
+        setBrowserLanguages(["ar-SA"]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: true, adminBranchId: "branch-admin", isKiosk: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "ar" }));
+    });
+
+    it("stamps language 'en' on a kiosk order even when the browser locale is Arabic (kiosk ignores navigator)", async () => {
+        setBrowserLanguages(["ar-SA"]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
+        await waitForAuthReady();
+
+        // The first call is swallowed by the cross-sell gate; the second places the order.
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "en" }));
     });
 });

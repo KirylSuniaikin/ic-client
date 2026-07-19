@@ -14,11 +14,21 @@ import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import {ToppingsScroll} from "../ToppingsScroll";
-import {QuickPickChips} from "../QuickPickChips";
+import {RecipeComponentsLine} from "../RecipeComponentsLine";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
-import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from '../../types';
+import type { MenuItem, CartItem, ExtraIngr, Topping, Group, Customization, RecipeComponent } from '../../types';
+import {
+    buildAdditionTokens,
+    buildRemovalTokens,
+    intersectRemovals,
+    matchRemovalNames,
+    parseRemovalNames,
+    removedFromCustomizations,
+    toRemoveCustomizations,
+    RemovedComponent,
+} from "../../utils/customizations";
 
 
 const brandRed = "#E44B4C";
@@ -80,7 +90,7 @@ function PizzaPopup({
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
-    const [selectedQuickPickIds, setSelectedQuickPickIds] = useState<number[]>([]);
+    const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -136,11 +146,19 @@ function PizzaPopup({
             setSelectedToppings((editItem as unknown as Record<string, string[]>).toppings || [])
             setSelectedIngr(editItem.extraIngredients as unknown as string[] || [])
             setNote((editItem as unknown as Record<string, string>).note || "")
+            // Structural removals win; legacy lines without them fall back to parsing the
+            // `-(x)` description tokens against the recipe of the edited size.
+            const editRecipe = group?.items.find(i => i.size === editItem.size)?.recipe_components ?? [];
+            const structural = removedFromCustomizations(editItem.customizations);
+            setRemovedComponents(structural.length > 0
+                ? intersectRemovals(structural, editRecipe)
+                : matchRemovalNames(parseRemovalNames(editItem.description || ""), editRecipe));
         } else if (group) {
             const defaultItem = group.items.find(i => i.size === "M" && i.available) || group.items.find(i => i.available) || group.items[0];
             setItem(defaultItem);
             setSelectedSize(defaultItem.size);
             setSelectedDough("Traditional");
+            setRemovedComponents([]);
             window.ttq?.track('ViewContent', {
                 content_id: defaultItem.name,
                 content_type: 'product',
@@ -169,13 +187,24 @@ function PizzaPopup({
     const matchedItem = group.items.find(it => it.size === selectedSize);
     const basePrice = matchedItem ? matchedItem.price : 0;
 
-    const quickPickMenuItemId = matchedItem?.id ?? item?.id;
+    const recipeComponents: RecipeComponent[] = matchedItem?.recipe_components ?? [];
 
-    // Resets stale selections whenever the customized menu_item row changes (size toggle,
-    // or the popup reopening for a different item) — a quick_pick belongs to exactly one menu_item.
+    // Size toggle: keep removals whose component still exists in the new size's recipe
+    // (a hard reset would wipe intent on a casual size toggle).
     useEffect(() => {
-        setSelectedQuickPickIds([]);
-    }, [quickPickMenuItemId, open]);
+        // On the initial mount selectedSize is still null, so matchedItem is undefined;
+        // intersecting against an empty recipe here would wipe the edit-mode removals the
+        // setup effect just restored. Only prune once a real size (and recipe) is resolved.
+        if (!matchedItem) return;
+        setRemovedComponents(prev => intersectRemovals(prev, matchedItem.recipe_components ?? []));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedSize]);
+
+    function handleToggleComponent(component: RecipeComponent): void {
+        setRemovedComponents(prev => prev.some(r => r.id === component.id)
+            ? prev.filter(r => r.id !== component.id)
+            : [...prev, {id: component.id, name: component.name}]);
+    }
 
     const ingrsForSize = extraIngredients.filter(ing => (ing as unknown as Record<string, unknown>).size === selectedSize);
 
@@ -217,17 +246,34 @@ function PizzaPopup({
             parts.push(`+${selectedDough}`);
         }
 
-        if (selectedIngr && selectedIngr.length > 0) {
-            const extra = selectedIngr.map(ingr => `+${ingr}`).join(" ");
-            parts.push(`(${extra})`);
-        }
+        // Extras + drizzles share a single additions group; drizzle names keep the
+        // " Topping" marker so they stay distinguishable in the merged group.
+        const additionNames = [
+            ...(selectedIngr || []),
+            ...(selectedToppings || []).map(topping => `${topping} Topping`),
+        ];
+        if (additionNames.length > 0) parts.push(buildAdditionTokens(additionNames));
 
-        if (selectedToppings && selectedToppings.length > 0) {
-            const topping = selectedToppings.map(topping => `+${topping} Topping`).join(" ");
-            parts.push(`(${topping})`);
-        }
-        if (note !== "") parts.push(`+${note}`);
+        // Removal tokens sit after the additions group. The note lives on CartItem.note now,
+        // never folded into this string (see handleAdd below).
+        if (removedComponents.length > 0) parts.push(buildRemovalTokens(removedComponents));
         return parts.join(" ");
+    }
+
+    // Structured mirror of what getDesc() encodes as text: REMOVEs from the components line,
+    // ADDs resolved name -> id against the catalog (pseudo-ingredients like "garlic crust"
+    // have no catalog row and stay description/flag-only).
+    function buildCustomizations(): Customization[] {
+        const removals = toRemoveCustomizations(removedComponents);
+        const extraAdds: Customization[] = selectedIngr
+            .map(name => ingrsForSize.find(i => i.name === name))
+            .filter((found): found is ExtraIngr => found != null && found.id != null)
+            .map(found => ({action: "ADD" as const, extraIngrId: found.id, quantity: 1, name: found.name}));
+        const toppingAdds: Customization[] = selectedToppings
+            .map(name => toppings.find(tp => tp.name === name))
+            .filter((found): found is Topping => found != null && found.id != null)
+            .map(found => ({action: "ADD" as const, toppingId: found.id, quantity: 1, name: found.name}));
+        return [...removals, ...extraAdds, ...toppingAdds];
     }
 
     function handleAdd(): void {
@@ -237,8 +283,6 @@ function PizzaPopup({
 
         const currentVariant = matchedItem || item;
 
-        // Quick picks are merged into `note` as they are toggled, and getDesc() already appends the
-        // note, so the description carries them without a separate concatenation.
         const finalDescription = getDesc();
 
         const products: CartItem[] = [{
@@ -256,6 +300,7 @@ function PizzaPopup({
             amount: finalPizzaPricePerItem,
             discountAmount: 0,
             comboItems: [],
+            customizations: buildCustomizations(),
         }];
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
@@ -394,12 +439,10 @@ function PizzaPopup({
                             isAdmin={isAdmin}
                         />
 
-                        <QuickPickChips
-                            menuItemId={quickPickMenuItemId}
-                            selectedIds={selectedQuickPickIds}
-                            onChange={(ids) => setSelectedQuickPickIds(ids)}
-                            note={note}
-                            onNoteChange={setNote}
+                        <RecipeComponentsLine
+                            components={recipeComponents}
+                            removedIds={removedComponents.map(r => r.id)}
+                            onToggle={handleToggleComponent}
                         />
 
                         <TextField

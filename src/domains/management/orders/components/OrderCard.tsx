@@ -98,6 +98,11 @@ function renderComboDescription(comboItems: ComboItemTO[]): JSX.Element[] {
                         ))}
                     </Typography>
                 )}
+                {item.note && (
+                    <Typography variant="body2" sx={{ml: 1, fontStyle: "italic"}}>
+                        Note: {item.note}
+                    </Typography>
+                )}
             </Box>
         );
     });
@@ -119,7 +124,7 @@ export function renderItemDetails(item: OrderItem): JSX.Element | null {
         .map(str => str.trim())
         .filter(Boolean);
 
-    return extras.length > 0 ? (
+    return extras.length > 0 || item.note ? (
         <Box sx={{mt: 1, ml: 1}}>
             {extras.map((extra, idx) => (
                 <Typography
@@ -130,6 +135,11 @@ export function renderItemDetails(item: OrderItem): JSX.Element | null {
                     + {extra}
                 </Typography>
             ))}
+            {item.note && (
+                <Typography variant="body2" sx={{fontStyle: "italic"}}>
+                    Note: {item.note}
+                </Typography>
+            )}
         </Box>
     ) : null;
 }

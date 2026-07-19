@@ -1,4 +1,4 @@
-import type {MenuItem, ExtraIngr, Topping} from '../menu/types';
+import type {MenuItem, ExtraIngr, Topping, Customization} from '../menu/types';
 import type { WorkingHoursSchedule } from '../../shared/api/management';
 
 export class ItemsUnavailableError extends Error {
@@ -60,7 +60,10 @@ export type ComboItemTO = {
     isThinDough: boolean;
     isGarlicCrust: boolean;
     description: string;
+    // Per-item free-text note, kept separate from `description` for the admin card/printer.
+    note?: string;
     quantity: number;
+    customizations?: Customization[];
 };
 
 export type OrderItem = {
@@ -71,11 +74,14 @@ export type OrderItem = {
     quantity: number;
     amount: number;
     description: string;
+    // Per-item free-text note, kept separate from `description` for the admin card/printer.
+    note?: string;
     isThinDough?: boolean;
     isGarlicCrust?: boolean;
     discountAmount?: number;
     comboItemTO?: ComboItemTO[];
     photo?: string;
+    customizations?: Customization[];
 };
 
 export type Order = {
@@ -164,6 +170,10 @@ export type ComboItemRequest = {
     isGarlicCrust: boolean;
     isThinDough: boolean;
     description: string;
+    // Combo child's own free-text note, kept separate from `description` (was previously baked
+    // into the parent combo's description string). Matches backend CreateOrderTO.ComboItemsTO.
+    note?: string;
+    customizations?: Customization[];
 };
 
 export type OrderItemRequest = {
@@ -174,10 +184,14 @@ export type OrderItemRequest = {
     size: string;
     category: string;
     description: string;
+    // Per-item free-text note, kept separate from `description` (was glued in as "+<note>").
+    // Matches backend CreateOrderTO.OrderItemsTO.
+    note?: string;
     isGarlicCrust: boolean;
     isThinDough: boolean;
     discountAmount: number;
     comboItems?: ComboItemRequest[];
+    customizations?: Customization[];
 };
 
 // Mirrors backend CreateOrderTO
@@ -192,6 +206,8 @@ export type CreateOrderRequest = {
     amount_paid: number;
     fbc?: string;
     fbp?: string;
+    // Language the customer checked out in ("en" | "ar"); persisted on the Customer CRM row.
+    language?: string;
 };
 
 // Mirrors backend EditOrderTO

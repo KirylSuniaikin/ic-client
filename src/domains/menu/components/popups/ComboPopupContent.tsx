@@ -186,12 +186,18 @@ function ComboPopup({
 
     const canAdd = selectedPizzas.length === 2;
 
+    // Assumed: this popup (unlike PizzaComboPopup/DetroitComboPopup) has never been wired to
+    // any menu-item click — `cart.comboPopupOpen` has no `setComboPopupOpen(true)` caller
+    // anywhere in the app — and it builds one flat CartItem with no `comboItems` array at all
+    // (see handleAdd below), so there is no per-child ComboItem.note field to move the note
+    // onto here. Per the "stop baking the note into description" rule, the note is simply
+    // dropped from the joined description rather than invented a new comboItems structure for
+    // dead code that's out of this task's scope.
     function getDescription(): string {
         return selectedPizzas.map(p => {
             const parts = [p.name];
             if (p.crust !== "Classic Crust") parts.push(`+${p.crust}`);
             if (p.dough !== "Traditional") parts.push(`+${p.dough}`);
-            if (p.note !== "") parts.push(`+${p.note}`);
             return parts.join(" ");
         }).join("; ");
     }
