@@ -37,7 +37,10 @@ export function AppProviders({children}: AppProvidersProps): React.JSX.Element {
     return (
         <CacheProvider value={cache}>
             <ThemeProvider theme={theme}>
-                <CssBaseline enableColorScheme />
+                {/* No enableColorScheme: it emits `html { color-scheme: light }`
+                    which would override our `only light` (index.css / meta) and let
+                    Chrome's "Force dark mode for web contents" flag re-darken the page. */}
+                <CssBaseline />
                 <AuthProvider>
                     <CustomerAuthProvider>
                         <CustomerAuthUiProvider>

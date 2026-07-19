@@ -36,7 +36,12 @@
     "page": "صفحة {{page}}",
     "prev": "السابق",
     "next": "التالي",
-    "logout": "تسجيل الخروج"
+    "logout": "تسجيل الخروج",
+    "quickOrder": {
+      "title": "اطلب مرة أخرى",
+      "addToCart": "أضف إلى السلة",
+      "fallbackHint": "جرّب واحداً من الأصناف المفضلة لدينا للبدء."
+    }
   },
   "iconButton": {
     "account": "حساب العميل",
@@ -58,7 +63,15 @@
       "inProgress": "الطلب قيد التنفيذ",
       "inOven": "في الفرن",
       "readyForPickup": "جاهز للاستلام",
-      "pickedUp": "تم الاستلام"
+      "pickedUp": "تم الاستلام",
+      "pending": "قيد الانتظار",
+      "accepted": "تم القبول",
+      "rejected": "مرفوض",
+      "new": "جديد",
+      "outForDelivery": "في الطريق للتوصيل",
+      "delivered": "تم التوصيل",
+      "cancelled": "ملغي",
+      "timedOut": "انتهت المهلة"
     }
   },
   "island": {

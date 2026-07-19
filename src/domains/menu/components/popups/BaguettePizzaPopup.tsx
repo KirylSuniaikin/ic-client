@@ -1,11 +1,17 @@
 import {MenuItem} from "../../types";
 import {Box, Button, Fab, Modal, TextField, Typography} from "@mui/material";
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
-import type { CartItem } from "../../types";
+import type { CartItem, RecipeComponent } from "../../types";
+import {RecipeComponentsLine} from "../RecipeComponentsLine";
+import {
+    buildRemovalTokens,
+    toRemoveCustomizations,
+    RemovedComponent,
+} from "../../utils/customizations";
 
 type BaguettePizzaPopupProps = {
     menuItem: MenuItem;
@@ -25,6 +31,19 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
     const [notes, setNotes] = useState<string>("");
     const [quantity, setQuantity] = useState<number>(1);
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
+    const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
+
+    const recipeComponents = menuItem.recipe_components ?? [];
+
+    useEffect(() => {
+        setRemovedComponents([]);
+    }, [open, menuItem.id]);
+
+    function handleToggleComponent(component: RecipeComponent): void {
+        setRemovedComponents(prev => prev.some(r => r.id === component.id)
+            ? prev.filter(r => r.id !== component.id)
+            : [...prev, {id: component.id, name: component.name}]);
+    }
 
     function getFinalPriceOnPopup() {
         let price = 0;
@@ -60,13 +79,15 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
     }
 
     function handleAdd() {
+        // Removal tokens only — the free-text note lives on CartItem.note, never folded in here.
+        const description = buildRemovalTokens(removedComponents);
         const products: CartItem[] = [{
             ...menuItem,
             name: menuItem.name,
             category: menuItem.category,
             note: notes,
             quantity,
-            description: notes,
+            description,
             amount: menuItem.price,
             discountAmount: 0,
             isThinDough: false,
@@ -74,6 +95,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
             extraIngredients: [],
             toppings: [],
             comboItems: [],
+            customizations: toRemoveCustomizations(removedComponents),
         }];
         crossSellItems.forEach((item => {
             const count = crossSellMap[item.name];
@@ -225,6 +247,12 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                                 </Button>
                             </Box>
                         </Box>
+
+                        <RecipeComponentsLine
+                            components={recipeComponents}
+                            removedIds={removedComponents.map(r => r.id)}
+                            onToggle={handleToggleComponent}
+                        />
 
                         <TextField
                             label={t("baguettePopup.addNote")}

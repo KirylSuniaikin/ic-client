@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { renderHook, act } from "@testing-library/react";
 import { useCart } from "./useCart";
-import type { CartItem, MenuItem } from "../../menu/types";
+import type { CartItem, ComboItem, MenuItem } from "../../menu/types";
 
 function makeCartItem(
     name: string,
@@ -359,6 +359,196 @@ describe("useCart — handleDiscountChange", () => {
         });
 
         expect(result.current.cartItems[0].discountAmount).toBe(20);
+    });
+});
+
+// A Pizza Combo cart line as PizzaComboPopup.handleAdd builds it: the drizzle (topping) name
+// is folded into comboItems[0].description's "+(...)" additions group and mirrored as a
+// toppingId ADD in comboItems[0].customizations (task T4 — drizzles in the Pizza combo).
+function makeComboCartItem(drizzleName: string | null): CartItem {
+    const comboItems: ComboItem[] = [
+        {
+            id: 1,
+            category: "Pizzas",
+            name: "Margherita",
+            size: "M",
+            isGarlicCrust: false,
+            isThinDough: false,
+            description: drizzleName ? `+(${drizzleName} Topping)` : "",
+            quantity: 1,
+            customizations: drizzleName
+                ? [{ action: "ADD", toppingId: 900, quantity: 1, name: drizzleName }]
+                : [],
+        },
+        { id: 2, category: "Beverages", name: "Cola", size: "", isGarlicCrust: false, isThinDough: false, description: "", quantity: 1 },
+        { id: 3, category: "Sauces", name: "Ranch", size: "", isGarlicCrust: false, isThinDough: false, description: "", quantity: 1 },
+    ];
+    return {
+        id: 10,
+        name: "Pizza Combo",
+        size: "M",
+        category: "Combo Deals",
+        isThinDough: false,
+        isGarlicCrust: false,
+        extraIngredients: [],
+        toppings: [],
+        note: "",
+        quantity: 1,
+        description: "",
+        amount: 6,
+        discountAmount: 0,
+        comboItems,
+        photo: "",
+    };
+}
+
+describe("useCart — Pizza Combo merge (drizzle awareness, task T4)", () => {
+    it("keeps two Pizza Combo lines separate when they differ only by drizzle", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem("Garlic"));
+        });
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem("Chili Oil"));
+        });
+
+        expect(result.current.cartItems).toHaveLength(2);
+        expect(result.current.cartItems[0].quantity).toBe(1);
+        expect(result.current.cartItems[1].quantity).toBe(1);
+    });
+
+    it("merges two Pizza Combo lines with the identical drizzle by incrementing quantity", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem("Garlic"));
+        });
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem("Garlic"));
+        });
+
+        expect(result.current.cartItems).toHaveLength(1);
+        expect(result.current.cartItems[0].quantity).toBe(2);
+    });
+
+    it("keeps a combo with a drizzle separate from an otherwise-identical combo with no drizzle", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem(null));
+        });
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem("Garlic"));
+        });
+
+        expect(result.current.cartItems).toHaveLength(2);
+    });
+});
+
+// Task RW: the note left `description` for its own field (item.note / comboItems[i].note), so
+// the merge predicates need their own note-equality check to keep differently-noted lines apart.
+describe("useCart — merge note equality (task RW)", () => {
+    it("keeps two otherwise-identical Pizzas lines separate when they differ only by note", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeCartItem("Margherita", "Pizzas", 3.5), true);
+        });
+        act(() => {
+            const withNote: CartItem = { ...makeCartItem("Margherita", "Pizzas", 3.5), note: "no basil please" };
+            result.current.handleAddToCart(withNote, true);
+        });
+
+        expect(result.current.cartItems).toHaveLength(2);
+        expect(result.current.cartItems[0].quantity).toBe(1);
+        expect(result.current.cartItems[1].quantity).toBe(1);
+    });
+
+    it("merges two otherwise-identical Pizzas lines with the identical note by incrementing quantity", () => {
+        const { result } = renderHook(() => useCart([], false));
+        const withNote = (): CartItem => ({ ...makeCartItem("Margherita", "Pizzas", 3.5), note: "well done" });
+
+        act(() => {
+            result.current.handleAddToCart(withNote(), true);
+        });
+        act(() => {
+            result.current.handleAddToCart(withNote(), true);
+        });
+
+        expect(result.current.cartItems).toHaveLength(1);
+        expect(result.current.cartItems[0].quantity).toBe(2);
+    });
+
+    it("keeps two Brick Pizzas lines separate when they differ only by note", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeCartItem("Pepperoni Detroit Brick", "Brick Pizzas", 4.5), true);
+        });
+        act(() => {
+            const withNote: CartItem = {
+                ...makeCartItem("Pepperoni Detroit Brick", "Brick Pizzas", 4.5),
+                note: "extra crispy edges",
+            };
+            result.current.handleAddToCart(withNote, true);
+        });
+
+        expect(result.current.cartItems).toHaveLength(2);
+    });
+
+    it("merges two Brick Pizzas lines with the identical note by incrementing quantity", () => {
+        const { result } = renderHook(() => useCart([], false));
+        const withNote = (): CartItem => ({
+            ...makeCartItem("Pepperoni Detroit Brick", "Brick Pizzas", 4.5),
+            note: "extra crispy edges",
+        });
+
+        act(() => {
+            result.current.handleAddToCart(withNote(), true);
+        });
+        act(() => {
+            result.current.handleAddToCart(withNote(), true);
+        });
+
+        expect(result.current.cartItems).toHaveLength(1);
+        expect(result.current.cartItems[0].quantity).toBe(2);
+    });
+
+    it("keeps a Pizza Combo separate from an otherwise-identical combo when only the child's note differs", () => {
+        const { result } = renderHook(() => useCart([], false));
+
+        act(() => {
+            result.current.handleAddToCart(makeComboCartItem(null));
+        });
+        act(() => {
+            const withChildNote = makeComboCartItem(null);
+            withChildNote.comboItems[0].note = "no ice";
+            result.current.handleAddToCart(withChildNote);
+        });
+
+        expect(result.current.cartItems).toHaveLength(2);
+        expect(result.current.cartItems[0].quantity).toBe(1);
+        expect(result.current.cartItems[1].quantity).toBe(1);
+    });
+
+    it("merges two Pizza Combo lines with the identical child note by incrementing quantity", () => {
+        const { result } = renderHook(() => useCart([], false));
+        const withChildNote = (): CartItem => {
+            const combo = makeComboCartItem(null);
+            combo.comboItems[0].note = "no ice";
+            return combo;
+        };
+
+        act(() => {
+            result.current.handleAddToCart(withChildNote());
+        });
+        act(() => {
+            result.current.handleAddToCart(withChildNote());
+        });
+
+        expect(result.current.cartItems).toHaveLength(1);
+        expect(result.current.cartItems[0].quantity).toBe(2);
     });
 });
 

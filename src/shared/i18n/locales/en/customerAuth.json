@@ -36,7 +36,12 @@
     "page": "Page {{page}}",
     "prev": "Prev",
     "next": "Next",
-    "logout": "Logout"
+    "logout": "Logout",
+    "quickOrder": {
+      "title": "Order it again",
+      "addToCart": "Add to cart",
+      "fallbackHint": "Try one of our favorites to get started."
+    }
   },
   "iconButton": {
     "account": "customer account",
@@ -58,7 +63,15 @@
       "inProgress": "Order in Progress",
       "inOven": "In the Oven",
       "readyForPickup": "Ready for Pickup",
-      "pickedUp": "Picked Up"
+      "pickedUp": "Picked Up",
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "new": "New",
+      "outForDelivery": "Out for Delivery",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled",
+      "timedOut": "Timed Out"
     }
   },
   "island": {

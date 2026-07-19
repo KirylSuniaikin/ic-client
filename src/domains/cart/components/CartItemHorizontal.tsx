@@ -12,11 +12,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import {Edit} from "@mui/icons-material";
 import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
 import { useOptionLabel } from "../../../shared/hooks/useOptionLabel";
-import type { CartItem, MenuItem as MenuItemType, Topping, ExtraIngr } from '../../menu/types';
-
-// Dough/crust values that can appear inside a customization description string (see the popups'
-// getDesc helpers). Their localized labels are token-replaced for display, value stays English.
-const OPTION_VALUES = ["Thin Dough", "Traditional Dough", "Garlic Crust", "Classic Crust", "Thin"];
+import { buildDisplay, OPTION_VALUES } from "../../menu/utils/buildDisplay";
+import type { BuildDisplayMenuData } from "../../menu/utils/buildDisplay";
+import type { CartItem, ComboItem, MenuItem as MenuItemType, Topping, ExtraIngr } from '../../menu/types';
 
 const brandGray = "#f3f3f3";
 const brandRed = "#E44B4C";
@@ -54,9 +52,10 @@ function CartItemHorizontal({
                                 toppings = [],
                                 extras = [],
                             }: CartItemHorizontalProps): JSX.Element {
-    const { t } = useTranslation("cart");
-    const { name: localizeName, description: localizeDescription } = useLocalizedItem();
+    const { t, i18n } = useTranslation("cart");
+    const { name: localizeName, description: localizeSourceDescription } = useLocalizedItem();
     const optionLabel = useOptionLabel();
+    const isArabic = i18n.language.startsWith("ar");
     // CartItem stores only the canonical English name (used for order matching), so resolve the
     // Arabic display name by looking the source MenuItem up in menuData. Falls back to the raw
     // English name when the item isn't in menuData or has no name_ar.
@@ -65,29 +64,32 @@ function CartItemHorizontal({
         return source ? localizeName(source) : rawName;
     };
 
-    // English→localized lookup for topping/extra names + dough/crust options, longest first so a
-    // shorter token (e.g. "Thin") never partially overwrites a longer one (e.g. "Thin Dough").
-    const ingredientNames = [
-        ...[...toppings, ...extras].map((ingr) => [ingr.name, localizeName(ingr)] as const),
-        ...OPTION_VALUES.map((value) => [value, optionLabel(value)] as const),
-    ]
-        .filter(([raw, localized]) => localized !== raw)
-        .sort((a, b) => b[0].length - a[0].length);
+    // useOptionLabel is a hook, so the pure buildDisplay util can't call it itself — resolved
+    // here and threaded in via the menu data bundle.
+    const doughLabels: Record<string, string> = Object.fromEntries(
+        OPTION_VALUES.map((value) => [value, optionLabel(value)])
+    );
+    const displayMenu: BuildDisplayMenuData = { toppings, extras, menuItems: menuData, doughLabels };
 
-    // Customization descriptions are canonical English strings (also sent to the backend), so we
-    // localize only the topping/extra name tokens inside them for display — never the stored value.
-    const localizeTokens = (text: string): string =>
-        ingredientNames.reduce((acc, [raw, localized]) => acc.split(raw).join(localized), text);
+    // Structural data present -> build the ingredient string from it. Empty/absent (a
+    // pre-migration cart line — shouldn't happen for fresh carts, but be safe) -> fall back to
+    // showing the stored description as-is. Dough/crust flags count as structural too (a
+    // dough-only change with no add/remove customizations is still a fresh, structured line).
+    const resolveDisplayText = (source: CartItem | ComboItem): string => {
+        const hasStructure = (source.customizations?.length ?? 0) > 0 || !!source.isThinDough || !!source.isGarlicCrust;
+        if (!hasStructure) return source.description || "";
+        return buildDisplay(source, displayMenu, isArabic);
+    };
 
     // A cart line's description is either the menu item's own description (simple items) or a
     // built-up customization string (pizzas/combos). Localize the former via description_ar and
-    // the latter via token replacement.
+    // build the latter from structured data.
     const localizeItemDescription = (cartItem: CartItem): string => {
         const source = menuData.find((m) => m.name === cartItem.name);
         if (source && cartItem.description === source.description) {
-            return localizeDescription(source);
+            return localizeSourceDescription(source);
         }
-        return localizeTokens(cartItem.description);
+        return resolveDisplayText(cartItem);
     };
 
     const discount = item.discountAmount || 0;
@@ -99,16 +101,18 @@ function CartItemHorizontal({
             return (
                 <Box sx={{ mt: 1, ml: 1 }}>
                     {cartItem.comboItems.map((ci, idx) => {
+                        // buildDisplay (via resolveDisplayText) is the SOLE source of the
+                        // dough/crust token here — it already emits it from ci.isThinDough /
+                        // ci.isGarlicCrust, so no separate badge push (that duplicated the token).
                         const extras: string[] = [];
-                        if (ci.isThinDough) extras.push(t("extras.thinDough"));
-                        if (ci.isGarlicCrust) extras.push(t("extras.garlicCrust"));
 
-                        if (ci.description) {
-                            ci.description
+                        const childDisplay = resolveDisplayText(ci);
+                        if (childDisplay) {
+                            childDisplay
                                 .split("+")
                                 .map((s) => s.trim())
                                 .filter(Boolean)
-                                .forEach((s) => extras.push(localizeTokens(s)));
+                                .forEach((s) => extras.push(s));
                         }
 
                         return (
@@ -120,6 +124,11 @@ function CartItemHorizontal({
                                 • <strong>{localizedName(ci.name)}</strong>
                                 {ci.size && ` (${ci.size})`}
                                 {extras.length > 0 && " + " + extras.join(" + ")}
+                                {ci.note && (
+                                    <Typography component="span" variant="body2" sx={{ color: "#888", fontStyle: "italic", display: "block", ml: 1 }}>
+                                        {ci.note}
+                                    </Typography>
+                                )}
                             </Typography>
                         );
                     })}
@@ -127,16 +136,17 @@ function CartItemHorizontal({
             );
         }
 
+        // buildDisplay (via resolveDisplayText) is the SOLE source of the dough/crust token
+        // here too — same duplication fix as the combo branch above.
         const extras: string[] = [];
-        if (cartItem.isThinDough) extras.push(t("extras.thinDough"));
-        if (cartItem.isGarlicCrust) extras.push(t("extras.garlicCrust"));
 
-        if (cartItem.description) {
-            cartItem.description
+        const itemDisplay = resolveDisplayText(cartItem);
+        if (itemDisplay) {
+            itemDisplay
                 .split("+")
                 .map((s) => s.trim())
                 .filter(Boolean)
-                .forEach((s) => extras.push(localizeTokens(s)));
+                .forEach((s) => extras.push(s));
         }
 
         return extras.length > 0 ? (
@@ -248,6 +258,14 @@ function CartItemHorizontal({
                     ) : (
                         renderItemDetails(item)
                         )}
+                    {/* The note is the customer's own free-text — rendered verbatim, separate
+                        from the (localized) structural ingredient text above. Combo child notes
+                        render per-child inside renderItemDetails instead. */}
+                    {item.category !== "Combo Deals" && item.note && (
+                        <Typography variant="body2" sx={{color: "#888", fontStyle: "italic", mt: 0.5}}>
+                            {item.note}
+                        </Typography>
+                    )}
                 </Box>
             </Box>
 

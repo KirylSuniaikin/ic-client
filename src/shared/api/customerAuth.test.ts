@@ -8,6 +8,7 @@ import {
     fetchCustomerMe,
     fetchMyOrders,
     fetchActiveOrder,
+    fetchSuggestedItems,
     registerCustomerName,
 } from "./customerAuth";
 import { CustomerAuthApiError } from "../../domains/customer-auth/types";
@@ -258,5 +259,43 @@ describe("fetchActiveOrder", () => {
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
         await expect(fetchActiveOrder("bad-token")).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+describe("fetchSuggestedItems", () => {
+    it("gets /customer/orders/suggested with credentials: 'include' and the Bearer token", async () => {
+        const suggested = {
+            items: [
+                {
+                    menuItemId: 42,
+                    name: "Pepperoni",
+                    nameAr: null,
+                    size: "M",
+                    category: "Pizzas",
+                    quantity: 1,
+                    price: 3.5,
+                    photo: null,
+                    available: true,
+                },
+            ],
+            fallback: false,
+        };
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(suggested), { status: 200 }));
+
+        const result = await fetchSuggestedItems("my-access-token");
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/customer/orders/suggested`);
+        expect(init.method).toBe("GET");
+        expect(init.credentials).toBe("include");
+        const headers = new Headers(init.headers);
+        expect(headers.get("Authorization")).toBe("Bearer my-access-token");
+        expect(result).toEqual(suggested);
+    });
+
+    it("throws a CustomerAuthApiError on a 401", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+        await expect(fetchSuggestedItems("bad-token")).rejects.toThrow(CustomerAuthApiError);
     });
 });

@@ -84,6 +84,9 @@ class BluetoothPrinterService {
                     for (const e of extras) {
                         result += `      + ${e}\n`;
                     }
+                    if (comboItem.note) {
+                        result += `      Note: ${comboItem.note}\n`;
+                    }
                 }
             } else {
                 const desc = item.description?.replace(";", "") || "";
@@ -99,6 +102,9 @@ class BluetoothPrinterService {
 
                 for (const e of extras) {
                     result += `   + ${e}\n`;
+                }
+                if (item.note) {
+                    result += `   Note: ${item.note}\n`;
                 }
             }
 

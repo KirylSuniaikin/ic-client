@@ -1,10 +1,11 @@
-import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React, { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 // CustomerProfilePopup renders its copy via useTranslation — initialize the real i18n
-// instance (side-effect import) so keys resolve to English under the default language.
-import "../../../shared/i18n";
+// instance so keys resolve to English under the default language (also gives the
+// Arabic-locale status-chip test below a handle to drive i18n.changeLanguage).
+import i18n, { DEFAULT_LANGUAGE } from "../../../shared/i18n";
 
 jest.mock("../../../shared/api/customerAuth");
 // CustomerOrderDetailPopup (rendered by CustomerProfilePopup) now subscribes via
@@ -19,12 +20,13 @@ import {
     fetchCustomerMe,
     fetchMyOrders,
     fetchOrderDetail,
+    fetchSuggestedItems,
 } from "../../../shared/api/customerAuth";
 import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
 import { CustomerAuthUiProvider } from "../context/CustomerAuthUiProvider";
 import { CustomerProfilePopup } from "./CustomerProfilePopup";
-import type { CustomerMeResponse, CustomerOrdersPageResponse, CustomerOrderDetail } from "../types";
+import type { CustomerMeResponse, CustomerOrdersPageResponse, CustomerOrderDetail, SuggestedOrderResponse, SuggestedOrderItem } from "../types";
 
 const mockVerifyOtp = jest.mocked(verifyOtp);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
@@ -32,8 +34,32 @@ const mockLogoutCustomer = jest.mocked(logoutCustomer);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
 const mockFetchMyOrders = jest.mocked(fetchMyOrders);
 const mockFetchOrderDetail = jest.mocked(fetchOrderDetail);
+const mockFetchSuggestedItems = jest.mocked(fetchSuggestedItems);
 const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
+
+function suggestedResponse(overrides: Partial<SuggestedOrderResponse> = {}): SuggestedOrderResponse {
+    return {
+        items: [],
+        fallback: false,
+        ...overrides,
+    };
+}
+
+function suggestedItem(overrides: Partial<SuggestedOrderItem> = {}): SuggestedOrderItem {
+    return {
+        menuItemId: 501,
+        name: "Pepperoni",
+        nameAr: null,
+        size: "M",
+        category: "Pizzas",
+        quantity: 1,
+        price: 3.5,
+        photo: null,
+        available: true,
+        ...overrides,
+    };
+}
 
 const profile: CustomerMeResponse = {
     id: "acct-1",
@@ -122,8 +148,18 @@ async function renderOpenPopup(): Promise<{ onClose: () => void }> {
     return { onClose };
 }
 
+// The CTA navigates via a full-page `window.location.assign` (task3-spec.md's verified
+// cart-bridge decision) — jsdom's real navigation throws "not implemented", so replace
+// `window.location` with a plain object carrying a spy, mirroring shared/api/client.test.ts.
+const mockLocationAssign = jest.fn<void, [string]>();
+
 beforeAll(() => {
     jest.spyOn(console, "debug").mockImplementation(() => undefined);
+    Object.defineProperty(window, "location", {
+        writable: true,
+        configurable: true,
+        value: { assign: mockLocationAssign },
+    });
 });
 
 beforeEach(() => {
@@ -133,6 +169,11 @@ beforeEach(() => {
     mockFetchCustomerMe.mockReset();
     mockFetchMyOrders.mockReset();
     mockFetchOrderDetail.mockReset();
+    mockFetchSuggestedItems.mockReset();
+    // Default: no suggestions, so the pre-existing tests below (which never configure this
+    // mock themselves) render exactly as they did before the quick-order block existed.
+    mockFetchSuggestedItems.mockResolvedValue(suggestedResponse());
+    mockLocationAssign.mockClear();
     __resetCustomerAuthStoreForTests();
 
     // Simulate instant connection: invoke onConnect synchronously, return an unregister fn —
@@ -144,6 +185,13 @@ beforeEach(() => {
     });
     mockSubscribe.mockReset();
     mockSubscribe.mockReturnValue({ id: "detail-sub", unsubscribe: jest.fn() });
+});
+
+afterEach(async () => {
+    // Reset the shared i18n singleton so a language change in one test doesn't leak into others.
+    await act(async () => {
+        await i18n.changeLanguage(DEFAULT_LANGUAGE);
+    });
 });
 
 describe("CustomerProfilePopup", () => {
@@ -163,6 +211,23 @@ describe("CustomerProfilePopup", () => {
 
         expect(mockFetchCustomerMe).toHaveBeenCalledWith("profile-token");
         expect(mockFetchMyOrders).toHaveBeenCalledWith("profile-token", 0, 3);
+    });
+
+    // Task T6 §6: the order-card status chip must show the TRANSLATED label in Arabic, not the
+    // raw English status string leaking through untranslated.
+    it("shows the translated Arabic status on the order-card chip when the locale is Arabic", async () => {
+        await act(async () => {
+            await i18n.changeLanguage("ar");
+        });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(profile);
+        mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+        await renderOpenPopup();
+
+        expect(await screen.findByText("طلب رقم 88")).toBeTruthy();
+        expect(screen.getByText("تم الاستلام")).toBeTruthy();
+        expect(screen.queryByText("Picked Up")).toBeNull();
     });
 
     it("resets to page 0 on every open", async () => {
@@ -281,5 +346,95 @@ describe("CustomerProfilePopup", () => {
         await waitFor(() => expect(screen.queryByText("Detail Order")).toBeNull());
         expect(screen.getByText("Order history")).toBeTruthy();
         expect(onClose).not.toHaveBeenCalled();
+    });
+
+    describe("Order it again (quick-order) block", () => {
+        it("renders each available suggested item's name, size, and price, excluding unavailable ones", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({
+                items: [
+                    suggestedItem({ menuItemId: 11, name: "Pepperoni", size: "M", price: 3.5 }),
+                    suggestedItem({ menuItemId: 22, name: "Cheese Fries", size: null, price: 1.75, available: false }),
+                ],
+                fallback: false,
+            }));
+
+            await renderOpenPopup();
+
+            expect(await screen.findByText("Order it again")).toBeTruthy();
+            expect(screen.getByText("Pepperoni (M)")).toBeTruthy();
+            expect(screen.getByText("3.50 BHD")).toBeTruthy();
+            // The unavailable item must never render, even though it was returned by the API.
+            expect(screen.queryByText("Cheese Fries")).toBeNull();
+            expect(screen.queryByText("1.75 BHD")).toBeNull();
+        });
+
+        it("shows the fallback hint copy when the response is a fallback pair", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({
+                items: [
+                    suggestedItem({ menuItemId: 1, name: "Pepperoni", size: "M" }),
+                    suggestedItem({ menuItemId: 2, name: "Coca Cola", size: null }),
+                ],
+                fallback: true,
+            }));
+
+            await renderOpenPopup();
+
+            expect(await screen.findByText("Order it again")).toBeTruthy();
+            expect(screen.getByText("Try one of our favorites to get started.")).toBeTruthy();
+        });
+
+        it("hides the whole block when the suggestions response has no items", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({ items: [], fallback: false }));
+
+            await renderOpenPopup();
+
+            await screen.findByText("Jane");
+            expect(screen.queryByText("Order it again")).toBeNull();
+        });
+
+        it("hides the whole block when every suggested item is unavailable", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({
+                items: [suggestedItem({ menuItemId: 1, available: false }), suggestedItem({ menuItemId: 2, available: false })],
+                fallback: false,
+            }));
+
+            await renderOpenPopup();
+
+            await screen.findByText("Jane");
+            expect(screen.queryByText("Order it again")).toBeNull();
+        });
+
+        it("Add to cart navigates to /menu with only the available items' ids, via a full-page window.location.assign", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({
+                items: [
+                    suggestedItem({ menuItemId: 11, available: true }),
+                    suggestedItem({ menuItemId: 99, available: false }),
+                    suggestedItem({ menuItemId: 22, available: true }),
+                ],
+                fallback: false,
+            }));
+
+            await renderOpenPopup();
+            await screen.findByText("Order it again");
+
+            fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+
+            expect(mockLocationAssign).toHaveBeenCalledWith("/menu?recommended_items=11,22");
+        });
     });
 });

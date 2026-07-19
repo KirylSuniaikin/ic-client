@@ -9,11 +9,13 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
-import { fetchCustomerMe, fetchMyOrders } from "../../../shared/api/customerAuth";
+import AddShoppingCartRoundedIcon from "@mui/icons-material/AddShoppingCartRounded";
+import { fetchCustomerMe, fetchMyOrders, fetchSuggestedItems } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
+import { getStatusLabel } from "../utils/orderStatusLabel";
 import { CustomerAuthApiError } from "../types";
-import type { CustomerMeResponse, CustomerOrderSummary } from "../types";
+import type { CustomerMeResponse, CustomerOrderSummary, SuggestedOrderItem } from "../types";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
 
 const brandRed = "#E44B4C";
@@ -41,7 +43,7 @@ export function statusStyle(status: string): { bg: string; color: string } {
 }
 
 export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Element {
-    const { t } = useTranslation(["customerAuth", "common"]);
+    const { t, i18n } = useTranslation(["customerAuth", "common"]);
     const { token, logout } = useCustomerAuth();
     const { selectedOrderId, openOrderDetail, closeOrderDetail } = useCustomerAuthUi();
     const [profile, setProfile] = useState<CustomerMeResponse | null>(null);
@@ -50,6 +52,8 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
     const [hasNext, setHasNext] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [suggestedItems, setSuggestedItems] = useState<SuggestedOrderItem[]>([]);
+    const [suggestedFallback, setSuggestedFallback] = useState(false);
 
     // Shared by both fetches: a 401 here means the in-memory token expired
     // between opening the popup and this request — clear it and surface a
@@ -92,15 +96,34 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
         }
     }, [token, handleSessionExpired, t]);
 
-    // loadProfile/loadOrders identity changes whenever `token` changes (e.g.
-    // cleared to null by handleSessionExpired's logout()) — routed through
-    // refs so the open-reset effect below fires only on an actual open
+    // "Order it again" quick-order block (task3-spec.md) — fetched alongside
+    // profile/orders on every (re)open, same 401 handling as the other two.
+    const loadSuggestedItems = useCallback(async (): Promise<void> => {
+        if (!token) return;
+        try {
+            const suggestions = await fetchSuggestedItems(token);
+            setSuggestedItems(suggestions.items);
+            setSuggestedFallback(suggestions.fallback);
+        } catch (err) {
+            if (err instanceof CustomerAuthApiError && err.status === 401) {
+                await handleSessionExpired();
+            }
+            // Non-401 failures silently leave the block hidden (empty items) —
+            // it's a convenience shortcut, not core profile data worth an error banner.
+        }
+    }, [token, handleSessionExpired]);
+
+    // loadProfile/loadOrders/loadSuggestedItems identity changes whenever `token`
+    // changes (e.g. cleared to null by handleSessionExpired's logout()) — routed
+    // through refs so the open-reset effect below fires only on an actual open
     // transition, never as a side effect of the in-flight request that
     // triggered it clearing the token.
     const loadProfileRef = useRef(loadProfile);
     loadProfileRef.current = loadProfile;
     const loadOrdersRef = useRef(loadOrders);
     loadOrdersRef.current = loadOrders;
+    const loadSuggestedItemsRef = useRef(loadSuggestedItems);
+    loadSuggestedItemsRef.current = loadSuggestedItems;
 
     // Reset to page 0 and refetch both on every (re)open — task-spec-rebuild.md §6.6.
     useEffect(() => {
@@ -110,9 +133,20 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
         setPage(0);
         setHasNext(false);
         setError(null);
+        setSuggestedItems([]);
+        setSuggestedFallback(false);
         void loadProfileRef.current();
         void loadOrdersRef.current(0);
+        void loadSuggestedItemsRef.current();
     }, [open]);
+
+    const availableSuggestedItems = suggestedItems.filter((item) => item.available);
+
+    function handleAddSuggestedToCart(): void {
+        const ids = availableSuggestedItems.map((item) => item.menuItemId);
+        if (ids.length === 0) return;
+        window.location.assign(`/menu?recommended_items=${ids.join(",")}`);
+    }
 
     function handlePrev(): void {
         if (page > 0 && !isLoading) {
@@ -217,6 +251,61 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                         )
                     )}
 
+                    {availableSuggestedItems.length > 0 && (
+                        <Box sx={{ mb: 3, bgcolor: "#fff", borderRadius: 4, p: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
+                            <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                {t("profile.quickOrder.title")}
+                            </Typography>
+                            {suggestedFallback && (
+                                <Typography sx={{ mb: 1.5, fontSize: 12.5, color: "#9a9a9a" }}>
+                                    {t("profile.quickOrder.fallbackHint")}
+                                </Typography>
+                            )}
+                            <Stack spacing={1.25} sx={{ mb: 1.5 }}>
+                                {availableSuggestedItems.map((item) => {
+                                    const displayName = i18n.language.startsWith("ar") ? (item.nameAr ?? item.name) : item.name;
+                                    return (
+                                        <Stack key={item.menuItemId} direction="row" spacing={1.5} alignItems="center">
+                                            {item.photo && (
+                                                <Box
+                                                    component="img"
+                                                    src={item.photo}
+                                                    alt={displayName}
+                                                    sx={{ width: 48, height: 48, borderRadius: 2, objectFit: "contain", bgcolor: "#f7f7f7", flexShrink: 0 }}
+                                                />
+                                            )}
+                                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                <Typography sx={{ fontWeight: 600, fontSize: 14 }} noWrap>
+                                                    {displayName}{item.size ? ` (${item.size})` : ""}
+                                                </Typography>
+                                            </Box>
+                                            <Typography sx={{ fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                                                {item.price.toFixed(2)} {t("currency", { ns: "common" })}
+                                            </Typography>
+                                        </Stack>
+                                    );
+                                })}
+                            </Stack>
+                            <Button
+                                fullWidth
+                                variant="contained"
+                                onClick={handleAddSuggestedToCart}
+                                startIcon={<AddShoppingCartRoundedIcon />}
+                                sx={{
+                                    py: 1.25,
+                                    bgcolor: brandRed,
+                                    textTransform: "none",
+                                    fontSize: "0.95rem",
+                                    fontWeight: 700,
+                                    borderRadius: 999,
+                                    "&:hover": { bgcolor: "#d23f40" },
+                                }}
+                            >
+                                {t("profile.quickOrder.addToCart")}
+                            </Button>
+                        </Box>
+                    )}
+
                     <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                         {t("profile.orderHistory")}
                     </Typography>
@@ -265,7 +354,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                                             {order.createdAt}
                                         </Typography>
                                         <Chip
-                                            label={order.status}
+                                            label={getStatusLabel(order.status, t)}
                                             size="small"
                                             sx={{
                                                 bgcolor: chip.bg,

@@ -2,17 +2,21 @@
 // Follows the same brand-red Drawer/loading/error conventions as CustomerProfilePopup.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { Box, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Typography } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import { fetchOrderDetail } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
+import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { useOrderLiveStatus } from "../hooks/useOrderLiveStatus";
 import { imageMap } from "../../../shared/utils/imageMap";
+import { getStatusLabel } from "../utils/orderStatusLabel";
+import { buildDisplay, OPTION_VALUES } from "../../menu/utils/buildDisplay";
+import type { BuildDisplayMenuData } from "../../menu/utils/buildDisplay";
+import { useOptionLabel } from "../../../shared/hooks/useOptionLabel";
 import { CustomerAuthApiError } from "../types";
-import type { CustomerOrderDetail, CustomerOrderDetailComboItem } from "../types";
+import type { CustomerOrderDetail, CustomerOrderDetailComboItem, CustomerOrderDetailItem } from "../types";
 import { statusStyle } from "./CustomerProfilePopup";
 
 const brandRed = "#E44B4C";
@@ -25,30 +29,35 @@ type Props = {
     orderId: number | null;
 };
 
-const STATUS_LABEL_KEYS: Record<string, string> = {
-    "initial-creation": "orderDetail.status.orderPlaced",
-    "Kitchen Phase": "orderDetail.status.inProgress",
-    "Oven": "orderDetail.status.inOven",
-    "Ready": "orderDetail.status.readyForPickup",
-    "Picked Up": "orderDetail.status.pickedUp",
-};
-
-function getStatusLabel(status: string, t: TFunction): string {
-    const key = STATUS_LABEL_KEYS[status];
-    return key ? t(key) : status;
-}
-
 function formatDateLabel(dateTime: string): string {
     const datePart = dateTime.split(" ")[0];
     return datePart ?? dateTime;
 }
 
+// Structural data present (customizations, or a dough/crust flag) -> build the ingredient
+// string from it via buildDisplay. Empty/absent -> legacy fallback: old orders may predate
+// structured customizations, so show the stored (English) description as-is instead.
+function resolveDisplayText(
+    source: { description: string } & Parameters<typeof buildDisplay>[0],
+    menu: BuildDisplayMenuData,
+    isArabic: boolean,
+): string {
+    const hasStructure = (source.customizations?.length ?? 0) > 0 || !!source.isThinDough || !!source.isGarlicCrust;
+    if (!hasStructure) return source.description || "";
+    return buildDisplay(source, menu, isArabic);
+}
+
 // Adapted from OrderCard.renderComboDescription: bold name+size per combo item, followed by
-// red "+ extra" lines derived from that combo item's description (no isThinDough/isGarlicCrust
-// fields on this DTO, so only description-derived extras apply here).
-function renderComboItems(comboItems: CustomerOrderDetailComboItem[]): React.JSX.Element[] {
+// red "+ extra" lines built from that combo item's structured customizations/dough flags (with
+// a legacy raw-description fallback for pre-migration orders), and the combo child's own
+// free-text note rendered as a separate, un-translated line underneath.
+function renderComboItems(
+    comboItems: CustomerOrderDetailComboItem[],
+    menu: BuildDisplayMenuData,
+    isArabic: boolean,
+): React.JSX.Element[] {
     return comboItems.map((comboItem, index) => {
-        const extras = comboItem.description
+        const extras = resolveDisplayText(comboItem, menu, isArabic)
             .replace(/[()]/g, "")
             .split("+")
             .map((segment) => segment.trim())
@@ -67,9 +76,47 @@ function renderComboItems(comboItems: CustomerOrderDetailComboItem[]): React.JSX
                         ))}
                     </Typography>
                 )}
+                {comboItem.note && (
+                    <Typography sx={{ color: "#8a8a8a", fontSize: 12.5, fontStyle: "italic" }}>
+                        {comboItem.note}
+                    </Typography>
+                )}
             </Box>
         );
     });
+}
+
+// Same ingredient text for a top-level (non-combo) item, e.g. a customized pizza ordered on its
+// own — its own free-text note renders as a separate line, same convention as combo children.
+function renderItemExtras(
+    item: CustomerOrderDetailItem,
+    menu: BuildDisplayMenuData,
+    isArabic: boolean,
+): React.JSX.Element | null {
+    const extras = resolveDisplayText(item, menu, isArabic)
+        .replace(/[()]/g, "")
+        .split("+")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    if (extras.length === 0 && !item.note) return null;
+
+    return (
+        <Box sx={{ mt: 0.5 }}>
+            {extras.length > 0 && (
+                <Typography sx={{ color: brandRed, fontSize: 12.5 }}>
+                    {extras.map((extra, extraIndex) => (
+                        <span key={extraIndex}>+ {extra} </span>
+                    ))}
+                </Typography>
+            )}
+            {item.note && (
+                <Typography sx={{ color: "#8a8a8a", fontSize: 12.5, fontStyle: "italic" }}>
+                    {item.note}
+                </Typography>
+            )}
+        </Box>
+    );
 }
 
 function formatTime12Hour(dateTime: string): string {
@@ -83,11 +130,27 @@ function formatTime12Hour(dateTime: string): string {
 }
 
 export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): React.JSX.Element {
-    const { t } = useTranslation(["customerAuth", "common"]);
+    const { t, i18n } = useTranslation(["customerAuth", "common"]);
     const { token, logout } = useCustomerAuth();
+    const { menuLocalizationData } = useCustomerAuthUi();
+    const optionLabel = useOptionLabel();
+    const isArabic = i18n.language.startsWith("ar");
     const [detail, setDetail] = useState<CustomerOrderDetail | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Sourced from CustomerAuthUiProvider (see MenuLocalizationCatalog) — HomePage's own
+    // useMenuData(), published there since this popup mounts at the app root without menu data
+    // of its own. useOptionLabel is a hook, so it's resolved here and threaded into the pure util.
+    const doughLabels: Record<string, string> = Object.fromEntries(
+        OPTION_VALUES.map((value) => [value, optionLabel(value)])
+    );
+    const displayMenu: BuildDisplayMenuData = {
+        toppings: menuLocalizationData.toppings,
+        extras: menuLocalizationData.extraIngredients,
+        menuItems: menuLocalizationData.menuData,
+        doughLabels,
+    };
 
     const handleSessionExpired = useCallback(async (): Promise<void> => {
         await logout();
@@ -200,7 +263,7 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                                     </Typography>
                                     {chip && (
                                         <Chip
-                                            label={detail.status}
+                                            label={getStatusLabel(detail.status, t)}
                                             size="small"
                                             sx={{
                                                 bgcolor: chip.bg,
@@ -239,7 +302,9 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                                                 <Typography sx={{ color: brandRed, fontWeight: 700, fontSize: 14 }}>
                                                     {item.unitAmount.toFixed(2)} {t("currency", { ns: "common" })}
                                                 </Typography>
-                                                {item.comboItems.length > 0 && renderComboItems(item.comboItems)}
+                                                {item.comboItems.length > 0
+                                                    ? renderComboItems(item.comboItems, displayMenu, isArabic)
+                                                    : renderItemExtras(item, displayMenu, isArabic)}
                                             </Box>
                                             <Typography sx={{ color: "#8a8a8a", fontSize: 12.5, whiteSpace: "nowrap" }}>
                                                 {t("orderDetail.qty", { count: item.quantity })}

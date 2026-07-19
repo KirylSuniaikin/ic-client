@@ -53,6 +53,26 @@ describe("i18n language detection — first visit (no stored preference)", () =>
         expect(resolvedLanguage).toBe("ar");
     });
 
+    it("loads Arabic for ar-SA", async () => {
+        setBrowserLanguage("ar-SA");
+
+        const { resolvedLanguage } = await initI18nFresh();
+
+        expect(resolvedLanguage).toBe("ar");
+    });
+
+    // Regression: the detector must NOT persist the auto-detected value. If it did, a stale
+    // "ic_lang" would outrank navigator on the next load and the browser preference could never
+    // re-apply -- the exact bug this feature had. Only an explicit choice may write "ic_lang".
+    it("does not persist the auto-detected language to localStorage", async () => {
+        setBrowserLanguage("ar-SA");
+
+        const { resolvedLanguage } = await initI18nFresh();
+
+        expect(resolvedLanguage).toBe("ar");
+        expect(localStorage.getItem("ic_lang")).toBeNull();
+    });
+
     it("loads English for an English browser", async () => {
         setBrowserLanguage("en-US");
 

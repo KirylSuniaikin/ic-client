@@ -3,7 +3,8 @@ import React from "react";
 import {useTranslation} from "react-i18next";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../../shared/hooks/useOptionLabel";
-import type { MenuItem } from '../../../types';
+import type { MenuItem, RecipeComponent } from '../../../types';
+import {RecipeComponentsLine} from "../../RecipeComponentsLine";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -19,6 +20,12 @@ interface ItemCardProps {
     description?: string;
     setDescription?: (val: string) => void;
     showDoughSelector?: boolean;
+    // Recipe-component removal (pizza/brick slots): parent owns the state, card renders the line.
+    components?: RecipeComponent[];
+    removedIds?: number[];
+    onToggleComponent?: (component: RecipeComponent) => void;
+    // Rendered right under the recipe-components line (e.g. the extra-ingredients scroll).
+    extrasSlot?: React.ReactNode;
 }
 
 export function ItemCard ({ item,
@@ -31,6 +38,10 @@ export function ItemCard ({ item,
                               description,
                               setDescription,
                               showDoughSelector,
+                              components = [],
+                              removedIds = [],
+                              onToggleComponent,
+                              extrasSlot,
                             }: ItemCardProps): JSX.Element {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
@@ -163,6 +174,18 @@ export function ItemCard ({ item,
                         ))}
                     </ToggleButtonGroup>
 
+                    {onToggleComponent && (
+                        <Box sx={{ mt: 1 }}>
+                            <RecipeComponentsLine
+                                components={components}
+                                removedIds={removedIds}
+                                onToggle={onToggleComponent}
+                            />
+                        </Box>
+                    )}
+
+                    {extrasSlot}
+
                     <TextField
                         label={t("itemCard.addNote")}
                         fullWidth
@@ -172,6 +195,17 @@ export function ItemCard ({ item,
                         onChange={(e) => setDescription?.(e.target.value)}
                         sx={{mb: 3, mt:2}}
                         InputProps={{sx: {borderRadius: 4}}}
+                    />
+                </Box>
+            )}
+
+            {/* Brick pizzas have no dough/crust box; give them just the components line. */}
+            {item.category === "Brick Pizzas" && onToggleComponent && (
+                <Box sx={{ mt: 2 }}>
+                    <RecipeComponentsLine
+                        components={components}
+                        removedIds={removedIds}
+                        onToggle={onToggleComponent}
                     />
                 </Box>
             )}

@@ -1,12 +1,21 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Box, Typography, IconButton, Button, TextField } from "@mui/material";
+import { Modal, Box, Typography, IconButton, Button, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
+import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 
 const brandRed = "#E44B4C";
+const brandGray = "#f3f3f3";
+
+// Canonical payment values sent to the backend; the visible labels are translated in the toggle.
+const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
+    { value: "Cash", labelKey: "payment.cash" },
+    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.card" },
+    { value: "Benefit", labelKey: "payment.benefit" },
+];
 
 interface CartPopupProps {
     open: boolean;
@@ -29,11 +38,13 @@ interface CartPopupProps {
     unavailableItems?: string[];
     unavailableMessage?: string | null;
     onCloseUnavailablePopup?: () => void;
-    // Order note. Shown only to logged-in customers, who skip ClientInfoPopup and would
-    // otherwise lose the note field it carries; guests still write theirs in that popup.
-    showNoteField?: boolean;
-    note?: string;
-    onNoteChange?: (note: string) => void;
+    // Delivery type + payment method, shown as toggles for customers (not admin). The
+    // delivery-type toggle is hidden on kiosk, which is always Pickup.
+    paymentMethod: string;
+    onPaymentChange: (value: string) => void;
+    orderType: string;
+    onDeliveryTypeChange: (value: string) => void;
+    isKiosk: boolean;
 }
 
 function CartPopup({
@@ -56,9 +67,11 @@ function CartPopup({
                        unavailableItems = [],
                        unavailableMessage,
                        onCloseUnavailablePopup,
-                       showNoteField = false,
-                       note = "",
-                       onNoteChange,
+                       paymentMethod,
+                       onPaymentChange,
+                       orderType,
+                       onDeliveryTypeChange,
+                       isKiosk,
                    }: CartPopupProps): JSX.Element {
     const { t } = useTranslation("cart");
     const totalPrice = items
@@ -69,7 +82,38 @@ function CartPopup({
         }, 0)
         .toFixed(2);
 
-    const [tel] = useState<string | null>(null);
+    // Segmented-control styling shared by the delivery-type and payment toggles, matching the
+    // size/dough toggles in the pizza popups (gray track, white selected pill in brand red).
+    const toggleGroupSx = {
+        backgroundColor: brandGray,
+        borderRadius: 3,
+        p: "4px",
+        width: "100%",
+        "& .MuiToggleButtonGroup-grouped": {
+            border: 0,
+            flex: 1,
+            borderRadius: 3,
+            mr: "4px",
+            "&:not(:last-of-type)": { borderRight: "none" },
+            "&:last-of-type": { mr: 0 },
+        },
+    };
+    const toggleBtnSx = {
+        textTransform: "none",
+        fontSize: "14px",
+        justifyContent: "center",
+        color: "#666",
+        borderRadius: 3,
+        py: 1,
+        "&:hover": { backgroundColor: "transparent" },
+        "&.Mui-selected": {
+            backgroundColor: "#fff",
+            color: brandRed,
+            boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+            "&:hover": { backgroundColor: "#fff" },
+        },
+        "&.Mui-disabled": { border: 0, color: "#bbb" },
+    };
 
     return (
         <Modal open={open} onClose={onClose}>
@@ -149,20 +193,53 @@ function CartPopup({
                     ))}
                 </Box>
 
-                {/* Order note — logged-in customers only (they skip ClientInfoPopup) */}
-                {showNoteField && (
-                    <Box sx={{ flexShrink: 0, px: 3, pt: 1, pb: 1.5 }}>
-                        <TextField
+                {/* Delivery type + payment — customer flow only (admin rings payment via
+                    AdminOrderDetailsPopUp). Delivery toggle is hidden on kiosk (always Pickup). */}
+                {!isAdmin && (
+                    <Box sx={{ flexShrink: 0, px: 3, pt: 1.5, pb: 0.5 }}>
+                        {!isKiosk && (
+                            <Box sx={{ mb: 1.5 }}>
+                                <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                                    {t("deliveryTitle")}
+                                </Typography>
+                                <ToggleButtonGroup
+                                    exclusive
+                                    value={orderType}
+                                    onChange={(_e, val) => val && onDeliveryTypeChange(val)}
+                                    sx={toggleGroupSx}
+                                    fullWidth
+                                >
+                                    <ToggleButton value="Pick Up" sx={toggleBtnSx}>
+                                        {t("pickup")}
+                                    </ToggleButton>
+                                    <ToggleButton value="Delivery" disabled sx={toggleBtnSx}>
+                                        <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+                                            <span>{t("delivery")}</span>
+                                            <Typography component="span" sx={{ fontSize: 11, color: "#999" }}>
+                                                {t("comingSoon")}
+                                            </Typography>
+                                        </Box>
+                                    </ToggleButton>
+                                </ToggleButtonGroup>
+                            </Box>
+                        )}
+
+                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                            {t("paymentTitle")}
+                        </Typography>
+                        <ToggleButtonGroup
+                            exclusive
+                            value={paymentMethod}
+                            onChange={(_e, val) => val && onPaymentChange(val)}
+                            sx={toggleGroupSx}
                             fullWidth
-                            multiline
-                            size="small"
-                            maxRows={3}
-                            value={note}
-                            onChange={(e) => onNoteChange?.(e.target.value)}
-                            label={t("noteLabel")}
-                            placeholder={t("notePlaceholder")}
-                            InputProps={{ sx: { borderRadius: 3, bgcolor: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" } }}
-                        />
+                        >
+                            {PAYMENT_OPTIONS.map((opt) => (
+                                <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
+                                    {t(opt.labelKey)}
+                                </ToggleButton>
+                            ))}
+                        </ToggleButtonGroup>
                     </Box>
                 )}
 
@@ -204,7 +281,7 @@ function CartPopup({
                 >
                     <Button
                         variant="contained"
-                        onClick={() => onCheckout?.(items, tel, null, null, null, note)}
+                        onClick={() => onCheckout?.(items, null, null, orderType, paymentMethod, "", null, false)}
                         sx={{
                             backgroundColor: brandRed,
                             color: "#fff",
@@ -215,7 +292,7 @@ function CartPopup({
                             "&:hover": { backgroundColor: brandRed },
                         }}
                     >
-                        {t("checkoutTakeOutOnly")}
+                        {t("checkout")}
                     </Button>
                 </Box>
 

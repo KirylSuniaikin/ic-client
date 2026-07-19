@@ -57,10 +57,19 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // instance so they aren't localized to the customer's stored Arabic preference.
     const tr = isAdmin ? enI18n.t : t;
 
-    const { isAnyCustomerAuthPopupOpen } = useCustomerAuthUi();
+    const { isAnyCustomerAuthPopupOpen, setMenuLocalizationData } = useCustomerAuthUi();
     const activeOrderIsland = useActiveOrderIsland();
 
     const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId });
+
+    // Task T6 §Part A "Menu-data availability": CustomerProfilePopup/CustomerOrderDetailPopup
+    // mount at the app root (outside this tree) and need the same toppings/extras/recipe data
+    // to localize description text — publish it into the shared UI context instead of a second
+    // useMenuData() fetch. HomePage is the only place that opens those popups (CustomerIconButton
+    // lives in HeroSection, rendered below).
+    useEffect(() => {
+        setMenuLocalizationData({ menuData: menu.menuData, toppings: menu.toppings, extraIngredients: menu.extraIngredients });
+    }, [menu.menuData, menu.toppings, menu.extraIngredients, setMenuLocalizationData]);
     const cart = useCart(menu.menuData, isAdmin);
     const checkout = useCheckout({
         isAdmin, isKiosk, isEditMode, adminBranchId,
@@ -181,7 +190,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 refreshMenu={menu.refreshMenu}
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}
                 beverages={groups.beverages} sauces={groups.sauces}
-                isAdmin={isAdmin} adminBranchId={adminBranchId}
+                isAdmin={isAdmin} isKiosk={isKiosk} adminBranchId={adminBranchId}
                 workingHours={menu.workingHours}
             />
             {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && !checkout.pickUpReminder && (

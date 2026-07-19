@@ -4,7 +4,6 @@ export interface AccountingCategoryTO {
     id: number;
     name: string;
     type: AccountingType;
-    archived: boolean;
 }
 
 export interface AccountingEntryTO {
