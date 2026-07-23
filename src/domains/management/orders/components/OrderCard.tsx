@@ -19,6 +19,7 @@ import BluetoothPrinterService from "../../../../services/BluetoothPrinterServic
 import {usePreciseCountdown} from "../../../../shared/hooks/usePreciseCountdown";
 import {toEpochMsBahrain} from "../../../../shared/utils/timeUtils";
 import type {Order, OrderItem, ComboItemTO} from '../../../order/types';
+import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderLines';
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
@@ -68,19 +69,8 @@ export function sortItemsByCategory(items: OrderItem[]): OrderItem[] {
 
 function renderComboDescription(comboItems: ComboItemTO[]): JSX.Element[] {
     return comboItems.map((item, idx) => {
-        const extras: string[] = [];
-
-        if (item.isThinDough) extras.push("Thin Dough");
-        if (item.isGarlicCrust) extras.push("Garlic Crust");
-
-        if (item.description) {
-            item.description
-                .replace(/[()]/g, "")
-                .split("+")
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .forEach((s) => extras.push(s));
-        }
+        const lines = buildTicketLines(item);
+        const note = resolveKitchenNote(item);
 
         return (
             <Box key={idx} sx={{mt: 1, ml: 1}}>
@@ -88,19 +78,18 @@ function renderComboDescription(comboItems: ComboItemTO[]): JSX.Element[] {
                     {item.name} {item.size ? "(" + item.size + ")" : ""}
                 </Typography>
 
-                {extras.length > 0 && (
+                {lines.map((line, i) => (
                     <Typography
+                        key={i}
                         variant="body2"
                         sx={{color: colorRed, ml: 1}}
                     >
-                        {extras.map((e, i) => (
-                            <span key={i}>+ {e} </span>
-                        ))}
+                        {line}
                     </Typography>
-                )}
-                {item.note && (
-                    <Typography variant="body2" sx={{ml: 1, fontStyle: "italic"}}>
-                        Note: {item.note}
+                ))}
+                {note && (
+                    <Typography variant="body2" sx={{color: colorRed, ml: 1, fontStyle: "italic"}}>
+                        Note: {note}
                     </Typography>
                 )}
             </Box>
@@ -113,31 +102,23 @@ export function renderItemDetails(item: OrderItem): JSX.Element | null {
         return <>{renderComboDescription(item.comboItemTO)}</>;
     }
 
-    const desc = item.description?.replace(";", "") || "";
-    const cleanDescription = desc
-        .replace(/[()]/g, "")
-        .replace(/^\+/, "")
-        .trim();
+    const lines = buildTicketLines(item);
+    const note = resolveKitchenNote(item);
 
-    const extras = cleanDescription
-        .split("+")
-        .map(str => str.trim())
-        .filter(Boolean);
-
-    return extras.length > 0 || item.note ? (
+    return lines.length > 0 || note ? (
         <Box sx={{mt: 1, ml: 1}}>
-            {extras.map((extra, idx) => (
+            {lines.map((line, idx) => (
                 <Typography
                     key={idx}
                     variant="body2"
                     sx={{color: colorRed}}
                 >
-                    + {extra}
+                    {line}
                 </Typography>
             ))}
-            {item.note && (
-                <Typography variant="body2" sx={{fontStyle: "italic"}}>
-                    Note: {item.note}
+            {note && (
+                <Typography variant="body2" sx={{color: colorRed, fontStyle: "italic"}}>
+                    Note: {note}
                 </Typography>
             )}
         </Box>

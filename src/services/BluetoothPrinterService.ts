@@ -1,6 +1,7 @@
 import { logger } from "../shared/utils/logger";
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 import type { Order } from '../domains/order/types';
+import { buildTicketLines, resolveKitchenNote } from '../domains/menu/utils/orderLines';
 
 function formatExternalId(id: string | number | null | undefined): string {
     if (!id) return "—";
@@ -68,43 +69,21 @@ class BluetoothPrinterService {
                 for (const comboItem of item.comboItemTO) {
                     result += `    ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
 
-                    const extras: string[] = [];
-                    if (comboItem.isThinDough) extras.push("Thin Crust");
-                    if (comboItem.isGarlicCrust) extras.push("Garlic Crust");
-
-                    if (comboItem.description) {
-                        comboItem.description
-                            .replace(/[()]/g, "")
-                            .split("+")
-                            .map(s => s.trim())
-                            .filter(Boolean)
-                            .forEach(s => extras.push(s));
+                    for (const line of buildTicketLines(comboItem)) {
+                        result += `      ${line}\n`;
                     }
-
-                    for (const e of extras) {
-                        result += `      + ${e}\n`;
-                    }
-                    if (comboItem.note) {
-                        result += `      Note: ${comboItem.note}\n`;
+                    const comboNote = resolveKitchenNote(comboItem);
+                    if (comboNote) {
+                        result += `      Note: ${comboNote}\n`;
                     }
                 }
             } else {
-                const desc = item.description?.replace(";", "") || "";
-                const cleanDescription = desc
-                    .replace(/[()]/g, "")
-                    .replace(/^\+/, "")
-                    .trim();
-
-                const extras = cleanDescription
-                    .split("+")
-                    .map(str => str.trim())
-                    .filter(Boolean);
-
-                for (const e of extras) {
-                    result += `   + ${e}\n`;
+                for (const line of buildTicketLines(item)) {
+                    result += `   ${line}\n`;
                 }
-                if (item.note) {
-                    result += `   Note: ${item.note}\n`;
+                const itemNote = resolveKitchenNote(item);
+                if (itemNote) {
+                    result += `   Note: ${itemNote}\n`;
                 }
             }
 

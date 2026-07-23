@@ -62,6 +62,8 @@ export type ComboItemTO = {
     description: string;
     // Per-item free-text note, kept separate from `description` for the admin card/printer.
     note?: string;
+    // DeepL-translated (English) note for the kitchen; falls back to `note` when absent.
+    noteTranslated?: string;
     quantity: number;
     customizations?: Customization[];
 };
@@ -76,6 +78,8 @@ export type OrderItem = {
     description: string;
     // Per-item free-text note, kept separate from `description` for the admin card/printer.
     note?: string;
+    // DeepL-translated (English) note for the kitchen; falls back to `note` when absent.
+    noteTranslated?: string;
     isThinDough?: boolean;
     isGarlicCrust?: boolean;
     discountAmount?: number;
