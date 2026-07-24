@@ -98,5 +98,12 @@
     "orderDetailLoadFailed": "Could not load order details. Please try again.",
     "nameRequired": "Please enter your name.",
     "nameSaveFailed": "Could not save your name. Please try again."
+  },
+  "reviewPrompt": {
+    "title": "How was your pizza?",
+    "body": "If you have a moment, we'd love to hear how it went.",
+    "open": "Share your experience on Google",
+    "later": "Not now",
+    "never": "Don't ask me again"
   }
 }

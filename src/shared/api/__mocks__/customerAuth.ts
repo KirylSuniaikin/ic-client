@@ -7,6 +7,8 @@ import type {
     CustomerOrdersPageResponse,
     CustomerOrderDetail,
     CustomerActiveOrder,
+    ReviewPrompt,
+    ReviewPromptOutcome,
     SuggestedOrderResponse,
 } from "../../../domains/customer-auth/types";
 
@@ -22,3 +24,11 @@ export const fetchMyOrders = jest.fn<Promise<CustomerOrdersPageResponse>, [strin
 export const fetchOrderDetail = jest.fn<Promise<CustomerOrderDetail>, [string, number]>();
 export const fetchActiveOrder = jest.fn<Promise<CustomerActiveOrder | null>, [string]>();
 export const fetchSuggestedItems = jest.fn<Promise<SuggestedOrderResponse>, [string]>();
+// Resolves to null by default so suites that don't care about the review prompt
+// never see the drawer — CustomerAuthModals mounts it unconditionally.
+export const fetchReviewPrompt = jest.fn<Promise<ReviewPrompt | null>, [string]>(
+    () => Promise.resolve(null)
+);
+export const ackReviewPrompt = jest.fn<Promise<void>, [string, number, ReviewPromptOutcome]>(
+    () => Promise.resolve()
+);

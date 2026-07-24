@@ -101,6 +101,21 @@ export type CustomerActiveOrder = {
     branchName: string;
 };
 
+// GET /customer/review-prompt — the post-order Google review ask. A 204 (nothing
+// to ask right now) maps to `null` at the api layer, not this type, exactly like
+// CustomerActiveOrder. `reviewUrl` is composed server-side so the branch's Google
+// Place ID never reaches the client.
+export type ReviewPrompt = {
+    orderId: number;
+    branchName: string;
+    reviewUrl: string;
+};
+
+// What the customer did with the prompt. SHOWN is reported the moment the drawer
+// renders — if the ask were only recorded on an answer, a closed tab would leave
+// the customer eligible again after every order.
+export type ReviewPromptOutcome = 'SHOWN' | 'OPENED' | 'DISMISSED' | 'OPTED_OUT';
+
 // GET /customer/orders/suggested — "Order it again" quick-order block on the profile
 // popup. Mirrors backend SuggestedOrderResponse per task3-spec.md.
 export type SuggestedOrderItem = {

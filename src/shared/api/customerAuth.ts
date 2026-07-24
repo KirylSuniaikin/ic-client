@@ -8,6 +8,8 @@ import type {
     CustomerOrdersPageResponse,
     CustomerOrderDetail,
     CustomerActiveOrder,
+    ReviewPrompt,
+    ReviewPromptOutcome,
     SuggestedOrderResponse,
 } from '../../domains/customer-auth/types';
 
@@ -167,6 +169,49 @@ export async function fetchActiveOrder(accessToken: string): Promise<CustomerAct
     }
 
     return await response.json();
+}
+
+// Resolves to `null` on a 204 (nothing to ask right now) — same shape as fetchActiveOrder.
+export async function fetchReviewPrompt(accessToken: string): Promise<ReviewPrompt | null> {
+    const response = await fetch(`${BASE_URL}/customer/review-prompt`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (response.status === 204) {
+        return null;
+    }
+
+    if (!response.ok) {
+        throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);
+    }
+
+    return await response.json();
+}
+
+// Fire-and-forget: the ack is telemetry about a prompt the customer has already
+// seen, so a failed report must never surface an error over their pizza.
+export async function ackReviewPrompt(
+    accessToken: string,
+    orderId: number,
+    outcome: ReviewPromptOutcome,
+): Promise<void> {
+    try {
+        await fetch(`${BASE_URL}/customer/review-prompt/ack`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ orderId, outcome }),
+        });
+    } catch {
+        // Network failure only — the prompt has already been shown and answered
+        // on screen, and re-raising here would surface an error the customer can
+        // do nothing about.
+    }
 }
 
 export async function fetchSuggestedItems(accessToken: string): Promise<SuggestedOrderResponse> {
