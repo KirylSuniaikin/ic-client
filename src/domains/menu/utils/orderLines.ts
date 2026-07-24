@@ -51,6 +51,11 @@ export function buildTicketLines(source: TicketSource): string[] {
     // one. Dough is never derived from the description here; the flags above already cover it.
     const description = source.description ?? "";
     for (const name of parseExtrasNames(description)) {
+        // When the isGarlicCrust flag is set it already emitted this row above, and the customer
+        // flow also folds "garlic crust" into the description additions group - skip the duplicate.
+        // Only skip when the flag covered it, so legacy orders that encode crust solely in the
+        // description (no flag) still render the line.
+        if (source.isGarlicCrust && name.trim().toLowerCase() === "garlic crust") continue;
         lines.push(`+ ${name}`);
     }
     for (const name of parseRemovalNames(description)) {

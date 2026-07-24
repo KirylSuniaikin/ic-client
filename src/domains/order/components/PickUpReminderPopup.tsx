@@ -5,9 +5,12 @@ import PriorityHighRoundedIcon from '@mui/icons-material/PriorityHighRounded';
 type Props = {
     onClose : () => void,
     onClick : () => void,
+    // Disabled while an order submit is already in flight — defense-in-depth against the
+    // multi-tap that created duplicate orders (the ref guard in useCheckout is the primary stop).
+    disabled? : boolean,
 }
 
-export function PickUpReminderPopup({onClose, onClick}: Props) {
+export function PickUpReminderPopup({onClose, onClick, disabled = false}: Props) {
     const { t } = useTranslation("checkout");
     return (
         <Box
@@ -74,6 +77,7 @@ export function PickUpReminderPopup({onClose, onClick}: Props) {
                     variant="contained"
                     size="large"
                     onClick={onClick}
+                    disabled={disabled}
                     sx={{
                         mt: 2,
                         borderRadius: 3,

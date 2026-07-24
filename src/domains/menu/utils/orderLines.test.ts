@@ -97,6 +97,18 @@ describe("buildTicketLines — legacy description fallback (new grouped grammar)
 
         expect(buildTicketLines(source)).toEqual(["+ Mushroom"]);
     });
+
+    it("does not emit a second crust row when isGarlicCrust also folds it into the description", () => {
+        const source: TicketSource = { isGarlicCrust: true, description: "+(garlic crust, Mushroom)" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Garlic Crust", "+ Mushroom"]);
+    });
+
+    it("still emits a crust row from the description when the isGarlicCrust flag is not set (legacy data)", () => {
+        const source: TicketSource = { description: "+(garlic crust, Mushroom)" };
+
+        expect(buildTicketLines(source)).toEqual(["+ garlic crust", "+ Mushroom"]);
+    });
 });
 
 describe("buildTicketLines — legacy description fallback (old grammar)", () => {

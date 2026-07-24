@@ -212,6 +212,11 @@ export type CreateOrderRequest = {
     fbp?: string;
     // Language the customer checked out in ("en" | "ar"); persisted on the Customer CRM row.
     language?: string;
+    // Client-generated per-checkout key. The backend dedupes a double-submit / retried request on
+    // it (matches CreateOrderTO.idempotency_key), so a slow response resent by the network can't
+    // create a second order. Generated once per built order and carried through the reminder/OTP
+    // detours via the spread in completeVerifiedCheckout.
+    idempotency_key?: string;
 };
 
 // Mirrors backend EditOrderTO
