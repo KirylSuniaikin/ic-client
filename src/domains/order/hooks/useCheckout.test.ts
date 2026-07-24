@@ -735,6 +735,45 @@ describe("useCheckout — executeOrderCreation", () => {
         expect(result.current.checkoutLoading).toBe(false);
     });
 
+    // The production incident: a rapid multi-tap on the confirm button fired createOrder several
+    // times before checkoutLoading (async React state) could flip, creating duplicate orders. The
+    // synchronous submittingRef guard must let only the first concurrent call through.
+    it("fires createOrder only once when invoked twice concurrently (multi-tap guard)", async () => {
+        let resolveCreate: ((o: Order) => void) | undefined;
+        const pending = new Promise<Order>((resolve) => { resolveCreate = resolve; });
+        mockCreateOrder.mockReturnValueOnce(pending);
+
+        const { result } = renderHook(() => useCheckout(makeParams()), { wrapper });
+        await waitForAuthReady();
+
+        const order = { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" };
+
+        await act(async () => {
+            // Two synchronous "taps" before the first request resolves.
+            const first = result.current.executeOrderCreation(order, ITEMS);
+            const second = result.current.executeOrderCreation(order, ITEMS);
+            resolveCreate?.(MOCK_ORDER);
+            await Promise.all([first, second]);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    });
+
+    // Once the first submit has settled the guard is released, so a genuine later re-order still works.
+    it("allows a second createOrder after the first has completed", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams()), { wrapper });
+        await waitForAuthReady();
+
+        const order = { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" };
+
+        await act(async () => { await result.current.executeOrderCreation(order, ITEMS); });
+        await act(async () => { await result.current.executeOrderCreation(order, ITEMS); });
+
+        expect(mockCreateOrder).toHaveBeenCalledTimes(2);
+    });
+
     it("opens error snackbar when createOrder throws a generic error", async () => {
         mockCreateOrder.mockRejectedValue(new Error("Server error"));
 
@@ -788,6 +827,24 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
 
         expect(result.current.isCrossSellOpen).toBe(false);
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    });
+
+    // The backend dedupes retried requests on this client-generated key (a network-level resend of
+    // the same body must not create a second order), so every create payload must carry one.
+    it("sends a non-empty idempotency_key on the create payload", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            idempotency_key: expect.stringMatching(/.+/),
+        }));
     });
 
     it("navigates to /admin/ after admin order creation", async () => {

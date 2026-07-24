@@ -17,6 +17,16 @@ import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 
 const BRANCH_KEY = 'kiosk_branch_data';
+
+// Per-checkout idempotency key sent to POST /create_order so the backend can dedupe a retried
+// request (see CreateOrderRequest.idempotency_key). crypto.randomUUID needs a secure context;
+// prod/kiosk run over https, but the fallback keeps older WebViews (Capacitor APK) working.
+function newIdempotencyKey(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    return "idem-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
 // TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists
 const GENERAL_CROSS_SELL: string[] = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"];
 const FINAL_CROSS_SELL: string[] = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"];
@@ -83,6 +93,11 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const { i18n } = useTranslation();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
+    // Synchronous re-entry guard for order submission. checkoutLoading is React state and commits
+    // asynchronously, so a rapid multi-tap fires several createOrder POSTs before it flips — the
+    // bug that turned one checkout into 3 orders. A ref updates in the same tick, so the 2nd/3rd
+    // tap short-circuits. Every submit path sets it on entry and clears it in a finally.
+    const submittingRef = useRef(false);
     const [phonePopupOpen, setPhonePopupOpen] = useState(false);
     const [customerPrefill, setCustomerPrefill] = useState<CustomerMeResponse | null>(null);
     // The same profile as customerPrefill, readable synchronously by resolveOrderCount.
@@ -155,6 +170,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     }
 
     async function executeOrderCreation(orderData: CreateOrderRequest, originalCartItems: CartItem[]): Promise<void> {
+        if (submittingRef.current) return;
+        submittingRef.current = true;
         try {
             setCheckoutLoading(true);
             const response = await createOrder(orderData);
@@ -204,6 +221,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             setErrorSnackBarOpen(true);
             logger.error("Error processing order:", error);
         } finally {
+            submittingRef.current = false;
             setCheckoutLoading(false);
         }
     }
@@ -358,6 +376,8 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             return;
         }
         if (isAdmin && isEditMode) {
+            if (submittingRef.current) return;
+            submittingRef.current = true;
             setCheckoutLoading(true);
             try {
                 // JSON.parse returns unknown; fields accessed via ['key'] with fallbacks below
@@ -370,6 +390,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             } catch (error) {
                 logger.error(error);
             } finally {
+                submittingRef.current = false;
                 await localStorage.removeItem("orderToEdit");
                 setCheckoutLoading(false);
             }
@@ -405,11 +426,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             fbp: resolveFbp(),
             // Kiosk browser locale is the store's device, not the walk-up customer's -- skip navigator.
             language: resolveCustomerLanguage(i18n.language, !isKiosk),
+            // Minted once here and carried through the reminder/OTP detours (completeVerifiedCheckout
+            // spreads the order) so a network-level retry of this exact request is deduped server-side.
+            idempotency_key: newIdempotencyKey(),
         };
         const submittedItems = [...items];
 
         try {
             if (isAdmin) {
+                if (submittingRef.current) return;
+                submittingRef.current = true;
                 setCheckoutLoading(true);
                 try {
                     const response = await createOrder(order);
@@ -430,9 +456,12 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     }
                     throw e;
                 } finally {
+                    submittingRef.current = false;
                     setCheckoutLoading(false);
                 }
             } else if (isKiosk) {
+                if (submittingRef.current) return;
+                submittingRef.current = true;
                 setCheckoutLoading(true);
                 try {
                     const response = await createOrder(order);
@@ -463,6 +492,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     }
                     throw e;
                 } finally {
+                    submittingRef.current = false;
                     setCheckoutLoading(false);
                 }
             } else {

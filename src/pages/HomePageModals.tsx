@@ -275,6 +275,7 @@ export default function HomePageModals({
                         checkout.setPickUpReminder(false);
                         checkout.executeOrderCreation(pendingOrder, checkout.pendingCartItems);
                     }}
+                    disabled={checkout.checkoutLoading}
                 />
             )}
 

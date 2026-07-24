@@ -88,8 +88,8 @@ function renderComboDescription(comboItems: ComboItemTO[]): JSX.Element[] {
                     </Typography>
                 ))}
                 {note && (
-                    <Typography variant="body2" sx={{color: colorRed, ml: 1, fontStyle: "italic"}}>
-                        Note: {note}
+                    <Typography variant="body2" sx={{color: colorRed, ml: 1}}>
+                        + {note}
                     </Typography>
                 )}
             </Box>
@@ -117,8 +117,8 @@ export function renderItemDetails(item: OrderItem): JSX.Element | null {
                 </Typography>
             ))}
             {note && (
-                <Typography variant="body2" sx={{color: colorRed, fontStyle: "italic"}}>
-                    Note: {note}
+                <Typography variant="body2" sx={{color: colorRed}}>
+                    + {note}
                 </Typography>
             )}
         </Box>
