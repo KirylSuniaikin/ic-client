@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger";
-import { authFetch, BASE_URL, DEFAULT_BRANCH_ID } from './client';
+import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, reportIfServerError, reportNetworkError } from './client';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type {
     BaseAppInfoResponse,
@@ -37,9 +37,20 @@ export async function fetchBaseAppInfo(
     }
 
     url += `?${queryParams.toString()}`;
-    const response = await fetch(url, {
-        method: "GET",
-    });
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: "GET",
+        });
+    } catch (error) {
+        // Fire-and-forget: telemetry must never delay the order path's error handling.
+        void reportNetworkError(error, url, "GET");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "GET");
+
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);
     }

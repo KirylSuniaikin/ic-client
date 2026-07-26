@@ -11,6 +11,7 @@ import {CustomerAuthProvider} from '../domains/customer-auth/context/CustomerAut
 import {CustomerAuthUiProvider} from '../domains/customer-auth/context/CustomerAuthUiProvider';
 import {CustomerAuthModals} from '../domains/customer-auth/components/CustomerAuthModals';
 import baseTheme from '../shared/utils/theme';
+import {AppErrorBoundary} from '../shared/components/AppErrorBoundary';
 import '../shared/i18n';
 
 interface AppProvidersProps {
@@ -44,7 +45,9 @@ export function AppProviders({children}: AppProvidersProps): React.JSX.Element {
                 <AuthProvider>
                     <CustomerAuthProvider>
                         <CustomerAuthUiProvider>
-                            {children}
+                            <AppErrorBoundary>
+                                {children}
+                            </AppErrorBoundary>
                             <CustomerAuthModals />
                         </CustomerAuthUiProvider>
                     </CustomerAuthProvider>
