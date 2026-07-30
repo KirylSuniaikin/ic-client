@@ -68,7 +68,7 @@ describe("ReviewPromptDrawer", () => {
     it("renders nothing when there is no prompt to show", () => {
         const { onShown } = renderDrawer(null);
 
-        expect(screen.queryByText("How was your pizza?")).toBeNull();
+        expect(screen.queryByText("How was your pizza last time?")).toBeNull();
         expect(onShown).not.toHaveBeenCalled();
     });
 
@@ -82,8 +82,8 @@ describe("ReviewPromptDrawer", () => {
     it("offers all three actions with no sentiment step in front of the Google link", () => {
         renderDrawer();
 
-        expect(screen.getByText("How was your pizza?")).toBeTruthy();
-        expect(screen.getByText("Share your experience on Google")).toBeTruthy();
+        expect(screen.getByText("How was your pizza last time?")).toBeTruthy();
+        expect(screen.getByText("Yes, leave a review")).toBeTruthy();
         expect(screen.getByText("Not now")).toBeTruthy();
         expect(screen.getByText("Don't ask me again")).toBeTruthy();
     });
@@ -91,7 +91,7 @@ describe("ReviewPromptDrawer", () => {
     it("opens the review URL and records OPENED when the customer taps through", () => {
         const { onAnswer } = renderDrawer();
 
-        fireEvent.click(screen.getByText("Share your experience on Google"));
+        fireEvent.click(screen.getByText("Yes, leave a review"));
 
         expect(onAnswer).toHaveBeenCalledWith("OPENED");
         expect(mockWindowOpen).toHaveBeenCalledWith(PROMPT.reviewUrl, "_blank", "noopener,noreferrer");
@@ -141,7 +141,7 @@ describe("ReviewPromptDrawer mounted in CustomerAuthModals", () => {
     it("shows the ask and reports SHOWN once the backend returns a prompt", async () => {
         renderModals();
 
-        await waitFor(() => expect(screen.getByText("How was your pizza?")).toBeTruthy());
+        await waitFor(() => expect(screen.getByText("How was your pizza last time?")).toBeTruthy());
         await waitFor(() => expect(mockAckReviewPrompt).toHaveBeenCalledWith("token-123", 42, "SHOWN"));
     });
 
@@ -151,30 +151,30 @@ describe("ReviewPromptDrawer mounted in CustomerAuthModals", () => {
         renderModals();
 
         await waitFor(() => expect(mockFetchReviewPrompt).toHaveBeenCalled());
-        expect(screen.queryByText("How was your pizza?")).toBeNull();
+        expect(screen.queryByText("How was your pizza last time?")).toBeNull();
     });
 
     it("does not re-open the ask after the customer dismisses it", async () => {
         renderModals();
-        await waitFor(() => expect(screen.getByText("How was your pizza?")).toBeTruthy());
+        await waitFor(() => expect(screen.getByText("How was your pizza last time?")).toBeTruthy());
 
         fireEvent.click(screen.getByText("Not now"));
 
-        await waitFor(() => expect(screen.queryByText("How was your pizza?")).toBeNull());
+        await waitFor(() => expect(screen.queryByText("How was your pizza last time?")).toBeNull());
         expect(mockAckReviewPrompt).toHaveBeenCalledWith("token-123", 42, "DISMISSED");
     });
 
     // The review ask must never stack on top of the login/profile sheets.
     it("hides the ask while another customer-auth popup is open", async () => {
         const { getUi } = renderModals();
-        await waitFor(() => expect(screen.getByText("How was your pizza?")).toBeTruthy());
+        await waitFor(() => expect(screen.getByText("How was your pizza last time?")).toBeTruthy());
 
         await waitFor(() => expect(getUi()).not.toBeNull());
         await React.act(async () => {
             getUi().openProfile();
         });
 
-        expect(screen.queryByText("How was your pizza?")).toBeNull();
+        expect(screen.queryByText("How was your pizza last time?")).toBeNull();
     });
 
     it("does not ask at all when the customer is logged out", async () => {

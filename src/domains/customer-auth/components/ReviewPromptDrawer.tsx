@@ -79,7 +79,15 @@ export function ReviewPromptDrawer({ prompt, onShown, onAnswer }: Props): React.
                     fullWidth
                     variant="contained"
                     onClick={openReview}
-                    sx={{ borderRadius: 8, py: 1.5, fontWeight: "bold" }}
+                    sx={{
+                        borderRadius: 8,
+                        py: 1.5,
+                        fontWeight: "bold",
+                        textTransform: "none",
+                        bgcolor: "#E44B4C",
+                        color: "#fff",
+                        "&:hover": { bgcolor: "#d23c3d" },
+                    }}
                 >
                     {t("reviewPrompt.open")}
                 </Button>

@@ -100,9 +100,9 @@
     "nameSaveFailed": "Could not save your name. Please try again."
   },
   "reviewPrompt": {
-    "title": "How was your pizza?",
-    "body": "If you have a moment, we'd love to hear how it went.",
-    "open": "Share your experience on Google",
+    "title": "How was your pizza last time?",
+    "body": "We're looking forward to your review on Google Maps.",
+    "open": "Yes, leave a review",
     "later": "Not now",
     "never": "Don't ask me again"
   }
