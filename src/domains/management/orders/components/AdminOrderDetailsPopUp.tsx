@@ -52,7 +52,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
     const [deliveryMethod, setDeliveryMethod] = useState(deliveryOptions[0]);
     const [paymentMethod, setPaymentMethod] = useState(paymentOptions[0]);
     const [globalDiscount, setGlobalDiscount] = useState(0);
-    const [note, setNote] = useState("");
     const countryObj = countries.find((c) => c.name === selectedCountry);
 
     useEffect(() => {
@@ -66,7 +65,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                     setCustomerName(order.customer_name);
                 }
             }
-            setNote(order.notes);
             setPaymentMethod(order.payment_type)
         }
     },[])
@@ -90,12 +88,14 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
         setPhoneError("");
 
         const fullPhone = phoneDigits ? countryObj.code + phoneDigits : null;
+        // Order-level notes were removed; item-level comments cover this now.
+        // Pass an empty string to keep the order contract unchanged.
         onSave?.(
             fullPhone,
             customerName,
             deliveryMethod,
             paymentMethod,
-            note
+            ""
         );
 
         onClose?.();
@@ -244,18 +244,6 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                         <MenuItem key={p} value={p}>{p}%</MenuItem>
                     ))}
                 </TextField>
-
-                {/* Notes */}
-                <TextField
-                    label="Add a note to order (optional)"
-                    fullWidth
-                    multiline
-                    rows={2}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                />
             </Box>
 
             <Box

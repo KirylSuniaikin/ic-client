@@ -9,6 +9,7 @@ import type {
     VendorTO
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest } from '../management';
+import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 
 // Manual mock for shared/api/management.ts.
 // jest.fn() is at module level here — no jest.mock() factory restrictions apply.
@@ -30,3 +31,6 @@ export const getPurchaseReport = jest.fn<Promise<PurchaseTO>, [{ id: number }]>(
 export const createReport = jest.fn<Promise<IManagementResponse>, [Record<string, unknown>]>();
 export const editReport = jest.fn<Promise<IManagementResponse>, [Record<string, unknown>]>();
 export const getReport = jest.fn<Promise<ReportTO>, [number]>();
+
+// Cash register transaction history (paged).
+export const getBranchEvents = jest.fn<Promise<GetBranchEventsResponse>, [GetBranchEventsParams]>();
