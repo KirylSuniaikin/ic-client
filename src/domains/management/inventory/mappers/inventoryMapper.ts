@@ -2,6 +2,7 @@ import Decimal from "decimal.js-light";
 import { InventoryRow, ProductTO } from "../types";
 import { ProductStatRow } from "../../statistics/types";
 import { toDecimal, p2, q3 } from "../../../../shared/utils/decimalUtils";
+import type { MeasureUnit } from "../../../../shared/utils/unitFormat";
 
 export { toDecimal, p2, q3 } from "../../../../shared/utils/decimalUtils";
 
@@ -15,6 +16,7 @@ export const mapProductToRow = (p: ProductTO): InventoryRow => {
         kitchenQuantity: null,
         storageQuantity: null,
         finalPrice: q3(new Decimal(0)),
+        unit: p.unit ?? null,
     };
 };
 
@@ -50,6 +52,9 @@ export function normalizeReportPayload(payload: unknown): InventoryRow[] {
             finalPrice: toDecimal(item.finalPrice ?? item.totalPrice ?? 0),
             price: toDecimal(p['price'] ?? 0),
             isInventory: Boolean(p['isInventory']),
+            // `p` is an untyped raw payload (parsed from `unknown`); the cast mirrors the
+            // wire contract (Product.unit is a nullable Unit enum serialized as a string).
+            unit: (p['unit'] as MeasureUnit | null) ?? null,
         };
     });
 }

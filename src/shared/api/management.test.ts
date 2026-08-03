@@ -16,6 +16,7 @@ import {
     getDoughInventory,
     putDoughInventory,
     getBranchBalance,
+    getBranchEvents,
     getWorkingHours,
     putWorkingHours,
 } from "./management";
@@ -383,6 +384,59 @@ describe("getBranchBalance", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(getBranchBalance("branch-42")).rejects.toThrow();
+    });
+});
+
+// ── getBranchEvents ───────────────────────────────────────────────────────────
+
+describe("getBranchEvents", () => {
+    function pageResponse(): Response {
+        return new Response(JSON.stringify({ events: [], hasMore: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    it("calls the get_transactions endpoint with the branchId, page and size", async () => {
+        mockAuthFetch.mockResolvedValueOnce(pageResponse());
+
+        await getBranchEvents({ branchId: "branch-42", page: 1, size: 30 });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("get_transactions");
+        expect(url).toContain("branchId=branch-42");
+        expect(url).toContain("page=1");
+        expect(url).toContain("size=30");
+    });
+
+    it("omits the size param when it is not provided", async () => {
+        mockAuthFetch.mockResolvedValueOnce(pageResponse());
+
+        await getBranchEvents({ branchId: "branch-42", page: 0 });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("page=0");
+        expect(url).not.toContain("size=");
+    });
+
+    it("returns the parsed events page", async () => {
+        const page = { events: [{ id: "e1" }], hasMore: false };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(page), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await getBranchEvents({ branchId: "branch-42", page: 0 });
+
+        expect(result).toEqual(page);
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(getBranchEvents({ branchId: "branch-42", page: 0 })).rejects.toThrow();
     });
 });
 

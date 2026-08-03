@@ -1,4 +1,5 @@
 import Decimal from "decimal.js-light";
+import type { MeasureUnit } from "../../../shared/utils/unitFormat";
 
 export type ReportType =
     | "INVENTORY"
@@ -39,6 +40,7 @@ export type ProductTO = {
     isPurchasable: boolean;
     isBundle: boolean;
     topVendor: string;
+    unit?: MeasureUnit | null;
 }
 
 export type ReportInventoryProductDTO = {
@@ -65,4 +67,5 @@ export type InventoryRow = {
     finalPrice: Decimal;
     price: Decimal;
     isInventory: boolean;
+    unit: MeasureUnit | null;
 }

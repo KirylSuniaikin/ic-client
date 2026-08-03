@@ -10,6 +10,7 @@ import {
     fetchActiveOrder,
     fetchSuggestedItems,
     registerCustomerName,
+    updateCustomerName,
 } from "./customerAuth";
 import { CustomerAuthApiError } from "../../domains/customer-auth/types";
 
@@ -150,6 +151,48 @@ describe("registerCustomerName", () => {
         );
 
         await expect(registerCustomerName("my-access-token", "")).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+// task-spec.md §1b. The inverse of registerCustomerName's register-once POST — an
+// idempotent PUT that returns the refreshed CustomerMeResponse in one round trip.
+describe("updateCustomerName", () => {
+    it("puts to /customer/name with credentials: 'include', the Bearer token, and the name body, returning the parsed profile", async () => {
+        const updated = {
+            id: "acct-1",
+            phone: "97333607710",
+            preferredBranchId: null,
+            name: "Janet",
+            address: null,
+            amountOfOrders: 5,
+            lastOrderDate: null,
+        };
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(updated), { status: 200 }));
+
+        const result = await updateCustomerName("my-access-token", "Janet");
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/customer/name`);
+        expect(init.method).toBe("PUT");
+        expect(init.credentials).toBe("include");
+        const headers = new Headers(init.headers);
+        expect(headers.get("Authorization")).toBe("Bearer my-access-token");
+        expect(init.body).toBe(JSON.stringify({ name: "Janet" }));
+        expect(result).toEqual(updated);
+    });
+
+    it("throws a CustomerAuthApiError on a 400", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ message: "Name is required" }), { status: 400 })
+        );
+
+        await expect(updateCustomerName("my-access-token", "")).rejects.toThrow(CustomerAuthApiError);
+    });
+
+    it("rejects with status: 401 on an expired token", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+        await expect(updateCustomerName("bad-token", "Janet")).rejects.toMatchObject({ status: 401 });
     });
 });
 

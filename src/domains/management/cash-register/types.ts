@@ -24,3 +24,14 @@ export interface CashRegisterEventTO {
     type: CashUpdateType;
     date: string;
 }
+
+export type GetBranchEventsParams = {
+    branchId: string;
+    page: number;
+    size?: number;
+}
+
+export type GetBranchEventsResponse = {
+    events: CashRegisterEventTO[];
+    hasMore: boolean;
+}

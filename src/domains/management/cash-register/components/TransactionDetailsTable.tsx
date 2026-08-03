@@ -1,4 +1,3 @@
-import { logger } from "../../../../shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import {
     Dialog,
@@ -10,13 +9,11 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
-    Chip
+    Paper
 } from "@mui/material";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
-import { getBranchEvents } from "../../../../shared/api/management";
-import { useProgressiveList } from "../../../../shared/hooks/useProgressiveList";
-import { CashRegisterEventTO, CashUpdateType } from "../types";
+import { useCashRegisterHistory } from "../hooks/useCashRegisterHistory";
+import { CashUpdateType } from "../types";
 
 type Props = {
     branchId: string;
@@ -25,7 +22,6 @@ type Props = {
 };
 
 const brandGray = "#f3f3f3";
-const CHUNK_SIZE = 20;
 
 
 const styles = {
@@ -44,19 +40,22 @@ const styles = {
 };
 
 export default function TransactionDetailsTable({ branchId, open, onClose }: Props) {
-    const [events, setEvents] = useState<CashRegisterEventTO[]>([]);
-    const [loading, setLoading] = useState(false);
-    const { visibleItems, hasMore, sentinelRef } = useProgressiveList<CashRegisterEventTO, HTMLTableRowElement>(events, CHUNK_SIZE);
+    const { events, loading, hasMore, error, loadMore } = useCashRegisterHistory(branchId, open);
+    // Callback ref rather than useRef: Dialog renders through a portal that only mounts its
+    // children on a second commit, so a plain ref is still null when an effect keyed on the
+    // hook state first runs. Holding the node in state re-runs the effect the moment it mounts.
+    const [sentinel, setSentinel] = useState<HTMLTableRowElement | null>(null);
 
     useEffect(() => {
-        if (open) {
-            setLoading(true);
-            getBranchEvents(branchId)
-                .then(data => setEvents(data))
-                .catch(err => logger.error(err))
-                .finally(() => setLoading(false));
-        }
-    }, [branchId, open]);
+        if (!open || loading || !hasMore || error || !sentinel) return;
+
+        const observer = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting)) loadMore();
+        });
+        observer.observe(sentinel);
+
+        return () => observer.disconnect();
+    }, [open, loading, hasMore, error, sentinel, loadMore]);
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -93,7 +92,7 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {visibleItems.map((row) => {
+                                {events.map((row) => {
                                     const isIncome = row.type === CashUpdateType.CASH_IN;
                                     const isCheck = row.type === CashUpdateType.CLOSE_SHIFT_CASH_CHECK || row.type === CashUpdateType.OPEN_SHIFT_CASH_CHECK;
                                     const style = isCheck ? styles.cashCheck : isIncome ? styles.cashIn : styles.cashOut;
@@ -130,15 +129,25 @@ export default function TransactionDetailsTable({ branchId, open, onClose }: Pro
                                         </TableRow>
                                     );
                                 })}
-                                {events.length === 0 && (
+                                {/* hasMore starts true and only flips once the server has answered,
+                                    so this renders on a confirmed-empty list, not on the first frame. */}
+                                {!loading && !error && events.length === 0 && !hasMore && (
                                     <TableRow>
                                         <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                                             No transactions found
                                         </TableCell>
                                     </TableRow>
                                 )}
-                                {hasMore && (
-                                    <TableRow ref={sentinelRef}>
+                                {error && (
+                                    <TableRow>
+                                        <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'error.main' }}>
+                                            Failed to load transactions
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {/* Hidden on error so the observer cannot retry the failed page in a loop. */}
+                                {hasMore && !error && (
+                                    <TableRow ref={setSentinel}>
                                         <TableCell colSpan={3} align="center" sx={{ py: 2, border: 0 }}>
                                             <CircularProgress size={20} />
                                         </TableCell>

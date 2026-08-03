@@ -20,7 +20,12 @@ import type {
 } from '../../domains/management/shift/types';
 import type { VatStatePayload } from '../../domains/management/statistics/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
-import type { BranchBalanceResponse, CashRegisterEventTO, CashUpdateRequest } from '../../domains/management/cash-register/types';
+import type {
+    BranchBalanceResponse,
+    CashUpdateRequest,
+    GetBranchEventsParams,
+    GetBranchEventsResponse
+} from '../../domains/management/cash-register/types';
 import type { AuthRequest } from '../../domains/auth/types';
 import type {
     AccountingCategoryTO,
@@ -270,12 +275,15 @@ export async function getBranchBalance(branchId: string): Promise<BranchBalanceR
     return res.json();
 }
 
-export async function getBranchEvents(branchId: string): Promise<CashRegisterEventTO[]> {
-    const res = await authFetch(`${BASE_URL}/branch/get_transactions?branchId=${branchId}`, {
+export async function getBranchEvents({ branchId, page, size }: GetBranchEventsParams): Promise<GetBranchEventsResponse> {
+    const params = new URLSearchParams({ branchId, page: String(page) });
+    if (size !== undefined) params.append("size", String(size));
+
+    const res = await authFetch(`${BASE_URL}/branch/get_transactions?${params}`, {
         method: "GET",
         headers: { 'Content-Type': 'application/json' }
     });
-    if (!res.ok) throw new Error("Failed to fetch history");
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
 

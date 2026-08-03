@@ -70,6 +70,20 @@ describe("mapProductToRow", () => {
 
         expect(result.isInventory).toBe(false);
     });
+
+    it("carries the product's unit through to the row", () => {
+        const product: ProductTO = { ...baseProduct, unit: "GRAMS" };
+
+        const result = mapProductToRow(product);
+
+        expect(result.unit).toBe("GRAMS");
+    });
+
+    it("defaults unit to null when the product has no unit", () => {
+        const result = mapProductToRow(baseProduct);
+
+        expect(result.unit).toBeNull();
+    });
 });
 
 describe("withRecalc", () => {
@@ -81,6 +95,7 @@ describe("withRecalc", () => {
         storageQuantity: new Decimal("0"),
         finalPrice: new Decimal("0"),
         isInventory: true,
+        unit: null,
     };
 
     it("sets kitchenQuantity from the string argument", () => {
@@ -116,6 +131,14 @@ describe("withRecalc", () => {
         expect(baseRow.kitchenQuantity.toNumber()).toBe(0);
         expect(baseRow.storageQuantity.toNumber()).toBe(0);
     });
+
+    it("preserves the row's unit", () => {
+        const row: InventoryRow = { ...baseRow, unit: "PIECES" };
+
+        const result = withRecalc(row, "2", "0");
+
+        expect(result.unit).toBe("PIECES");
+    });
 });
 
 describe("rowToPayloadNumber", () => {
@@ -127,6 +150,7 @@ describe("rowToPayloadNumber", () => {
         storageQuantity: new Decimal("2.5678"),
         finalPrice: new Decimal("11.1234"),
         isInventory: true,
+        unit: null,
     };
 
     it("maps productId to id", () => {
@@ -167,6 +191,17 @@ describe("rowToPayloadNumber", () => {
         const result = rowToPayloadNumber(nullRow);
 
         expect(result.storageQuantity).toBe(0);
+    });
+
+    it("returns exactly {id, kitchenQuantity, storageQuantity, finalPrice} — unit must never leak into the save payload", () => {
+        const rowWithUnit: InventoryRow = { ...row, unit: "GRAMS" };
+
+        const result = rowToPayloadNumber(rowWithUnit);
+
+        expect(Object.keys(result).sort()).toEqual(
+            ["finalPrice", "id", "kitchenQuantity", "storageQuantity"].sort()
+        );
+        expect(result).not.toHaveProperty("unit");
     });
 });
 
@@ -240,6 +275,40 @@ describe("normalizeReportPayload", () => {
         const result = normalizeReportPayload(payload);
 
         expect(result[0].isInventory).toBe(false);
+    });
+
+    it("reads unit from the nested product", () => {
+        const payload = {
+            inventoryProducts: [
+                {
+                    product: { id: 11, name: "Flour", price: 1, isInventory: true, unit: "GRAMS" },
+                    kitchenQuantity: 0,
+                    storageQuantity: 0,
+                    finalPrice: 0,
+                },
+            ],
+        };
+
+        const result = normalizeReportPayload(payload);
+
+        expect(result[0].unit).toBe("GRAMS");
+    });
+
+    it("defaults unit to null when the nested product has no unit", () => {
+        const payload = {
+            inventoryProducts: [
+                {
+                    product: { id: 12, name: "Salt", price: 1, isInventory: true },
+                    kitchenQuantity: 0,
+                    storageQuantity: 0,
+                    finalPrice: 0,
+                },
+            ],
+        };
+
+        const result = normalizeReportPayload(payload);
+
+        expect(result[0].unit).toBeNull();
     });
 });
 

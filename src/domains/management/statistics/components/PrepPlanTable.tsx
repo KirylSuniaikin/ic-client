@@ -21,17 +21,11 @@ import AddIcon from "@mui/icons-material/Add";
 import { format } from "date-fns";
 import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
 import { fetchAllBranches, fetchCurrentPrepPlan, generatePrepPlan } from "../../../../shared/api/management";
+import { formatUnit } from "../../../../shared/utils/unitFormat";
 import type { IBranch } from "../../inventory/types";
-import type { PrepPlanResponse, PrepPlanUnit } from "../../prep-plan/types";
+import type { PrepPlanResponse } from "../../prep-plan/types";
 
 type PrepPlanTableProps = { branchId: string };
-
-export function formatPrepPlanUnit(unit: PrepPlanUnit | string): string {
-    if (unit === "GRAMS") return "g";
-    if (unit === "PIECES") return "pcs";
-    if (unit === "ML") return "ml";
-    return unit;
-}
 
 export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Element {
     const [branches, setBranches] = useState<IBranch[]>([]);
@@ -237,7 +231,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                                         <TableCell>{row.name}({(row.yieldMultiplier*100).toFixed(0)}%)</TableCell>
                                         <TableCell>{roundNum(row.amount*0.85)}</TableCell>
                                         <TableCell>{roundNum(row.amount*1.15)}</TableCell>
-                                        <TableCell>{formatPrepPlanUnit(row.unit)}</TableCell>
+                                        <TableCell>{formatUnit(row.unit)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

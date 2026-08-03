@@ -19,6 +19,7 @@ export const verifyOtp = jest.fn<Promise<CustomerTokenResponse>, [OtpVerifyPaylo
 export const refreshCustomerToken = jest.fn<Promise<CustomerTokenResponse>, []>();
 export const logoutCustomer = jest.fn<Promise<void>, []>();
 export const registerCustomerName = jest.fn<Promise<void>, [string, string]>();
+export const updateCustomerName = jest.fn<Promise<CustomerMeResponse>, [string, string]>();
 export const fetchCustomerMe = jest.fn<Promise<CustomerMeResponse>, [string]>();
 export const fetchMyOrders = jest.fn<Promise<CustomerOrdersPageResponse>, [string, number, number]>();
 export const fetchOrderDetail = jest.fn<Promise<CustomerOrderDetail>, [string, number]>();

@@ -1,4 +1,6 @@
-export type PrepPlanUnit = "GRAMS" | "PIECES" | "ML";
+import type { MeasureUnit as PrepPlanUnit } from "../../../shared/utils/unitFormat";
+
+export type { PrepPlanUnit };
 
 export type PrepPlanRow = {
     componentId: number;
