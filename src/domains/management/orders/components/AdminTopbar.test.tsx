@@ -87,6 +87,14 @@ describe("AdminTopbar — role-based branch controls", () => {
         expect(screen.getByText("Open Cash")).toBeTruthy();
         expect(screen.getByText("Open Shift")).toBeTruthy();
     });
+
+    it("still renders the Workload selector and the Cash/Shift buttons for role SUPERVISOR", () => {
+        renderTopbar(StaffRoles.SUPERVISOR);
+
+        expect(screen.getByRole("combobox")).toBeTruthy();
+        expect(screen.getByText("Open Cash")).toBeTruthy();
+        expect(screen.getByText("Open Shift")).toBeTruthy();
+    });
 });
 
 describe("AdminTopbar — role-based menu items", () => {
@@ -143,5 +151,34 @@ describe("AdminTopbar — role-based menu items", () => {
         ["Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist"].forEach(label => {
             expect(screen.queryByText(label)).toBeNull();
         });
+    });
+
+    it("renders the cook item list plus Cash Register for role SUPERVISOR, with Logout last", () => {
+        renderTopbar(StaffRoles.SUPERVISOR);
+        openMenu();
+
+        // SUPERVISOR = COOK base items + Cash Register + Logout.
+        ["New Order", "Shifts", "Order History", "Config", "Statistics", "Cash Register", "Logout"].forEach(label => {
+            expect(screen.getByText(label)).toBeTruthy();
+        });
+
+        // No manager-only entries besides the one it's explicitly granted (Cash Register).
+        ["Inventory", "Purchase", "Accounting", "Blacklist"].forEach(label => {
+            expect(screen.queryByText(label)).toBeNull();
+        });
+
+        // Logout is always the last entry in every role's menu.
+        const cashRegister = screen.getByText("Cash Register");
+        const logout = screen.getByText("Logout");
+        expect(
+            cashRegister.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("does not render Cash Register for role COOK (regression: COOK menu is unchanged)", () => {
+        renderTopbar(StaffRoles.COOK);
+        openMenu();
+
+        expect(screen.queryByText("Cash Register")).toBeNull();
     });
 });

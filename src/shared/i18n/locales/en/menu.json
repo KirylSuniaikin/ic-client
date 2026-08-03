@@ -52,6 +52,10 @@
   "itemEditor": {
     "add": "Add"
   },
+  "recipe": {
+    "heading": "Ingredients",
+    "removeHint": "Tap an underlined ingredient to remove it."
+  },
   "options": {
     "doughHeading": "Dough",
     "crustHeading": "Crust",

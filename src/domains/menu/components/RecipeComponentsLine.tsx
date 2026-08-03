@@ -1,7 +1,8 @@
 import React from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Stack, Tooltip, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import HighlightOffOutlinedIcon from "@mui/icons-material/HighlightOffOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
 import type { RecipeComponent } from "../types";
 
@@ -20,7 +21,7 @@ interface RecipeComponentsLineProps {
  * plain text. Renders nothing for items without a recipe, so non-pizza popups degrade gracefully.
  */
 export const RecipeComponentsLine: React.FC<RecipeComponentsLineProps> = ({ components, removedIds, onToggle }) => {
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation("menu");
     const isArabic = i18n.language.startsWith("ar");
     // Display-only swap (label/label_ar); `name` still drives onToggle/removal state and
     // order-removal tokens (see src/domains/menu/utils/customizations.ts).
@@ -29,8 +30,24 @@ export const RecipeComponentsLine: React.FC<RecipeComponentsLineProps> = ({ comp
 
     if (components.length === 0) return null;
 
+    const hasDeletableComponent = components.some((component) => component.deletable);
+
     return (
         <Box sx={{ mb: 2, px: 0.2 }}>
+            <Stack direction="row" alignItems="center" gap={0.5} sx={{ mb: 0.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                    {t("recipe.heading")}
+                </Typography>
+                {/* The ⓘ only appears when something is actually removable — on a recipe with no
+                    deletable components nothing is underlined, so the hint would describe UI that
+                    isn't on screen. enterTouchDelay/leaveTouchDelay are the house tap-to-open
+                    idiom for touch devices (see management/statistics/.../GlobalStatsCard.tsx). */}
+                {hasDeletableComponent && (
+                    <Tooltip title={t("recipe.removeHint")} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
+                        <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
+                    </Tooltip>
+                )}
+            </Stack>
             <Typography variant="body2" sx={{ color: "#6b6b6b", lineHeight: 1.9 }}>
                 {components.map((component, index) => {
                     const removed = removedIds.includes(component.id);

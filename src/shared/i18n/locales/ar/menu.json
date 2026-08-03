@@ -52,6 +52,10 @@
   "itemEditor": {
     "add": "أضف"
   },
+  "recipe": {
+    "heading": "المكوّنات",
+    "removeHint": "اضغط على أي مكوّن تحته خط لإزالته."
+  },
   "options": {
     "doughHeading": "العجينة",
     "crustHeading": "الحافة",

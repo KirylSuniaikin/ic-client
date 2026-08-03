@@ -124,6 +124,19 @@ export default function AdminTopbar({
         }
     }
 
+    // Shared entries so Cash Register / Logout are never duplicated as separate literals
+    // across the cook / supervisor / manager menu variants.
+    const cashRegisterItem = {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen};
+    const logoutItem = {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout};
+
+    const cookBaseItems = [
+        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
+        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
+        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
+        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
+        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
+    ]
+
     const managerItems = [
         {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
         {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
@@ -132,29 +145,30 @@ export default function AdminTopbar({
         {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
         {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
         {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
-        {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen},
+        cashRegisterItem,
         {label: "Accounting", icon: <AccountBalanceWalletOutlinedIcon fontSize="small"/>, onClick: onAccountingOpen},
         {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
-        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+        logoutItem
     ]
 
-    const cookItems = [
-        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
-        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
-        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
-        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
-        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
-    ]
+    const cookItems = [...cookBaseItems, logoutItem]
+
+    const supervisorItems = [...cookBaseItems, cashRegisterItem, logoutItem]
 
     const reviewerItems = [
         {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
-        {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout}
+        logoutItem
     ]
 
     const isReviewer = role === StaffRoles.REVIEWER;
 
-    const items = isReviewer ? reviewerItems : role === StaffRoles.COOK ? cookItems : managerItems;
+    const items = isReviewer
+        ? reviewerItems
+        : role === StaffRoles.COOK
+            ? cookItems
+            : role === StaffRoles.SUPERVISOR
+                ? supervisorItems
+                : managerItems;
 
     const levels: WorkloadLevel[] = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
 

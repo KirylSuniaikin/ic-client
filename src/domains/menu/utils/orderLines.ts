@@ -1,5 +1,11 @@
 import type { Customization } from "../types";
-import { parseExtrasNames, parseRemovalNames, splitNote } from "./customizations";
+import {
+    parseExtrasNames,
+    parseRemovalNames,
+    splitNote,
+    stripExtrasParts,
+    stripRemovalTokens,
+} from "./customizations";
 
 /**
  * Kitchen-ticket row builder - shared by the printer (BluetoothPrinterService) and the admin
@@ -12,6 +18,10 @@ export type TicketSource = {
     isThinDough?: boolean;
     isGarlicCrust?: boolean;
     customizations?: Customization[];
+    // Read only to de-duplicate the loose-description tier against the note resolveKitchenNote
+    // already renders on its own row.
+    note?: string;
+    noteTranslated?: string;
 };
 
 // Mirrors the literal copy buildDisplay.ts falls back to (buildDisplay.ts:87-88) - that file
@@ -23,8 +33,43 @@ const GARLIC_CRUST_LABEL = "Garlic Crust";
 // Mirrors TOPPING_SUFFIX in buildDisplay.ts:38.
 const TOPPING_SUFFIX = " Topping";
 
-/** Builds one ticket row per modifier, in array order: dough/crust flags first, then either the
- * structured customizations rows or (when absent/empty) a legacy-description fallback. */
+// Loose-description spellings of a choice the isGarlicCrust/isThinDough flags already emitted a
+// row for. Applied ONLY in the loose tier below, never to the grammar parsers: an extra genuinely
+// named "Garlic" is a real catalog row, and dropping it out of a parsed `+(...)` group would lose
+// a paid ingredient. In the loose tier these are the literals aggregator feeds append next to the
+// flag they also set, so filtering them is what prevents a duplicate row.
+const GARLIC_CRUST_TOKENS = new Set(["garlic", "garlic crust", "with garlic oil on the crust"]);
+const THIN_DOUGH_TOKENS = new Set(["thin", "thin dough"]);
+
+/**
+ * Last-resort tier: a description that matched no token grammar at all. That is every Keeta
+ * order (the scraper sends a bare `"Cheddar x1, Darblu Cheese x1"` comma list) and every
+ * pre-grammar order still in the DB. Rendering the text verbatim is the only way those modifiers
+ * reach the kitchen; the alternative is the silent drop this tier exists to fix.
+ */
+function looseDescriptionLines(source: TicketSource, description: string): string[] {
+    // resolveKitchenNote renders the free-text note on its own row, so cut that span off first
+    // or a description like "+(x) +extra crispy" prints the note twice.
+    const withoutNote = description.slice(0, splitNote(description).noteStartIndex);
+    const body = stripExtrasParts(stripRemovalTokens(withoutNote));
+    const note = (source.noteTranslated ?? source.note ?? "").trim().toLowerCase();
+
+    return body
+        .split(",")
+        .map(token => token.trim().replace(/^\+\s*/, "").replace(/\s+x1$/i, "").trim())
+        .filter(token => {
+            if (!token) return false;
+            const lower = token.toLowerCase();
+            if (source.isGarlicCrust && GARLIC_CRUST_TOKENS.has(lower)) return false;
+            if (source.isThinDough && THIN_DOUGH_TOKENS.has(lower)) return false;
+            return lower !== note;
+        })
+        .map(token => `+ ${token}`);
+}
+
+/** Builds one ticket row per modifier, in array order: dough/crust flags first, then the first
+ * tier that yields anything - structured customizations rows, else the legacy-description
+ * grammar parsers, else the raw description split on commas. */
 export function buildTicketLines(source: TicketSource): string[] {
     const lines: string[] = [];
 
@@ -50,6 +95,8 @@ export function buildTicketLines(source: TicketSource): string[] {
     // customizations) - reuse the existing description parsers rather than hand-rolling a new
     // one. Dough is never derived from the description here; the flags above already cover it.
     const description = source.description ?? "";
+    const beforeDescription = lines.length;
+
     for (const name of parseExtrasNames(description)) {
         // When the isGarlicCrust flag is set it already emitted this row above, and the customer
         // flow also folds "garlic crust" into the description additions group - skip the duplicate.
@@ -60,6 +107,10 @@ export function buildTicketLines(source: TicketSource): string[] {
     }
     for (const name of parseRemovalNames(description)) {
         lines.push(`- NO ${name}`);
+    }
+
+    if (lines.length === beforeDescription) {
+        lines.push(...looseDescriptionLines(source, description));
     }
 
     return lines;

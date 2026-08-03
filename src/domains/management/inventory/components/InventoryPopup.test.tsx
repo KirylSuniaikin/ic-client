@@ -118,4 +118,76 @@ describe("InventoryPopup", () => {
             expect((storageInput as HTMLInputElement).value).toBe("3.000");
         });
     });
+
+    it("renders a 'Unit' header cell as a column", async () => {
+        render(
+            <InventoryPopup
+                open={true}
+                mode="new"
+                branch={branch}
+                author={author}
+                onClose={jest.fn()}
+            />
+        );
+
+        await screen.findAllByPlaceholderText("0.000");
+
+        expect(screen.getByRole("columnheader", { name: "Unit" })).toBeTruthy();
+    });
+
+    it("renders 'g' for a product whose unit is GRAMS", async () => {
+        mockFetchProducts.mockResolvedValue([{ ...product, unit: "GRAMS" }]);
+
+        render(
+            <InventoryPopup
+                open={true}
+                mode="new"
+                branch={branch}
+                author={author}
+                onClose={jest.fn()}
+            />
+        );
+
+        await screen.findAllByPlaceholderText("0.000");
+
+        expect(screen.getByText("g")).toBeTruthy();
+    });
+
+    it("renders an em dash for a product with no unit set", async () => {
+        render(
+            <InventoryPopup
+                open={true}
+                mode="new"
+                branch={branch}
+                author={author}
+                onClose={jest.fn()}
+            />
+        );
+
+        await screen.findAllByPlaceholderText("0.000");
+
+        expect(screen.getByText("—")).toBeTruthy();
+    });
+
+    it("sets the empty-filter row's colSpan to the header cell count", async () => {
+        render(
+            <InventoryPopup
+                open={true}
+                mode="new"
+                branch={branch}
+                author={author}
+                onClose={jest.fn()}
+            />
+        );
+
+        await screen.findAllByPlaceholderText("0.000");
+        const headerCellCount = screen.getAllByRole("columnheader").length;
+
+        fireEvent.change(screen.getByLabelText("Filter by product name"), {
+            target: { value: "no-such-product-xyz" },
+        });
+        const emptyRowCell = await screen.findByText("No products match the filter");
+
+        expect((emptyRowCell.closest("td") as HTMLTableCellElement).colSpan).toBe(headerCellCount);
+    });
 });

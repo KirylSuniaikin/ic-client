@@ -28,6 +28,9 @@
     "title": "My Account",
     "close": "Close",
     "guest": "Guest",
+    "editName": "Edit name",
+    "saveName": "Save",
+    "cancelEdit": "Cancel",
     "orderSingular": "order",
     "orderPlural": "orders",
     "orderHistory": "Order history",
@@ -98,5 +101,12 @@
     "orderDetailLoadFailed": "Could not load order details. Please try again.",
     "nameRequired": "Please enter your name.",
     "nameSaveFailed": "Could not save your name. Please try again."
+  },
+  "reviewPrompt": {
+    "title": "How was your pizza last time?",
+    "body": "We're looking forward to your review on Google Maps.",
+    "open": "Yes, leave a review",
+    "later": "Not now",
+    "never": "Don't ask me again"
   }
 }

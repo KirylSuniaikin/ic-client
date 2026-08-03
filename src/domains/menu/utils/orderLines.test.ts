@@ -125,6 +125,93 @@ describe("buildTicketLines — legacy description fallback (old grammar)", () =>
     });
 });
 
+describe("buildTicketLines — loose description fallback (aggregator / pre-grammar orders)", () => {
+    it("emits one row per comma-separated name for a Keeta description that matches no grammar", () => {
+        const source: TicketSource = { description: "Cheddar x1, Darblu Cheese x1" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Cheddar", "+ Darblu Cheese"]);
+    });
+
+    it("keeps a count above one so the kitchen sees the quantity", () => {
+        const source: TicketSource = { description: "Cheddar x2" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Cheddar x2"]);
+    });
+
+    it("does not repeat dough/crust rows the flags already emitted", () => {
+        const source: TicketSource = {
+            isThinDough: true,
+            isGarlicCrust: true,
+            description: "Cheddar x1, Thin, Garlic",
+        };
+
+        expect(buildTicketLines(source)).toEqual(["+ Thin Dough", "+ Garlic Crust", "+ Cheddar"]);
+    });
+
+    it("still emits dough/crust names from the description when the flags are not set (legacy data)", () => {
+        const source: TicketSource = { description: "Cheddar x1, Thin, Garlic" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Cheddar", "+ Thin", "+ Garlic"]);
+    });
+
+    it("emits nothing when the description holds only the free-text note", () => {
+        const source: TicketSource = { description: "+extra napkins", note: "extra napkins" };
+
+        expect(buildTicketLines(source)).toEqual([]);
+    });
+
+    it("drops a token that duplicates the resolved kitchen note", () => {
+        const source: TicketSource = { description: "Cheddar x1, extra napkins", note: "extra napkins" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Cheddar"]);
+    });
+
+    it("emits only the dough row for a bare '+Thin' description when the flag is set", () => {
+        const source: TicketSource = { isThinDough: true, description: "+Thin" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Thin Dough"]);
+    });
+
+    it("does not fire when the grammar parsers already produced rows", () => {
+        const source: TicketSource = { description: "+(Mushroom) trailing junk" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Mushroom"]);
+    });
+
+    it("does not fire when structured customizations are present", () => {
+        const customizations: Customization[] = [{ action: "ADD", extraIngrId: 5, name: "Mushroom" }];
+        const source: TicketSource = { customizations, description: "Cheddar x1, Darblu Cheese x1" };
+
+        expect(buildTicketLines(source)).toEqual(["+ Mushroom"]);
+    });
+});
+
+describe("buildTicketLines — Keeta scraper output", () => {
+    // Exact description the scraper emits for a medium Four Cheese with garlic crust, thin dough,
+    // one Cheddar, two Darblu Cheese and the remark "extra napkins" (verified by dry-running
+    // parse_order_items against a real Keeta product). Guards the contract between the two repos.
+    const KEETA_DESCRIPTION = "+(Cheddar, Darblu Cheese x2) +extra napkins";
+
+    it("renders the modifiers through the grammar tier, not the loose tier", () => {
+        const source: TicketSource = {
+            isThinDough: true,
+            isGarlicCrust: true,
+            description: KEETA_DESCRIPTION,
+        };
+
+        expect(buildTicketLines(source)).toEqual([
+            "+ Thin Dough",
+            "+ Garlic Crust",
+            "+ Cheddar",
+            "+ Darblu Cheese x2",
+        ]);
+    });
+
+    it("surfaces the customer remark as the kitchen note", () => {
+        expect(resolveKitchenNote({ description: KEETA_DESCRIPTION })).toBe("extra napkins");
+    });
+});
+
 describe("resolveKitchenNote — precedence", () => {
     it("prefers noteTranslated when non-blank", () => {
         expect(
