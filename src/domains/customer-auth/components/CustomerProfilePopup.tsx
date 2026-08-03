@@ -2,7 +2,7 @@
 // CustomerLoginPopup/ClientInfoPopup (brand-red bottom Drawer).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Avatar, Box, Button, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Typography } from "@mui/material";
+import { Avatar, Box, Button, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, TextField, Typography } from "@mui/material";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
@@ -10,7 +10,10 @@ import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import AddShoppingCartRoundedIcon from "@mui/icons-material/AddShoppingCartRounded";
-import { fetchCustomerMe, fetchMyOrders, fetchSuggestedItems } from "../../../shared/api/customerAuth";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import { fetchCustomerMe, fetchMyOrders, fetchSuggestedItems, updateCustomerName } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { getStatusLabel } from "../utils/orderStatusLabel";
@@ -54,6 +57,10 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
     const [error, setError] = useState<string | null>(null);
     const [suggestedItems, setSuggestedItems] = useState<SuggestedOrderItem[]>([]);
     const [suggestedFallback, setSuggestedFallback] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [draftName, setDraftName] = useState("");
+    const [isSavingName, setIsSavingName] = useState(false);
+    const [nameError, setNameError] = useState<string | null>(null);
 
     // Shared by both fetches: a 401 here means the in-memory token expired
     // between opening the popup and this request — clear it and surface a
@@ -135,6 +142,10 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
         setError(null);
         setSuggestedItems([]);
         setSuggestedFallback(false);
+        setIsEditingName(false);
+        setDraftName("");
+        setIsSavingName(false);
+        setNameError(null);
         void loadProfileRef.current();
         void loadOrdersRef.current(0);
         void loadSuggestedItemsRef.current();
@@ -163,6 +174,46 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
     async function handleLogout(): Promise<void> {
         await logout();
         onClose();
+    }
+
+    function handleStartEditName(): void {
+        setDraftName(profile?.name ?? "");
+        setNameError(null);
+        setIsEditingName(true);
+    }
+
+    function handleCancelEditName(): void {
+        setIsEditingName(false);
+        setDraftName("");
+        setNameError(null);
+    }
+
+    async function handleSaveName(): Promise<void> {
+        const trimmed = draftName.trim();
+        if (!trimmed) {
+            setNameError(t("errors.nameRequired"));
+            return;
+        }
+        if (trimmed === (profile?.name ?? "")) {
+            setIsEditingName(false);
+            return;
+        }
+        if (!token) return;
+        setIsSavingName(true);
+        try {
+            const updated = await updateCustomerName(token, trimmed);
+            setProfile(updated);
+            setIsEditingName(false);
+        } catch (err) {
+            if (err instanceof CustomerAuthApiError && err.status === 401) {
+                setIsEditingName(false);
+                await handleSessionExpired();
+            } else {
+                setNameError(t("errors.nameSaveFailed"));
+            }
+        } finally {
+            setIsSavingName(false);
+        }
     }
 
     const initial = (profile?.name ?? "").trim().charAt(0).toUpperCase();
@@ -234,10 +285,74 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                                 <Avatar sx={{ bgcolor: brandRed, width: 56, height: 56, fontWeight: 700, fontSize: 24 }}>
                                     {initial}
                                 </Avatar>
-                                <Box sx={{ minWidth: 0 }}>
-                                    <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }} noWrap>
-                                        {profile.name ?? t("profile.guest")}
-                                    </Typography>
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    {isEditingName ? (
+                                        <>
+                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                <TextField
+                                                    variant="standard"
+                                                    autoFocus
+                                                    disabled={isSavingName}
+                                                    error={Boolean(nameError)}
+                                                    value={draftName}
+                                                    onChange={(e) => setDraftName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            void handleSaveName();
+                                                        } else if (e.key === "Escape") {
+                                                            e.preventDefault();
+                                                            handleCancelEditName();
+                                                        }
+                                                    }}
+                                                    inputProps={{ maxLength: 255, "aria-label": t("login.nameLabel") }}
+                                                    placeholder={t("login.namePlaceholder")}
+                                                    sx={{ flex: 1, "& .MuiInput-input": { fontWeight: 700, fontSize: 18 } }}
+                                                />
+                                                <IconButton
+                                                    aria-label={t("profile.saveName")}
+                                                    size="small"
+                                                    disabled={isSavingName}
+                                                    onClick={() => void handleSaveName()}
+                                                    sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
+                                                >
+                                                    {isSavingName ? (
+                                                        <CircularProgress size={16} sx={{ color: brandRed }} />
+                                                    ) : (
+                                                        <CheckRoundedIcon sx={{ fontSize: 16 }} />
+                                                    )}
+                                                </IconButton>
+                                                <IconButton
+                                                    aria-label={t("profile.cancelEdit")}
+                                                    size="small"
+                                                    disabled={isSavingName}
+                                                    onClick={handleCancelEditName}
+                                                    sx={{ color: "#6b6b6b", flexShrink: 0, p: 0.25 }}
+                                                >
+                                                    <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                </IconButton>
+                                            </Stack>
+                                            {nameError && (
+                                                <Typography sx={{ color: brandRed, fontSize: 12, mt: 0.25 }}>
+                                                    {nameError}
+                                                </Typography>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Stack direction="row" spacing={0.5} alignItems="center">
+                                            <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }} noWrap>
+                                                {profile.name ?? t("profile.guest")}
+                                            </Typography>
+                                            <IconButton
+                                                aria-label={t("profile.editName")}
+                                                size="small"
+                                                onClick={handleStartEditName}
+                                                sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
+                                            >
+                                                <EditRoundedIcon sx={{ fontSize: 16 }} />
+                                            </IconButton>
+                                        </Stack>
+                                    )}
                                     <Typography sx={{ color: "#6b6b6b", fontSize: 14, mt: 0.25 }} noWrap>
                                         {profile.phone}
                                     </Typography>

@@ -158,3 +158,60 @@ describe("RecipeComponentsLine — customer-facing label localization", () => {
         expect(onToggle.mock.calls[0][0].name).toBe("Red Onion Raw");
     });
 });
+
+describe("RecipeComponentsLine — 'Ingredients' header", () => {
+    afterEach(async () => {
+        await act(async () => {
+            await i18n.changeLanguage(DEFAULT_LANGUAGE);
+        });
+    });
+
+    it("renders the header when components exist", () => {
+        render(<RecipeComponentsLine components={components} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.getByText("Ingredients")).toBeTruthy();
+    });
+
+    it("renders no header when components is empty", () => {
+        render(<RecipeComponentsLine components={[]} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.queryByText("Ingredients")).toBeNull();
+    });
+
+    it("renders the info icon when at least one component is deletable", () => {
+        render(<RecipeComponentsLine components={components} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.getByTestId("InfoOutlinedIcon")).toBeTruthy();
+    });
+
+    it("keeps the remove hint hidden until the info icon is hovered", async () => {
+        render(<RecipeComponentsLine components={components} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.queryByText("Tap an underlined ingredient to remove it.")).toBeNull();
+
+        fireEvent.mouseOver(screen.getByTestId("InfoOutlinedIcon"));
+
+        expect(await screen.findByText("Tap an underlined ingredient to remove it.")).toBeTruthy();
+    });
+
+    it("does not render the info icon when all components are non-deletable", () => {
+        const allNonDeletable: RecipeComponent[] = [
+            { id: 1, name: "Tomato sauce", deletable: false },
+            { id: 7, name: "Basil", deletable: false },
+        ];
+        render(<RecipeComponentsLine components={allNonDeletable} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.queryByTestId("InfoOutlinedIcon")).toBeNull();
+    });
+
+    it("renders the Arabic header after changeLanguage('ar')", async () => {
+        await act(async () => {
+            await i18n.changeLanguage("ar");
+        });
+
+        render(<RecipeComponentsLine components={components} removedIds={[]} onToggle={jest.fn()} />);
+
+        expect(screen.getByText("المكوّنات")).toBeTruthy();
+    });
+});
+

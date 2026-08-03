@@ -21,6 +21,7 @@ import {
     fetchMyOrders,
     fetchOrderDetail,
     fetchSuggestedItems,
+    updateCustomerName,
 } from "../../../shared/api/customerAuth";
 import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
@@ -35,6 +36,7 @@ const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
 const mockFetchMyOrders = jest.mocked(fetchMyOrders);
 const mockFetchOrderDetail = jest.mocked(fetchOrderDetail);
 const mockFetchSuggestedItems = jest.mocked(fetchSuggestedItems);
+const mockUpdateCustomerName = jest.mocked(updateCustomerName);
 const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
 
@@ -170,6 +172,7 @@ beforeEach(() => {
     mockFetchMyOrders.mockReset();
     mockFetchOrderDetail.mockReset();
     mockFetchSuggestedItems.mockReset();
+    mockUpdateCustomerName.mockReset();
     // Default: no suggestions, so the pre-existing tests below (which never configure this
     // mock themselves) render exactly as they did before the quick-order block existed.
     mockFetchSuggestedItems.mockResolvedValue(suggestedResponse());
@@ -435,6 +438,174 @@ describe("CustomerProfilePopup", () => {
             fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
 
             expect(mockLocationAssign).toHaveBeenCalledWith("/menu?recommended_items=11,22");
+        });
+    });
+
+    // task-spec.md §1c/§1f — the pen icon turns the name into an inline editable field.
+    describe("Editable name", () => {
+        it("the pen icon swaps the name display for a pre-filled textbox", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+
+            const input = screen.getByRole("textbox", { name: "Full name" }) as HTMLInputElement;
+            expect(input.value).toBe("Jane");
+            expect(screen.queryByRole("button", { name: "Edit name" })).toBeNull();
+        });
+
+        it("save calls updateCustomerName and renders the returned name", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockUpdateCustomerName.mockResolvedValueOnce({ ...profile, name: "Janet" });
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "Janet" } });
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await waitFor(() => expect(mockUpdateCustomerName).toHaveBeenCalledWith("profile-token", "Janet"));
+            expect(await screen.findByText("Janet")).toBeTruthy();
+            expect(screen.queryByText("Jane")).toBeNull();
+        });
+
+        it("the avatar initial follows the saved name", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockUpdateCustomerName.mockResolvedValueOnce({ ...profile, name: "Zack" });
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+            expect(screen.getByText("J")).toBeTruthy();
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "Zack" } });
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await screen.findByText("Zack");
+            expect(screen.getByText("Z")).toBeTruthy();
+            expect(screen.queryByText("J")).toBeNull();
+        });
+
+        it("a blank name shows errors.nameRequired locally and makes no API call", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "   " } });
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            expect(await screen.findByText("Please enter your name.")).toBeTruthy();
+            expect(mockUpdateCustomerName).not.toHaveBeenCalled();
+            expect(screen.getByRole("textbox", { name: "Full name" })).toBeTruthy();
+        });
+
+        it("saving an unchanged name exits edit mode without calling the API", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await waitFor(() => expect(screen.queryByRole("textbox", { name: "Full name" })).toBeNull());
+            expect(mockUpdateCustomerName).not.toHaveBeenCalled();
+            expect(screen.getByRole("button", { name: "Edit name" })).toBeTruthy();
+        });
+
+        it("cancel restores the display name and discards the draft", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "Discarded" } });
+            fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+            expect(screen.getByText("Jane")).toBeTruthy();
+            expect(screen.queryByText("Discarded")).toBeNull();
+            expect(mockUpdateCustomerName).not.toHaveBeenCalled();
+
+            // Re-entering edit mode must seed from the saved profile name, not the discarded draft.
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            expect((screen.getByRole("textbox", { name: "Full name" }) as HTMLInputElement).value).toBe("Jane");
+        });
+
+        it("a non-401 failure shows errors.nameSaveFailed and stays in edit mode with the draft intact", async () => {
+            const { CustomerAuthApiError } = await import("../types");
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockUpdateCustomerName.mockRejectedValueOnce(new CustomerAuthApiError("boom", 500));
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "Janet" } });
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            expect(await screen.findByText("Could not save your name. Please try again.")).toBeTruthy();
+            const input = screen.getByRole("textbox", { name: "Full name" }) as HTMLInputElement;
+            expect(input.value).toBe("Janet");
+            expect(mockLogoutCustomer).not.toHaveBeenCalled();
+        });
+
+        it("a 401 failure exits edit mode, logs out, and shows errors.sessionExpired", async () => {
+            const { CustomerAuthApiError } = await import("../types");
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockUpdateCustomerName.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
+            mockLogoutCustomer.mockResolvedValueOnce(undefined);
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            fireEvent.change(screen.getByRole("textbox", { name: "Full name" }), { target: { value: "Janet" } });
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
+            expect(mockLogoutCustomer).toHaveBeenCalled();
+            expect(screen.queryByRole("textbox", { name: "Full name" })).toBeNull();
+        });
+
+        it("closing and re-opening the popup resets edit mode", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValue(profile);
+            mockFetchMyOrders.mockResolvedValue(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Jane");
+
+            fireEvent.click(screen.getByRole("button", { name: "Edit name" }));
+            expect(screen.getByRole("textbox", { name: "Full name" })).toBeTruthy();
+
+            fireEvent.click(screen.getByLabelText("Close"));
+            fireEvent.click(screen.getByRole("button", { name: "open-profile" }));
+
+            await screen.findByText("Jane");
+            expect(screen.queryByRole("textbox", { name: "Full name" })).toBeNull();
+            expect(screen.getByRole("button", { name: "Edit name" })).toBeTruthy();
         });
     });
 });

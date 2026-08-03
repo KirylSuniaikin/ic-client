@@ -102,6 +102,26 @@ export async function registerCustomerName(accessToken: string, name: string): P
     }
 }
 
+// task-spec.md §1b. Idempotent full replacement (PUT), the inverse of the register-once
+// POST above — returns the refreshed CustomerMeResponse (server-trimmed) in one round trip.
+export async function updateCustomerName(
+    accessToken: string,
+    name: string
+): Promise<CustomerMeResponse> {
+    const response = await fetch(`${BASE_URL}/customer/name`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+        throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);
+    }
+
+    return await response.json();
+}
+
 export async function fetchCustomerMe(accessToken: string): Promise<CustomerMeResponse> {
     const response = await fetch(`${BASE_URL}/customer/me`, {
         method: 'GET',

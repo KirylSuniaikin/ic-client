@@ -263,10 +263,11 @@ export default function InventoryPopup({
                                 border: "1px solid rgba(0,0,0,0.08)",
                             }}
                         >
-                            <Table size="small" aria-label="inventory" sx={{ minWidth: 580 }}>
+                            <Table size="small" aria-label="inventory" sx={{ minWidth: 660 }}>
                                 <TableHead sx={{ bgcolor: "#fafafa" }}>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Name</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Unit</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Storage Qty</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Kitchen Qty</TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Price / unit</TableCell>
@@ -285,7 +286,7 @@ export default function InventoryPopup({
 
                                     {filteredRows.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 3, color: "text.secondary" }}>
                                                 No products match the filter
                                             </TableCell>
                                         </TableRow>

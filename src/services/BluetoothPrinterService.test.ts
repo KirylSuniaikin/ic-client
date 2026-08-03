@@ -164,6 +164,23 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
         expect(payload).toContain("      Note: light salt\n");
     });
 
+    it("prints the raw description rows for an aggregator item with no structured customizations", async () => {
+        const keetaItem: OrderItem = {
+            ...PIZZA_ITEM,
+            note: undefined,
+            noteTranslated: undefined,
+            customizations: undefined,
+            description: "Cheddar x1, Darblu Cheese x1",
+        };
+        const order = buildOrder([keetaItem]);
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        expect(payload).toContain("   + Cheddar\n");
+        expect(payload).toContain("   + Darblu Cheese\n");
+    });
+
     it("omits the Note line entirely when no note applies", async () => {
         const noNoteItem: OrderItem = {
             ...PIZZA_ITEM,
