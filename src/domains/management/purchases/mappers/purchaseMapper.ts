@@ -1,4 +1,4 @@
-import { PurchaseRow } from "../types";
+import { PurchaseRow, PurchaseSortKey, SortDir } from "../types";
 import { toDecimal } from "../../../../shared/utils/decimalUtils";
 
 export { toDecimal, p2, q3 } from "../../../../shared/utils/decimalUtils";
@@ -27,6 +27,54 @@ export const toPayloadLine = (r: PurchaseRow): {
         purchaseDate: r.purchaseDate,
     };
 };
+
+/** Direction a column starts in on its first tap: dates newest-first, text A→Z. */
+export const DEFAULT_SORT_DIR: Record<PurchaseSortKey, SortDir> = {
+    purchaseDate: "desc",
+    product: "asc",
+    vendorName: "asc",
+};
+
+// Every sortable column compares as a string: purchaseDate is ISO (YYYY-MM-DD), so
+// lexicographic order is chronological order.
+function sortValue(
+    row: PurchaseRow,
+    key: PurchaseSortKey,
+    productName: (productId: number | null) => string,
+): string {
+    switch (key) {
+        case "purchaseDate":
+            return String(row.purchaseDate ?? "").trim();
+        case "product":
+            return productName(row.productId).trim();
+        case "vendorName":
+            return String(row.vendorName ?? "").trim();
+    }
+}
+
+/**
+ * Reorders a copy of `rows`. Called only when a header is tapped — the table keeps this order
+ * while cells are edited, so a row never jumps out from under the finger of whoever is typing.
+ * Rows still missing the sorted value stay at the bottom in BOTH directions, so a half-filled
+ * line is never buried above the completed ones.
+ */
+export function sortPurchaseRows(
+    rows: PurchaseRow[],
+    key: PurchaseSortKey,
+    dir: SortDir,
+    productName: (productId: number | null) => string,
+): PurchaseRow[] {
+    const factor = dir === "asc" ? 1 : -1;
+    return rows.slice().sort((a, b) => {
+        const av = sortValue(a, key, productName);
+        const bv = sortValue(b, key, productName);
+        if (av === "" || bv === "") {
+            if (av === bv) return 0;
+            return av === "" ? 1 : -1;
+        }
+        return factor * av.localeCompare(bv);
+    });
+}
 
 const isFilledNumber = (v: unknown): boolean =>
     Number.isFinite(v) && !Number.isNaN(v) && !toDecimal(v).isZero();

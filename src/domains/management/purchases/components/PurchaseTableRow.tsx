@@ -46,6 +46,35 @@ const noUnderlineSx = {
     "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
 };
 
+type PillTone = "neutral" | "error";
+
+/**
+ * Shared wrapper for every numeric cell. The over-target highlight lives on this pill rather
+ * than on the TableCell so it keeps the same rounded shape as the neutral cells.
+ * `data-tone` is what the tests assert on — emotion class names are not stable.
+ */
+function CellPill({ tone = "neutral", children }: { tone?: PillTone; children: React.ReactNode }) {
+    return (
+        <Box
+            data-tone={tone}
+            sx={(t) => ({
+                backgroundColor: tone === "error" ? `${t.palette.error.light}33` : pillSx.bg,
+                color: tone === "error" ? t.palette.error.main : pillSx.text,
+                py: 0.5, px: 1.5, borderRadius: 2,
+                display: "inline-flex", alignItems: "center",
+                fontWeight: "bold", fontSize: "0.9rem",
+            })}
+        >
+            {children}
+        </Box>
+    );
+}
+
+const inputSx = {
+    ...noUnderlineSx,
+    "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
+};
+
 const isDecFinite = (d: Decimal): boolean => Number.isFinite(d.toNumber());
 
 // Unit price: the explicit one when set, otherwise derived from total / quantity.
@@ -151,58 +180,36 @@ function PurchaseTableRowInner({
 
             {/* Amount (quantity) */}
             <TableCell sx={{ minWidth: 130, ...cellErrSx("quantity") }}>
-                <Box sx={{
-                    backgroundColor: pillSx.bg,
-                    color: pillSx.text,
-                    py: 0.5, px: 1.5, borderRadius: 2,
-                    display: "inline-flex", alignItems: "center",
-                    fontWeight: "bold", fontSize: "0.9rem",
-                }}>
+                <CellPill>
                     <DecimalCellInput
                         value={fmt3(row.quantity)}
                         onCommit={(raw) => onCommitNumeric(row.id, "quantity", raw)}
                         width={90}
-                        sx={{
-                            ...noUnderlineSx,
-                            "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
-                        }}
+                        sx={inputSx}
                     />
-                </Box>
+                </CellPill>
             </TableCell>
 
             {/* Total Price (finalPrice) */}
             <TableCell sx={{ minWidth: 140, ...cellErrSx("finalPrice") }}>
-                <Box sx={(t) => ({
-                    backgroundColor: overTarget ? `${t.palette.error.light}33` : pillSx.bg,
-                    color: overTarget ? t.palette.error.main : pillSx.text,
-                    py: 0.5, px: 1.5, borderRadius: 2,
-                    display: "inline-flex", alignItems: "center",
-                    fontWeight: "bold", fontSize: "0.9rem",
-                })}>
+                <CellPill>
                     <DecimalCellInput
                         value={fmt3(row.finalPrice)}
                         onCommit={(raw) => onCommitNumeric(row.id, "finalPrice", raw)}
                         width={100}
-                        sx={(t) => ({
-                            ...noUnderlineSx,
-                            "& input": {
-                                color: overTarget ? t.palette.error.main : pillSx.text,
-                                fontWeight: "bold", fontSize: "0.9rem", padding: 0,
-                            },
-                        })}
+                        sx={inputSx}
                     />
-                </Box>
+                </CellPill>
             </TableCell>
 
-            {/* Target Price (price) — read-only */}
-            <TableCell sx={(t) => ({
-                minWidth: 160,
-                fontSize: "0.9rem",
-                ...(overTarget
-                    ? { backgroundColor: `${t.palette.error.light}33`, color: t.palette.error.main, fontWeight: 700 }
-                    : { color: "text.secondary" }),
-            })}>
-                {fmt3(row.price)}
+            {/* Unit Price (price) — total ÷ amount, read-only. The only cell that turns red. */}
+            <TableCell sx={{ minWidth: 160 }} data-testid="unit-price-cell">
+                <CellPill tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</CellPill>
+            </TableCell>
+
+            {/* Target Price — the price we aim to buy at, straight from the product. Read-only. */}
+            <TableCell sx={{ minWidth: 160 }} data-testid="target-price-cell">
+                <CellPill>{fmt3(product?.targetPrice ?? null) || "—"}</CellPill>
             </TableCell>
 
             {/* Vendor */}

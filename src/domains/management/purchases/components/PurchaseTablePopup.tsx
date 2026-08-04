@@ -6,21 +6,28 @@ import {
     CreatePurchasePayload,
     EditPurchasePayload,
     PurchaseRow,
+    PurchaseSort,
+    PurchaseSortKey,
     PurchaseTO,
+    SortDir,
     VendorTO
 } from "../types";
 import {
     Box, Button,
     Dialog,
     Paper,
+    Stack,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    TableSortLabel,
+    Tooltip,
     Typography
 } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import dayjs from 'dayjs';
 import {
@@ -31,7 +38,7 @@ import {
     getPurchaseReport,
     getUser
 } from "../../../../shared/api/management";
-import { toDecimal, toPayloadLine, validateRows} from "../mappers/purchaseMapper";
+import { DEFAULT_SORT_DIR, sortPurchaseRows, toDecimal, toPayloadLine, validateRows} from "../mappers/purchaseMapper";
 import {normalizeDecimal} from "../../../../shared/utils/decimalUtils";
 import {NumericField, PurchaseTableRow} from "./PurchaseTableRow";
 import Decimal from "decimal.js-light";
@@ -47,6 +54,44 @@ type Props = {
 }
 
 const headerCellSx = { fontWeight: "bold", color: "text.secondary" } as const;
+
+/** Tappable column header. The arrow shows the direction the CURRENT order was built with. */
+function SortableHeader({label, sortKey, sort, onSort}: {
+    label: string;
+    sortKey: PurchaseSortKey;
+    sort: PurchaseSort | null;
+    onSort: (key: PurchaseSortKey) => void;
+}) {
+    const active = sort?.key === sortKey;
+    return (
+        <TableCell sx={headerCellSx} sortDirection={active ? sort.dir : false}>
+            <TableSortLabel
+                active={active}
+                direction={active ? sort.dir : DEFAULT_SORT_DIR[sortKey]}
+                onClick={() => onSort(sortKey)}
+                sx={{ whiteSpace: "nowrap" }}
+            >
+                {label}
+            </TableSortLabel>
+        </TableCell>
+    );
+}
+
+/**
+ * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
+ * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that
+ * (see menu/components/RecipeComponentsLine.tsx).
+ */
+function HeaderWithInfo({ label, info }: { label: string; info: string }) {
+    return (
+        <Stack direction="row" alignItems="center" gap={0.5} sx={{ whiteSpace: "nowrap" }}>
+            <span>{label}</span>
+            <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
+                <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
+            </Tooltip>
+        </Stack>
+    );
+}
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
@@ -64,6 +109,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>(null);
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
+    const [sort, setSort] = useState<PurchaseSort | null>(null);
 
 
     useEffect(() => {
@@ -165,13 +211,22 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     if (v) {
                         next.vendorName = v.vendorName;
                     }
-                    next.price = val.targetPrice;
                 }
             }
             return next;
         }));
         setDirty(true);
     }, [vendorByName]);
+
+    // Sorting reorders the rows once, on tap. It is not a data change, so it must not mark
+    // the report dirty — nobody should be asked to save because they re-ordered the view.
+    const applySort = useCallback((key: PurchaseSortKey) => {
+        const dir: SortDir = sort?.key === key
+            ? (sort.dir === "asc" ? "desc" : "asc")
+            : DEFAULT_SORT_DIR[key];
+        setSort({ key, dir });
+        setRows(prev => sortPurchaseRows(prev, key, dir, id => productById.get(id ?? -1)?.name ?? ""));
+    }, [sort, productById]);
 
     const total = useMemo(
         () =>
@@ -297,12 +352,23 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         <Table size="small" aria-label="purchases" sx={{ minWidth: 900 }}>
                             <TableHead sx={{ bgcolor: "#fafafa" }}>
                                 <TableRow>
-                                    <TableCell sx={headerCellSx}>Date of purchase</TableCell>
-                                    <TableCell sx={headerCellSx}>Product</TableCell>
+                                    <SortableHeader label="Date of purchase" sortKey="purchaseDate" sort={sort} onSort={applySort} />
+                                    <SortableHeader label="Product" sortKey="product" sort={sort} onSort={applySort} />
                                     <TableCell sx={headerCellSx}>Amount(kg/unit)</TableCell>
                                     <TableCell sx={headerCellSx}>Total Price</TableCell>
-                                    <TableCell sx={headerCellSx}>Target Price(kg/unit)</TableCell>
-                                    <TableCell sx={headerCellSx}>Vendor</TableCell>
+                                    <TableCell sx={headerCellSx}>
+                                        <HeaderWithInfo
+                                            label="Unit Price(kg/unit)"
+                                            info="Actual price paid per kg/unit — total price ÷ amount."
+                                        />
+                                    </TableCell>
+                                    <TableCell sx={headerCellSx}>
+                                        <HeaderWithInfo
+                                            label="Target Price(kg/unit)"
+                                            info="Price we aim to buy this product at, from the product card."
+                                        />
+                                    </TableCell>
+                                    <SortableHeader label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
                                     <TableCell sx={headerCellSx} />
                                 </TableRow>
                             </TableHead>
@@ -325,7 +391,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
                                 {rows.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={7} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 3, color: "text.secondary" }}>
                                             No lines yet — use Add to create one
                                         </TableCell>
                                     </TableRow>

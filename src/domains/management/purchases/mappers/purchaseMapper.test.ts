@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { toPayloadLine, validateRows } from "./purchaseMapper";
+import { sortPurchaseRows, toPayloadLine, validateRows } from "./purchaseMapper";
 import type { PurchaseRow } from "../types";
 
 const baseRow: PurchaseRow = {
@@ -192,5 +192,57 @@ describe("validateRows", () => {
         const result = validateRows([]);
 
         expect(result.size).toBe(0);
+    });
+});
+
+describe("sortPurchaseRows", () => {
+    const names: Record<number, string> = { 1: "Flour", 2: "Cheese", 3: "Tomato" };
+    const nameOf = (id: number | null): string => (id == null ? "" : names[id] ?? "");
+
+    const rowA: PurchaseRow = { ...baseRow, id: "a", purchaseDate: "2025-06-10", productId: 1, vendorName: "Zain" };
+    const rowB: PurchaseRow = { ...baseRow, id: "b", purchaseDate: "2025-06-01", productId: 2, vendorName: "Acme" };
+    const rowC: PurchaseRow = { ...baseRow, id: "c", purchaseDate: "2025-06-20", productId: 3, vendorName: "Metro" };
+
+    const ids = (rows: PurchaseRow[]): string[] => rows.map(r => r.id);
+
+    it("orders by purchase date newest first when descending", () => {
+        const result = sortPurchaseRows([rowA, rowB, rowC], "purchaseDate", "desc", nameOf);
+
+        expect(ids(result)).toEqual(["c", "a", "b"]);
+    });
+
+    it("orders by purchase date oldest first when ascending", () => {
+        const result = sortPurchaseRows([rowA, rowB, rowC], "purchaseDate", "asc", nameOf);
+
+        expect(ids(result)).toEqual(["b", "a", "c"]);
+    });
+
+    it("orders by the resolved product name, not the product id", () => {
+        const result = sortPurchaseRows([rowA, rowB, rowC], "product", "asc", nameOf);
+
+        // Cheese(2) < Flour(1) < Tomato(3) — ids alone would give 1,2,3.
+        expect(ids(result)).toEqual(["b", "a", "c"]);
+    });
+
+    it("orders by vendor name", () => {
+        const result = sortPurchaseRows([rowA, rowB, rowC], "vendorName", "asc", nameOf);
+
+        expect(ids(result)).toEqual(["b", "c", "a"]);
+    });
+
+    it("keeps rows missing the sorted value at the bottom in both directions", () => {
+        const blank: PurchaseRow = { ...baseRow, id: "blank", productId: null, vendorName: "" };
+
+        expect(ids(sortPurchaseRows([blank, rowA, rowB], "vendorName", "asc", nameOf))).toEqual(["b", "a", "blank"]);
+        expect(ids(sortPurchaseRows([blank, rowA, rowB], "vendorName", "desc", nameOf))).toEqual(["a", "b", "blank"]);
+    });
+
+    it("returns a new array and leaves the input untouched", () => {
+        const input = [rowA, rowB, rowC];
+
+        const result = sortPurchaseRows(input, "purchaseDate", "desc", nameOf);
+
+        expect(result).not.toBe(input);
+        expect(ids(input)).toEqual(["a", "b", "c"]);
     });
 });

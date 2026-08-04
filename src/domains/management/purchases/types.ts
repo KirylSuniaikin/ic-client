@@ -47,6 +47,16 @@ export type CreatePurchasePayload = {
 
 export type EditPurchasePayload = CreatePurchasePayload & { id: number };
 
+/** Columns whose header can be tapped to reorder the table. */
+export type PurchaseSortKey = "purchaseDate" | "product" | "vendorName";
+
+export type SortDir = "asc" | "desc";
+
+export type PurchaseSort = {
+    key: PurchaseSortKey;
+    dir: SortDir;
+};
+
 export type PurchaseRow = {
     id: string;
     purchaseDate: string;
