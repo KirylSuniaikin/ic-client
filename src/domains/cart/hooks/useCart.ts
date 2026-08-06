@@ -1,6 +1,7 @@
 import { useState, Dispatch, SetStateAction } from "react";
-import type { MenuItem, CartItem, ExtraIngr, Group } from "../../menu/types";
+import type { MenuItem, CartItem, ExtraIngr, Topping, Group } from "../../menu/types";
 import { sameRemovals } from "../../menu/utils/customizations";
+import { pizzaUnitPrice } from "../../menu/utils/pricing";
 
 export interface UseCartResult {
     cartItems: CartItem[];
@@ -45,7 +46,18 @@ export interface UseCartResult {
     setCartOpen: Dispatch<SetStateAction<boolean>>;
 }
 
-export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
+// Module-level so the parameter defaults keep a stable identity across renders — a fresh `[]`
+// literal per render would defeat any memoization a caller (or the RN ports) builds on them.
+const NO_EXTRA_INGREDIENTS: ExtraIngr[] = [];
+const NO_TOPPINGS: Topping[] = [];
+
+export function useCart(
+    menuData: MenuItem[],
+    isAdmin: boolean,
+    // Catalogs the in-cart size toggle needs to re-price a customized line for its new size.
+    extraIngredients: ExtraIngr[] = NO_EXTRA_INGREDIENTS,
+    toppings: Topping[] = NO_TOPPINGS,
+): UseCartResult {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [upsellPopupOpen, setUpsellPopupOpen] = useState(false);
     const [upsellItem, setUpsellItem] = useState<CartItem | null>(null);
@@ -189,7 +201,9 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
                     if (ee.length === 0 && ne.length === 0) { updated[idx] = { ...existing, quantity: existing.quantity + item.quantity }; return; }
                     if (ee.length !== ne.length) { updated.push({ ...item }); return; }
                     if (!ee.every((ing: ExtraIngr) => ne.some((it: ExtraIngr) => it.name === ing.name))) { updated.push({ ...item }); return; }
-                    updated[idx] = { ...existing, quantity: existing.quantity + item.quantity, amount: existing.amount + item.amount };
+                    // `amount` is the per-UNIT price: quantity alone carries the multiplication.
+                    // Summing it here charged a merged customized line twice over (amount × qty).
+                    updated[idx] = { ...existing, quantity: existing.quantity + item.quantity };
                     return;
                 }
                 updated.push({ ...item });
@@ -227,9 +241,20 @@ export function useCart(menuData: MenuItem[], isAdmin: boolean): UseCartResult {
     function handleChangeSize(item: CartItem, newSize: string): void {
         const sameItems = menuData.filter((m: MenuItem) => m.name === item.name);
         const matched = sameItems.find((it: MenuItem) => it.size === newSize);
-        const newBasePrice = matched ? matched.price : item.amount;
-        const newId = matched ? matched.id : item.id;
-        setCartItems(prev => prev.map((it: CartItem) => it === item ? { ...it, id: newId, amount: newBasePrice, size: newSize } : it));
+        if (!matched) return;
+        // Re-price the WHOLE line, not just the base: the extras/drizzles stay on the item (and
+        // still reach the kitchen), and extras are per-size rows, so the new size's own prices
+        // have to be re-resolved. Taking `matched.price` alone handed the customer every extra
+        // for free the moment they toggled size in the cart.
+        const newAmount = pizzaUnitPrice({
+            basePrice: matched.price,
+            size: newSize,
+            extraIngredients: item.extraIngredients,
+            toppings: item.toppings,
+            extrasCatalog: extraIngredients,
+            toppingsCatalog: toppings,
+        });
+        setCartItems(prev => prev.map((it: CartItem) => it === item ? { ...it, id: matched.id, amount: newAmount, size: newSize } : it));
     }
 
     function handleUpsellDecline(): void {

@@ -12,6 +12,11 @@ import {
     sameRemovals,
     intersectRemovals,
     matchRemovalNames,
+    toppingsFromCustomizations,
+    toppingAdditionToken,
+    toppingNameFromAdditionToken,
+    splitAdditionNames,
+    ingredientNames,
 } from "./customizations";
 import type { Customization, RecipeComponent } from "../types";
 
@@ -176,5 +181,51 @@ describe("intersectRemovals / matchRemovalNames", () => {
         expect(matchRemovalNames(["red onion", "Unknown"], recipe)).toEqual([
             { id: 7, name: "Red Onion" },
         ]);
+    });
+});
+
+describe("drizzle helpers", () => {
+    it("should extract only the toppingId ADD rows from customizations", () => {
+        const customizations: Customization[] = [
+            { action: "ADD", extraIngrId: 4, name: "Mushrooms" },
+            { action: "ADD", toppingId: 3, name: "Ranch" },
+            { action: "REMOVE", componentId: 7, name: "Red Onion" },
+        ];
+
+        expect(toppingsFromCustomizations(customizations)).toEqual(["Ranch"]);
+        expect(toppingsFromCustomizations(undefined)).toEqual([]);
+    });
+
+    it("should round-trip a drizzle name through its addition token", () => {
+        expect(toppingAdditionToken("Garlic")).toBe("Garlic Topping");
+        expect(toppingNameFromAdditionToken("Garlic Topping")).toBe("Garlic");
+    });
+
+    it("should return null for an addition token that is not a drizzle", () => {
+        expect(toppingNameFromAdditionToken("Mushroom")).toBeNull();
+    });
+});
+
+describe("splitAdditionNames", () => {
+    it("should separate drizzles from extras in a shared additions group", () => {
+        expect(splitAdditionNames(["Mushroom", "Garlic Topping", "Olives"]))
+            .toEqual({ extras: ["Mushroom", "Olives"], toppings: ["Garlic"] });
+    });
+
+    it("should return empty lists for an empty group", () => {
+        expect(splitAdditionNames([])).toEqual({ extras: [], toppings: [] });
+    });
+});
+
+describe("ingredientNames", () => {
+    it("should read names from plain strings and from catalog objects alike", () => {
+        expect(ingredientNames(["Mushroom"])).toEqual(["Mushroom"]);
+        expect(ingredientNames([{ name: "Mushroom" }])).toEqual(["Mushroom"]);
+    });
+
+    it("should drop entries without a usable name", () => {
+        expect(ingredientNames([{ name: null }, "", "Olives"])).toEqual(["Olives"]);
+        expect(ingredientNames(null)).toEqual([]);
+        expect(ingredientNames(undefined)).toEqual([]);
     });
 });

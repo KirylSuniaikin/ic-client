@@ -575,3 +575,82 @@ describe("useCart — setters exposed by the hook", () => {
         expect(result.current.editMode).toBe(true);
     });
 });
+
+// Regression cover for the two ways a customized pizza line could be mispriced.
+describe("useCart — customized pizza pricing", () => {
+    const PIZZA_MENU: MenuItem[] = [
+        makeMenuItem("Margherita", "Pizzas", "M", 3),
+        makeMenuItem("Margherita", "Pizzas", "L", 4),
+    ];
+    const EXTRAS = [
+        { id: 1, name: "Mushroom", size: "M", price: 0.6 },
+        { id: 2, name: "Mushroom", size: "L", price: 0.9 },
+    ];
+    const DRIZZLES = [{ id: 10, name: "Garlic", price: 0.3 }];
+
+    function customizedPizza(): CartItem {
+        return {
+            ...makeCartItem("Margherita", "Pizzas", 3.9),
+            description: "+(Mushroom, Garlic Topping)",
+            extraIngredients: ["Mushroom"] as unknown as CartItem["extraIngredients"],
+            toppings: ["Garlic"] as unknown as CartItem["toppings"],
+        };
+    }
+
+    it("should re-price extras and drizzles for the new size when the size is changed in the cart", () => {
+        const { result } = renderHook(() => useCart(PIZZA_MENU, false, EXTRAS, DRIZZLES));
+
+        act(() => {
+            result.current.handleAddToCart(customizedPizza(), true);
+        });
+        act(() => {
+            result.current.handleChangeSize(result.current.cartItems[0], "L");
+        });
+
+        expect(result.current.cartItems[0].size).toBe("L");
+        expect(result.current.cartItems[0].amount).toBeCloseTo(5.2);
+    });
+
+    it("should keep the base price only when the resized line carries no customizations", () => {
+        const { result } = renderHook(() => useCart(PIZZA_MENU, false, EXTRAS, DRIZZLES));
+
+        act(() => {
+            result.current.handleAddToCart(makeCartItem("Margherita", "Pizzas", 3), true);
+        });
+        act(() => {
+            result.current.handleChangeSize(result.current.cartItems[0], "L");
+        });
+
+        expect(result.current.cartItems[0].amount).toBe(4);
+    });
+
+    it("should leave the line untouched when the requested size is not on the menu", () => {
+        const { result } = renderHook(() => useCart(PIZZA_MENU, false, EXTRAS, DRIZZLES));
+
+        act(() => {
+            result.current.handleAddToCart(customizedPizza(), true);
+        });
+        act(() => {
+            result.current.handleChangeSize(result.current.cartItems[0], "S");
+        });
+
+        expect(result.current.cartItems[0].size).toBe("M");
+        expect(result.current.cartItems[0].amount).toBeCloseTo(3.9);
+    });
+
+    it("should bump quantity without doubling the unit price when the same customized pizza is added twice", () => {
+        const { result } = renderHook(() => useCart(PIZZA_MENU, false, EXTRAS, DRIZZLES));
+
+        act(() => {
+            result.current.handleAddToCart(customizedPizza(), true);
+        });
+        act(() => {
+            result.current.handleAddToCart(customizedPizza(), true);
+        });
+
+        expect(result.current.cartItems).toHaveLength(1);
+        expect(result.current.cartItems[0].quantity).toBe(2);
+        expect(result.current.cartItems[0].amount).toBeCloseTo(3.9);
+        expect(result.current.totalPrice).toBe("7.80");
+    });
+});

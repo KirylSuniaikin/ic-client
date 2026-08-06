@@ -123,6 +123,58 @@ export function extrasFromCustomizations(customizations?: Customization[]): stri
         .map(c => c.name as string);
 }
 
+const TOPPING_SUFFIX = " Topping";
+
+/** Mirrors {@link extrasFromCustomizations} for the toppingId (drizzle) ADD rows. */
+export function toppingsFromCustomizations(customizations?: Customization[]): string[] {
+    return (customizations ?? [])
+        .filter(c => c.action === "ADD" && c.toppingId != null && !!c.name)
+        .map(c => c.name as string);
+}
+
+/** Catalog drizzle name -> the marked name that goes into the shared additions group. */
+export function toppingAdditionToken(name: string): string {
+    return `${name}${TOPPING_SUFFIX}`;
+}
+
+/**
+ * Legacy-description fallback: the additions group mixes extras and " Topping"-suffixed drizzle
+ * names, so pull only the suffixed ones back out (returns the bare catalog name, or null for a
+ * token that is not a drizzle).
+ */
+export function toppingNameFromAdditionToken(name: string): string | null {
+    return name.endsWith(TOPPING_SUFFIX) ? name.slice(0, -TOPPING_SUFFIX.length) : null;
+}
+
+/**
+ * Splits one additions group back into its two catalogs. Extras and drizzles share a single
+ * `+(a, b)` group in the description (only drizzles carry the " Topping" marker), so anything
+ * hydrating a line from description text alone must separate them again — otherwise a drizzle
+ * lands in the extras list, matches no extra-ingredient row, and silently loses its price.
+ */
+export function splitAdditionNames(names: string[]): { extras: string[]; toppings: string[] } {
+    const extras: string[] = [];
+    const toppings: string[] = [];
+    for (const name of names) {
+        const topping = toppingNameFromAdditionToken(name);
+        if (topping === null) extras.push(name);
+        else toppings.push(topping);
+    }
+    return { extras, toppings };
+}
+
+/**
+ * Names of the extras/drizzles carried by an order line, from either runtime shape: the popups
+ * store plain name strings on `CartItem.extraIngredients`/`toppings` (the declared `ExtraIngr[]`
+ * /`Topping[]` types describe the catalog, not what the cart holds), while catalog-sourced lists
+ * hold objects. Anything without a usable name is dropped.
+ */
+export function ingredientNames(list: ReadonlyArray<string | { name?: string | null }> | null | undefined): string[] {
+    return (list ?? [])
+        .map(entry => (typeof entry === "string" ? entry : entry?.name ?? ""))
+        .filter(name => name !== "");
+}
+
 /**
  * Parses added-ingredient names (extras + drizzles) out of the generated description groups.
  * Accepts BOTH the new grouped `+(a, b)` format (sign outside the paren, comma-separated) and
