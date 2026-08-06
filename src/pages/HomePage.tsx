@@ -70,7 +70,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     useEffect(() => {
         setMenuLocalizationData({ menuData: menu.menuData, toppings: menu.toppings, extraIngredients: menu.extraIngredients });
     }, [menu.menuData, menu.toppings, menu.extraIngredients, setMenuLocalizationData]);
-    const cart = useCart(menu.menuData, isAdmin);
+    const cart = useCart(menu.menuData, isAdmin, menu.extraIngredients, menu.toppings);
     const checkout = useCheckout({
         isAdmin, isKiosk, isEditMode, adminBranchId,
         menuData: menu.menuData, cartItems: cart.cartItems,
