@@ -26,12 +26,15 @@ import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import dayjs from "dayjs";
 import {
     createPurchaseReport,
+    deletePurchaseInvoiceImage,
     editPurchaseReport,
     fetchProducts,
     fetchVendors,
     getPurchaseReport,
     getUser,
+    uploadPurchaseInvoiceImage,
 } from "../../../../shared/api/management";
+import type { SavePurchaseResponse } from "../types";
 import {
     DEFAULT_SORT_DIR,
     sortPurchaseInvoices,
@@ -113,7 +116,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         paid: inv.paid,
                         hasImage: inv.hasImage,
                         pendingImage: null,
-                        pendingPreviewUrl: null,
                         removeImage: false,
                         lines: inv.products.map((x, j) => ({
                             id: `inv-${i}-line-${j}`,
@@ -239,6 +241,45 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         [invoices]
     );
 
+    /**
+     * Uploads/removes invoice photos AFTER the report is saved — a brand-new invoice has no id
+     * until the save assigns one, and the response's clientRef -> invoiceId map is what connects
+     * a blob held in memory to its row.
+     *
+     * allSettled, not all: one failed photo must not hide the fact that the report itself saved.
+     * Each upload gets one retry, since the usual cause is a momentary tablet wifi drop.
+     * @returns how many photo operations ultimately failed
+     */
+    const syncInvoiceImages = async (saved: SavePurchaseResponse): Promise<number> => {
+        const serverIdByRef = new Map(saved.invoices.map(r => [r.clientRef, r.invoiceId] as const));
+
+        const jobs: Array<() => Promise<unknown>> = [];
+        for (const inv of invoices) {
+            const serverId = serverIdByRef.get(inv.id);
+            if (serverId == null) continue;
+            if (inv.pendingImage) {
+                const blob = inv.pendingImage;
+                jobs.push(() => uploadPurchaseInvoiceImage(serverId, blob));
+            } else if (inv.removeImage && inv.hasImage) {
+                jobs.push(() => deletePurchaseInvoiceImage(serverId));
+            }
+        }
+        if (jobs.length === 0) return 0;
+
+        const runWithOneRetry = async (job: () => Promise<unknown>): Promise<unknown> => {
+            try {
+                return await job();
+            } catch {
+                return job();
+            }
+        };
+
+        const results = await Promise.allSettled(jobs.map(runWithOneRetry));
+        const failed = results.filter(r => r.status === "rejected");
+        failed.forEach(r => logger.error((r as PromiseRejectedResult).reason, "invoice photo sync failed"));
+        return failed.length;
+    };
+
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -272,8 +313,21 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     ? await createPurchaseReport(base)
                     : await editPurchaseReport({ id: purchaseId!, ...base } as EditPurchasePayload);
 
+                const failedPhotos = await syncInvoiceImages(saved);
+
+                // The report itself is already persisted, so the parent list is updated and the
+                // form is no longer dirty either way. A failed photo must never present itself as
+                // a failed save.
                 onSaved?.(saved.report);
                 setDirty(false);
+
+                if (failedPhotos > 0) {
+                    setError(
+                        `Report saved, but ${failedPhotos} invoice photo(s) could not be uploaded. ` +
+                        `Re-attach them and save again — the report data is safe.`
+                    );
+                    return;
+                }
                 onClose();
             }
             catch (e: any) {
@@ -390,7 +444,6 @@ function mkEmptyInvoice(): PurchaseInvoiceRow {
         paid: false,
         hasImage: false,
         pendingImage: null,
-        pendingPreviewUrl: null,
         removeImage: false,
         lines: [mkEmptyLine()],
     };

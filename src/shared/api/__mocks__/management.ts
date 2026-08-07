@@ -2,6 +2,7 @@ import { jest } from "@jest/globals";
 import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from "../../../domains/management/inventory/types";
 import type { BlackListCstmr } from "../../../domains/management/blacklist/types";
 import type {
+    BasePurchaseResponse,
     CreatePurchasePayload,
     EditPurchasePayload,
     InvoiceImageMetaTO,
@@ -31,6 +32,12 @@ export const getUser = jest.fn<Promise<IUser>, [number]>();
 export const createPurchaseReport = jest.fn<Promise<SavePurchaseResponse>, [CreatePurchasePayload]>();
 export const editPurchaseReport = jest.fn<Promise<SavePurchaseResponse>, [EditPurchasePayload]>();
 export const getPurchaseReport = jest.fn<Promise<PurchaseTO>, [{ id: number }]>();
+// The real getReports is overloaded per report type; the mock returns the widest of those unions
+// and callers narrow at the assertion site.
+export const getReports = jest.fn<
+    Promise<BasePurchaseResponse[] | IManagementResponse[]>,
+    [{ branchId: string; reportType: string; from?: string; to?: string }]
+>();
 export const createReport = jest.fn<Promise<IManagementResponse>, [Record<string, unknown>]>();
 export const editReport = jest.fn<Promise<IManagementResponse>, [Record<string, unknown>]>();
 export const getReport = jest.fn<Promise<ReportTO>, [number]>();

@@ -18,7 +18,6 @@ const baseInvoice: PurchaseInvoiceRow = {
     paid: false,
     hasImage: false,
     pendingImage: null,
-    pendingPreviewUrl: null,
     removeImage: false,
     lines: [baseLine],
 };

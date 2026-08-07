@@ -146,8 +146,10 @@ export type PurchaseInvoiceRow = {
     vendorName: string | null;
     paid: boolean;
     hasImage: boolean; // server has a stored photo
-    pendingImage: Blob | null; // compressed, not uploaded yet
-    pendingPreviewUrl: string | null; // objectURL — revoke on replace AND unmount
+    pendingImage: Blob | null; // compressed, not uploaded yet — uploaded after the report saves
+    // No preview objectURL is stored here on purpose: InvoiceImageField derives it from
+    // pendingImage inside an effect, so it is revoked on unmount and on replace. An object URL
+    // held in shared state outlives the component that created it and leaks.
     removeImage: boolean;
     lines: PurchaseLineRow[];
 };

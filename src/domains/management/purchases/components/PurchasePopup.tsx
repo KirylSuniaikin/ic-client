@@ -1,12 +1,25 @@
 import { logger } from "../../../../shared/utils/logger";
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {BasePurchaseResponse} from "../types";
-import {getReports, getBranchInfo, getUser} from "../../../../shared/api/management";
+import {getReports, getUser} from "../../../../shared/api/management";
 import {IBranch, IUser} from "../../inventory/types";
-import {Alert, Box, Button, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
+import {
+    Alert,
+    Box,
+    Button,
+    Chip,
+    CircularProgress,
+    Container,
+    Dialog,
+    FormControlLabel,
+    Stack,
+    Switch,
+    Typography,
+} from "@mui/material";
 import {PurchaseCard} from "./PurchaseCard";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
+import {UnpaidInvoicesDrawer} from "./UnpaidInvoicesDrawer";
 
 type Props = {
     open: boolean;
@@ -20,6 +33,8 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>();
+    const [unpaidOnly, setUnpaidOnly] = useState(false);
+    const [unpaidDrawerOpen, setUnpaidDrawerOpen] = useState(false);
     const [purchasePopup, setPurchasePopup] = useState<{
         open: boolean;
         mode: "new" | "edit";
@@ -33,6 +48,11 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
         copy[idx] = next;
         return copy;
     }
+
+    const loadReports = useCallback(async (): Promise<void> => {
+        const reports = await getReports({ branchId: branch.id.toString(), reportType: 'PURCHASE' });
+        setPurchaseReports(reports);
+    }, [branch.id]);
 
     useEffect(() => {
         let alive = true;
@@ -60,6 +80,23 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
             alive = false;
         };
     }, [adminId]);
+
+    // Derived from the already-loaded list — the per-report unpaid totals ride along on
+    // BasePurchaseResponse, so the badge and the filter cost no extra request.
+    const unpaidSummary = useMemo(() => {
+        return purchaseReports.reduce(
+            (acc, r) => ({
+                count: acc.count + (r.unpaidCount ?? 0),
+                amount: acc.amount + Number(r.unpaidAmount ?? 0),
+            }),
+            { count: 0, amount: 0 },
+        );
+    }, [purchaseReports]);
+
+    const visibleReports = useMemo(
+        () => (unpaidOnly ? purchaseReports.filter(r => (r.unpaidCount ?? 0) > 0) : purchaseReports),
+        [purchaseReports, unpaidOnly],
+    );
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});
@@ -101,13 +138,26 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                     title="Purchase"
                     onBack={onClose}
                     actions={
-                        <Button
-                            variant="contained"
-                            onClick={handleCreatePurchaseClick}
-                            sx={{ borderRadius: 4, textTransform: "none", fontWeight: 700, bgcolor: "#E44B4C" }}
-                        >
-                            New Report
-                        </Button>
+                        <>
+                            {unpaidSummary.count > 0 && (
+                                <Chip
+                                    color="warning"
+                                    variant="outlined"
+                                    clickable
+                                    data-testid="unpaid-summary-chip"
+                                    onClick={() => setUnpaidDrawerOpen(true)}
+                                    label={`Unpaid ${unpaidSummary.count} · ${unpaidSummary.amount.toFixed(3)}`}
+                                    sx={{ fontWeight: 700 }}
+                                />
+                            )}
+                            <Button
+                                variant="contained"
+                                onClick={handleCreatePurchaseClick}
+                                sx={{ borderRadius: 4, textTransform: "none", fontWeight: 700, bgcolor: "#E44B4C" }}
+                            >
+                                New Report
+                            </Button>
+                        </>
                     }
                 />
 
@@ -118,7 +168,19 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                         pb: 3,
                     }}
                 >
-                    {purchaseReports.length === 0 ? (
+                    <FormControlLabel
+                        sx={{ mb: 1 }}
+                        control={
+                            <Switch
+                                checked={unpaidOnly}
+                                slotProps={{ input: { "aria-label": "outstanding only" } }}
+                                onChange={(e) => setUnpaidOnly(e.target.checked)}
+                            />
+                        }
+                        label="Outstanding only"
+                    />
+
+                    {visibleReports.length === 0 ? (
                         <Box
                             sx={{
                                 mt: 2,
@@ -129,11 +191,13 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                                 textAlign: "center",
                             }}
                         >
-                            <Typography color="text.secondary">No purchase reports yet</Typography>
+                            <Typography color="text.secondary">
+                                {unpaidOnly ? "No reports with outstanding invoices" : "No purchase reports yet"}
+                            </Typography>
                         </Box>
                     ) : (
                         <Stack gap={1.5} sx={{pb: 2}}>
-                            {purchaseReports.map((r) => (
+                            {visibleReports.map((r) => (
                                 <Box key={r.id}>
                                     <PurchaseCard
                                         report={r}
@@ -147,6 +211,22 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                     )}
                 </Container>
             </Dialog>
+
+            <UnpaidInvoicesDrawer
+                open={unpaidDrawerOpen}
+                branchId={branch.id.toString()}
+                onClose={() => setUnpaidDrawerOpen(false)}
+                onPaid={() => {
+                    // Settling an invoice changes the per-report badges, which live on the report
+                    // list rather than in the drawer's own response.
+                    loadReports().catch((e: unknown) => {
+                        const msg = e instanceof Error ? e.message : "Failed to refresh reports";
+                        setError(msg);
+                        logger.error(msg);
+                    });
+                }}
+            />
+
             {purchasePopup.open && (
                 <PurchaseTablePopup
                     open={purchasePopup.open}

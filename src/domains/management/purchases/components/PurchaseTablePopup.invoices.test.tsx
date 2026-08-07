@@ -156,18 +156,9 @@ describe("PurchaseTablePopup nested invoices", () => {
         renderPopup("edit", onSaved);
         await screen.findByTestId("invoice-block-inv-0");
 
-        // Any edit to enable Save.
-        fireEvent.click(screen.getByTestId("add-line-inv-0"));
-        fireEvent.click(screen.getByTestId(`add-line-inv-0`));
-        // Remove the two blank lines again so validation passes.
-        const deleteButtons = screen.getByTestId("invoice-block-inv-0").querySelectorAll("[aria-label='delete line']");
-        fireEvent.click(deleteButtons[deleteButtons.length - 1]);
-        fireEvent.click(
-            screen.getByTestId("invoice-block-inv-0").querySelectorAll("[aria-label='delete line']")[
-                screen.getByTestId("invoice-block-inv-0").querySelectorAll("[aria-label='delete line']").length - 1
-            ]
-        );
-
+        // Toggling paid on the first invoice is enough to dirty the form and enable Save,
+        // without adding blank lines that validation would then reject.
+        fireEvent.click(screen.getAllByLabelText("invoice paid")[0]);
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => expect(editPurchaseReport).toHaveBeenCalledTimes(1));

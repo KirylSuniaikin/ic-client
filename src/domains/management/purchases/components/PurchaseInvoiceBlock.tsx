@@ -28,6 +28,7 @@ import { PurchaseInvoiceRow, PurchaseLineRow, VendorTO } from "../types";
 import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { NumericField, PurchaseTableRow } from "./PurchaseTableRow";
+import { InvoiceImageField } from "./InvoiceImageField";
 
 const BRAND = "#E44B4C";
 
@@ -179,6 +180,15 @@ function PurchaseInvoiceBlockInner({
                         fullWidth
                     />
                 </Box>
+
+                <InvoiceImageField
+                    invoiceId={invoiceId}
+                    serverId={invoice.serverId}
+                    hasImage={invoice.hasImage}
+                    pendingImage={invoice.pendingImage}
+                    removeImage={invoice.removeImage}
+                    onUpdateInvoice={onUpdateInvoice}
+                />
 
                 <Stack direction="row" alignItems="center" gap={0.5}>
                     {/* MUI v7 routes native input attrs through slotProps.input; the older

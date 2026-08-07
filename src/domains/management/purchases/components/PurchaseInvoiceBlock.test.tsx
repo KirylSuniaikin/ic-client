@@ -29,7 +29,6 @@ function makeInvoice(overrides: Partial<PurchaseInvoiceRow> = {}): PurchaseInvoi
         paid: false,
         hasImage: false,
         pendingImage: null,
-        pendingPreviewUrl: null,
         removeImage: false,
         lines: [makeLine()],
         ...overrides,
