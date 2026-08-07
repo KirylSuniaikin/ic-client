@@ -22,6 +22,14 @@ import type {
     MoveTaskCardPayload,
     TaskCard
 } from '../../../domains/management/tasks/types';
+import type {
+    AccountingCategoryTO,
+    AccountingReportSummary,
+    AccountingReportTO,
+    AccountingType,
+    CreateAccountingReportPayload,
+    UpdateAccountingReportPayload
+} from '../../../domains/management/accounting/types';
 
 // Manual mock for shared/api/management.ts.
 // jest.fn() is at module level here — no jest.mock() factory restrictions apply.
@@ -69,3 +77,10 @@ export const moveTaskCard = jest.fn<Promise<TaskCard>, [number, MoveTaskCardPayl
 
 // Board owners sidebar (ST6).
 export const fetchBoardOwners = jest.fn<Promise<BoardOwner[]>, []>();
+
+// Accounting reports.
+export const getAccountingReports = jest.fn<Promise<AccountingReportSummary[]>, [string]>();
+export const getAccountingReport = jest.fn<Promise<AccountingReportTO>, [number]>();
+export const createAccountingReport = jest.fn<Promise<AccountingReportTO>, [CreateAccountingReportPayload]>();
+export const updateAccountingReport = jest.fn<Promise<AccountingReportTO>, [number, UpdateAccountingReportPayload]>();
+export const getAccountingCategories = jest.fn<Promise<AccountingCategoryTO[]>, [string, (AccountingType | undefined)?]>();
