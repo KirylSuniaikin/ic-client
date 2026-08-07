@@ -1,46 +1,47 @@
 import { logger } from "../../../../shared/utils/logger";
-import {IBranch, IUser, ProductTO} from "../../inventory/types";
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import { IBranch, IUser, ProductTO } from "../../inventory/types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     BasePurchaseResponse,
     CreatePurchasePayload,
     EditPurchasePayload,
-    PurchaseRow,
+    PurchaseInvoiceRow,
+    PurchaseLineRow,
     PurchaseSort,
     PurchaseSortKey,
     PurchaseTO,
     SortDir,
-    VendorTO
+    VendorTO,
 } from "../types";
 import {
-    Box, Button,
+    Box,
+    Button,
     Dialog,
-    Paper,
     Stack,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TableSortLabel,
-    Tooltip,
-    Typography
+    ToggleButton,
+    ToggleButtonGroup,
+    Typography,
 } from "@mui/material";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
-import dayjs from 'dayjs';
+import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
+import dayjs from "dayjs";
 import {
     createPurchaseReport,
     editPurchaseReport,
     fetchProducts,
     fetchVendors,
     getPurchaseReport,
-    getUser
+    getUser,
 } from "../../../../shared/api/management";
-import { DEFAULT_SORT_DIR, sortPurchaseRows, toDecimal, toPayloadLine, validateRows} from "../mappers/purchaseMapper";
-import {normalizeDecimal} from "../../../../shared/utils/decimalUtils";
-import {NumericField, PurchaseTableRow} from "./PurchaseTableRow";
+import {
+    DEFAULT_SORT_DIR,
+    sortPurchaseInvoices,
+    toDecimal,
+    toPayloadInvoice,
+    validateInvoices,
+} from "../mappers/purchaseMapper";
+import { normalizeDecimal } from "../../../../shared/utils/decimalUtils";
+import { NumericField } from "./PurchaseTableRow";
+import { PurchaseInvoiceBlock } from "./PurchaseInvoiceBlock";
 import Decimal from "decimal.js-light";
 
 type Props = {
@@ -53,45 +54,7 @@ type Props = {
     onSaved?: (report: BasePurchaseResponse) => void;
 }
 
-const headerCellSx = { fontWeight: "bold", color: "text.secondary" } as const;
-
-/** Tappable column header. The arrow shows the direction the CURRENT order was built with. */
-function SortableHeader({label, sortKey, sort, onSort}: {
-    label: string;
-    sortKey: PurchaseSortKey;
-    sort: PurchaseSort | null;
-    onSort: (key: PurchaseSortKey) => void;
-}) {
-    const active = sort?.key === sortKey;
-    return (
-        <TableCell sx={headerCellSx} sortDirection={active ? sort.dir : false}>
-            <TableSortLabel
-                active={active}
-                direction={active ? sort.dir : DEFAULT_SORT_DIR[sortKey]}
-                onClick={() => onSort(sortKey)}
-                sx={{ whiteSpace: "nowrap" }}
-            >
-                {label}
-            </TableSortLabel>
-        </TableCell>
-    );
-}
-
-/**
- * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
- * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that
- * (see menu/components/RecipeComponentsLine.tsx).
- */
-function HeaderWithInfo({ label, info }: { label: string; info: string }) {
-    return (
-        <Stack direction="row" alignItems="center" gap={0.5} sx={{ whiteSpace: "nowrap" }}>
-            <span>{label}</span>
-            <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
-                <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
-            </Tooltip>
-        </Stack>
-    );
-}
+const BRAND = "#E44B4C";
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
@@ -102,7 +65,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
     const [title, setTitle] = useState<string>("");
     const [reportDate, setReportDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
-    const [rows, setRows] = useState<PurchaseRow[]>([]);
+    const [invoices, setInvoices] = useState<PurchaseInvoiceRow[]>([]);
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -111,14 +74,13 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
     const [sort, setSort] = useState<PurchaseSort | null>(null);
 
-
     useEffect(() => {
         if (!open) {
             isDataLoadedRef.current = false;
             return;
         }
 
-        if(isDataLoadedRef.current) return;
+        if (isDataLoadedRef.current) return;
         let alive = true;
         (async () => {
             try {
@@ -132,7 +94,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 if (mode === "new") {
                     setTitle(`${dayjs().format("MMM-YY")}-BH-${adminResponse.userName}`.toLowerCase());
                     setReportDate(dayjs().format("YYYY-MM-DD"));
-                    setRows([mkEmptyRow()]);
+                    setInvoices([mkEmptyInvoice()]);
                     isDataLoadedRef.current = true
                     setDirty(false);
                 } else {
@@ -141,14 +103,25 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     if (!alive) return;
                     setTitle(rep.title);
                     setReportDate(rep.purchaseDate);
-                    setRows(rep.purchaseProducts.map((x, i) => ({
-                        id: `r-${i}`,
-                        purchaseDate: x.purchaseDate,
-                        productId: x.product.id,
-                        price: Number(x.price),
-                        quantity: Number(x.quantity),
-                        finalPrice: Number(x.finalPrice),
-                        vendorName: x.vendorName,
+                    setInvoices(rep.invoices.map((inv, i) => ({
+                        // A null id is the backend's synthetic "unassigned" invoice, holding lines
+                        // the one-shot backfill has not linked yet. It saves as a new invoice.
+                        id: `inv-${i}`,
+                        serverId: inv.id,
+                        invoiceDate: inv.invoiceDate ?? "",
+                        vendorName: inv.vendorName,
+                        paid: inv.paid,
+                        hasImage: inv.hasImage,
+                        pendingImage: null,
+                        pendingPreviewUrl: null,
+                        removeImage: false,
+                        lines: inv.products.map((x, j) => ({
+                            id: `inv-${i}-line-${j}`,
+                            productId: x.product.id,
+                            price: Number(x.price),
+                            quantity: Number(x.quantity),
+                            finalPrice: Number(x.finalPrice),
+                        })),
                     })));
                     setDirty(false);
                     isDataLoadedRef.current = true
@@ -162,90 +135,116 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         return () => { alive = false; };
     }, [open, mode, purchaseId, userId]);
 
-
     const isDecFinite = useCallback((d: Decimal) => Number.isFinite(d.toNumber()), []);
 
-    // Recompute target unit price (price = finalPrice / quantity) on edits, keeping rows in sync + marking dirty.
-    const updateRow = useCallback((id: string, patch: Partial<PurchaseRow>) => {
-        setRows(prev => prev.map(r => {
-            if (r.id !== id) return r;
-            const next = { ...r, ...patch };
+    // Every table-level callback uses the functional setState form and holds NO dependency on
+    // `invoices`. If any of them closed over it, its identity would change on every committed
+    // keystroke and every memo below would break at once.
+    const updateInvoice = useCallback((invoiceId: string, patch: Partial<PurchaseInvoiceRow>) => {
+        setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, ...patch } : inv));
+        setDirty(true);
+    }, []);
 
-            // A genuinely-empty quantity or finalPrice must not derive a bogus 0.000
-            // target price — leave next.price untouched in that case.
-            if (next.quantity != null && next.finalPrice != null) {
-                const q   = toDecimal(next.quantity);
-                const tot = toDecimal(next.finalPrice);
-                if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
-                    next.price = Number(tot.div(q).toFixed(3));
-                }
-            }
-            return next;
+    const deleteInvoice = useCallback((invoiceId: string) => {
+        setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+        setDirty(true);
+    }, []);
+
+    const addInvoice = useCallback(() => {
+        setInvoices(prev => [mkEmptyInvoice(), ...prev]);
+        setDirty(true);
+    }, []);
+
+    const addLine = useCallback((invoiceId: string) => {
+        setInvoices(prev => prev.map(inv => inv.id === invoiceId
+            ? { ...inv, lines: [...inv.lines, mkEmptyLine()] }
+            : inv));
+        setDirty(true);
+    }, []);
+
+    // Recomputes the unit price (price = finalPrice / quantity) on edits. A genuinely-empty
+    // quantity or finalPrice must not derive a bogus 0.000 — leave price untouched in that case.
+    const updateLine = useCallback((invoiceId: string, lineId: string, patch: Partial<PurchaseLineRow>) => {
+        setInvoices(prev => prev.map(inv => {
+            if (inv.id !== invoiceId) return inv;
+            return {
+                ...inv,
+                lines: inv.lines.map(l => {
+                    if (l.id !== lineId) return l;
+                    const next = { ...l, ...patch };
+                    if (next.quantity != null && next.finalPrice != null) {
+                        const q = toDecimal(next.quantity);
+                        const tot = toDecimal(next.finalPrice);
+                        if (isDecFinite(q) && !q.isZero() && isDecFinite(tot)) {
+                            next.price = Number(tot.div(q).toFixed(3));
+                        }
+                    }
+                    return next;
+                }),
+            };
         }));
         setDirty(true);
     }, [isDecFinite]);
 
     // Raw keystrokes are held inside DecimalCellInput; the table only sees the value on blur.
-    const commitNumericCell = useCallback((id: string, field: NumericField, raw: string) => {
+    const commitNumericCell = useCallback((invoiceId: string, lineId: string, field: NumericField, raw: string) => {
         const norm = normalizeDecimal(raw);
-        updateRow(id, { [field]: norm === "" ? null : Number(norm) });
-    }, [updateRow]);
+        updateLine(invoiceId, lineId, { [field]: norm === "" ? null : Number(norm) });
+    }, [updateLine]);
 
-    const deleteRow = useCallback((id: string) => {
-        setRows(prev => prev.filter(r => r.id !== id));
+    const deleteLine = useCallback((invoiceId: string, lineId: string) => {
+        setInvoices(prev => prev.map(inv => inv.id === invoiceId
+            ? { ...inv, lines: inv.lines.filter(l => l.id !== lineId) }
+            : inv));
         setDirty(true);
     }, []);
 
-    const applyProduct = useCallback((id: string, val: ProductTO | null) => {
+    // Picking a product fills the INVOICE's vendor from the product's top vendor — but only while
+    // that vendor is still empty, so an explicit choice is never overwritten.
+    const applyProduct = useCallback((invoiceId: string, lineId: string, val: ProductTO | null) => {
         const productId = val?.id ?? null;
         const top = String(val?.topVendor ?? "").trim().toLowerCase();
 
-        setRows(prev => prev.map(r => {
-            if (r.id !== id) return r;
-            const next: PurchaseRow = { ...r, productId };
-
-            if (val && top) {
-                const vendorSelected = ((r.vendorName ?? "") !== "");
-                if (!vendorSelected) {
-                    const v = vendorByName.get(top);
-                    if (v) {
-                        next.vendorName = v.vendorName;
-                    }
-                }
+        setInvoices(prev => prev.map(inv => {
+            if (inv.id !== invoiceId) return inv;
+            const next: PurchaseInvoiceRow = {
+                ...inv,
+                lines: inv.lines.map(l => l.id === lineId ? { ...l, productId } : l),
+            };
+            if (val && top && String(inv.vendorName ?? "") === "") {
+                const v = vendorByName.get(top);
+                if (v) next.vendorName = v.vendorName;
             }
             return next;
         }));
         setDirty(true);
     }, [vendorByName]);
 
-    // Sorting reorders the rows once, on tap. It is not a data change, so it must not mark
+    // Sorting reorders the invoices once, on tap. It is not a data change, so it must not mark
     // the report dirty — nobody should be asked to save because they re-ordered the view.
     const applySort = useCallback((key: PurchaseSortKey) => {
         const dir: SortDir = sort?.key === key
             ? (sort.dir === "asc" ? "desc" : "asc")
             : DEFAULT_SORT_DIR[key];
         setSort({ key, dir });
-        setRows(prev => sortPurchaseRows(prev, key, dir, id => productById.get(id ?? -1)?.name ?? ""));
-    }, [sort, productById]);
+        setInvoices(prev => sortPurchaseInvoices(prev, key, dir));
+    }, [sort]);
 
     const total = useMemo(
         () =>
-            rows
-                .reduce((acc, r) => acc.add(toDecimal(r.finalPrice)), new Decimal(0))
+            invoices
+                .flatMap(inv => inv.lines)
+                .reduce((acc, l) => acc.add(toDecimal(l.finalPrice)), new Decimal(0))
                 .toFixed(3),
-        [rows]
+        [invoices]
     );
-
-    const isFilledNumber = (v: unknown) => {
-        return !toDecimal(v).isZero();
-    }
 
     const handleSave = async () => {
         try {
             setSaving(true);
             setError(null);
 
-            const invalidMap = validateRows(rows);
+            const invalidMap = validateInvoices(invoices);
             setInvalid(invalidMap);
 
             if (invalidMap.size > 0) {
@@ -253,17 +252,11 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 return;
             }
 
-            const readyRows = rows.filter(r =>
-                r.productId != null &&
-                String(r.vendorName ?? "").trim() !== "" &&
-                isFilledNumber(r.price) &&
-                isFilledNumber(r.quantity)
-            );
-            if (readyRows.length === 0) {
-                throw new Error("Nothing to save: fill product, vendor, price and quantity at least in one row.");
+            if (invoices.length === 0 || invoices.every(inv => inv.lines.length === 0)) {
+                throw new Error("Nothing to save: add at least one invoice with one product.");
             }
 
-            const lines = readyRows.map(toPayloadLine);
+            const payloadInvoices = invoices.map(toPayloadInvoice);
 
             const base: CreatePurchasePayload = {
                 title,
@@ -271,24 +264,21 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 userId: admin.id,
                 branchNo: branch.branchNo,
                 purchaseDate: reportDate,
-                purchaseProducts: lines as any,
+                invoices: payloadInvoices,
             };
 
             try {
-                if (mode === "new") {
-                    const newReport: BasePurchaseResponse = await createPurchaseReport(base);
-                    onSaved?.(newReport);
-                } else {
-                    if (purchaseId == null) throw new Error("purchaseId is required in edit mode");
-                    const newReport: BasePurchaseResponse = await editPurchaseReport({id: purchaseId, ...(base as any)} as EditPurchasePayload);
-                    onSaved?.(newReport);
-                }
+                const saved = mode === "new"
+                    ? await createPurchaseReport(base)
+                    : await editPurchaseReport({ id: purchaseId!, ...base } as EditPurchasePayload);
 
+                onSaved?.(saved.report);
                 setDirty(false);
                 onClose();
             }
             catch (e: any) {
                 logger.error(e, "error with an api");
+                setError(e?.message ?? "Save failed");
             }
         } catch (e: any) {
             logger.error(e);
@@ -310,19 +300,16 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         <Typography>Total: <b>{total}</b></Typography>
                         <Button
                             variant="contained"
-                            onClick={() => {
-                                const r = mkEmptyRow();
-                                setRows(prev => [r, ...(prev ?? [])]);
-                                setDirty(true);
-                            }}
-                            sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                            data-testid="add-invoice"
+                            onClick={addInvoice}
+                            sx={{ bgcolor: BRAND, "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
                         >
-                            Add
+                            Add invoice
                         </Button>
                         <Button
                             variant="contained"
                             disabled={!dirty || saving}
-                            sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                            sx={{ bgcolor: BRAND, "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
                             onClick={handleSave}
                         >
                             {saving ? "Saving..." : "Save"}
@@ -339,80 +326,72 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         {error}
                     </Box>
                 ) : (
-                    <TableContainer
-                        component={Paper}
-                        elevation={0}
-                        sx={{
-                            borderRadius: 4,
-                            overflowX: "auto",
-                            WebkitOverflowScrolling: "touch",
-                            border: "1px solid rgba(0,0,0,0.08)",
-                        }}
-                    >
-                        <Table size="small" aria-label="purchases" sx={{ minWidth: 900 }}>
-                            <TableHead sx={{ bgcolor: "#fafafa" }}>
-                                <TableRow>
-                                    <SortableHeader label="Date of purchase" sortKey="purchaseDate" sort={sort} onSort={applySort} />
-                                    <SortableHeader label="Product" sortKey="product" sort={sort} onSort={applySort} />
-                                    <TableCell sx={headerCellSx}>Amount(kg/unit)</TableCell>
-                                    <TableCell sx={headerCellSx}>Total Price</TableCell>
-                                    <TableCell sx={headerCellSx}>
-                                        <HeaderWithInfo
-                                            label="Unit Price(kg/unit)"
-                                            info="Actual price paid per kg/unit — total price ÷ amount."
-                                        />
-                                    </TableCell>
-                                    <TableCell sx={headerCellSx}>
-                                        <HeaderWithInfo
-                                            label="Target Price(kg/unit)"
-                                            info="Price we aim to buy this product at, from the product card."
-                                        />
-                                    </TableCell>
-                                    <SortableHeader label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
-                                    <TableCell sx={headerCellSx} />
-                                </TableRow>
-                            </TableHead>
+                    <Stack gap={2}>
+                        {/* Invoice headers are cards, not table columns, so sorting lives here
+                            rather than on tappable <TableHead> cells. */}
+                        <Stack direction="row" alignItems="center" gap={1}>
+                            <Typography variant="body2" color="text.secondary">Sort by:</Typography>
+                            <ToggleButtonGroup size="small" exclusive value={sort?.key ?? null}>
+                                <ToggleButton value="invoiceDate" data-testid="sort-invoiceDate" onClick={() => applySort("invoiceDate")} sx={{ textTransform: "none" }}>
+                                    Date {sort?.key === "invoiceDate" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
+                                </ToggleButton>
+                                <ToggleButton value="vendorName" data-testid="sort-vendorName" onClick={() => applySort("vendorName")} sx={{ textTransform: "none" }}>
+                                    Vendor {sort?.key === "vendorName" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
+                                </ToggleButton>
+                            </ToggleButtonGroup>
+                        </Stack>
 
-                            <TableBody>
-                                {rows.map((row) => (
-                                    <PurchaseTableRow
-                                        key={row.id}
-                                        row={row}
-                                        products={products}
-                                        vendors={vendors}
-                                        product={productById.get(row.productId ?? -1) ?? null}
-                                        invalidFields={invalid.get(row.id)}
-                                        onUpdateRow={updateRow}
-                                        onCommitNumeric={commitNumericCell}
-                                        onApplyProduct={applyProduct}
-                                        onDelete={deleteRow}
-                                    />
-                                ))}
+                        {invoices.map((invoice) => (
+                            <PurchaseInvoiceBlock
+                                key={invoice.id}
+                                invoice={invoice}
+                                products={products}
+                                vendors={vendors}
+                                productById={productById}
+                                invalid={invalid}
+                                onUpdateInvoice={updateInvoice}
+                                onDeleteInvoice={deleteInvoice}
+                                onAddLine={addLine}
+                                onUpdateLine={updateLine}
+                                onCommitNumeric={commitNumericCell}
+                                onApplyProduct={applyProduct}
+                                onDeleteLine={deleteLine}
+                            />
+                        ))}
 
-                                {rows.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 3, color: "text.secondary" }}>
-                                            No lines yet — use Add to create one
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                        {invoices.length === 0 && (
+                            <Box sx={{ p: 3, textAlign: "center", color: "text.secondary", border: "1px dashed", borderColor: "divider", borderRadius: 2 }}>
+                                No invoices yet — use Add invoice to create one
+                            </Box>
+                        )}
+                    </Stack>
                 )}
             </Box>
         </Dialog>
     );
+}
 
-    function mkEmptyRow(): PurchaseRow {
-        return {
-            id: crypto.randomUUID(),
-            purchaseDate: dayjs().format("YYYY-MM-DD"),
-            productId: undefined,
-            price: null,
-            quantity: null,
-            finalPrice: null,
-            vendorName: "",
-        };
-    }
+function mkEmptyLine(): PurchaseLineRow {
+    return {
+        id: crypto.randomUUID(),
+        productId: null,
+        price: null,
+        quantity: null,
+        finalPrice: null,
+    };
+}
+
+function mkEmptyInvoice(): PurchaseInvoiceRow {
+    return {
+        id: crypto.randomUUID(),
+        serverId: null,
+        invoiceDate: dayjs().format("YYYY-MM-DD"),
+        vendorName: "",
+        paid: false,
+        hasImage: false,
+        pendingImage: null,
+        pendingPreviewUrl: null,
+        removeImage: false,
+        lines: [mkEmptyLine()],
+    };
 }

@@ -8,12 +8,9 @@ import {
     TextField,
     Tooltip,
 } from "@mui/material";
-import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import dayjs from "dayjs";
 import Decimal from "decimal.js-light";
-import { PurchaseRow, VendorTO } from "../types";
+import { PurchaseLineRow } from "../types";
 import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
@@ -22,14 +19,13 @@ import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput
 export type NumericField = "quantity" | "finalPrice";
 
 type PurchaseTableRowProps = {
-    row: PurchaseRow;
+    row: PurchaseLineRow;
     products: ProductTO[];
-    vendors: VendorTO[];
     /** The row's selected product, resolved by the table (stable identity from its product map). */
     product: ProductTO | null;
-    /** Fields flagged by `validateRows`; undefined when the row is valid. */
+    /** Fields flagged by `validateInvoices`; undefined when the row is valid. */
     invalidFields?: Set<string>;
-    onUpdateRow: (id: string, patch: Partial<PurchaseRow>) => void;
+    onUpdateRow: (id: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (id: string, field: NumericField, raw: string) => void;
     onApplyProduct: (id: string, val: ProductTO | null) => void;
     onDelete: (id: string) => void;
@@ -78,7 +74,7 @@ const inputSx = {
 const isDecFinite = (d: Decimal): boolean => Number.isFinite(d.toNumber());
 
 // Unit price: the explicit one when set, otherwise derived from total / quantity.
-function unitFromRow(row: PurchaseRow): Decimal {
+function unitFromRow(row: PurchaseLineRow): Decimal {
     const price = toDecimal(row.price);
     if (row.price != null && isDecFinite(price)) return price;
 
@@ -89,22 +85,23 @@ function unitFromRow(row: PurchaseRow): Decimal {
         : toDecimal(NaN);
 }
 
-function isOverTarget(row: PurchaseRow, product: ProductTO | null): boolean {
+function isOverTarget(row: PurchaseLineRow, product: ProductTO | null): boolean {
     const unit = unitFromRow(row);
     const target = toDecimal(product?.targetPrice ?? NaN);
     return isDecFinite(unit) && isDecFinite(target) && unit.greaterThan(target);
 }
 
 /**
- * One purchase line. Memoized on its own props: each row carries a DatePicker and two
- * Autocompletes (both holding the full product / vendor list), so re-rendering every row on
- * any table-level state change is what made this table feel slow. All callbacks must be
- * referentially stable for the memo to hold.
+ * One product line inside an invoice. Date and vendor used to live here; they moved up to the
+ * invoice header, which removes a DatePicker and an Autocomplete from every single line.
+ *
+ * Memoized on its own props, and the callbacks it receives are already bound to this line's
+ * invoice by PurchaseInvoiceBlock — so the (id, ...) signature is unchanged and the memo only
+ * breaks when this line's own data changes.
  */
 function PurchaseTableRowInner({
                                    row,
                                    products,
-                                   vendors,
                                    product,
                                    invalidFields,
                                    onUpdateRow,
@@ -115,12 +112,8 @@ function PurchaseTableRowInner({
     const overTarget = isOverTarget(row, product);
     const rowInvalid = invalidFields != null;
     const selectedProduct = product;
-    const vendorTrimmed = String(row.vendorName ?? "").trim();
-    const selectedVendor = vendorTrimmed !== ""
-        ? vendors.find(v => v.vendorName === vendorTrimmed) ?? null
-        : null;
 
-    // Invalid-cell highlight (validateRows result) as plain sx, merged onto the TableCell.
+    // Invalid-cell highlight (validateInvoices result) as plain sx, merged onto the TableCell.
     const cellErrSx = (field: string) =>
         invalidFields?.has(field)
             ? {
@@ -139,22 +132,6 @@ function PurchaseTableRowInner({
                     : {}),
             }}
         >
-            {/* Date of purchase */}
-            <TableCell sx={{ minWidth: 160, ...cellErrSx("purchaseDate") }}>
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DatePicker
-                        reduceAnimations
-                        format="DD.MM.YYYY"
-                        value={row.purchaseDate ? dayjs(row.purchaseDate) : null}
-                        onChange={(val) => {
-                            const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
-                            onUpdateRow(row.id, { purchaseDate: iso });
-                        }}
-                        slotProps={{ textField: { size: "small", fullWidth: true, variant: "standard", sx: noUnderlineSx } }}
-                    />
-                </LocalizationProvider>
-            </TableCell>
-
             {/* Product */}
             <TableCell sx={{ minWidth: 200, ...cellErrSx("productId") }}>
                 <Autocomplete<ProductTO, false, false, false>
@@ -203,7 +180,7 @@ function PurchaseTableRowInner({
             </TableCell>
 
             {/* Unit Price (price) — total ÷ amount, read-only. The only cell that turns red. */}
-            <TableCell sx={{ minWidth: 160 }} data-testid="unit-price-cell">
+            <TableCell sx={{ minWidth: 160, ...cellErrSx("price") }} data-testid="unit-price-cell">
                 <CellPill tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</CellPill>
             </TableCell>
 
@@ -212,32 +189,10 @@ function PurchaseTableRowInner({
                 <CellPill>{fmt3(product?.targetPrice ?? null) || "—"}</CellPill>
             </TableCell>
 
-            {/* Vendor */}
-            <TableCell sx={{ minWidth: 200, ...cellErrSx("vendorName") }}>
-                <Autocomplete<VendorTO, false, false, false>
-                    openOnFocus
-                    options={vendors}
-                    value={selectedVendor}
-                    getOptionLabel={(o) => o.vendorName}
-                    isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
-                    onChange={(_, val) => onUpdateRow(row.id, { vendorName: val?.vendorName ?? "" })}
-                    renderInput={(p) => (
-                        <TextField
-                            {...p}
-                            size="small"
-                            variant="standard"
-                            placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
-                            sx={noUnderlineSx}
-                        />
-                    )}
-                    fullWidth
-                />
-            </TableCell>
-
             {/* Delete action */}
             <TableCell sx={{ width: 64 }}>
                 <Tooltip title="Delete Line">
-                    <IconButton size="small" onClick={() => onDelete(row.id)}>
+                    <IconButton size="small" aria-label="delete line" onClick={() => onDelete(row.id)}>
                         <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                 </Tooltip>

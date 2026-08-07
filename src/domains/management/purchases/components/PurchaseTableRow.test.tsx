@@ -2,7 +2,7 @@ import { describe, it, expect } from "@jest/globals";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { PurchaseTableRow } from "./PurchaseTableRow";
-import type { PurchaseRow } from "../types";
+import type { PurchaseLineRow } from "../types";
 import type { ProductTO } from "../../inventory/types";
 
 const noop = () => {};
@@ -21,27 +21,25 @@ function makeProduct(overrides: Partial<ProductTO> = {}): ProductTO {
     };
 }
 
-function makeRow(overrides: Partial<PurchaseRow> = {}): PurchaseRow {
+// Date and vendor deliberately absent: both moved up to the invoice header.
+function makeRow(overrides: Partial<PurchaseLineRow> = {}): PurchaseLineRow {
     return {
         id: "r-0",
-        purchaseDate: "2026-08-01",
         productId: 1,
         price: 2,
         quantity: 5,
         finalPrice: 10,
-        vendorName: "Acme",
         ...overrides,
     };
 }
 
-function renderRow(row: PurchaseRow, product: ProductTO | null) {
+function renderRow(row: PurchaseLineRow, product: ProductTO | null) {
     return render(
         <table>
             <tbody>
                 <PurchaseTableRow
                     row={row}
                     products={product ? [product] : []}
-                    vendors={[]}
                     product={product}
                     onUpdateRow={noop}
                     onCommitNumeric={noop}
@@ -95,5 +93,20 @@ describe("PurchaseTableRow price columns", () => {
         );
 
         expect(tones(container)).toEqual(["neutral", "neutral", "neutral", "neutral"]);
+    });
+});
+
+describe("PurchaseTableRow columns", () => {
+    it("renders no date or vendor cell, since both belong to the invoice now", () => {
+        const { container } = renderRow(makeRow(), makeProduct());
+
+        // Product, amount, total, unit, target, delete.
+        expect(container.querySelectorAll("td")).toHaveLength(6);
+        expect(screen.queryByPlaceholderText("Select Vendor")).toBeNull();
+        expect(
+            Array.from(container.querySelectorAll("input")).filter((i) =>
+                /^\d{2}\.\d{2}\.\d{4}$/.test((i as HTMLInputElement).value)
+            )
+        ).toHaveLength(0);
     });
 });
