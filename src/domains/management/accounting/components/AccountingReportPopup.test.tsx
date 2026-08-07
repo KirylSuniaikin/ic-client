@@ -112,7 +112,11 @@ function renderPopup(
 }
 
 const table = () => screen.getByRole("table", { name: "accounting entries" });
-const findTable = () => waitFor(() => expect(table()).toBeTruthy());
+
+// The load effect awaits two requests before the table renders. waitFor's 1s default
+// is enough in isolation but times out under the parallel workers of a full-suite run,
+// so give it room rather than leaving a load-dependent flake behind.
+const findTable = () => waitFor(() => expect(table()).toBeTruthy(), { timeout: 10_000 });
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -191,6 +195,36 @@ describe("AccountingReportPopup", () => {
             await findTable();
 
             expect(screen.queryByText("Balance")).toBeNull();
+        });
+    });
+
+    // The delete-button column has no visible heading, so it is easy to add body
+    // cells without a matching header and skew every column below it.
+    describe("column alignment", () => {
+        it.each([
+            [StaffRoles.SUPER_MANAGER, 9],
+            [StaffRoles.MANAGER, 8],
+        ])("head and body agree for %s", async (role, expected) => {
+            mockUseAuth.mockReturnValue({ role, username: "amal" });
+            renderPopup();
+            await findTable();
+
+            const [headerRow, ...bodyRows] = screen.getAllByRole("row");
+            expect(headerRow.querySelectorAll("th").length).toBe(expected);
+            bodyRows.forEach((r) =>
+                expect(r.querySelectorAll("td").length).toBe(expected)
+            );
+        });
+
+        it("spans the empty-state message across every column", async () => {
+            mockGetReport.mockResolvedValue(
+                report({ entries: undefined as unknown as AccountingReportTO["entries"] })
+            );
+            renderPopup();
+            await findTable();
+
+            const cell = screen.getByText(/No entries yet/).closest("td");
+            expect(cell?.getAttribute("colspan")).toBe("9");
         });
     });
 

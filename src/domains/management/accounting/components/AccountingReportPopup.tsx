@@ -400,6 +400,9 @@ export function AccountingReportPopup({
                                     {isSuperManager && (
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
                                     )}
+                                    {/* Header for the delete-button column: unlabelled visually,
+                                        but it has to exist so head and body column counts match. */}
+                                    <TableCell aria-label="Actions" sx={{ width: 40, pr: 1 }} />
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -633,7 +636,7 @@ export function AccountingReportPopup({
                                 {computedRows.length === 0 && (
                                     <TableRow>
                                         <TableCell
-                                            colSpan={isSuperManager ? 8 : 7}
+                                            colSpan={isSuperManager ? 9 : 8}
                                             align="center"
                                             sx={{ py: 3, color: "text.secondary" }}
                                         >
