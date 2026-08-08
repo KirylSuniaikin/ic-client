@@ -30,6 +30,21 @@ jest.mock("lottie-react", () => ({
     default: (): null => null,
 }));
 
+// jsdom never fires load events for images, so the real preloader would hold every test at
+// PizzaLoader until its timeout elapsed. Its own behaviour is covered in useImagePreloader.test.ts;
+// here the mock lets each test decide whether the photos are ready, and records the URLs HomePage
+// asked for. Both names need the `mock` prefix -- jest hoists the factory above the imports and
+// only allows it to close over identifiers spelled that way.
+let mockImagesReady = true;
+const mockPreloadedUrls: string[][] = [];
+jest.mock("../shared/hooks/useImagePreloader", () => ({
+    __esModule: true,
+    useImagePreloader: (urls: string[]): boolean => {
+        mockPreloadedUrls.push(urls);
+        return mockImagesReady;
+    },
+}));
+
 import { fetchBaseAppInfo } from "../shared/api/public";
 import { fetchAllBranches } from "../shared/api/management";
 import { refreshCustomerToken } from "../shared/api/customerAuth";
@@ -133,6 +148,8 @@ beforeEach(() => {
     // test above already relies on. Only the closed-branch ScrollHintArrow test overrides this.
     mockIsWithinWorkingHours.mockReset();
     mockIsWithinWorkingHours.mockReturnValue(true);
+    mockImagesReady = true;
+    mockPreloadedUrls.length = 0;
     localStorage.clear();
 });
 
@@ -225,6 +242,36 @@ describe("HomePage -- noPopupOpen suppression", () => {
             expect(screen.getByText("Some items are no longer available")).toBeTruthy();
         });
         expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
+    });
+});
+
+describe("HomePage -- menu image preloading", () => {
+    it("holds the loader after the menu data arrives, until the first photos are ready", async () => {
+        mockImagesReady = false;
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalled());
+
+        // Menu data has loaded, so the old gate would already have painted the cards -- with their
+        // photos still in flight. The preload gate keeps the loader up instead.
+        expect(screen.queryByText("Cola")).toBeNull();
+    });
+
+    it("renders the menu once the photos are ready", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+    });
+
+    it("preloads exactly the photo URL the card will render", async () => {
+        // The preloader warms the browser cache by URL, so any mismatch with the card's own photo
+        // would fetch the image twice and leave the card empty on first paint.
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+
+        expect(mockPreloadedUrls.some(urls => urls.includes(AVAILABLE_ITEM.photo))).toBe(true);
     });
 });
 

@@ -27,11 +27,15 @@ export default function HeroSection({ isKiosk, branches, workingHours, hideTopBa
 
     return (
         <Box ref={heroRef} sx={{ position: "relative", width: "100%", height: { xs: "70vh", sm: "70vh", md: "70vh" }, overflow: "hidden", backgroundColor: "#fbfaf6", mb: 0 }}>
+            {/* preload="metadata", not "auto": the hero video is several MB and mounts at the same
+                moment as the menu photos, so buffering it eagerly starves the images the customer is
+                actually looking at. No poster either — public/images/ does not exist, so the old
+                poster path 404'd on every visit; the parent Box's cream background stands in until
+                the video's first frame. */}
             <Box
                 component="video"
                 src={isKiosk ? "/videos/header_vid_2.mp4" : "/videos/header-vid.mp4"}
-                autoPlay muted loop playsInline preload="auto"
-                poster="/images/header_poster.jpg"
+                autoPlay muted loop playsInline preload="metadata"
                 aria-hidden="true"
                 disablePictureInPicture
                 sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
