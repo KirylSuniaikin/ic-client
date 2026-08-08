@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import type { MouseEvent } from "react";
 import { Box, Fab } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { TextTitle } from "../shared/components/typography";
@@ -16,9 +17,14 @@ interface HeroSectionProps {
     // When the customer has an active order the top cluster (branch schedule header +
     // language/account controls) is hidden so the Live-Activity card stands alone.
     hideTopBar?: boolean;
+    /**
+     * Kiosk only: staff gesture to reopen the branch + terminal pickers. Wired to an invisible
+     * hotspot over the top of the hero video (see below).
+     */
+    onAdminGesture?: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
-export default function HeroSection({ isKiosk, branches, workingHours, hideTopBar = false }: HeroSectionProps): JSX.Element {
+export default function HeroSection({ isKiosk, branches, workingHours, hideTopBar = false, onAdminGesture }: HeroSectionProps): JSX.Element {
     const { t } = useTranslation("home");
     const heroRef = useRef<HTMLDivElement>(null);
     // Hide the branch schedule header once the hero video has scrolled fully above the viewport,
@@ -37,6 +43,17 @@ export default function HeroSection({ isKiosk, branches, workingHours, hideTopBa
                 sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
             />
             <Box sx={{ position: "absolute", bottom: 0, width: "100%", height: "40%", background: "#fbfaf6", maskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))", WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0))", pointerEvents: "none", zIndex: 1 }} />
+            {/* Invisible staff hotspot: three taps here reopen the kiosk setup pickers. Sits at
+                zIndex 1 — above the video (0, pointerEvents:none) but below the branch-schedule
+                header and the language/account cluster (both zIndex 2), so it can only ever catch
+                taps on bare video and never swallows a real control. */}
+            {isKiosk && onAdminGesture && (
+                <Box
+                    data-testid="kiosk-repair-hotspot"
+                    onClick={onAdminGesture}
+                    sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "20%", zIndex: 1 }}
+                />
+            )}
             {!hideTopBar && !heroScrolledAway && <BranchScheduleHeader branches={branches} workingHours={workingHours} />}
             {!hideTopBar && (
                 <Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 2, display: "flex", gap: 1 }}>

@@ -21,6 +21,11 @@ import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingH
 import { TextButton } from "../shared/components/typography";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
 import { ScrollHintArrow } from "../domains/kiosk/components/ScrollHintArrow";
+import { useKioskCheckout } from "../domains/kiosk/hooks/useKioskCheckout";
+import { resetKioskSession } from "../domains/kiosk/utils/resetKioskSession";
+import { useTripleClick } from "../domains/kiosk/hooks/useTripleClick";
+import { DEFAULT_PAYMENT_METHOD } from "../domains/order/types";
+import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import { enI18n } from "../shared/i18n";
 import { isKioskSearch } from "../shared/utils/kioskMode";
 import type { Group, MenuItem } from "../domains/menu/types";
@@ -51,7 +56,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         kioskSessionCleared.current = true;
         try { sessionStorage.clear(); } catch { /* storage unavailable (private mode) — ignore */ }
     }
-    const { t } = useTranslation(["home", "common"]);
+    const { t, i18n } = useTranslation(["home", "common"]);
     // Admin mode is English-only (the render is wrapped in LtrBoundary), but HomePage's own
     // useTranslation runs outside that boundary — resolve top-level strings against the English
     // instance so they aren't localized to the customer's stored Arabic preference.
@@ -71,11 +76,50 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         setMenuLocalizationData({ menuData: menu.menuData, toppings: menu.toppings, extraIngredients: menu.extraIngredients });
     }, [menu.menuData, menu.toppings, menu.extraIngredients, setMenuLocalizationData]);
     const cart = useCart(menu.menuData, isAdmin, menu.extraIngredients, menu.toppings);
+
+    // `checkout` is created after `kiosk` (the kiosk hook supplies its handleCheckout hand-off), so
+    // the session reset reaches it through a ref rather than a closure over an undeclared binding —
+    // the same pattern completeVerifiedCheckoutRef already uses inside useCheckout.
+    const checkoutRef = useRef<UseCheckoutResult | null>(null);
+
+    const kiosk = useKioskCheckout({
+        isKiosk,
+        setCartItems: cart.setCartItems,
+        setCartOpen: cart.setCartOpen,
+        refreshMenu: menu.refreshMenu,
+        onItemsUnavailable: (names, message) => {
+            checkoutRef.current?.setUnavailableItems(names);
+            checkoutRef.current?.setUnavailableMessage(message);
+            checkoutRef.current?.setUnavailablePopupOpen(true);
+        },
+        onUnauthorized: () => menu.setTerminalSelector(true),
+        onSessionEnd: () => {
+            const checkoutApi = checkoutRef.current;
+            if (!checkoutApi) return;
+            resetKioskSession({
+                cart,
+                checkout: checkoutApi,
+                i18n,
+                defaultPaymentMethod: DEFAULT_PAYMENT_METHOD,
+                defaultOrderType: "Pick Up",
+            });
+        },
+    });
+
     const checkout = useCheckout({
         isAdmin, isKiosk, isEditMode, adminBranchId,
         menuData: menu.menuData, cartItems: cart.cartItems,
         setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
         refreshMenu: menu.refreshMenu, navigate,
+        onKioskCheckout: isKiosk ? kiosk.startPhoneStep : null,
+    });
+    checkoutRef.current = checkout;
+
+    // Staff re-pairing: three taps on the top of the hero video reopens both setup pickers. No PIN
+    // by product decision — the gesture itself is the only gate.
+    const handleRepairGesture = useTripleClick(() => {
+        menu.setBranchSelector(true);
+        menu.setTerminalSelector(true);
     });
 
     usePixelTracking();
@@ -130,7 +174,9 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         }
     }
 
-    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !isAnyCustomerAuthPopupOpen;
+    // `!kiosk.isSheetOpen` is what stops the fixed cart pill (zIndex 9999, below) and the
+    // active-order card painting over a live payment sheet.
+    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !isAnyCustomerAuthPopupOpen && !kiosk.isSheetOpen;
 
     // Superset of noPopupOpen: also covers popups noPopupOpen omits (baguette/closed/unavailable/
     // cross-sell/pickup-reminder/order-confirmed/branch-selector) plus everything noPopupOpen already
@@ -142,7 +188,8 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         || checkout.isCrossSellOpen
         || checkout.pickUpReminder
         || checkout.showOrderConfirmed
-        || !!menu.branchSelector;
+        || !!menu.branchSelector
+        || !!menu.terminalSelector;
 
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the
@@ -162,7 +209,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     onClick={activeOrderIsland.handleClick}
                 />
             )}
-            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} />}
+            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} onAdminGesture={handleRepairGesture} />}
             <Box ref={menuTopRef} />
             <MenuSections
                 groups={groups}
@@ -187,6 +234,8 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 isSDoughAvailable={menu.isSDoughAvailable}
                 phone={menu.phone} username={menu.username}
                 branchSelector={menu.branchSelector} setBranchSelector={menu.setBranchSelector}
+                terminalSelector={menu.terminalSelector} setTerminalSelector={menu.setTerminalSelector}
+                kiosk={kiosk}
                 refreshMenu={menu.refreshMenu}
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}
                 beverages={groups.beverages} sauces={groups.sauces}

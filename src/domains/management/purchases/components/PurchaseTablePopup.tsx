@@ -505,7 +505,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                 "&:hover": { borderColor: BRAND, bgcolor: `${BRAND}14` },
                             }}
                         >
-                            Add invoice
+                            Add
                         </Button>
                         <Button
                             variant="contained"

@@ -6,6 +6,14 @@ import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaCo
 import { DetroitComboPopup } from "../domains/menu/components/popups/combo/DetroitComboPopup";
 import { UpsellPopup } from "../domains/order/components/UpSellPopup";
 import { KioskBranchSelector } from "../domains/kiosk/components/KioskBranchSelector";
+import { KioskTerminalPicker } from "../domains/kiosk/components/KioskTerminalPicker";
+import { KioskPhoneEntrySheet } from "../domains/kiosk/components/KioskPhoneEntrySheet";
+import { KioskPaymentSheet } from "../domains/kiosk/components/KioskPaymentSheet";
+import { KioskPaymentFailureSheet } from "../domains/kiosk/components/KioskPaymentFailureSheet";
+import { KioskOrderApprovedSheet } from "../domains/kiosk/components/KioskOrderApprovedSheet";
+import { KioskPayAtCounterSheet } from "../domains/kiosk/components/KioskPayAtCounterSheet";
+import { writeKioskBranch, readKioskBranch } from "../domains/kiosk/utils/kioskBranch";
+import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
 import CartPopup from "../domains/cart/components/CartComponent";
@@ -23,8 +31,6 @@ import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/m
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
 
-const BRANCH_KEY = 'kiosk_branch_data';
-
 interface HomePageModalsProps {
     cart: UseCartResult;
     checkout: UseCheckoutResult;
@@ -37,6 +43,9 @@ interface HomePageModalsProps {
     username: string;
     branchSelector: boolean | null;
     setBranchSelector: Dispatch<SetStateAction<boolean | null>>;
+    terminalSelector: boolean | null;
+    setTerminalSelector: Dispatch<SetStateAction<boolean | null>>;
+    kiosk: UseKioskCheckoutResult;
     refreshMenu: () => Promise<void>;
     pizzas: Group[];
     brickPizzas: Group[];
@@ -51,7 +60,7 @@ interface HomePageModalsProps {
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
-    branchSelector, setBranchSelector, refreshMenu,
+    branchSelector, setBranchSelector, terminalSelector, setTerminalSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
@@ -115,12 +124,21 @@ export default function HomePageModals({
                     open={!!branchSelector}
                     branches={availableBranches}
                     onSelect={(branch: IBranch) => {
-                        localStorage.setItem(BRANCH_KEY, JSON.stringify(branch));
+                        writeKioskBranch(branch);
                         setBranchSelector(false);
                         // Reload the menu for the just-selected branch; the initial fetch ran
                         // against the default branch because no branch was stored yet.
                         refreshMenu();
                     }}
+                />
+            )}
+
+            {/* Second half of setup. Gated on the branch selector being closed so the two
+                z-index 99999 overlays can never stack — branch first, then its terminals. */}
+            {!branchSelector && terminalSelector && (
+                <KioskTerminalPicker
+                    selectedBranchId={readKioskBranch()?.id ?? null}
+                    onSelect={() => setTerminalSelector(false)}
                 />
             )}
 
@@ -308,6 +326,51 @@ export default function HomePageModals({
                     unavailableItems={checkout.unavailableItems}
                     message={checkout.unavailableMessage ?? undefined}
                 />
+            )}
+
+            {/* Kiosk payment flow. Each sheet is driven purely by the checkout hook's phase, so at
+                most one is ever mounted, and none of them touches checkoutLoading (which would
+                unmount this whole tree behind a full-page loader). */}
+            {isKiosk && (
+                <>
+                    <KioskPhoneEntrySheet
+                        open={kiosk.phase === "phone"}
+                        submitting={kiosk.submitting}
+                        checkoutError={kiosk.checkoutError}
+                        onClose={kiosk.closePhoneStep}
+                        onSubmit={(tel: string) => { void kiosk.submitPhone(tel); }}
+                    />
+
+                    <KioskPaymentSheet
+                        open={kiosk.phase === "awaiting-card"}
+                        secondsRemaining={kiosk.secondsRemaining}
+                        pollError={kiosk.pollError}
+                        onCancel={() => { void kiosk.cancelPayment(); }}
+                    />
+
+                    {(kiosk.phase === "failed" || kiosk.phase === "mismatch") && (
+                        <KioskPaymentFailureSheet
+                            open
+                            orderId={kiosk.pendingOrderId}
+                            amountMismatch={kiosk.phase === "mismatch"}
+                            onDeferred={kiosk.handleDeferred}
+                            onAbandoned={kiosk.handleAbandoned}
+                            onUnauthorized={() => setTerminalSelector(true)}
+                        />
+                    )}
+
+                    <KioskOrderApprovedSheet
+                        open={kiosk.phase === "approved"}
+                        result={kiosk.paymentResult}
+                        onDone={kiosk.finishSession}
+                    />
+
+                    <KioskPayAtCounterSheet
+                        open={kiosk.phase === "deferred"}
+                        orderId={kiosk.pendingOrderId}
+                        onDone={kiosk.finishSession}
+                    />
+                </>
             )}
         </>
     );

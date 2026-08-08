@@ -1,0 +1,58 @@
+{
+    "phone": {
+        "title": "أدخل رقم هاتفك",
+        "subtitle": "سنستخدمه لإرسال تحديثات عن طلبك",
+        "placeholder": "رقم الهاتف",
+        "submit": "المتابعة إلى الدفع"
+    },
+    "payment": {
+        "title": "مرّر بطاقتك",
+        "subtitle": "اتبع التعليمات الظاهرة على جهاز الدفع",
+        "secondsRemaining": "{{count}} ثانية متبقية",
+        "reconnecting": "جارٍ إعادة الاتصال…",
+        "cancel": "إلغاء"
+    },
+    "errors": {
+        "generic": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
+        "branchClosed": "هذا الفرع مغلق حالياً."
+    },
+    "failure": {
+        "askTitle": "هل تريد حفظ طلبك والدفع عند مكتب الاستقبال؟",
+        "secondsRemaining": "{{count}} ثانية",
+        "yes": "نعم، احفظه",
+        "no": "لا، إلغاء",
+        "submitting": "يُرجى الانتظار…",
+        "retryableMessage": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
+        "retryButton": "حاول مرة أخرى",
+        "terminalTitle": "يُرجى التوجه إلى أحد أعضاء الطاقم",
+        "terminalSubtitle": "قد يكون هذا الطلب قد تمت معالجته بالفعل.",
+        "mismatchTitle": "يُرجى التوجه إلى أحد أعضاء الطاقم",
+        "mismatchSubtitle": "تعذّر إتمام عملية الدفع تلقائياً.",
+        "returnButton": "العودة إلى البداية"
+    },
+    "approved": {
+        "title": "شكراً لك",
+        "subtitle": "تمت الموافقة على عملية الدفع",
+        "orderNumberLabel": "رقم الطلب",
+        "amountLabel": "المبلغ",
+        "cardLabel": "البطاقة",
+        "authCodeLabel": "رمز التفويض",
+        "referenceLabel": "الرقم المرجعي",
+        "entryLabel": "طريقة الإدخال",
+        "dccTitle": "تحويل العملة",
+        "dccNoticeLabel": "ملاحظة",
+        "dccConvertedLabel": "المبلغ المحوّل",
+        "dccRateLabel": "سعر الصرف",
+        "dccMarkupLabel": "هامش التحويل",
+        "dccFromLabel": "من",
+        "receiptNote": "يُرجى أخذ إيصالك من جهاز الدفع.",
+        "countdown": "سيتم العودة إلى القائمة خلال {{count}} ثانية",
+        "done": "تم"
+    },
+    "counter": {
+        "title": "تم تقديم الطلب",
+        "subtitle": "يُرجى الدفع عند مكتب الاستقبال",
+        "orderNumberLabel": "رقم الطلب",
+        "done": "تم"
+    }
+}

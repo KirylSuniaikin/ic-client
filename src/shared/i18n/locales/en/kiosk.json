@@ -1,0 +1,58 @@
+{
+    "phone": {
+        "title": "Enter your phone number",
+        "subtitle": "We'll use this to send updates about your order",
+        "placeholder": "Phone number",
+        "submit": "Continue to payment"
+    },
+    "payment": {
+        "title": "Tap your card",
+        "subtitle": "Follow the instructions on the card machine",
+        "secondsRemaining": "{{count}}s remaining",
+        "reconnecting": "Reconnecting…",
+        "cancel": "Cancel"
+    },
+    "errors": {
+        "generic": "Something went wrong. Please try again.",
+        "branchClosed": "This branch is currently closed."
+    },
+    "failure": {
+        "askTitle": "Save your order and pay at the front desk?",
+        "secondsRemaining": "{{count}}s",
+        "yes": "Yes, save it",
+        "no": "No, cancel",
+        "submitting": "Please wait…",
+        "retryableMessage": "Something went wrong. Please try again.",
+        "retryButton": "Try again",
+        "terminalTitle": "Please see a member of staff",
+        "terminalSubtitle": "This order may already be resolved.",
+        "mismatchTitle": "Please see a member of staff",
+        "mismatchSubtitle": "Your payment could not be completed automatically.",
+        "returnButton": "Return to start"
+    },
+    "approved": {
+        "title": "Thank you",
+        "subtitle": "Your payment was approved",
+        "orderNumberLabel": "Order number",
+        "amountLabel": "Amount",
+        "cardLabel": "Card",
+        "authCodeLabel": "Auth code",
+        "referenceLabel": "Reference",
+        "entryLabel": "Entry",
+        "dccTitle": "Currency conversion",
+        "dccNoticeLabel": "Notice",
+        "dccConvertedLabel": "Converted",
+        "dccRateLabel": "Rate",
+        "dccMarkupLabel": "Markup",
+        "dccFromLabel": "From",
+        "receiptNote": "Please take your receipt from the card machine.",
+        "countdown": "Returning to the menu in {{count}}s",
+        "done": "Done"
+    },
+    "counter": {
+        "title": "Order placed",
+        "subtitle": "Please pay at the counter",
+        "orderNumberLabel": "Order number",
+        "done": "Done"
+    }
+}

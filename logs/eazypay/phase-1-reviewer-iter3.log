@@ -1,0 +1,17 @@
+Phase 1 review complete. Full verification performed:
+
+**Scope** — Working tree contains exactly Phase 1's owned files (`config.ts`, `services/kioskIdentity.ts`, `utils/kioskBranch.ts`, `hooks/useTripleClick.ts(+test)`, `order/utils/orderPayload.ts`, `en/ar kiosk.json`, `i18n/index.ts` edit) plus 4 extra test files that cover *only* Phase-1-owned modules — no collision with any other phase, and CLAUDE.md mandates test coverage. `useCheckout.ts`, `useMenuData.ts`, `HomePage*.tsx`, `HeroSection.tsx` are untouched (Phases 7/8). `CartComponent.*` changes belong to Phase 6 (already DONE). `backend/` and `ic-pizza-kiosk/` have no changes attributable to this run (RN edits mtime 11:22, backend checkout 19:46 — both predate the 20:35 pipeline logs). No commits, no `package.json` change.
+
+**Non-negotiables** — Nothing in this phase adds a call site, so no behaviour changes on any path, kiosk or otherwise; the i18n diff is namespace registration only, exactly the three places §14 names. No `checkoutLoading` interaction, no UI in this phase.
+
+**"Port, don't invent"** — Every constant verified against the RN source: `PAYMENT_POLL_INTERVAL_MS=2000`, `PAYMENT_TIMEOUT_MS=120_000`, `PAYMENT_FAILURE_PROMPT_TIMEOUT_MS=60_000` (`ic-pizza-kiosk/services/config.ts`), `APPROVED_AUTO_RETURN_MS=15_000` (`app/(kiosk)/confirm.tsx:30`), `"973"`/`8` (`PhoneEntryPopup.tsx:37-38`). `orderPayload.ts` is byte-identical to `useCheckout.ts:406-424` including every `parseFloat`/`!!`/`??`/`||` coercion and the 3dp `toFixed`. `resolveKioskBranchId` reproduces `useMenuData.ts:106-118`'s fallback chain exactly.
+
+**Types/tests conventions** — No `any`; the two assertions (`JSON.parse(raw) as IBranch`, `{} as MouseEvent`) and the test `as unknown as` casts all carry justifying comments; explicit return types throughout; `jest` imported from `@jest/globals`; `const onTrigger = jest.fn<void, []>()` form used, no `let m: jest.Mock<…>` anywhere.
+
+**Gates** — `yarn tsc --noEmit` clean; `yarn build` succeeds; Phase 1 suites 7/7, 59/59 passing; full suite 1090/1092 with the only 2 failures being pre-existing and unrelated (`countries.test.ts` — a `Czech Republic` entry added to untouched `countries.ts` on this branch; `ActiveOrderIslandPill.test.tsx` in untouched `customer-auth/`).
+
+Two non-blocking observations for you (not defects, no file written):
+- `kiosk.json`'s `approved.*` block has five `dcc` labels; the backend `PaymentResultTO` carries six `dcc*` fields (`dccMarkup`, `dccRate`, `dccAmount`, `dccCurrency`, `dccCurrencyEx`, `dccMsg`). Phase 5 can render `dccCurrency`/`dccCurrencyEx` as one "From" pair, but if it wants a sixth distinct label it will need a key added to a Phase-1-owned file — worth deciding at Phase 5 kickoff.
+- The two pre-existing red tests will keep making the "fully green suite" criterion unreachable for every later phase; they deserve a standalone fix or an explicit known-red acceptance.
+
+LGTM: implementation matches spec and passes review.
