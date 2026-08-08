@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Box, IconButton } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -16,7 +16,8 @@ import MenuSections from "../domains/menu/components/MenuSections";
 import HomePageModals from "./HomePageModals";
 import HeroSection from "./HeroSection";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
-import { groupItemsByCategory, groupAvailableItemsByName } from "../shared/utils/menuUtils";
+import { useImagePreloader } from "../shared/hooks/useImagePreloader";
+import { groupItemsByCategory, groupAvailableItemsByName, collectPreloadUrls } from "../shared/utils/menuUtils";
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 import { TextButton } from "../shared/components/typography";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
@@ -38,6 +39,11 @@ interface HomePageProps {
 }
 
 const brandRed = "#E44B4C";
+
+// How many menu photos the loader waits on. Covers the first row or two the customer lands on;
+// everything further down loads lazily behind a skeleton, so blocking on it would only make the
+// loader outstay its welcome.
+const PRELOAD_IMAGE_COUNT = 6;
 
 function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Element {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -144,12 +150,23 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         if (cart.cartItems.length === 0) cart.setCartOpen(false);
     }, [cart.cartItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (menu.loading || checkout.checkoutLoading) return <PizzaLoader />;
+    // Grouping is computed above the loader gate (not after it, where it is consumed) because the
+    // preloader needs the photo URLs while the loader is still up. Both helpers are pure.
+    const { availableGroups, groups } = useMemo(() => {
+        const available = groupAvailableItemsByName(menu.menuData, isAdmin);
+        return { availableGroups: available, groups: groupItemsByCategory(available as Parameters<typeof groupItemsByCategory>[0]) };
+    }, [menu.menuData, isAdmin]);
+
+    // Menu photos are only requested once MenuSections mounts — which used to be the instant the
+    // loader disappeared, so the customer watched the cards fill in one white box at a time. Warm
+    // the first screenful while the loader is still animating and hold it until they are decoded.
+    const preloadUrls = useMemo(() => collectPreloadUrls(groups, PRELOAD_IMAGE_COUNT), [groups]);
+    const menuImagesReady = useImagePreloader(preloadUrls);
+
+    if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <PizzaLoader />;
     if (menu.error) return <div>{tr("home:error", { message: menu.error })}</div>;
 
-    const availableGroups = groupAvailableItemsByName(menu.menuData, isAdmin);
     localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
-    const groups = groupItemsByCategory(availableGroups as Parameters<typeof groupItemsByCategory>[0]);
 
     function handleOpenCart(): void {
         if (!isWithinWorkingHours(menu.workingHours) && !isAdmin) cart.setClosedPopupOpen(true);

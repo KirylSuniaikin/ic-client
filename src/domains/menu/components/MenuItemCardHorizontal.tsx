@@ -7,12 +7,14 @@ import {
     CardMedia,
     Box,
     IconButton,
+    Skeleton,
     Typography
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../../../shared/components/typography";
 import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
+import { pickDefaultItem } from "../../../shared/utils/menuUtils";
 import type { Group, CartItem, MenuItem } from '../types';
 
 // Group at runtime always carries `category` and `isAvailable` (MenuGroup is a superset of Group).
@@ -50,7 +52,7 @@ function MenuItemCardHorizontal({
                                 }: MenuItemCardHorizontalProps): JSX.Element | null {
     const { t } = useTranslation("menu");
     const { name: localizeName } = useLocalizedItem();
-    const defaultItem = group.items.find(i => i.size === "S") || group.items[0];
+    const defaultItem = pickDefaultItem(group);
     const { name, price, photo, is_best_seller } = defaultItem;
     // Display-only: Arabic when active (falls back to English when name_ar is null).
     // `name` stays the canonical English value used for cart matching below.
@@ -59,6 +61,9 @@ function MenuItemCardHorizontal({
     const isAvailable = group.isAvailable;
     const displayPrice = `${price}`;
     const [selected, setSelected] = useState(false);
+    // Drives the skeleton below. An error settles it too — a broken photo should leave an empty
+    // card, not a skeleton pulsing forever.
+    const [photoSettled, setPhotoSettled] = useState(false);
     const isSimpleGroup = ["Sides", "Sauces", "Beverages"].includes(group.category);
     const cartItem = cartItems.find(i => i.name === name && (i.discount || 0) === 0);
 
@@ -163,15 +168,29 @@ function MenuItemCardHorizontal({
                     component="img"
                     image={photo}
                     alt={displayName}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={() => setPhotoSettled(true)}
+                    onError={() => setPhotoSettled(true)}
                     sx={{
                         width: "100%",
                         height: 180,
                         objectFit: "contain",
-                        backgroundColor: "#fff",
                         filter: isAdmin ? "none" : isAvailable ? "none" : "blur(3px)",
                         transition: "filter 0.2s ease-in-out",
                     }}
                 />
+                {/* Sits on top of the image slot rather than replacing it, so the card keeps its
+                    height and the row never reflows as photos arrive. Skipped when the item has no
+                    photo at all — that <img> may fire neither load nor error, and a skeleton nobody
+                    can dismiss is worse than the empty slot it was meant to hide. */}
+                {photo && !photoSettled && (
+                    <Skeleton
+                        variant="rectangular"
+                        animation="wave"
+                        sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: 180 }}
+                    />
+                )}
                 {!isAvailable && !isAdmin && (
                     <>
                         <Box
