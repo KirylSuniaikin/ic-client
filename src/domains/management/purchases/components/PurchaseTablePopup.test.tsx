@@ -166,6 +166,23 @@ describe("PurchaseTablePopup", () => {
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
     });
 
+    it("sorts from the column header itself, with no separate sort block above the table", async () => {
+        renderReportWithDates(["2026-07-10", "2026-07-20"]);
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
+
+        expect(screen.queryByText("Sort by:")).toBeNull();
+
+        const header = screen.getByRole("columnheader", { name: /date/i });
+        expect(header.contains(screen.getByTestId("sort-invoiceDate"))).toBe(true);
+        // Sortable but not yet sorted.
+        expect(header.getAttribute("aria-sort")).toBeNull();
+
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
+
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
+        expect(header.getAttribute("aria-sort")).toBe("descending");
+    });
+
     it("leaves an edited invoice in place, re-ordering only on the next sort tap", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
