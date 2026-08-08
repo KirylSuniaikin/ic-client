@@ -246,14 +246,15 @@ describe("PurchaseTablePopup", () => {
         );
 
         const productInput = await screen.findByPlaceholderText("Select Product");
+        // Grab the vendor input BEFORE selecting: once auto-fill lands, its placeholder becomes
+        // the vendor name, so "Select Vendor" no longer matches.
+        const vendorInput = screen.getByPlaceholderText("Select Vendor") as HTMLInputElement;
+
         fireEvent.change(productInput, { target: { value: "Flour" } });
         fireEvent.click(await screen.findByRole("option", { name: "Flour" }));
 
-        // Vendor auto-fill now lands on the invoice header, not on the line.
-        await waitFor(() => {
-            const vendorInput = screen.getByRole("combobox", { name: /vendor/i }) as HTMLInputElement;
-            expect(vendorInput.value).toBe("Acme");
-        });
+        // Vendor auto-fill now lands on the invoice's rowSpan cell, not on the line.
+        await waitFor(() => expect(vendorInput.value).toBe("Acme"));
     });
 
     it("commits a typed value on blur and displays it as a real (non-placeholder) value", async () => {

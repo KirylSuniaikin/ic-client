@@ -88,6 +88,7 @@ const report: PurchaseTO = {
             products: [
                 { product: makeProduct(1, "Flour"), quantity: 1, finalPrice: 10, price: 10 },
                 { product: makeProduct(2, "Cheese"), quantity: 2, finalPrice: 20, price: 10 },
+                { product: makeProduct(3, "Tomato"), quantity: 3, finalPrice: 30, price: 10 },
             ],
         },
     ],
@@ -117,15 +118,53 @@ describe("PurchaseTablePopup row memoization", () => {
             />
         );
 
+        // Reports open collapsed, so the lines have to be revealed before they can be counted.
+        fireEvent.click(await screen.findByTestId("toggle-invoice-inv-0"));
+
         await screen.findByTestId("commit-inv-0-line-0");
-        expect(mockRowRenderCounts["inv-0-line-0"]).toBe(1);
+        expect(mockRowRenderCounts["inv-0-line-1"]).toBe(1);
+        expect(mockRowRenderCounts["inv-0-line-2"]).toBe(1);
+
+        fireEvent.click(screen.getByTestId("commit-inv-0-line-2"));
+
+        // The edited line re-renders. The MIDDLE line is the real guarantee: it is untouched and
+        // must be skipped — that is what keeps a 200-line report usable.
+        await waitFor(() => expect(mockRowRenderCounts["inv-0-line-2"]).toBe(2));
         expect(mockRowRenderCounts["inv-0-line-1"]).toBe(1);
 
-        fireEvent.click(screen.getByTestId("commit-inv-0-line-0"));
+        // The FIRST line is expected to re-render: with rowSpan the invoice-level cells (date,
+        // photo, vendor, paid) physically live inside its <tr>, so it cannot be skipped. That is
+        // the deliberate cost of the dense table over the card layout.
+    });
 
-        // The edited line re-renders with its new value; the untouched line's props are
-        // unchanged, so it must be skipped.
-        await waitFor(() => expect(mockRowRenderCounts["inv-0-line-0"]).toBe(2));
-        expect(mockRowRenderCounts["inv-0-line-1"]).toBe(1);
+    it("does not re-render any line of a sibling invoice", async () => {
+        jest.mocked(getPurchaseReport).mockResolvedValue({
+            ...report,
+            invoices: [
+                report.invoices[0],
+                { ...report.invoices[0], id: 2, products: [report.invoices[0].products[0]] },
+            ],
+        });
+
+        render(
+            <PurchaseTablePopup
+                open={true}
+                mode="edit"
+                purchaseId={7}
+                userId={1}
+                branch={branch}
+                onClose={jest.fn()}
+            />
+        );
+
+        fireEvent.click(await screen.findByTestId("toggle-invoice-inv-0"));
+        fireEvent.click(screen.getByTestId("toggle-invoice-inv-1"));
+        await screen.findByTestId("commit-inv-1-line-0");
+        expect(mockRowRenderCounts["inv-1-line-0"]).toBe(1);
+
+        fireEvent.click(screen.getByTestId("commit-inv-0-line-2"));
+
+        await waitFor(() => expect(mockRowRenderCounts["inv-0-line-2"]).toBe(2));
+        expect(mockRowRenderCounts["inv-1-line-0"]).toBe(1);
     });
 });

@@ -3,11 +3,13 @@ import {
     Autocomplete,
     Box,
     IconButton,
+    Stack,
     TableCell,
     TableRow,
     TextField,
     Tooltip,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Decimal from "decimal.js-light";
 import { PurchaseLineRow } from "../types";
@@ -20,11 +22,27 @@ export type NumericField = "quantity" | "finalPrice";
 
 type PurchaseTableRowProps = {
     row: PurchaseLineRow;
+    /**
+     * Owning invoice, stamped onto the <tr> as data-invoice. An expanded rowSpan group has no
+     * wrapper element to hang an id on, so this is what lets a caller (or a test) scope to one
+     * invoice's lines.
+     */
+    invoiceId: string;
     products: ProductTO[];
     /** The row's selected product, resolved by the table (stable identity from its product map). */
     product: ProductTO | null;
     /** Fields flagged by `validateInvoices`; undefined when the row is valid. */
     invalidFields?: Set<string>;
+    /**
+     * Invoice-level cells (date / photo / vendor), rowSpan-ed across the whole group. Supplied
+     * only for the FIRST line of an invoice — they are physically part of that row's <tr>.
+     */
+    leadingCells?: React.ReactNode;
+    /** Invoice-level paid cell, also rowSpan-ed and only on the first line. */
+    trailingCells?: React.ReactNode;
+    /** "Add product" sits beside the bin on the last line of each invoice. */
+    showAddLine?: boolean;
+    onAddLine?: () => void;
     onUpdateRow: (id: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (id: string, field: NumericField, raw: string) => void;
     onApplyProduct: (id: string, val: ProductTO | null) => void;
@@ -92,18 +110,19 @@ function isOverTarget(row: PurchaseLineRow, product: ProductTO | null): boolean 
 }
 
 /**
- * One product line inside an invoice. Date and vendor used to live here; they moved up to the
- * invoice header, which removes a DatePicker and an Autocomplete from every single line.
- *
- * Memoized on its own props, and the callbacks it receives are already bound to this line's
- * invoice by PurchaseInvoiceBlock — so the (id, ...) signature is unchanged and the memo only
- * breaks when this line's own data changes.
+ * One product line. Memoized on its own props; the callbacks it receives are pre-bound to this
+ * line's invoice by PurchaseInvoiceGroup, so the (id, …) signature stays flat.
  */
 function PurchaseTableRowInner({
                                    row,
+                                   invoiceId,
                                    products,
                                    product,
                                    invalidFields,
+                                   leadingCells,
+                                   trailingCells,
+                                   showAddLine,
+                                   onAddLine,
                                    onUpdateRow,
                                    onCommitNumeric,
                                    onApplyProduct,
@@ -125,15 +144,17 @@ function PurchaseTableRowInner({
 
     return (
         <TableRow
+            data-invoice={invoiceId}
             sx={{
-                "&:last-child td, &:last-child th": { border: 0 },
                 ...(rowInvalid
                     ? { "& td": (t: any) => ({ backgroundColor: `${t.palette.error.light}1a` }) }
                     : {}),
             }}
         >
+            {leadingCells}
+
             {/* Product */}
-            <TableCell sx={{ minWidth: 200, ...cellErrSx("productId") }}>
+            <TableCell sx={{ minWidth: 180, ...cellErrSx("productId") }}>
                 <Autocomplete<ProductTO, false, false, false>
                     openOnFocus
                     options={products}
@@ -156,46 +177,62 @@ function PurchaseTableRowInner({
             </TableCell>
 
             {/* Amount (quantity) */}
-            <TableCell sx={{ minWidth: 130, ...cellErrSx("quantity") }}>
+            <TableCell sx={{ minWidth: 110, ...cellErrSx("quantity") }}>
                 <CellPill>
                     <DecimalCellInput
                         value={fmt3(row.quantity)}
                         onCommit={(raw) => onCommitNumeric(row.id, "quantity", raw)}
-                        width={90}
+                        width={80}
                         sx={inputSx}
                     />
                 </CellPill>
             </TableCell>
 
             {/* Total Price (finalPrice) */}
-            <TableCell sx={{ minWidth: 140, ...cellErrSx("finalPrice") }}>
+            <TableCell sx={{ minWidth: 120, ...cellErrSx("finalPrice") }}>
                 <CellPill>
                     <DecimalCellInput
                         value={fmt3(row.finalPrice)}
                         onCommit={(raw) => onCommitNumeric(row.id, "finalPrice", raw)}
-                        width={100}
+                        width={90}
                         sx={inputSx}
                     />
                 </CellPill>
             </TableCell>
 
             {/* Unit Price (price) — total ÷ amount, read-only. The only cell that turns red. */}
-            <TableCell sx={{ minWidth: 160, ...cellErrSx("price") }} data-testid="unit-price-cell">
+            <TableCell sx={{ minWidth: 120, ...cellErrSx("price") }} data-testid="unit-price-cell">
                 <CellPill tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</CellPill>
             </TableCell>
 
             {/* Target Price — the price we aim to buy at, straight from the product. Read-only. */}
-            <TableCell sx={{ minWidth: 160 }} data-testid="target-price-cell">
+            <TableCell sx={{ minWidth: 120 }} data-testid="target-price-cell">
                 <CellPill>{fmt3(product?.targetPrice ?? null) || "—"}</CellPill>
             </TableCell>
 
-            {/* Delete action */}
-            <TableCell sx={{ width: 64 }}>
-                <Tooltip title="Delete Line">
-                    <IconButton size="small" aria-label="delete line" onClick={() => onDelete(row.id)}>
-                        <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
+            {trailingCells}
+
+            {/* Line actions. Add-product sits right next to the bin, on the invoice's last line. */}
+            <TableCell sx={{ width: 84, whiteSpace: "nowrap" }}>
+                <Stack direction="row" gap={0.25}>
+                    <Tooltip title="Delete Line">
+                        <IconButton size="small" aria-label="delete line" onClick={() => onDelete(row.id)}>
+                            <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    {showAddLine && onAddLine && (
+                        <Tooltip title="Add product to this invoice">
+                            <IconButton
+                                size="small"
+                                aria-label="add product"
+                                data-testid={`add-line-${invoiceId}`}
+                                onClick={onAddLine}
+                            >
+                                <AddIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Stack>
             </TableCell>
         </TableRow>
     );

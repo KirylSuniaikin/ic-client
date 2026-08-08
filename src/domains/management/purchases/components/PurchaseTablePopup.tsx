@@ -17,11 +17,20 @@ import {
     Box,
     Button,
     Dialog,
+    Paper,
     Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
     ToggleButton,
     ToggleButtonGroup,
+    Tooltip,
     Typography,
 } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import dayjs from "dayjs";
 import {
@@ -44,7 +53,7 @@ import {
 } from "../mappers/purchaseMapper";
 import { normalizeDecimal } from "../../../../shared/utils/decimalUtils";
 import { NumericField } from "./PurchaseTableRow";
-import { PurchaseInvoiceBlock } from "./PurchaseInvoiceBlock";
+import { PurchaseInvoiceGroup } from "./PurchaseInvoiceGroup";
 import Decimal from "decimal.js-light";
 
 type Props = {
@@ -58,6 +67,23 @@ type Props = {
 }
 
 const BRAND = "#E44B4C";
+
+const headerCellSx = { fontWeight: "bold", color: "text.secondary", whiteSpace: "nowrap" } as const;
+
+/**
+ * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
+ * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that.
+ */
+function HeaderWithInfo({ label, info }: { label: string; info: string }) {
+    return (
+        <Stack direction="row" alignItems="center" gap={0.5} sx={{ whiteSpace: "nowrap" }}>
+            <span>{label}</span>
+            <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
+                <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
+            </Tooltip>
+        </Stack>
+    );
+}
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
@@ -76,6 +102,10 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [admin, setAdmin] = useState<IUser>(null);
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
     const [sort, setSort] = useState<PurchaseSort | null>(null);
+    // Ids of COLLAPSED invoices. A month is ~40 invoices / ~200 lines, so an existing report
+    // opens fully collapsed and is scanned as ~40 rows; a freshly added invoice starts expanded
+    // because it has to be filled in.
+    const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (!open) {
@@ -106,7 +136,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     if (!alive) return;
                     setTitle(rep.title);
                     setReportDate(rep.purchaseDate);
-                    setInvoices(rep.invoices.map((inv, i) => ({
+                    const loaded: PurchaseInvoiceRow[] = rep.invoices.map((inv, i) => ({
                         // A null id is the backend's synthetic "unassigned" invoice, holding lines
                         // the one-shot backfill has not linked yet. It saves as a new invoice.
                         id: `inv-${i}`,
@@ -124,7 +154,11 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             quantity: Number(x.quantity),
                             finalPrice: Number(x.finalPrice),
                         })),
-                    })));
+                    }));
+                    setInvoices(loaded);
+                    // ~40 invoices a month: opening collapsed makes the whole report scannable,
+                    // and the unpaid ones stand out immediately.
+                    setCollapsed(new Set(loaded.map(inv => inv.id)));
                     setDirty(false);
                     isDataLoadedRef.current = true
                 }
@@ -156,6 +190,23 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         setInvoices(prev => [mkEmptyInvoice(), ...prev]);
         setDirty(true);
     }, []);
+
+    const toggleCollapse = useCallback((invoiceId: string) => {
+        setCollapsed(prev => {
+            const next = new Set(prev);
+            if (next.has(invoiceId)) next.delete(invoiceId); else next.add(invoiceId);
+            return next;
+        });
+    }, []);
+
+    const collapseAll = useCallback(() => {
+        setInvoices(prev => {
+            setCollapsed(new Set(prev.map(inv => inv.id)));
+            return prev;
+        });
+    }, []);
+
+    const expandAll = useCallback(() => setCollapsed(new Set()), []);
 
     const addLine = useCallback((invoiceId: string) => {
         setInvoices(prev => prev.map(inv => inv.id === invoiceId
@@ -380,10 +431,8 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         {error}
                     </Box>
                 ) : (
-                    <Stack gap={2}>
-                        {/* Invoice headers are cards, not table columns, so sorting lives here
-                            rather than on tappable <TableHead> cells. */}
-                        <Stack direction="row" alignItems="center" gap={1}>
+                    <Stack gap={1.5}>
+                        <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
                             <Typography variant="body2" color="text.secondary">Sort by:</Typography>
                             <ToggleButtonGroup size="small" exclusive value={sort?.key ?? null}>
                                 <ToggleButton value="invoiceDate" data-testid="sort-invoiceDate" onClick={() => applySort("invoiceDate")} sx={{ textTransform: "none" }}>
@@ -393,31 +442,82 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                     Vendor {sort?.key === "vendorName" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
                                 </ToggleButton>
                             </ToggleButtonGroup>
+                            <Box sx={{ flexGrow: 1 }} />
+                            <Button size="small" data-testid="collapse-all" onClick={collapseAll} sx={{ textTransform: "none" }}>
+                                Collapse all
+                            </Button>
+                            <Button size="small" data-testid="expand-all" onClick={expandAll} sx={{ textTransform: "none" }}>
+                                Expand all
+                            </Button>
                         </Stack>
 
-                        {invoices.map((invoice) => (
-                            <PurchaseInvoiceBlock
-                                key={invoice.id}
-                                invoice={invoice}
-                                products={products}
-                                vendors={vendors}
-                                productById={productById}
-                                invalid={invalid}
-                                onUpdateInvoice={updateInvoice}
-                                onDeleteInvoice={deleteInvoice}
-                                onAddLine={addLine}
-                                onUpdateLine={updateLine}
-                                onCommitNumeric={commitNumericCell}
-                                onApplyProduct={applyProduct}
-                                onDeleteLine={deleteLine}
-                            />
-                        ))}
+                        <TableContainer
+                            component={Paper}
+                            elevation={0}
+                            sx={{
+                                borderRadius: 4,
+                                overflowX: "auto",
+                                WebkitOverflowScrolling: "touch",
+                                border: "1px solid rgba(0,0,0,0.08)",
+                            }}
+                        >
+                            <Table size="small" stickyHeader aria-label="purchases" sx={{ minWidth: 1180 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell sx={headerCellSx}>Date</TableCell>
+                                        <TableCell sx={headerCellSx}>Invoice</TableCell>
+                                        <TableCell sx={headerCellSx}>Vendor</TableCell>
+                                        <TableCell sx={headerCellSx}>Product</TableCell>
+                                        <TableCell sx={headerCellSx}>Amount(kg/unit)</TableCell>
+                                        <TableCell sx={headerCellSx}>Total Price</TableCell>
+                                        <TableCell sx={headerCellSx}>
+                                            <HeaderWithInfo
+                                                label="Unit Price(kg/unit)"
+                                                info="Actual price paid per kg/unit — total price ÷ amount."
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={headerCellSx}>
+                                            <HeaderWithInfo
+                                                label="Target Price(kg/unit)"
+                                                info="Price we aim to buy this product at, from the product card."
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={headerCellSx}>Status</TableCell>
+                                        <TableCell sx={headerCellSx} />
+                                    </TableRow>
+                                </TableHead>
 
-                        {invoices.length === 0 && (
-                            <Box sx={{ p: 3, textAlign: "center", color: "text.secondary", border: "1px dashed", borderColor: "divider", borderRadius: 2 }}>
-                                No invoices yet — use Add invoice to create one
-                            </Box>
-                        )}
+                                <TableBody>
+                                    {invoices.map((invoice) => (
+                                        <PurchaseInvoiceGroup
+                                            key={invoice.id}
+                                            invoice={invoice}
+                                            products={products}
+                                            vendors={vendors}
+                                            productById={productById}
+                                            invalid={invalid}
+                                            collapsed={collapsed.has(invoice.id)}
+                                            onToggleCollapse={toggleCollapse}
+                                            onUpdateInvoice={updateInvoice}
+                                            onDeleteInvoice={deleteInvoice}
+                                            onAddLine={addLine}
+                                            onUpdateLine={updateLine}
+                                            onCommitNumeric={commitNumericCell}
+                                            onApplyProduct={applyProduct}
+                                            onDeleteLine={deleteLine}
+                                        />
+                                    ))}
+
+                                    {invoices.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={10} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                                                No invoices yet — use Add invoice to create one
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     </Stack>
                 )}
             </Box>

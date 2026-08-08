@@ -172,7 +172,7 @@ describe("PurchaseTablePopup invoice photo sync", () => {
 
     it("makes no photo requests at all when nothing was attached or cleared", async () => {
         renderPopup();
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
         // Toggling paid is enough to dirty the form without touching any line.
         fireEvent.click(screen.getByLabelText("invoice paid"));

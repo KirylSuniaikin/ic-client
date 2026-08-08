@@ -25,22 +25,31 @@ jest.mock("../../../../shared/api/management");
  */
 const mockBlockRenderCounts: Record<string, number> = {};
 
-jest.mock("./PurchaseInvoiceBlock", () => {
+jest.mock("./PurchaseInvoiceGroup", () => {
     const react: typeof React = require("react");
-    type MockBlockProps = {
+    type MockGroupProps = {
         invoice: { id: string; paid: boolean };
         onUpdateInvoice: (invoiceId: string, patch: { paid: boolean }) => void;
     };
     return {
-        PurchaseInvoiceBlock: react.memo(function MockPurchaseInvoiceBlock({ invoice, onUpdateInvoice }: MockBlockProps) {
+        // Renders a <tr>, since the real group is mounted directly inside <TableBody>.
+        PurchaseInvoiceGroup: react.memo(function MockPurchaseInvoiceGroup({ invoice, onUpdateInvoice }: MockGroupProps) {
             mockBlockRenderCounts[invoice.id] = (mockBlockRenderCounts[invoice.id] ?? 0) + 1;
             return react.createElement(
-                "button",
-                {
-                    "data-testid": `toggle-paid-${invoice.id}`,
-                    onClick: () => onUpdateInvoice(invoice.id, { paid: !invoice.paid }),
-                },
-                invoice.id,
+                "tr",
+                null,
+                react.createElement(
+                    "td",
+                    null,
+                    react.createElement(
+                        "button",
+                        {
+                            "data-testid": `toggle-paid-${invoice.id}`,
+                            onClick: () => onUpdateInvoice(invoice.id, { paid: !invoice.paid }),
+                        },
+                        invoice.id,
+                    ),
+                ),
             );
         }),
     };

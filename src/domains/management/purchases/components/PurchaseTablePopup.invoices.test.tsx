@@ -100,37 +100,54 @@ describe("PurchaseTablePopup nested invoices", () => {
     it("offers two distinct add actions: one for invoices and one per invoice for products", async () => {
         renderPopup("edit");
 
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
         expect(screen.getByTestId("add-invoice")).toBeTruthy();
         expect(screen.getByTestId("add-line-inv-0")).toBeTruthy();
         expect(screen.getByTestId("add-line-inv-1")).toBeTruthy();
     });
 
+    // Distinct data-invoice values, which works whether a group is collapsed (one summary row)
+    // or expanded (one row per line).
+    const invoiceIdsInOrder = (): string[] => {
+        const seen: string[] = [];
+        document.querySelectorAll("tr[data-invoice]").forEach((tr) => {
+            const id = tr.getAttribute("data-invoice");
+            if (id && !seen.includes(id)) seen.push(id);
+        });
+        return seen;
+    };
+
     it("prepends a new invoice when Add invoice is used", async () => {
         renderPopup("edit");
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
-        const before = document.querySelectorAll("[data-testid^='invoice-block-']").length;
+        expect(invoiceIdsInOrder()).toEqual(["inv-0", "inv-1"]);
+
         fireEvent.click(screen.getByTestId("add-invoice"));
 
         await waitFor(() => {
-            const blocks = document.querySelectorAll("[data-testid^='invoice-block-']");
-            expect(blocks).toHaveLength(before + 1);
+            const ids = invoiceIdsInOrder();
+            expect(ids).toHaveLength(3);
             // Prepended, mirroring how a new line used to be added at the top.
-            expect(blocks[0].getAttribute("data-testid")).not.toBe("invoice-block-inv-0");
+            expect(ids[0]).not.toBe("inv-0");
+            expect(ids.slice(1)).toEqual(["inv-0", "inv-1"]);
         });
     });
 
     it("adds a product to the targeted invoice without touching the other one", async () => {
         renderPopup("edit");
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
-        const rowsIn = (id: string) =>
-            screen.getByTestId(`invoice-block-${id}`).querySelectorAll("tbody tr").length;
+        // An expanded rowSpan group has no wrapper element, so lines are scoped by data-invoice.
+        const rowsIn = (id: string) => document.querySelectorAll(`tr[data-invoice="${id}"]`).length;
 
+        // Both start collapsed: one summary row each.
         expect(rowsIn("inv-0")).toBe(1);
         expect(rowsIn("inv-1")).toBe(1);
+
+        fireEvent.click(screen.getByTestId("toggle-invoice-inv-0"));
+        await waitFor(() => expect(rowsIn("inv-0")).toBe(1)); // one line, expanded
 
         fireEvent.click(screen.getByTestId("add-line-inv-0"));
 
@@ -138,9 +155,24 @@ describe("PurchaseTablePopup nested invoices", () => {
         expect(rowsIn("inv-1")).toBe(1);
     });
 
+    it("opens an existing report collapsed, so ~40 invoices stay scannable", async () => {
+        renderPopup("edit");
+        await screen.findByTestId("invoice-group-inv-0");
+
+        // Collapsed: a per-invoice summary row instead of its product rows.
+        expect(screen.getByTestId("invoice-group-inv-1")).toBeTruthy();
+        expect(screen.getByText("1 product · 10.000")).toBeTruthy();
+        expect(screen.queryByTestId("unit-price-cell")).toBeNull();
+
+        fireEvent.click(screen.getByTestId("expand-all"));
+
+        await waitFor(() => expect(screen.queryByTestId("invoice-group-inv-0")).toBeNull());
+        expect(screen.getAllByTestId("unit-price-cell")).toHaveLength(2);
+    });
+
     it("totals every line across every invoice", async () => {
         renderPopup("edit");
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
         // 10 + 20 across two invoices.
         await waitFor(() => expect(screen.getByText("30.000")).toBeTruthy());
@@ -154,7 +186,7 @@ describe("PurchaseTablePopup nested invoices", () => {
 
         const onSaved = jest.fn();
         renderPopup("edit", onSaved);
-        await screen.findByTestId("invoice-block-inv-0");
+        await screen.findByTestId("invoice-group-inv-0");
 
         // Toggling paid on the first invoice is enough to dirty the form and enable Save,
         // without adding blank lines that validation would then reject.

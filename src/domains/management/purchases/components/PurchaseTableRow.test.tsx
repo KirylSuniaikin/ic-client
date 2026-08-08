@@ -39,6 +39,7 @@ function renderRow(row: PurchaseLineRow, product: ProductTO | null) {
             <tbody>
                 <PurchaseTableRow
                     row={row}
+                    invoiceId="inv-a"
                     products={product ? [product] : []}
                     product={product}
                     onUpdateRow={noop}
