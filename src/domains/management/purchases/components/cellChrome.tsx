@@ -12,10 +12,18 @@ const BRAND = "#E44B4C";
  * only two answers — a box means you can edit it, plain text means the table worked it out.
  */
 
-/** Every editable control sits in this box: date, vendor, product, amount, total price. */
+/**
+ * Every editable control sits in this box: date, vendor, product, amount, total price.
+ *
+ * The fixed height matters as much as the colour. A DatePicker, an Autocomplete and a bare
+ * numeric input all have different intrinsic heights, so without it each field found its own
+ * vertical position and a row of them looked like it was staggered.
+ */
 export const editableFieldSx = {
     px: 1,
-    py: 0.25,
+    minHeight: 34,
+    display: "flex",
+    alignItems: "center",
     borderRadius: 2,
     border: "1px solid",
     borderColor: "transparent",
@@ -24,6 +32,13 @@ export const editableFieldSx = {
     "&:hover": { borderColor: "rgba(0,0,0,0.18)" },
     "&:focus-within": { borderColor: BRAND, bgcolor: "#fff" },
 } as const;
+
+/**
+ * The band an invoice-level cell occupies on the group's first row. Date, photo and status each
+ * hold a control of a different height; pinning them to one band puts them on a single centreline
+ * instead of letting each sit wherever its own control happens to end.
+ */
+export const groupCellBandSx = { minHeight: 40, display: "flex", alignItems: "center" } as const;
 
 /** MUI's standard-variant underline, removed — the box above is the only chrome a field gets. */
 const noUnderlineSx = {
@@ -48,6 +63,9 @@ export const numericInputSx = {
         fontVariantNumeric: "tabular-nums",
     },
 } as const;
+
+/** One look for every delete bin in the table — invoice-level and line-level alike. */
+export const binSx = { color: "text.disabled", "&:hover": { color: "error.main" } } as const;
 
 /** A 2px rule opening each invoice's block, applied to the whole <tr>. */
 export const groupStartSx = { "& > td": { borderTop: "2px solid rgba(0,0,0,0.14)" } } as const;

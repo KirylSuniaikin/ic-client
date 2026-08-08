@@ -155,6 +155,30 @@ describe("PurchaseInvoiceGroup", () => {
         expect(screen.queryByText("Paid")).toBeNull();
     });
 
+    it("centres the vendor down the group instead of pinning it to the first line", () => {
+        renderGroup(makeInvoice({
+            lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" }), makeLine({ id: "l3" })],
+        }), false);
+
+        const cells = screen.getAllByRole("cell");
+        // Date / photo / status stay on the first line; vendor sits against the middle product.
+        expect(getComputedStyle(cells[0]).verticalAlign).toBe("top");
+        expect(getComputedStyle(cells[1]).verticalAlign).toBe("top");
+        expect(getComputedStyle(cells[2]).verticalAlign).toBe("top");
+        expect(getComputedStyle(cells[3]).verticalAlign).toBe("middle");
+    });
+
+    it("uses one bin design for the invoice and for each product line", () => {
+        renderGroup(makeInvoice({
+            lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" })],
+        }), false);
+
+        // One invoice bin + one per line, all the same glyph — which bin is which comes from
+        // where it sits and from its tooltip, not from a different icon.
+        expect(screen.getAllByTestId("DeleteOutlineIcon")).toHaveLength(3);
+        expect(screen.queryByTestId("DeleteSweepOutlinedIcon")).toBeNull();
+    });
+
     it("keeps status with the invoice identity columns, before vendor", () => {
         renderGroup(makeInvoice({ lines: [makeLine({ id: "l1" })] }), false);
 

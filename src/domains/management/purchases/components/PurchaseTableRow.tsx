@@ -18,6 +18,7 @@ import { toDecimal } from "../mappers/purchaseMapper";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
 import {
+    binSx,
     ComputedNumber,
     EditableNumber,
     editableFieldSx,
@@ -199,7 +200,7 @@ function PurchaseTableRowInner({
                             size="small"
                             aria-label="delete line"
                             onClick={() => onDelete(row.id)}
-                            sx={{ color: "text.disabled", "&:hover": { color: "error.main" } }}
+                            sx={binSx}
                         >
                             <DeleteOutlineIcon fontSize="small" />
                         </IconButton>

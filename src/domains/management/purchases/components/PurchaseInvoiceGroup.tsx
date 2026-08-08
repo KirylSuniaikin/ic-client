@@ -14,7 +14,7 @@ import {
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import dayjs from "dayjs";
@@ -24,7 +24,7 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { NumericField, PurchaseTableRow } from "./PurchaseTableRow";
 import { InvoiceImageField } from "./InvoiceImageField";
-import { editableFieldSx, fieldInputSx, groupStartSx } from "./cellChrome";
+import { binSx, editableFieldSx, fieldInputSx, groupCellBandSx, groupStartSx } from "./cellChrome";
 
 const BRAND = "#E44B4C";
 
@@ -140,7 +140,7 @@ function PurchaseInvoiceGroupInner({
 
     const dateCell = (
         <TableCell rowSpan={span} sx={{ minWidth: 200, ...groupCellSx }}>
-            <Stack direction="row" alignItems="center" gap={0.25}>
+            <Stack direction="row" alignItems="center" gap={0.25} sx={groupCellBandSx}>
                 <IconButton
                     size="small"
                     aria-label={collapsed ? "expand invoice" : "collapse invoice"}
@@ -164,17 +164,17 @@ function PurchaseInvoiceGroupInner({
                         />
                     </LocalizationProvider>
                 </Box>
-                {/* A distinct glyph and an error tone, because this bin removes the whole invoice
-                    while the one at the end of each row removes a single product — they used to be
-                    the same icon in the same size, three of them per row counting the photo. */}
+                {/* Same glyph, size and tone as the per-line bin. Which one it is comes from where
+                    it sits (with the invoice's own fields, not at the end of a product row) and
+                    from the tooltip. */}
                 <Tooltip title="Delete this invoice and all its products">
                     <IconButton
                         size="small"
                         aria-label="delete invoice"
                         onClick={() => onDeleteInvoice(invoiceId)}
-                        sx={{ color: "error.light", "&:hover": { color: "error.main" } }}
+                        sx={binSx}
                     >
-                        <DeleteSweepOutlinedIcon fontSize="small" />
+                        <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                 </Tooltip>
             </Stack>
@@ -183,19 +183,24 @@ function PurchaseInvoiceGroupInner({
 
     const photoCell = (
         <TableCell rowSpan={span} sx={{ width: 96, ...groupCellSx }}>
-            <InvoiceImageField
-                invoiceId={invoiceId}
-                serverId={invoice.serverId}
-                hasImage={invoice.hasImage}
-                pendingImage={invoice.pendingImage}
-                removeImage={invoice.removeImage}
-                onUpdateInvoice={onUpdateInvoice}
-            />
+            <Box sx={groupCellBandSx}>
+                <InvoiceImageField
+                    invoiceId={invoiceId}
+                    serverId={invoice.serverId}
+                    hasImage={invoice.hasImage}
+                    pendingImage={invoice.pendingImage}
+                    removeImage={invoice.removeImage}
+                    onUpdateInvoice={onUpdateInvoice}
+                />
+            </Box>
         </TableCell>
     );
 
+    // Centred down the group rather than pinned to the first line: with 3 products the vendor sits
+    // against the 2nd, with 4 it sits between the 2nd and 3rd. rowSpan makes this one CSS keyword,
+    // because the cell box already covers every line of the invoice.
     const vendorCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 170, ...groupCellSx }}>
+        <TableCell rowSpan={span} sx={{ minWidth: 170, verticalAlign: "middle" }}>
             <Box sx={editableFieldSx}>
                 <Autocomplete<VendorTO, false, false, false>
                     openOnFocus
@@ -225,18 +230,20 @@ function PurchaseInvoiceGroupInner({
             {/* The word is carried by the tooltip rather than printed beside every switch: the
                 colour and the knob position both already say it, and 40 repetitions of
                 "Unpaid" down a column is noise. */}
-            <Tooltip title={invoice.paid ? "Paid" : "Unpaid"}>
-                {/* MUI v7 routes native input attrs through slotProps.input; the older
-                    `inputProps` shorthand is not forwarded, so the label never lands. */}
-                <Switch
-                    size="small"
-                    checked={invoice.paid}
-                    data-testid={`paid-switch-${invoiceId}`}
-                    slotProps={{ input: { "aria-label": "invoice paid" } }}
-                    onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
-                    sx={paidSwitchSx}
-                />
-            </Tooltip>
+            <Box sx={groupCellBandSx}>
+                <Tooltip title={invoice.paid ? "Paid" : "Unpaid"}>
+                    {/* MUI v7 routes native input attrs through slotProps.input; the older
+                        `inputProps` shorthand is not forwarded, so the label never lands. */}
+                    <Switch
+                        size="small"
+                        checked={invoice.paid}
+                        data-testid={`paid-switch-${invoiceId}`}
+                        slotProps={{ input: { "aria-label": "invoice paid" } }}
+                        onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
+                        sx={paidSwitchSx}
+                    />
+                </Tooltip>
+            </Box>
         </TableCell>
     );
 
