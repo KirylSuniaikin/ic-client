@@ -56,18 +56,20 @@ describe("PurchasePopup outstanding surfaces", () => {
 
         renderPopup();
 
-        expect((await screen.findByTestId("unpaid-summary-chip")).textContent).toBe("Unpaid 3 · 15.000");
+        expect((await screen.findByTestId("unpaid-summary-amount")).textContent).toBe("15.000 BHD");
+        // Both counts come off the same list, so the banner can say where the money is owed.
+        expect(screen.getByText("3 invoices in 2 reports")).toBeTruthy();
         // The per-report totals ride along on the report list, so nothing extra is fetched on mount.
         expect(fetchUnpaidPurchaseInvoices).not.toHaveBeenCalled();
     });
 
-    it("hides the summary chip when nothing is outstanding", async () => {
+    it("hides the outstanding banner when nothing is outstanding", async () => {
         jest.mocked(getReports).mockResolvedValue([report({ unpaidCount: 0 })] as any);
 
         renderPopup();
 
         await screen.findByText("jul-25-bh-admin");
-        expect(screen.queryByTestId("unpaid-summary-chip")).toBeNull();
+        expect(screen.queryByTestId("unpaid-summary")).toBeNull();
     });
 
     it("filters the list to reports with outstanding invoices", async () => {
@@ -97,11 +99,11 @@ describe("PurchasePopup outstanding surfaces", () => {
         expect(await screen.findByText("No reports with outstanding invoices")).toBeTruthy();
     });
 
-    it("opens the outstanding drawer from the summary chip", async () => {
+    it("opens the outstanding drawer from the banner's review action", async () => {
         jest.mocked(getReports).mockResolvedValue([report({ unpaidCount: 1, unpaidAmount: 5 })] as any);
 
         renderPopup();
-        fireEvent.click(await screen.findByTestId("unpaid-summary-chip"));
+        fireEvent.click(await screen.findByTestId("unpaid-summary-review"));
 
         await waitFor(() => expect(fetchUnpaidPurchaseInvoices).toHaveBeenCalledWith("branch-uuid"));
         expect(await screen.findByText("Outstanding invoices")).toBeTruthy();
@@ -121,11 +123,47 @@ describe("PurchasePopup outstanding surfaces", () => {
         });
 
         renderPopup();
-        fireEvent.click(await screen.findByTestId("unpaid-summary-chip"));
+        fireEvent.click(await screen.findByTestId("unpaid-summary-review"));
         fireEvent.click(await screen.findByText("Mark paid"));
 
         // The badge lives on the report list, not in the drawer's response, so it has to refetch.
         await waitFor(() => expect(getReports).toHaveBeenCalledTimes(2));
-        await waitFor(() => expect(screen.queryByTestId("unpaid-summary-chip")).toBeNull());
+        await waitFor(() => expect(screen.queryByTestId("unpaid-summary")).toBeNull());
+    });
+
+    it("keeps a filter selected when the active segment is re-tapped", async () => {
+        jest.mocked(getReports).mockResolvedValue([
+            report({ id: 1, title: "owes-money", unpaidCount: 2, unpaidAmount: 10 }),
+            report({ id: 2, title: "all-settled", unpaidCount: 0, unpaidAmount: 0 }),
+        ] as any);
+
+        renderPopup();
+        fireEvent.click(await screen.findByLabelText("outstanding only"));
+        await waitFor(() => expect(screen.queryByText("all-settled")).toBeNull());
+
+        // An exclusive ToggleButtonGroup emits null here; the list must not fall back to unfiltered.
+        fireEvent.click(screen.getByLabelText("outstanding only"));
+
+        expect(screen.queryByText("all-settled")).toBeNull();
+        expect(screen.getByText("owes-money")).toBeTruthy();
+    });
+
+    it("shows the list as skeletons while loading, keeping the screen in place", async () => {
+        let resolveReports: (v: any) => void = () => {};
+        jest.mocked(getReports).mockReturnValue(new Promise((res) => { resolveReports = res; }) as any);
+
+        renderPopup();
+
+        // Dialog content is portalled, so the skeletons live on document.body, not the render root.
+        const skeletons = () => document.querySelectorAll(".MuiSkeleton-root");
+
+        // The screen itself is mounted immediately rather than replaced by a bare spinner.
+        expect(screen.getByText("Purchase")).toBeTruthy();
+        expect(skeletons().length).toBeGreaterThan(0);
+
+        resolveReports([report({ title: "jul-25-bh-admin" })]);
+
+        expect(await screen.findByText("jul-25-bh-admin")).toBeTruthy();
+        await waitFor(() => expect(skeletons()).toHaveLength(0));
     });
 });

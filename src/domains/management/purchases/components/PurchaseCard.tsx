@@ -1,5 +1,6 @@
 import {BasePurchaseResponse} from "../types";
 import {Button, Card, CardHeader, Chip, Stack, Typography} from "@mui/material";
+import dayjs from "dayjs";
 
 const BRAND = "#E44B4C";
 
@@ -11,8 +12,11 @@ export type PurchaseCardProps = {
 export function PurchaseCard({ report, onEditClick }: PurchaseCardProps) {
     const unpaidCount = report.unpaidCount ?? 0;
 
+    const created = report.createdAt ? dayjs(report.createdAt) : null;
+    const createdLabel = created && created.isValid() ? created.format("DD.MM.YYYY") : null;
+
     return (
-        <Card key={report.id} variant="outlined" sx={{ borderRadius: 4, borderColor: "snow" }}>
+        <Card key={report.id} variant="outlined" sx={{ borderRadius: 4, borderColor: "divider" }}>
             <CardHeader
                 title={
                     <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
@@ -33,7 +37,20 @@ export function PurchaseCard({ report, onEditClick }: PurchaseCardProps) {
                         )}
                     </Stack>
                 }
-                subheader={`Total: ${report.finalPrice} BHD`}
+                subheader={
+                    // 3dp, because the unpaid chip directly above it is 3dp — two different
+                    // precisions on one card read as two different kinds of number.
+                    <Stack direction="row" alignItems="baseline" gap={1} flexWrap="wrap">
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                            {Number(report.finalPrice ?? 0).toFixed(3)} BHD
+                        </Typography>
+                        {createdLabel && (
+                            <Typography variant="caption" color="text.secondary">
+                                {createdLabel}
+                            </Typography>
+                        )}
+                    </Stack>
+                }
                 action={
                     <Button
                         size="small"

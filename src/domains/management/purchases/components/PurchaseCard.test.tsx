@@ -34,6 +34,20 @@ describe("PurchaseCard unpaid badge", () => {
         render(<PurchaseCard report={report()} onEditClick={jest.fn()} />);
 
         expect(screen.getByText("jul-25-bh-admin")).toBeTruthy();
-        expect(screen.getByText("Total: 120.5 BHD")).toBeTruthy();
+        // 3dp to match the unpaid chip beside it, not the raw server number.
+        expect(screen.getByText("120.500 BHD")).toBeTruthy();
+    });
+
+    it("dates the report from createdAt", () => {
+        render(<PurchaseCard report={report()} onEditClick={jest.fn()} />);
+
+        expect(screen.getByText("14.07.2026")).toBeTruthy();
+    });
+
+    it("omits the date rather than printing 'Invalid Date' when createdAt is unusable", () => {
+        render(<PurchaseCard report={report({ createdAt: "" })} onEditClick={jest.fn()} />);
+
+        expect(screen.queryByText(/Invalid Date/)).toBeNull();
+        expect(screen.getByText("120.500 BHD")).toBeTruthy();
     });
 });
