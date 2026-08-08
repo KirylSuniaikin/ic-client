@@ -529,6 +529,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                     <TableRow>
                                         <TableCell sx={headerCellSx}>Date</TableCell>
                                         <TableCell sx={headerCellSx}>Invoice</TableCell>
+                                        {/* Paid/unpaid sits with the invoice's identity, not out
+                                            past the price columns — it is why this level exists. */}
+                                        <TableCell sx={headerCellSx}>Status</TableCell>
                                         <TableCell sx={headerCellSx}>Vendor</TableCell>
                                         <TableCell sx={headerCellSx}>Product</TableCell>
                                         <TableCell align="right" sx={headerCellSx}>Amount (kg/unit)</TableCell>
@@ -547,7 +550,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                                 info="Price we aim to buy this product at, from the product card."
                                             />
                                         </TableCell>
-                                        <TableCell sx={headerCellSx}>Status</TableCell>
                                         <TableCell sx={headerCellSx} />
                                     </TableRow>
                                 </TableHead>

@@ -30,6 +30,30 @@ const BRAND = "#E44B4C";
 
 const groupCellSx = { verticalAlign: "top" as const };
 
+const PAID_GREEN = "#34C759";
+const UNPAID_RED = "#E53935";
+
+// Red when off, green when on — MUI only colours the checked state, so the unchecked track and
+// thumb have to be set explicitly or "unpaid" would read as the neutral grey of a disabled control.
+const paidSwitchSx = {
+    "& .MuiSwitch-switchBase": {
+        color: UNPAID_RED,
+        "&:hover": { backgroundColor: `${UNPAID_RED}14` },
+    },
+    "& .MuiSwitch-switchBase + .MuiSwitch-track": {
+        backgroundColor: UNPAID_RED,
+        opacity: 0.5,
+    },
+    "& .MuiSwitch-switchBase.Mui-checked": {
+        color: PAID_GREEN,
+        "&:hover": { backgroundColor: `${PAID_GREEN}14` },
+    },
+    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+        backgroundColor: PAID_GREEN,
+        opacity: 0.5,
+    },
+} as const;
+
 type PurchaseInvoiceGroupProps = {
     invoice: PurchaseInvoiceRow;
     products: ProductTO[];
@@ -197,25 +221,22 @@ function PurchaseInvoiceGroupInner({
     );
 
     const paidCell = (
-        <TableCell rowSpan={span} sx={{ width: 120, ...groupCellSx }}>
-            <Stack direction="row" alignItems="center" gap={0.25}>
+        <TableCell rowSpan={span} sx={{ width: 72, ...groupCellSx }}>
+            {/* The word is carried by the tooltip rather than printed beside every switch: the
+                colour and the knob position both already say it, and 40 repetitions of
+                "Unpaid" down a column is noise. */}
+            <Tooltip title={invoice.paid ? "Paid" : "Unpaid"}>
                 {/* MUI v7 routes native input attrs through slotProps.input; the older
                     `inputProps` shorthand is not forwarded, so the label never lands. */}
                 <Switch
                     size="small"
                     checked={invoice.paid}
-                    color={invoice.paid ? "success" : "warning"}
+                    data-testid={`paid-switch-${invoiceId}`}
                     slotProps={{ input: { "aria-label": "invoice paid" } }}
                     onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
+                    sx={paidSwitchSx}
                 />
-                <Typography
-                    variant="caption"
-                    data-testid={`paid-label-${invoiceId}`}
-                    sx={{ color: invoice.paid ? "success.main" : "warning.main", fontWeight: 700 }}
-                >
-                    {invoice.paid ? "Paid" : "Unpaid"}
-                </Typography>
-            </Stack>
+            </Tooltip>
         </TableCell>
     );
 
@@ -244,6 +265,7 @@ function PurchaseInvoiceGroupInner({
             >
                 {dateCell}
                 {photoCell}
+                {paidCell}
                 {vendorCell}
                 <TableCell colSpan={5}>
                     {invoice.lines.length === 0 ? (
@@ -264,7 +286,6 @@ function PurchaseInvoiceGroupInner({
                         </Stack>
                     )}
                 </TableCell>
-                {paidCell}
                 <TableCell sx={{ width: 84 }}>{addLineButton}</TableCell>
             </TableRow>
         );
@@ -280,8 +301,7 @@ function PurchaseInvoiceGroupInner({
                     products={products}
                     product={productById.get(line.productId ?? -1) ?? null}
                     invalidFields={invalid.get(line.id)}
-                    leadingCells={index === 0 ? <>{dateCell}{photoCell}{vendorCell}</> : undefined}
-                    trailingCells={index === 0 ? paidCell : undefined}
+                    leadingCells={index === 0 ? <>{dateCell}{photoCell}{paidCell}{vendorCell}</> : undefined}
                     showAddLine={index === invoice.lines.length - 1}
                     groupStart={index === 0}
                     onAddLine={boundAddLine}

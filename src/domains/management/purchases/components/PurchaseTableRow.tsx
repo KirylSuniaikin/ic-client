@@ -42,12 +42,10 @@ type PurchaseTableRowProps = {
     /** Fields flagged by `validateInvoices`; undefined when the row is valid. */
     invalidFields?: Set<string>;
     /**
-     * Invoice-level cells (date / photo / vendor), rowSpan-ed across the whole group. Supplied
-     * only for the FIRST line of an invoice — they are physically part of that row's <tr>.
+     * Invoice-level cells (date / photo / status / vendor), rowSpan-ed across the whole group.
+     * Supplied only for the FIRST line of an invoice — they are physically part of that row's <tr>.
      */
     leadingCells?: React.ReactNode;
-    /** Invoice-level paid cell, also rowSpan-ed and only on the first line. */
-    trailingCells?: React.ReactNode;
     /** "Add product" sits beside the bin on the last line of each invoice. */
     showAddLine?: boolean;
     /**
@@ -96,7 +94,6 @@ function PurchaseTableRowInner({
                                    product,
                                    invalidFields,
                                    leadingCells,
-                                   trailingCells,
                                    showAddLine,
                                    groupStart,
                                    onAddLine,
@@ -191,8 +188,6 @@ function PurchaseTableRowInner({
             <TableCell align="right" sx={{ minWidth: 120 }} data-testid="target-price-cell">
                 <ComputedNumber>{fmt3(product?.targetPrice ?? null) || "—"}</ComputedNumber>
             </TableCell>
-
-            {trailingCells}
 
             {/* Line actions. Add-product sits right next to the bin, on the invoice's last line.
                 The bin is muted and the + carries the brand colour, so the destructive one is not

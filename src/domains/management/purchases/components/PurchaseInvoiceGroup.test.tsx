@@ -143,13 +143,25 @@ describe("PurchaseInvoiceGroup", () => {
         expect(spies.onUpdateInvoice).toHaveBeenCalledWith("inv-a", { paid: true });
     });
 
-    it("shows Unpaid or Paid according to the flag", () => {
+    it("carries paid state on the switch itself, with no word printed beside it", () => {
         const { unmount } = renderGroup(makeInvoice({ paid: false }), false);
-        expect(screen.getByTestId("paid-label-inv-a").textContent).toBe("Unpaid");
+        expect((screen.getByLabelText("invoice paid") as HTMLInputElement).checked).toBe(false);
+        // The column is a colour and a knob position now — 40 repetitions of "Unpaid" was noise.
+        expect(screen.queryByText("Unpaid")).toBeNull();
         unmount();
 
         renderGroup(makeInvoice({ paid: true }), false);
-        expect(screen.getByTestId("paid-label-inv-a").textContent).toBe("Paid");
+        expect((screen.getByLabelText("invoice paid") as HTMLInputElement).checked).toBe(true);
+        expect(screen.queryByText("Paid")).toBeNull();
+    });
+
+    it("keeps status with the invoice identity columns, before vendor", () => {
+        renderGroup(makeInvoice({ lines: [makeLine({ id: "l1" })] }), false);
+
+        const cells = screen.getAllByRole("cell");
+        // Date, Invoice photo, Status, Vendor, then the product columns.
+        expect(cells[2].contains(screen.getByLabelText("invoice paid"))).toBe(true);
+        expect(cells[3].contains(screen.getByPlaceholderText("Acme"))).toBe(true);
     });
 
     it("renders an empty-state row with an add action when the invoice has no products", () => {
