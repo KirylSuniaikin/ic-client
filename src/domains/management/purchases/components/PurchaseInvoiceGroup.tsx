@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from "react";
 import {
     Autocomplete,
+    Box,
     IconButton,
     Stack,
     Switch,
@@ -13,7 +14,7 @@ import {
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import dayjs from "dayjs";
@@ -23,15 +24,11 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { NumericField, PurchaseTableRow } from "./PurchaseTableRow";
 import { InvoiceImageField } from "./InvoiceImageField";
+import { editableFieldSx, fieldInputSx, groupStartSx } from "./cellChrome";
 
-const noUnderlineSx = {
-    "& .MuiInput-underline:before": { borderBottom: "none" },
-    "& .MuiInput-underline:after": { borderBottom: "none" },
-    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
-};
+const BRAND = "#E44B4C";
 
-// Every invoice starts a new visual block in one continuous table.
-const groupTopBorderSx = { borderTop: "2px solid rgba(0,0,0,0.12)" } as const;
+const groupCellSx = { verticalAlign: "top" as const };
 
 type PurchaseInvoiceGroupProps = {
     invoice: PurchaseInvoiceRow;
@@ -118,31 +115,42 @@ function PurchaseInvoiceGroupInner({
     const span = collapsed || invoice.lines.length === 0 ? 1 : invoice.lines.length;
 
     const dateCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 190, verticalAlign: "top", ...groupTopBorderSx }}>
+        <TableCell rowSpan={span} sx={{ minWidth: 200, ...groupCellSx }}>
             <Stack direction="row" alignItems="center" gap={0.25}>
                 <IconButton
                     size="small"
                     aria-label={collapsed ? "expand invoice" : "collapse invoice"}
                     data-testid={`toggle-invoice-${invoiceId}`}
                     onClick={() => onToggleCollapse(invoiceId)}
+                    sx={{ color: "text.secondary" }}
                 >
                     {collapsed ? <KeyboardArrowRightIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
                 </IconButton>
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DatePicker
-                        reduceAnimations
-                        format="DD.MM.YYYY"
-                        value={invoice.invoiceDate ? dayjs(invoice.invoiceDate) : null}
-                        onChange={(val) => {
-                            const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
-                            onUpdateInvoice(invoiceId, { invoiceDate: iso });
-                        }}
-                        slotProps={{ textField: { size: "small", variant: "standard", sx: noUnderlineSx } }}
-                    />
-                </LocalizationProvider>
-                <Tooltip title="Delete Invoice">
-                    <IconButton size="small" aria-label="delete invoice" onClick={() => onDeleteInvoice(invoiceId)}>
-                        <DeleteOutlineIcon fontSize="small" />
+                <Box sx={{ ...editableFieldSx, flex: 1, minWidth: 0 }}>
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                            reduceAnimations
+                            format="DD.MM.YYYY"
+                            value={invoice.invoiceDate ? dayjs(invoice.invoiceDate) : null}
+                            onChange={(val) => {
+                                const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
+                                onUpdateInvoice(invoiceId, { invoiceDate: iso });
+                            }}
+                            slotProps={{ textField: { size: "small", variant: "standard", sx: fieldInputSx, fullWidth: true } }}
+                        />
+                    </LocalizationProvider>
+                </Box>
+                {/* A distinct glyph and an error tone, because this bin removes the whole invoice
+                    while the one at the end of each row removes a single product — they used to be
+                    the same icon in the same size, three of them per row counting the photo. */}
+                <Tooltip title="Delete this invoice and all its products">
+                    <IconButton
+                        size="small"
+                        aria-label="delete invoice"
+                        onClick={() => onDeleteInvoice(invoiceId)}
+                        sx={{ color: "error.light", "&:hover": { color: "error.main" } }}
+                    >
+                        <DeleteSweepOutlinedIcon fontSize="small" />
                     </IconButton>
                 </Tooltip>
             </Stack>
@@ -150,7 +158,7 @@ function PurchaseInvoiceGroupInner({
     );
 
     const photoCell = (
-        <TableCell rowSpan={span} sx={{ width: 90, verticalAlign: "top", ...groupTopBorderSx }}>
+        <TableCell rowSpan={span} sx={{ width: 96, ...groupCellSx }}>
             <InvoiceImageField
                 invoiceId={invoiceId}
                 serverId={invoice.serverId}
@@ -163,37 +171,40 @@ function PurchaseInvoiceGroupInner({
     );
 
     const vendorCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 170, verticalAlign: "top", ...groupTopBorderSx }}>
-            <Autocomplete<VendorTO, false, false, false>
-                openOnFocus
-                options={vendors}
-                value={selectedVendor}
-                getOptionLabel={(o) => o.vendorName}
-                isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
-                onChange={(_, val) => onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" })}
-                renderInput={(p) => (
-                    <TextField
-                        {...p}
-                        size="small"
-                        variant="standard"
-                        error={invoiceInvalid?.has("vendorName")}
-                        placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
-                        sx={noUnderlineSx}
-                    />
-                )}
-                fullWidth
-            />
+        <TableCell rowSpan={span} sx={{ minWidth: 170, ...groupCellSx }}>
+            <Box sx={editableFieldSx}>
+                <Autocomplete<VendorTO, false, false, false>
+                    openOnFocus
+                    options={vendors}
+                    value={selectedVendor}
+                    getOptionLabel={(o) => o.vendorName}
+                    isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
+                    onChange={(_, val) => onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" })}
+                    renderInput={(p) => (
+                        <TextField
+                            {...p}
+                            size="small"
+                            variant="standard"
+                            error={invoiceInvalid?.has("vendorName")}
+                            placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
+                            sx={fieldInputSx}
+                        />
+                    )}
+                    fullWidth
+                />
+            </Box>
         </TableCell>
     );
 
     const paidCell = (
-        <TableCell rowSpan={span} sx={{ width: 110, verticalAlign: "top", ...groupTopBorderSx }}>
+        <TableCell rowSpan={span} sx={{ width: 120, ...groupCellSx }}>
             <Stack direction="row" alignItems="center" gap={0.25}>
                 {/* MUI v7 routes native input attrs through slotProps.input; the older
                     `inputProps` shorthand is not forwarded, so the label never lands. */}
                 <Switch
                     size="small"
                     checked={invoice.paid}
+                    color={invoice.paid ? "success" : "warning"}
                     slotProps={{ input: { "aria-label": "invoice paid" } }}
                     onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
                 />
@@ -210,7 +221,13 @@ function PurchaseInvoiceGroupInner({
 
     const addLineButton = (
         <Tooltip title="Add product to this invoice">
-            <IconButton size="small" aria-label="add product" data-testid={`add-line-${invoiceId}`} onClick={boundAddLine}>
+            <IconButton
+                size="small"
+                aria-label="add product"
+                data-testid={`add-line-${invoiceId}`}
+                onClick={boundAddLine}
+                sx={{ color: BRAND }}
+            >
                 <AddIcon fontSize="small" />
             </IconButton>
         </Tooltip>
@@ -219,17 +236,36 @@ function PurchaseInvoiceGroupInner({
     // Collapsed, or an invoice with no lines yet: one row, product columns replaced by a summary.
     if (collapsed || invoice.lines.length === 0) {
         return (
-            <TableRow data-testid={`invoice-group-${invoiceId}`} data-invoice={invoiceId}>
+            <TableRow
+                data-testid={`invoice-group-${invoiceId}`}
+                data-invoice={invoiceId}
+                data-group-start="true"
+                sx={{ ...groupStartSx, "&:hover > td": { backgroundColor: "rgba(0,0,0,0.02)" } }}
+            >
                 {dateCell}
                 {photoCell}
                 {vendorCell}
-                <TableCell colSpan={5} sx={{ color: "text.secondary", ...groupTopBorderSx }}>
-                    {invoice.lines.length === 0
-                        ? "No products yet — use + to add one"
-                        : `${invoice.lines.length} product${invoice.lines.length === 1 ? "" : "s"} · ${subtotal}`}
+                <TableCell colSpan={5}>
+                    {invoice.lines.length === 0 ? (
+                        <Typography variant="body2" color="text.disabled">
+                            No products yet — use + to add one
+                        </Typography>
+                    ) : (
+                        <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={2}>
+                            <Typography variant="body2" color="text.secondary">
+                                {invoice.lines.length} product{invoice.lines.length === 1 ? "" : "s"}
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
+                            >
+                                {subtotal}
+                            </Typography>
+                        </Stack>
+                    )}
                 </TableCell>
                 {paidCell}
-                <TableCell sx={{ width: 84, ...groupTopBorderSx }}>{addLineButton}</TableCell>
+                <TableCell sx={{ width: 84 }}>{addLineButton}</TableCell>
             </TableRow>
         );
     }
@@ -247,6 +283,7 @@ function PurchaseInvoiceGroupInner({
                     leadingCells={index === 0 ? <>{dateCell}{photoCell}{vendorCell}</> : undefined}
                     trailingCells={index === 0 ? paidCell : undefined}
                     showAddLine={index === invoice.lines.length - 1}
+                    groupStart={index === 0}
                     onAddLine={boundAddLine}
                     onUpdateRow={boundUpdateLine}
                     onCommitNumeric={boundCommitNumeric}

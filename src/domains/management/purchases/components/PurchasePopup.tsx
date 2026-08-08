@@ -12,8 +12,6 @@ import {
     Paper,
     Skeleton,
     Stack,
-    ToggleButton,
-    ToggleButtonGroup,
     Typography,
 } from "@mui/material";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
@@ -45,7 +43,6 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>();
-    const [unpaidOnly, setUnpaidOnly] = useState(false);
     const [unpaidDrawerOpen, setUnpaidDrawerOpen] = useState(false);
     const [purchasePopup, setPurchasePopup] = useState<{
         open: boolean;
@@ -108,11 +105,6 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
             { count: 0, amount: 0, reports: 0 },
         );
     }, [purchaseReports]);
-
-    const visibleReports = useMemo(
-        () => (unpaidOnly ? purchaseReports.filter(r => (r.unpaidCount ?? 0) > 0) : purchaseReports),
-        [purchaseReports, unpaidOnly],
-    );
 
     function handleCreatePurchaseClick() {
         setPurchasePopup({open: true, mode: "new"});
@@ -222,60 +214,21 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                         </Paper>
                     )}
 
-                    <Stack
-                        direction="row"
-                        alignItems="center"
-                        justifyContent="space-between"
-                        gap={1}
-                        sx={{ mb: 1.5 }}
-                    >
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                            {loading ? " " : plural(visibleReports.length, "report")}
+                    {!loading && purchaseReports.length > 0 && (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 1.5 }}>
+                            {plural(purchaseReports.length, "report")}
                         </Typography>
-
-                        {/* A segmented control rather than a switch: the two states are a filter over
-                            the list, and naming both makes "All" a visible way back out. */}
-                        <ToggleButtonGroup
-                            exclusive
-                            size="small"
-                            value={unpaidOnly ? "unpaid" : "all"}
-                            onChange={(_, val) => {
-                                // Exclusive groups emit null when the active button is re-tapped;
-                                // dropping that keeps a filter always selected.
-                                if (val !== null) setUnpaidOnly(val === "unpaid");
-                            }}
-                            sx={{
-                                bgcolor: "background.paper",
-                                borderRadius: 4,
-                                "& .MuiToggleButton-root": {
-                                    border: "none",
-                                    px: 2,
-                                    py: 0.5,
-                                    borderRadius: 4,
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                },
-                                "& .MuiToggleButton-root.Mui-selected": {
-                                    bgcolor: BRAND,
-                                    color: "#fff",
-                                    "&:hover": { bgcolor: BRAND },
-                                },
-                            }}
-                        >
-                            <ToggleButton value="all" aria-label="all reports">All</ToggleButton>
-                            <ToggleButton value="unpaid" aria-label="outstanding only">Outstanding</ToggleButton>
-                        </ToggleButtonGroup>
-                    </Stack>
+                    )}
 
                     {loading ? (
                         // Skeletons in place of the list, rather than swapping the whole screen for a
-                        // spinner: the top bar and filters stay put, so opening Purchase doesn't flash.
-                        <Stack gap={1.5}>
+                        // spinner: the top bar stays put, so opening Purchase doesn't flash.
+                        <Stack gap={1.5} data-testid="report-skeletons">
                             {[0, 1, 2].map((i) => (
                                 <Skeleton key={i} variant="rounded" height={84} sx={{ borderRadius: 4 }} />
                             ))}
                         </Stack>
-                    ) : visibleReports.length === 0 ? (
+                    ) : purchaseReports.length === 0 ? (
                         <Stack
                             alignItems="center"
                             gap={1}
@@ -289,28 +242,17 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                             }}
                         >
                             <ReceiptLongRoundedIcon sx={{ fontSize: 40, color: "text.disabled" }} />
-                            <Typography color="text.secondary">
-                                {unpaidOnly ? "No reports with outstanding invoices" : "No purchase reports yet"}
-                            </Typography>
-                            {unpaidOnly ? (
-                                <Button
-                                    onClick={() => setUnpaidOnly(false)}
-                                    sx={{ textTransform: "none", fontWeight: 700, color: BRAND }}
-                                >
-                                    Show all reports
-                                </Button>
-                            ) : (
-                                <Button
-                                    onClick={handleCreatePurchaseClick}
-                                    sx={{ textTransform: "none", fontWeight: 700, color: BRAND }}
-                                >
-                                    Create the first one
-                                </Button>
-                            )}
+                            <Typography color="text.secondary">No purchase reports yet</Typography>
+                            <Button
+                                onClick={handleCreatePurchaseClick}
+                                sx={{ textTransform: "none", fontWeight: 700, color: BRAND }}
+                            >
+                                Create the first one
+                            </Button>
                         </Stack>
                     ) : (
                         <Stack gap={1.5}>
-                            {visibleReports.map((r) => (
+                            {purchaseReports.map((r) => (
                                 <PurchaseCard
                                     key={r.id}
                                     report={r}

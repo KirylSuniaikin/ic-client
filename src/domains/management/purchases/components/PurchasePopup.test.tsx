@@ -72,32 +72,7 @@ describe("PurchasePopup outstanding surfaces", () => {
         expect(screen.queryByTestId("unpaid-summary")).toBeNull();
     });
 
-    it("filters the list to reports with outstanding invoices", async () => {
-        jest.mocked(getReports).mockResolvedValue([
-            report({ id: 1, title: "owes-money", unpaidCount: 2, unpaidAmount: 10 }),
-            report({ id: 2, title: "all-settled", unpaidCount: 0, unpaidAmount: 0 }),
-        ] as any);
 
-        renderPopup();
-        await screen.findByText("owes-money");
-        expect(screen.getByText("all-settled")).toBeTruthy();
-
-        fireEvent.click(screen.getByLabelText("outstanding only"));
-
-        await waitFor(() => expect(screen.queryByText("all-settled")).toBeNull());
-        expect(screen.getByText("owes-money")).toBeTruthy();
-    });
-
-    it("explains an empty filtered list rather than looking like there are no reports", async () => {
-        jest.mocked(getReports).mockResolvedValue([report({ unpaidCount: 0 })] as any);
-
-        renderPopup();
-        await screen.findByText("jul-25-bh-admin");
-
-        fireEvent.click(screen.getByLabelText("outstanding only"));
-
-        expect(await screen.findByText("No reports with outstanding invoices")).toBeTruthy();
-    });
 
     it("opens the outstanding drawer from the banner's review action", async () => {
         jest.mocked(getReports).mockResolvedValue([report({ unpaidCount: 1, unpaidAmount: 5 })] as any);
@@ -131,22 +106,6 @@ describe("PurchasePopup outstanding surfaces", () => {
         await waitFor(() => expect(screen.queryByTestId("unpaid-summary")).toBeNull());
     });
 
-    it("keeps a filter selected when the active segment is re-tapped", async () => {
-        jest.mocked(getReports).mockResolvedValue([
-            report({ id: 1, title: "owes-money", unpaidCount: 2, unpaidAmount: 10 }),
-            report({ id: 2, title: "all-settled", unpaidCount: 0, unpaidAmount: 0 }),
-        ] as any);
-
-        renderPopup();
-        fireEvent.click(await screen.findByLabelText("outstanding only"));
-        await waitFor(() => expect(screen.queryByText("all-settled")).toBeNull());
-
-        // An exclusive ToggleButtonGroup emits null here; the list must not fall back to unfiltered.
-        fireEvent.click(screen.getByLabelText("outstanding only"));
-
-        expect(screen.queryByText("all-settled")).toBeNull();
-        expect(screen.getByText("owes-money")).toBeTruthy();
-    });
 
     it("shows the list as skeletons while loading, keeping the screen in place", async () => {
         let resolveReports: (v: any) => void = () => {};
@@ -154,16 +113,13 @@ describe("PurchasePopup outstanding surfaces", () => {
 
         renderPopup();
 
-        // Dialog content is portalled, so the skeletons live on document.body, not the render root.
-        const skeletons = () => document.querySelectorAll(".MuiSkeleton-root");
-
         // The screen itself is mounted immediately rather than replaced by a bare spinner.
         expect(screen.getByText("Purchase")).toBeTruthy();
-        expect(skeletons().length).toBeGreaterThan(0);
+        expect(screen.getByTestId("report-skeletons")).toBeTruthy();
 
         resolveReports([report({ title: "jul-25-bh-admin" })]);
 
         expect(await screen.findByText("jul-25-bh-admin")).toBeTruthy();
-        await waitFor(() => expect(skeletons()).toHaveLength(0));
+        expect(screen.queryByTestId("report-skeletons")).toBeNull();
     });
 });

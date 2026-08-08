@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { downscaleImage } from "../../../../shared/utils/imageCompress";
 import { logger } from "../../../../shared/utils/logger";
 import { PurchaseInvoiceRow } from "../types";
@@ -118,10 +118,18 @@ export function InvoiceImageField({
                 </Tooltip>
             )}
 
+            {/* A small ✕, not a bin: a row can already show a bin for the line and one for the
+                whole invoice, and a third identical bin here made "remove photo" look like
+                another way to delete data. */}
             {anyPhoto && (
                 <Tooltip title="Remove photo">
-                    <IconButton size="small" aria-label="remove invoice photo" onClick={handleRemove}>
-                        <DeleteOutlineIcon fontSize="small" />
+                    <IconButton
+                        size="small"
+                        aria-label="remove invoice photo"
+                        onClick={handleRemove}
+                        sx={{ p: 0.25, color: "text.disabled", "&:hover": { color: "text.primary" } }}
+                    >
+                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                 </Tooltip>
             )}

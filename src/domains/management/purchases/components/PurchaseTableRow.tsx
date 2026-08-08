@@ -17,6 +17,14 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
+import {
+    ComputedNumber,
+    EditableNumber,
+    editableFieldSx,
+    fieldInputSx,
+    groupStartSx,
+    numericInputSx,
+} from "./cellChrome";
 
 export type NumericField = "quantity" | "finalPrice";
 
@@ -42,6 +50,12 @@ type PurchaseTableRowProps = {
     trailingCells?: React.ReactNode;
     /** "Add product" sits beside the bin on the last line of each invoice. */
     showAddLine?: boolean;
+    /**
+     * First line of an invoice: draws the 2px group rule across EVERY cell of the row. It has to
+     * live on the <tr>, not on the rowSpan-ed invoice cells — those only cover 4 of the 10
+     * columns, which left the separator visibly broken part-way across the table.
+     */
+    groupStart?: boolean;
     onAddLine?: () => void;
     onUpdateRow: (id: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (id: string, field: NumericField, raw: string) => void;
@@ -49,45 +63,7 @@ type PurchaseTableRowProps = {
     onDelete: (id: string) => void;
 };
 
-const pillSx = {
-    bg: "rgba(0,0,0,0.06)",
-    text: "#333",
-};
-
-const noUnderlineSx = {
-    "& .MuiInput-underline:before": { borderBottom: "none" },
-    "& .MuiInput-underline:after": { borderBottom: "none" },
-    "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "none" },
-};
-
-type PillTone = "neutral" | "error";
-
-/**
- * Shared wrapper for every numeric cell. The over-target highlight lives on this pill rather
- * than on the TableCell so it keeps the same rounded shape as the neutral cells.
- * `data-tone` is what the tests assert on — emotion class names are not stable.
- */
-function CellPill({ tone = "neutral", children }: { tone?: PillTone; children: React.ReactNode }) {
-    return (
-        <Box
-            data-tone={tone}
-            sx={(t) => ({
-                backgroundColor: tone === "error" ? `${t.palette.error.light}33` : pillSx.bg,
-                color: tone === "error" ? t.palette.error.main : pillSx.text,
-                py: 0.5, px: 1.5, borderRadius: 2,
-                display: "inline-flex", alignItems: "center",
-                fontWeight: "bold", fontSize: "0.9rem",
-            })}
-        >
-            {children}
-        </Box>
-    );
-}
-
-const inputSx = {
-    ...noUnderlineSx,
-    "& input": { color: pillSx.text, fontWeight: "bold", fontSize: "0.9rem", padding: 0 },
-};
+const BRAND = "#E44B4C";
 
 const isDecFinite = (d: Decimal): boolean => Number.isFinite(d.toNumber());
 
@@ -122,6 +98,7 @@ function PurchaseTableRowInner({
                                    leadingCells,
                                    trailingCells,
                                    showAddLine,
+                                   groupStart,
                                    onAddLine,
                                    onUpdateRow,
                                    onCommitNumeric,
@@ -145,7 +122,10 @@ function PurchaseTableRowInner({
     return (
         <TableRow
             data-invoice={invoiceId}
+            data-group-start={groupStart ? "true" : undefined}
             sx={{
+                ...(groupStart ? groupStartSx : {}),
+                "&:hover > td": { backgroundColor: "rgba(0,0,0,0.02)" },
                 ...(rowInvalid
                     ? { "& td": (t: any) => ({ backgroundColor: `${t.palette.error.light}1a` }) }
                     : {}),
@@ -155,68 +135,77 @@ function PurchaseTableRowInner({
 
             {/* Product */}
             <TableCell sx={{ minWidth: 180, ...cellErrSx("productId") }}>
-                <Autocomplete<ProductTO, false, false, false>
-                    openOnFocus
-                    options={products}
-                    value={selectedProduct}
-                    autoHighlight
-                    getOptionLabel={(o) => o.name}
-                    isOptionEqualToValue={(o, v) => o.id === v.id}
-                    onChange={(_, val) => onApplyProduct(row.id, val)}
-                    renderInput={(p) => (
-                        <TextField
-                            {...p}
-                            size="small"
-                            variant="standard"
-                            placeholder={product?.name ?? "Select Product"}
-                            sx={noUnderlineSx}
-                        />
-                    )}
-                    fullWidth
-                />
+                <Box sx={editableFieldSx}>
+                    <Autocomplete<ProductTO, false, false, false>
+                        openOnFocus
+                        options={products}
+                        value={selectedProduct}
+                        autoHighlight
+                        getOptionLabel={(o) => o.name}
+                        isOptionEqualToValue={(o, v) => o.id === v.id}
+                        onChange={(_, val) => onApplyProduct(row.id, val)}
+                        renderInput={(p) => (
+                            <TextField
+                                {...p}
+                                size="small"
+                                variant="standard"
+                                placeholder={product?.name ?? "Select Product"}
+                                sx={fieldInputSx}
+                            />
+                        )}
+                        fullWidth
+                    />
+                </Box>
             </TableCell>
 
             {/* Amount (quantity) */}
-            <TableCell sx={{ minWidth: 110, ...cellErrSx("quantity") }}>
-                <CellPill>
+            <TableCell align="right" sx={{ minWidth: 110, ...cellErrSx("quantity") }}>
+                <EditableNumber>
                     <DecimalCellInput
                         value={fmt3(row.quantity)}
                         onCommit={(raw) => onCommitNumeric(row.id, "quantity", raw)}
-                        width={80}
-                        sx={inputSx}
+                        width={72}
+                        sx={numericInputSx}
                     />
-                </CellPill>
+                </EditableNumber>
             </TableCell>
 
             {/* Total Price (finalPrice) */}
-            <TableCell sx={{ minWidth: 120, ...cellErrSx("finalPrice") }}>
-                <CellPill>
+            <TableCell align="right" sx={{ minWidth: 120, ...cellErrSx("finalPrice") }}>
+                <EditableNumber>
                     <DecimalCellInput
                         value={fmt3(row.finalPrice)}
                         onCommit={(raw) => onCommitNumeric(row.id, "finalPrice", raw)}
-                        width={90}
-                        sx={inputSx}
+                        width={82}
+                        sx={numericInputSx}
                     />
-                </CellPill>
+                </EditableNumber>
             </TableCell>
 
             {/* Unit Price (price) — total ÷ amount, read-only. The only cell that turns red. */}
-            <TableCell sx={{ minWidth: 120, ...cellErrSx("price") }} data-testid="unit-price-cell">
-                <CellPill tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</CellPill>
+            <TableCell align="right" sx={{ minWidth: 120, ...cellErrSx("price") }} data-testid="unit-price-cell">
+                <ComputedNumber tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</ComputedNumber>
             </TableCell>
 
             {/* Target Price — the price we aim to buy at, straight from the product. Read-only. */}
-            <TableCell sx={{ minWidth: 120 }} data-testid="target-price-cell">
-                <CellPill>{fmt3(product?.targetPrice ?? null) || "—"}</CellPill>
+            <TableCell align="right" sx={{ minWidth: 120 }} data-testid="target-price-cell">
+                <ComputedNumber>{fmt3(product?.targetPrice ?? null) || "—"}</ComputedNumber>
             </TableCell>
 
             {trailingCells}
 
-            {/* Line actions. Add-product sits right next to the bin, on the invoice's last line. */}
+            {/* Line actions. Add-product sits right next to the bin, on the invoice's last line.
+                The bin is muted and the + carries the brand colour, so the destructive one is not
+                the eye-catching one. */}
             <TableCell sx={{ width: 84, whiteSpace: "nowrap" }}>
                 <Stack direction="row" gap={0.25}>
-                    <Tooltip title="Delete Line">
-                        <IconButton size="small" aria-label="delete line" onClick={() => onDelete(row.id)}>
+                    <Tooltip title="Delete this product line">
+                        <IconButton
+                            size="small"
+                            aria-label="delete line"
+                            onClick={() => onDelete(row.id)}
+                            sx={{ color: "text.disabled", "&:hover": { color: "error.main" } }}
+                        >
                             <DeleteOutlineIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
@@ -227,6 +216,7 @@ function PurchaseTableRowInner({
                                 aria-label="add product"
                                 data-testid={`add-line-${invoiceId}`}
                                 onClick={onAddLine}
+                                sx={{ color: BRAND }}
                             >
                                 <AddIcon fontSize="small" />
                             </IconButton>

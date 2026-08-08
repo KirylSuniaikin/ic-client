@@ -161,7 +161,9 @@ describe("PurchaseTablePopup nested invoices", () => {
 
         // Collapsed: a per-invoice summary row instead of its product rows.
         expect(screen.getByTestId("invoice-group-inv-1")).toBeTruthy();
-        expect(screen.getByText("1 product · 10.000")).toBeTruthy();
+        // Count on the left, subtotal right-aligned under the money columns.
+        expect(screen.getAllByText("1 product").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("10.000").length).toBeGreaterThan(0);
         expect(screen.queryByTestId("unit-price-cell")).toBeNull();
 
         fireEvent.click(screen.getByTestId("expand-all"));

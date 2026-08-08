@@ -67,7 +67,9 @@ describe("PurchaseInvoiceGroup", () => {
         }), true);
 
         expect(container.querySelectorAll("tr")).toHaveLength(1);
-        expect(screen.getByText("2 products · 20.000")).toBeTruthy();
+        // Count on the left, subtotal right-aligned so it sits under the money columns.
+        expect(screen.getByText("2 products")).toBeTruthy();
+        expect(screen.getByText("20.000")).toBeTruthy();
         // Product columns are replaced by the summary while collapsed.
         expect(screen.queryByTestId("unit-price-cell")).toBeNull();
     });
@@ -82,6 +84,18 @@ describe("PurchaseInvoiceGroup", () => {
         const spanned = Array.from(container.querySelectorAll("td[rowspan]"));
         expect(spanned).toHaveLength(4);
         spanned.forEach((td) => expect(td.getAttribute("rowspan")).toBe("3"));
+    });
+
+    it("opens the group with a rule on the whole first row, not just the invoice cells", () => {
+        renderGroup(makeInvoice({
+            lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" })],
+        }), false);
+
+        // The rule used to be set on the four rowSpan-ed cells, so it stopped part-way across a
+        // ten-column table. It belongs to the <tr>, which covers every cell of the row.
+        const rows = screen.getAllByRole("row");
+        expect(rows[0].getAttribute("data-group-start")).toBe("true");
+        expect(rows[1].getAttribute("data-group-start")).toBeNull();
     });
 
     it("puts the add-product action beside the bin on the invoice's last line", () => {

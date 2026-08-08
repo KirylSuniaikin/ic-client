@@ -16,6 +16,7 @@ import {
 import {
     Box,
     Button,
+    ButtonGroup,
     Dialog,
     Paper,
     Stack,
@@ -30,7 +31,10 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
+import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import dayjs from "dayjs";
 import {
@@ -68,15 +72,36 @@ type Props = {
 
 const BRAND = "#E44B4C";
 
-const headerCellSx = { fontWeight: "bold", color: "text.secondary", whiteSpace: "nowrap" } as const;
+const headerCellSx = {
+    fontWeight: 700,
+    color: "text.secondary",
+    whiteSpace: "nowrap",
+    fontSize: "0.75rem",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    bgcolor: "#f7f6f2",
+} as const;
+
+const toolbarGroupSx = {
+    bgcolor: "background.paper",
+    "& .MuiButtonBase-root": { textTransform: "none", fontWeight: 600 },
+} as const;
 
 /**
  * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
  * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that.
+ *
+ * `align` follows its column: the numeric headers sit over right-aligned figures.
  */
-function HeaderWithInfo({ label, info }: { label: string; info: string }) {
+function HeaderWithInfo({ label, info, align = "left" }: { label: string; info: string; align?: "left" | "right" }) {
     return (
-        <Stack direction="row" alignItems="center" gap={0.5} sx={{ whiteSpace: "nowrap" }}>
+        <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent={align === "right" ? "flex-end" : "flex-start"}
+            gap={0.5}
+            sx={{ whiteSpace: "nowrap" }}
+        >
             <span>{label}</span>
             <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
                 <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
@@ -402,19 +427,43 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 onBack={onClose}
                 actions={
                     <>
-                        <Typography>Total: <b>{total}</b></Typography>
+                        {/* Total is data, not an action — it used to sit inline with two identical
+                            red buttons, so the bar read as three things of equal weight. */}
+                        <Box sx={{ textAlign: "right", mr: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1 }}>
+                                Total
+                            </Typography>
+                            <Typography sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.3 }}>
+                                {total}
+                            </Typography>
+                        </Box>
                         <Button
-                            variant="contained"
+                            variant="outlined"
+                            startIcon={<AddIcon />}
                             data-testid="add-invoice"
                             onClick={addInvoice}
-                            sx={{ bgcolor: BRAND, "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                            sx={{
+                                borderRadius: 4,
+                                textTransform: "none",
+                                fontWeight: 700,
+                                color: BRAND,
+                                borderColor: BRAND,
+                                "&:hover": { borderColor: BRAND, bgcolor: `${BRAND}14` },
+                            }}
                         >
                             Add invoice
                         </Button>
                         <Button
                             variant="contained"
+                            disableElevation
                             disabled={!dirty || saving}
-                            sx={{ bgcolor: BRAND, "&:hover": { bgcolor: "#c93d3e"}, borderRadius: 4 }}
+                            sx={{
+                                bgcolor: BRAND,
+                                "&:hover": { bgcolor: "#c93d3e" },
+                                borderRadius: 4,
+                                textTransform: "none",
+                                fontWeight: 700,
+                            }}
                             onClick={handleSave}
                         >
                             {saving ? "Saving..." : "Save"}
@@ -434,21 +483,35 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     <Stack gap={1.5}>
                         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
                             <Typography variant="body2" color="text.secondary">Sort by:</Typography>
-                            <ToggleButtonGroup size="small" exclusive value={sort?.key ?? null}>
-                                <ToggleButton value="invoiceDate" data-testid="sort-invoiceDate" onClick={() => applySort("invoiceDate")} sx={{ textTransform: "none" }}>
+                            <ToggleButtonGroup size="small" exclusive value={sort?.key ?? null} sx={toolbarGroupSx}>
+                                <ToggleButton value="invoiceDate" data-testid="sort-invoiceDate" onClick={() => applySort("invoiceDate")}>
                                     Date {sort?.key === "invoiceDate" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
                                 </ToggleButton>
-                                <ToggleButton value="vendorName" data-testid="sort-vendorName" onClick={() => applySort("vendorName")} sx={{ textTransform: "none" }}>
+                                <ToggleButton value="vendorName" data-testid="sort-vendorName" onClick={() => applySort("vendorName")}>
                                     Vendor {sort?.key === "vendorName" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
                                 </ToggleButton>
                             </ToggleButtonGroup>
+
                             <Box sx={{ flexGrow: 1 }} />
-                            <Button size="small" data-testid="collapse-all" onClick={collapseAll} sx={{ textTransform: "none" }}>
-                                Collapse all
-                            </Button>
-                            <Button size="small" data-testid="expand-all" onClick={expandAll} sx={{ textTransform: "none" }}>
-                                Expand all
-                            </Button>
+
+                            {/* One control rather than two loose text buttons, so it balances the
+                                sort group at the other end of the row. */}
+                            <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
+                                <Button
+                                    data-testid="collapse-all"
+                                    onClick={collapseAll}
+                                    startIcon={<UnfoldLessIcon />}
+                                >
+                                    Collapse all
+                                </Button>
+                                <Button
+                                    data-testid="expand-all"
+                                    onClick={expandAll}
+                                    startIcon={<UnfoldMoreIcon />}
+                                >
+                                    Expand all
+                                </Button>
+                            </ButtonGroup>
                         </Stack>
 
                         <TableContainer
@@ -468,17 +531,19 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         <TableCell sx={headerCellSx}>Invoice</TableCell>
                                         <TableCell sx={headerCellSx}>Vendor</TableCell>
                                         <TableCell sx={headerCellSx}>Product</TableCell>
-                                        <TableCell sx={headerCellSx}>Amount(kg/unit)</TableCell>
-                                        <TableCell sx={headerCellSx}>Total Price</TableCell>
-                                        <TableCell sx={headerCellSx}>
+                                        <TableCell align="right" sx={headerCellSx}>Amount (kg/unit)</TableCell>
+                                        <TableCell align="right" sx={headerCellSx}>Total Price</TableCell>
+                                        <TableCell align="right" sx={headerCellSx}>
                                             <HeaderWithInfo
-                                                label="Unit Price(kg/unit)"
+                                                align="right"
+                                                label="Unit Price (kg/unit)"
                                                 info="Actual price paid per kg/unit — total price ÷ amount."
                                             />
                                         </TableCell>
-                                        <TableCell sx={headerCellSx}>
+                                        <TableCell align="right" sx={headerCellSx}>
                                             <HeaderWithInfo
-                                                label="Target Price(kg/unit)"
+                                                align="right"
+                                                label="Target Price (kg/unit)"
                                                 info="Price we aim to buy this product at, from the product card."
                                             />
                                         </TableCell>
