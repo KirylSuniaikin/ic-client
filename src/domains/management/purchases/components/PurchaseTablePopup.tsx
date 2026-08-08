@@ -84,8 +84,6 @@ const headerCellSx = {
 // House button language — brand outline, pill corners, no shouty uppercase — rather than MUI's
 // default blue outlined pair.
 const toolbarGroupSx = {
-    borderRadius: 4,
-    overflow: "hidden",
     bgcolor: "background.paper",
     "& .MuiButton-root": {
         textTransform: "none",
@@ -95,6 +93,14 @@ const toolbarGroupSx = {
         borderColor: `${BRAND}55`,
         "&:hover": { borderColor: BRAND, bgcolor: `${BRAND}14` },
     },
+    // Round the end buttons themselves. Rounding the group and clipping it with overflow:hidden
+    // cut the children's borders along the corner arcs, and since the group has no border of its
+    // own that left the four corners with no outline at all.
+    "& .MuiButton-root:first-of-type": { borderTopLeftRadius: 16, borderBottomLeftRadius: 16 },
+    "& .MuiButton-root:last-of-type": { borderTopRightRadius: 16, borderBottomRightRadius: 16 },
+    // The seam between the two: MUI hides one side so adjacent outlines don't double up, but its
+    // default leaves a grey remnant against a brand-coloured border.
+    "& .MuiButtonGroup-grouped:not(:last-of-type)": { borderRightColor: `${BRAND}33` },
 } as const;
 
 /**
