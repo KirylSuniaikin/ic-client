@@ -155,17 +155,17 @@ describe("PurchaseInvoiceGroup", () => {
         expect(screen.queryByText("Paid")).toBeNull();
     });
 
-    it("centres the vendor down the group instead of pinning it to the first line", () => {
+    it("centres the whole invoice block down its products, not pinned to the first line", () => {
         renderGroup(makeInvoice({
             lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" }), makeLine({ id: "l3" })],
         }), false);
 
+        // Date, photo, status and vendor all sit against the middle product, so the four read as
+        // one block rather than a column of things starting at different heights.
         const cells = screen.getAllByRole("cell");
-        // Date / photo / status stay on the first line; vendor sits against the middle product.
-        expect(getComputedStyle(cells[0]).verticalAlign).toBe("top");
-        expect(getComputedStyle(cells[1]).verticalAlign).toBe("top");
-        expect(getComputedStyle(cells[2]).verticalAlign).toBe("top");
-        expect(getComputedStyle(cells[3]).verticalAlign).toBe("middle");
+        [0, 1, 2, 3].forEach((i) => {
+            expect(getComputedStyle(cells[i]).verticalAlign).toBe("middle");
+        });
     });
 
     it("uses one bin design for the invoice and for each product line", () => {

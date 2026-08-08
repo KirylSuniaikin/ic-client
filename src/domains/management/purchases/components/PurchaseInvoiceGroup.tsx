@@ -28,7 +28,10 @@ import { binSx, editableFieldSx, fieldInputSx, groupCellBandSx, groupStartSx } f
 
 const BRAND = "#E44B4C";
 
-const groupCellSx = { verticalAlign: "top" as const };
+// Every invoice-level cell is centred down its own products: with 3 products the whole block sits
+// against the 2nd, with 4 it sits between the 2nd and 3rd. rowSpan already covers every line, so
+// this is one CSS keyword rather than any height arithmetic.
+const groupCellSx = { verticalAlign: "middle" as const };
 
 const PAID_GREEN = "#34C759";
 const UNPAID_RED = "#E53935";
@@ -196,11 +199,8 @@ function PurchaseInvoiceGroupInner({
         </TableCell>
     );
 
-    // Centred down the group rather than pinned to the first line: with 3 products the vendor sits
-    // against the 2nd, with 4 it sits between the 2nd and 3rd. rowSpan makes this one CSS keyword,
-    // because the cell box already covers every line of the invoice.
     const vendorCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 170, verticalAlign: "middle" }}>
+        <TableCell rowSpan={span} sx={{ minWidth: 170, ...groupCellSx }}>
             <Box sx={editableFieldSx}>
                 <Autocomplete<VendorTO, false, false, false>
                     openOnFocus
