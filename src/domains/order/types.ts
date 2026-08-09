@@ -25,7 +25,10 @@ export type OrderStatus =
     | 'Oven'
     | 'Ready'
     | 'Picked Up'
-    | 'Cancelled';
+    | 'Cancelled'
+    // A kiosk order whose card was declined and whose customer said they would pay the cashier.
+    // On the board, unpaid, and discarded automatically if nobody pays within the hold.
+    | 'Awaiting Counter Payment';
 
 export type OrderType =
     | 'Dine In'
@@ -109,6 +112,8 @@ export type Order = {
     estimation?: number;
     estimationTime?: number;
     jahezOrderId?: string | null;
+    /** When an 'Awaiting Counter Payment' hold runs out. Absent for every other status. */
+    counter_hold_expires_at?: string | null;
 };
 
 export type BaseAppInfoResponse = {
