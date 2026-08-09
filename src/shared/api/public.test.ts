@@ -16,6 +16,7 @@ import {
 } from "./public";
 import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
 import type { CreateOrderRequest, AvailabilityChange } from "../../domains/order/types";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 const mockAuthFetch = jest.mocked(authFetch);
 
@@ -307,6 +308,18 @@ describe("fetchBaseAppInfo", () => {
 
         const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(url).toContain("branchId=2e8c35f7-d75e-4442-b496-cbb929842c10");
+    });
+
+    it("sends X-Client-Platform: web", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "branch-xyz");
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 });
 

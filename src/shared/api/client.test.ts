@@ -1,5 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 import { authFetch, BASE_URL, WS_URL } from "./client";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 beforeAll(() => {
     // Suppress jsdom navigation errors triggered by the 401 handler's
@@ -129,6 +130,16 @@ describe("authFetch", () => {
         ).rejects.toThrow();
 
         expect(localStorage.getItem("jwt_token")).toBeNull();
+    });
+
+    it("sets X-Client-Platform: web on every request", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await authFetch("https://example.com/api/test", { method: "GET" });
+
+        const [, init] = mockFetch.mock.calls[0] as [RequestInfo, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("preserves custom headers alongside the Authorization header", async () => {

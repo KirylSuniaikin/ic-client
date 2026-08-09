@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger";
 import { authFetch, BASE_URL, DEFAULT_BRANCH_ID } from './client';
+import { applyClientPlatform } from './clientPlatform';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type {
     BaseAppInfoResponse,
@@ -37,8 +38,11 @@ export async function fetchBaseAppInfo(
     }
 
     url += `?${queryParams.toString()}`;
+    const headers = new Headers();
+    applyClientPlatform(headers);
     const response = await fetch(url, {
         method: "GET",
+        headers,
     });
     if (!response.ok) {
         throw new Error(`Ошибка: ${response.status}`);

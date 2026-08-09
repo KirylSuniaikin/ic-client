@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger";
+import { applyClientPlatform } from "./clientPlatform";
 // Served from a host under the storefront's own domain (a CNAME to Render) rather than
 // *.onrender.com: that is what makes the customer refresh cookie first-party, so it is
 // shared by the apex and www and no longer dropped by Safari's third-party cookie block.
@@ -20,6 +21,8 @@ export async function authFetch(url: string, headersWithoutAuth: RequestInit): P
     if (token) {
         headers.set("Authorization", "Bearer " + token);
     }
+
+    applyClientPlatform(headers);
 
     const response = await fetch(url, {
         ...headersWithoutAuth,
