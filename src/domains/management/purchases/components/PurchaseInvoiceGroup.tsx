@@ -269,20 +269,26 @@ function PurchaseInvoiceGroupInner({
             {stripRow}
             <TableRow>
                 <TableCell component="th" scope="col" sx={inlineHeaderCellSx}>Product</TableCell>
-                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Amount (kg/unit)</TableCell>
-                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Total Price</TableCell>
                 <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>
                     <HeaderWithInfo
                         align="right"
-                        label="Unit Price (kg/unit)"
+                        label="Amount"
+                        info="How much was bought, in kg or units."
+                    />
+                </TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Total</TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>
+                    <HeaderWithInfo
+                        align="right"
+                        label="Unit"
                         info="Actual price paid per kg/unit — total price ÷ amount."
                     />
                 </TableCell>
                 <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>
                     <HeaderWithInfo
                         align="right"
-                        label="Target Price (kg/unit)"
-                        info="Price we aim to buy this product at, from the product card."
+                        label="Target"
+                        info="Price we aim to buy this product at, per kg/unit — from the product card."
                     />
                 </TableCell>
                 <TableCell component="th" scope="col" sx={inlineHeaderCellSx} />

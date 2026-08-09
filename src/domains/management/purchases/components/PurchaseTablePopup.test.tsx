@@ -223,7 +223,10 @@ describe("PurchaseTablePopup", () => {
             />
         );
 
-        const [unitPriceInfo] = await screen.findAllByTestId("InfoOutlinedIcon");
+        // Header order is Amount, Unit, Target — three info icons now that Amount carries one too,
+        // so the unit-price hint is the second, not the first.
+        const infoIcons = await screen.findAllByTestId("InfoOutlinedIcon");
+        const unitPriceInfo = infoIcons[1];
 
         fireEvent.touchStart(unitPriceInfo);
 
