@@ -70,6 +70,16 @@ describe("kiosk.ts", () => {
             expect(headers.has("X-Kiosk-Name")).toBe(false);
         });
 
+        it("still sends X-Client-Platform: kiosk-web", async () => {
+            mockFetch.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+
+            await fetchPairingOptions();
+
+            const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+            const headers = new Headers(init?.headers);
+            expect(headers.get("X-Client-Platform")).toBe("kiosk-web");
+        });
+
         it("returns the parsed pairing list", async () => {
             const kiosks = [{ deviceName: "kiosk-1", terminalId: "t1", branchId: "b1", branchName: "Main" }];
             mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(kiosks), { status: 200 }));

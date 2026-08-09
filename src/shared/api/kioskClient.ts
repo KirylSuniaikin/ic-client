@@ -1,4 +1,5 @@
 import { getKioskDeviceName } from "../../domains/kiosk/services/kioskIdentity";
+import { applyClientPlatform, CLIENT_PLATFORM_KIOSK_WEB } from "./clientPlatform";
 
 /**
  * A kiosk device lost its pairing (no/unknown `X-Kiosk-Name`, or the backend revoked it). Thrown
@@ -52,7 +53,9 @@ export async function kioskFetch(url: string, init?: RequestInit): Promise<Respo
     if (deviceName) {
         headers.set("X-Kiosk-Name", deviceName);
     }
-    headers.set("X-Client-Platform", "kiosk-web");
+    // Stays distinct from the Android kiosk's "kiosk": this browser mode is the fallback
+    // admins switch on if the APK misbehaves, so the two must be separable in the stats.
+    applyClientPlatform(headers, CLIENT_PLATFORM_KIOSK_WEB);
 
     const response = await fetch(url, {
         ...init,

@@ -1,4 +1,5 @@
 import { BASE_URL } from "./client";
+import { applyClientPlatform, CLIENT_PLATFORM_KIOSK_WEB } from "./clientPlatform";
 import { kioskFetch, KioskHttpError } from "./kioskClient";
 import type { CreateOrderRequest, Order, Items409Response, BranchClosedResponse } from "../../domains/order/types";
 import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
@@ -108,7 +109,12 @@ function asBranchClosedResponse(body: unknown): BranchClosedResponse | null {
  * `eazypay-integration` backend branch simply isn't deployed to this environment yet.
  */
 export async function fetchPairingOptions(): Promise<PairingKiosk[]> {
-    const response = await fetch(`${KIOSK_BASE}/pairing/kiosks`, { method: "GET" });
+    // The platform header still applies — the reason this bypasses kioskFetch is the stale
+    // X-Kiosk-Name, not the platform tag, and pairing traffic should be attributable too.
+    const headers = new Headers();
+    applyClientPlatform(headers, CLIENT_PLATFORM_KIOSK_WEB);
+
+    const response = await fetch(`${KIOSK_BASE}/pairing/kiosks`, { method: "GET", headers });
 
     if (response.status === 401 || response.status === 403 || response.status === 404) {
         throw new PairingUnavailableError();
