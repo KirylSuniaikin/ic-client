@@ -208,7 +208,7 @@ function PurchaseInvoiceGroupInner({
                         </Typography>
                     </Stack>
 
-                    <Stack direction="row" alignItems="baseline" gap={2} sx={{ ml: "auto" }}>
+                    <Stack direction="row" alignItems="center" gap={2} sx={{ ml: "auto" }}>
                         <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
                             {invoice.lines.length} product{invoice.lines.length === 1 ? "" : "s"}
                         </Typography>
