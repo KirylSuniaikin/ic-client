@@ -132,9 +132,11 @@ describe("PurchaseTablePopup row memoization", () => {
         await waitFor(() => expect(mockRowRenderCounts["inv-0-line-2"]).toBe(2));
         expect(mockRowRenderCounts["inv-0-line-1"]).toBe(1);
 
-        // The FIRST line is expected to re-render: with rowSpan the invoice-level cells (date,
-        // photo, vendor, paid) physically live inside its <tr>, so it cannot be skipped. That is
-        // the deliberate cost of the dense table over the card layout.
+        // The invoice's identity cells (date, photo, vendor, paid) now live in the strip row, not
+        // inside any product line's <tr> — so the FIRST line is no longer special-cased either and
+        // must be skipped exactly like the middle line. This is the regression guard for the
+        // structural win: editing a line can never re-render a sibling line, first or otherwise.
+        expect(mockRowRenderCounts["inv-0-line-0"]).toBe(1);
     });
 
     it("does not re-render any line of a sibling invoice", async () => {

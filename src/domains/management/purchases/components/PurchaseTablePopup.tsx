@@ -24,14 +24,12 @@ import {
     TableBody,
     TableCell,
     TableContainer,
-    TableHead,
     TableRow,
-    TableSortLabel,
-    Tooltip,
     Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
@@ -57,6 +55,7 @@ import {
 import { normalizeDecimal } from "../../../../shared/utils/decimalUtils";
 import { NumericField } from "./PurchaseTableRow";
 import { PurchaseInvoiceGroup } from "./PurchaseInvoiceGroup";
+import { PRODUCT_COLUMN_COUNT } from "./cellChrome";
 import Decimal from "decimal.js-light";
 
 type Props = {
@@ -70,16 +69,6 @@ type Props = {
 }
 
 const BRAND = "#E44B4C";
-
-const headerCellSx = {
-    fontWeight: 700,
-    color: "text.secondary",
-    whiteSpace: "nowrap",
-    fontSize: "0.75rem",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    bgcolor: "#f7f6f2",
-} as const;
 
 // House button language — brand outline, pill corners, no shouty uppercase — rather than MUI's
 // default blue outlined pair.
@@ -104,57 +93,33 @@ const toolbarGroupSx = {
 } as const;
 
 /**
- * Sorting lives on the column it sorts. `sort` is null until the first tap, so an untouched
- * header shows the direction it *would* apply, greyed, exactly like MUI's own tables.
+ * Sorting now lives in a toolbar `ButtonGroup` rather than on a column header, since Date/Vendor
+ * are no longer real columns (each invoice carries its own inline header instead). `sort` is null
+ * until the first tap, so an untouched button shows the direction it *would* apply, greyed,
+ * exactly like the column header it replaced.
  */
-function SortableHeader({
-                            label,
-                            sortKey,
-                            sort,
-                            onSort,
-                        }: {
+function SortButton({
+                        label,
+                        sortKey,
+                        sort,
+                        onSort,
+                    }: {
     label: string;
     sortKey: PurchaseSortKey;
     sort: PurchaseSort | null;
     onSort: (key: PurchaseSortKey) => void;
 }) {
     const active = sort?.key === sortKey;
+    const dir = active ? sort.dir : DEFAULT_SORT_DIR[sortKey];
+    const Icon = dir === "asc" ? ArrowUpwardIcon : ArrowDownwardIcon;
     return (
-        <TableSortLabel
-            active={active}
-            direction={active ? sort.dir : DEFAULT_SORT_DIR[sortKey]}
+        <Button
             data-testid={`sort-${sortKey}`}
             onClick={() => onSort(sortKey)}
-            sx={{
-                "&.Mui-active": { color: BRAND },
-                "&.Mui-active .MuiTableSortLabel-icon": { color: BRAND },
-            }}
+            startIcon={<Icon fontSize="small" sx={{ color: active ? BRAND : "text.disabled" }} />}
         >
             {label}
-        </TableSortLabel>
-    );
-}
-
-/**
- * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
- * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that.
- *
- * `align` follows its column: the numeric headers sit over right-aligned figures.
- */
-function HeaderWithInfo({ label, info, align = "left" }: { label: string; info: string; align?: "left" | "right" }) {
-    return (
-        <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent={align === "right" ? "flex-end" : "flex-start"}
-            gap={0.5}
-            sx={{ whiteSpace: "nowrap" }}
-        >
-            <span>{label}</span>
-            <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
-                <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
-            </Tooltip>
-        </Stack>
+        </Button>
     );
 }
 
@@ -356,12 +321,6 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         setInvoices(prev => sortPurchaseInvoices(prev, key, dir));
     }, [sort]);
 
-    // aria-sort on the header cell; `false` is MUI's "this column is sortable but not sorted".
-    const sortDirOf = useCallback(
-        (key: PurchaseSortKey): SortDir | false => (sort?.key === key ? sort.dir : false),
-        [sort],
-    );
-
     const total = useMemo(
         () =>
             invoices
@@ -535,9 +494,19 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     </Box>
                 ) : (
                     <Stack gap={1.5}>
-                        {/* Sorting moved onto the Date and Vendor headers, which is where a table
-                            is looked at for it — so this row carries only the collapse controls. */}
-                        <Stack direction="row" alignItems="center" justifyContent="flex-end">
+                        {/* Date/Vendor are no longer columns — each invoice carries its own inline
+                            header now — so their sort affordance lives here instead, beside the
+                            collapse controls. */}
+                        <Stack
+                            data-testid="purchase-toolbar"
+                            direction="row"
+                            alignItems="center"
+                            justifyContent="space-between"
+                        >
+                            <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
+                                <SortButton label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
+                                <SortButton label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
+                            </ButtonGroup>
                             <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
                                 <Button
                                     data-testid="collapse-all"
@@ -566,40 +535,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                 border: "1px solid rgba(0,0,0,0.08)",
                             }}
                         >
-                            <Table size="small" stickyHeader aria-label="purchases" sx={{ minWidth: 1180 }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={headerCellSx} sortDirection={sortDirOf("invoiceDate")}>
-                                            <SortableHeader label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
-                                        </TableCell>
-                                        <TableCell sx={headerCellSx}>Invoice</TableCell>
-                                        {/* Paid/unpaid sits with the invoice's identity, not out
-                                            past the price columns — it is why this level exists. */}
-                                        <TableCell sx={headerCellSx}>Status</TableCell>
-                                        <TableCell sx={headerCellSx} sortDirection={sortDirOf("vendorName")}>
-                                            <SortableHeader label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
-                                        </TableCell>
-                                        <TableCell sx={headerCellSx}>Product</TableCell>
-                                        <TableCell align="right" sx={headerCellSx}>Amount (kg/unit)</TableCell>
-                                        <TableCell align="right" sx={headerCellSx}>Total Price</TableCell>
-                                        <TableCell align="right" sx={headerCellSx}>
-                                            <HeaderWithInfo
-                                                align="right"
-                                                label="Unit Price (kg/unit)"
-                                                info="Actual price paid per kg/unit — total price ÷ amount."
-                                            />
-                                        </TableCell>
-                                        <TableCell align="right" sx={headerCellSx}>
-                                            <HeaderWithInfo
-                                                align="right"
-                                                label="Target Price (kg/unit)"
-                                                info="Price we aim to buy this product at, from the product card."
-                                            />
-                                        </TableCell>
-                                        <TableCell sx={headerCellSx} />
-                                    </TableRow>
-                                </TableHead>
-
+                            <Table size="small" aria-label="purchases" sx={{ minWidth: 860 }}>
                                 <TableBody>
                                     {invoices.map((invoice) => (
                                         <PurchaseInvoiceGroup
@@ -623,7 +559,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
 
                                     {invoices.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={10} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                                            <TableCell colSpan={PRODUCT_COLUMN_COUNT} align="center" sx={{ py: 3, color: "text.secondary" }}>
                                                 No invoices yet — use Add invoice to create one
                                             </TableCell>
                                         </TableRow>

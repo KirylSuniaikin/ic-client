@@ -23,7 +23,6 @@ import {
     EditableNumber,
     editableFieldSx,
     fieldInputSx,
-    groupStartSx,
     numericInputSx,
 } from "./cellChrome";
 
@@ -32,9 +31,9 @@ export type NumericField = "quantity" | "finalPrice";
 type PurchaseTableRowProps = {
     row: PurchaseLineRow;
     /**
-     * Owning invoice, stamped onto the <tr> as data-invoice. An expanded rowSpan group has no
-     * wrapper element to hang an id on, so this is what lets a caller (or a test) scope to one
-     * invoice's lines.
+     * Owning invoice, stamped onto the <tr> as data-invoice. The invoice's own identity now lives
+     * in the strip row rather than this row's <tr>, so this is what lets a caller (or a test)
+     * scope to one invoice's lines.
      */
     invoiceId: string;
     products: ProductTO[];
@@ -42,19 +41,8 @@ type PurchaseTableRowProps = {
     product: ProductTO | null;
     /** Fields flagged by `validateInvoices`; undefined when the row is valid. */
     invalidFields?: Set<string>;
-    /**
-     * Invoice-level cells (date / photo / status / vendor), rowSpan-ed across the whole group.
-     * Supplied only for the FIRST line of an invoice — they are physically part of that row's <tr>.
-     */
-    leadingCells?: React.ReactNode;
     /** "Add product" sits beside the bin on the last line of each invoice. */
     showAddLine?: boolean;
-    /**
-     * First line of an invoice: draws the 2px group rule across EVERY cell of the row. It has to
-     * live on the <tr>, not on the rowSpan-ed invoice cells — those only cover 4 of the 10
-     * columns, which left the separator visibly broken part-way across the table.
-     */
-    groupStart?: boolean;
     onAddLine?: () => void;
     onUpdateRow: (id: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (id: string, field: NumericField, raw: string) => void;
@@ -94,9 +82,7 @@ function PurchaseTableRowInner({
                                    products,
                                    product,
                                    invalidFields,
-                                   leadingCells,
                                    showAddLine,
-                                   groupStart,
                                    onAddLine,
                                    onUpdateRow,
                                    onCommitNumeric,
@@ -120,17 +106,13 @@ function PurchaseTableRowInner({
     return (
         <TableRow
             data-invoice={invoiceId}
-            data-group-start={groupStart ? "true" : undefined}
             sx={{
-                ...(groupStart ? groupStartSx : {}),
                 "&:hover > td": { backgroundColor: "rgba(0,0,0,0.02)" },
                 ...(rowInvalid
                     ? { "& td": (t: any) => ({ backgroundColor: `${t.palette.error.light}1a` }) }
                     : {}),
             }}
         >
-            {leadingCells}
-
             {/* Product */}
             <TableCell sx={{ minWidth: 180, ...cellErrSx("productId") }}>
                 <Box sx={editableFieldSx}>

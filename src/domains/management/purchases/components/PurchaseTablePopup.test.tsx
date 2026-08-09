@@ -166,21 +166,30 @@ describe("PurchaseTablePopup", () => {
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
     });
 
-    it("sorts from the column header itself, with no separate sort block above the table", async () => {
+    it("sorts from the toolbar control, with no separate sort block above the table", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
 
         expect(screen.queryByText("Sort by:")).toBeNull();
 
-        const header = screen.getByRole("columnheader", { name: /date/i });
-        expect(header.contains(screen.getByTestId("sort-invoiceDate"))).toBe(true);
-        // Sortable but not yet sorted.
-        expect(header.getAttribute("aria-sort")).toBeNull();
+        // There is no <TableHead> any more — each invoice group carries its own inline header
+        // instead — and these two invoices load collapsed, so no inline header renders either:
+        // there is no columnheader anywhere for a sort control to attach to. sort-invoiceDate
+        // instead resolves to a plain toolbar Button.
+        expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+        const sortButton = screen.getByTestId("sort-invoiceDate");
+        expect(sortButton.tagName).toBe("BUTTON");
 
-        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
+        // Positively place the sort control inside the toolbar, alongside collapse-all/expand-all
+        // — not just "not a columnheader". Both live in the same toolbar row (purchase-toolbar);
+        // .contains() is the allowed containment check here (unlike .closest()/querySelectorAll).
+        const toolbar = screen.getByTestId("purchase-toolbar");
+        expect(toolbar.contains(sortButton)).toBe(true);
+        expect(toolbar.contains(screen.getByTestId("collapse-all"))).toBe(true);
+
+        fireEvent.click(sortButton);
 
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
-        expect(header.getAttribute("aria-sort")).toBe("descending");
     });
 
     it("leaves an edited invoice in place, re-ordering only on the next sort tap", async () => {
@@ -270,7 +279,7 @@ describe("PurchaseTablePopup", () => {
         fireEvent.change(productInput, { target: { value: "Flour" } });
         fireEvent.click(await screen.findByRole("option", { name: "Flour" }));
 
-        // Vendor auto-fill now lands on the invoice's rowSpan cell, not on the line.
+        // Vendor auto-fill now lands on the invoice's strip, not on the line.
         await waitFor(() => expect(vendorInput.value).toBe("Acme"));
     });
 
@@ -293,5 +302,40 @@ describe("PurchaseTablePopup", () => {
         await waitFor(() => {
             expect((quantityInput as HTMLInputElement).value).toBe("2.500");
         });
+    });
+
+    // colSpan guard — mirrors inventory/components/InventoryPopup.test.tsx:172-192. Nothing else
+    // keeps the strip cell's colSpan and the inline header row's cell count in sync besides both
+    // deriving from PRODUCT_COLUMN_COUNT; this catches the two literals drifting apart.
+    // Integration-level guard: exercises the invariant through the full popup (real save/collapse
+    // wiring, not an isolated group). The unit-level twin in PurchaseInvoiceGroup.test.tsx covers
+    // the same invariant on the isolated component — the two are deliberately not redundant (see
+    // phases-status.md Phase 2/4 notes).
+    it("keeps the strip cell's colSpan equal to the inline header row's cell count", async () => {
+        render(
+            <PurchaseTablePopup
+                open={true}
+                mode="new"
+                userId={1}
+                branch={branch}
+                onClose={jest.fn()}
+            />
+        );
+
+        // A brand-new invoice opens expanded with one empty line, so both the strip and the
+        // inline header are present as soon as the line's placeholders render.
+        await screen.findAllByPlaceholderText("0.000");
+
+        // Sanity-check the strip itself rendered before reading its cell.
+        expect(screen.getByText("1 product")).toBeTruthy();
+
+        const headerCellCount = screen.getAllByRole("columnheader").length;
+        // With one invoice and one line, getAllByRole("cell") is [strip cell, ...6 line cells] —
+        // the strip is always first. Reading the colspan attribute (rather than the `.colSpan`
+        // DOM property) mirrors the getAttribute("colspan") form PurchaseInvoiceGroup.test.tsx:192
+        // already uses, so no `as HTMLTableCellElement` cast is needed here either.
+        const stripCell = screen.getAllByRole("cell")[0];
+
+        expect(Number(stripCell.getAttribute("colspan"))).toBe(headerCellCount);
     });
 });

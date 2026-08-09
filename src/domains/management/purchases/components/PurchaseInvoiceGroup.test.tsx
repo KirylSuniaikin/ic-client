@@ -2,6 +2,7 @@ import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PurchaseInvoiceGroup } from "./PurchaseInvoiceGroup";
+import { PRODUCT_COLUMN_COUNT } from "./cellChrome";
 import type { PurchaseInvoiceRow, PurchaseLineRow } from "../types";
 import type { ProductTO } from "../../inventory/types";
 
@@ -61,59 +62,54 @@ function renderGroup(invoice: PurchaseInvoiceRow, collapsed = false, handlers: R
 }
 
 describe("PurchaseInvoiceGroup", () => {
-    it("collapses to a single summary row carrying the line count and subtotal", () => {
+    it("collapses to a single strip row carrying the line count and subtotal", () => {
         const { container } = renderGroup(makeInvoice({
             lines: [makeLine({ id: "l1", finalPrice: 12.5 }), makeLine({ id: "l2", finalPrice: 7.5 })],
         }), true);
 
         expect(container.querySelectorAll("tr")).toHaveLength(1);
+        expect(screen.getByTestId("invoice-group-inv-a")).toBeTruthy();
         // Count on the left, subtotal right-aligned so it sits under the money columns.
         expect(screen.getByText("2 products")).toBeTruthy();
         expect(screen.getByText("20.000")).toBeTruthy();
-        // Product columns are replaced by the summary while collapsed.
+        // Product columns only exist once the group is expanded.
         expect(screen.queryByTestId("unit-price-cell")).toBeNull();
     });
 
-    it("expands to one row per line, with the invoice cells rowSpan-ed across them", () => {
+    it("expands to a strip row, an inline product header, and one row per line — no rowSpan", () => {
         const { container } = renderGroup(makeInvoice({
             lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" }), makeLine({ id: "l3" })],
         }), false);
 
-        expect(container.querySelectorAll("tr")).toHaveLength(3);
-        // Date / photo / vendor / paid appear once, spanning all three product rows.
-        const spanned = Array.from(container.querySelectorAll("td[rowspan]"));
-        expect(spanned).toHaveLength(4);
-        spanned.forEach((td) => expect(td.getAttribute("rowspan")).toBe("3"));
+        // Invoice identity now lives entirely in the strip's own cell — nothing spans rows anymore.
+        expect(container.querySelectorAll("td[rowspan]")).toHaveLength(0);
+        // strip + inline header + 3 product lines.
+        expect(container.querySelectorAll("tr")).toHaveLength(5);
     });
 
-    it("opens the group with a rule on the whole first row, not just the invoice cells", () => {
-        renderGroup(makeInvoice({
-            lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" })],
-        }), false);
-
-        // The rule used to be set on the four rowSpan-ed cells, so it stopped part-way across a
-        // ten-column table. It belongs to the <tr>, which covers every cell of the row.
-        const rows = screen.getAllByRole("row");
-        expect(rows[0].getAttribute("data-group-start")).toBe("true");
-        expect(rows[1].getAttribute("data-group-start")).toBeNull();
-    });
-
-    it("puts the add-product action beside the bin on the invoice's last line", () => {
+    it("puts the add-product action on the strip and beside the bin on the invoice's last line", () => {
         const { container } = renderGroup(makeInvoice({
             lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" })],
         }), false);
 
+        // rows: [strip, inline header, line1, line2]
         const rows = container.querySelectorAll("tr");
-        expect(rows[0].querySelector("[aria-label='add product']")).toBeNull();
-        expect(rows[1].querySelector("[aria-label='add product']")).toBeTruthy();
+        expect(rows[0].querySelector("[aria-label='add product']")).toBeTruthy();
+        expect(rows[1].querySelector("[aria-label='add product']")).toBeNull();
+        expect(rows[2].querySelector("[aria-label='add product']")).toBeNull();
+        expect(rows[3].querySelector("[aria-label='add product']")).toBeTruthy();
         // Same cell as the delete bin, so the two sit together.
-        expect(rows[1].querySelector("[aria-label='delete line']")).toBeTruthy();
+        expect(rows[3].querySelector("[aria-label='delete line']")).toBeTruthy();
     });
 
     it("adds a product to its own invoice only", () => {
         const { spies } = renderGroup(makeInvoice(), false);
 
-        fireEvent.click(screen.getByLabelText("add product"));
+        // The `+` lives both on the strip and on the invoice's (single, also last) line.
+        const addButtons = screen.getAllByLabelText("add product");
+        expect(addButtons).toHaveLength(2);
+
+        fireEvent.click(addButtons[0]);
 
         expect(spies.onAddLine).toHaveBeenCalledTimes(1);
         expect(spies.onAddLine).toHaveBeenCalledWith("inv-a");
@@ -135,7 +131,7 @@ describe("PurchaseInvoiceGroup", () => {
         expect(spies.onDeleteInvoice).toHaveBeenCalledWith("inv-a");
     });
 
-    it("marks the invoice paid when the paid switch is toggled", () => {
+    it("marks the invoice paid when the paid checkbox is toggled", () => {
         const { spies } = renderGroup(makeInvoice({ paid: false }), false);
 
         fireEvent.click(screen.getByLabelText("invoice paid"));
@@ -143,29 +139,18 @@ describe("PurchaseInvoiceGroup", () => {
         expect(spies.onUpdateInvoice).toHaveBeenCalledWith("inv-a", { paid: true });
     });
 
-    it("carries paid state on the switch itself, with no word printed beside it", () => {
+    it("shows paid state on the checkbox, with the static word 'Paid' always visible", () => {
         const { unmount } = renderGroup(makeInvoice({ paid: false }), false);
         expect((screen.getByLabelText("invoice paid") as HTMLInputElement).checked).toBe(false);
-        // The column is a colour and a knob position now — 40 repetitions of "Unpaid" was noise.
+        expect(screen.getByTestId("paid-checkbox-inv-a")).toBeTruthy();
+        // The word is a static label beside the checkbox now, not a Paid/Unpaid toggle.
+        expect(screen.getByText("Paid")).toBeTruthy();
         expect(screen.queryByText("Unpaid")).toBeNull();
         unmount();
 
         renderGroup(makeInvoice({ paid: true }), false);
         expect((screen.getByLabelText("invoice paid") as HTMLInputElement).checked).toBe(true);
-        expect(screen.queryByText("Paid")).toBeNull();
-    });
-
-    it("centres the whole invoice block down its products, not pinned to the first line", () => {
-        renderGroup(makeInvoice({
-            lines: [makeLine({ id: "l1" }), makeLine({ id: "l2" }), makeLine({ id: "l3" })],
-        }), false);
-
-        // Date, photo, status and vendor all sit against the middle product, so the four read as
-        // one block rather than a column of things starting at different heights.
-        const cells = screen.getAllByRole("cell");
-        [0, 1, 2, 3].forEach((i) => {
-            expect(getComputedStyle(cells[i]).verticalAlign).toBe("middle");
-        });
+        expect(screen.getByText("Paid")).toBeTruthy();
     });
 
     it("uses one bin design for the invoice and for each product line", () => {
@@ -179,20 +164,35 @@ describe("PurchaseInvoiceGroup", () => {
         expect(screen.queryByTestId("DeleteSweepOutlinedIcon")).toBeNull();
     });
 
-    it("keeps status with the invoice identity columns, before vendor", () => {
+    it("orders the paid checkbox after the vendor field within the strip", () => {
         renderGroup(makeInvoice({ lines: [makeLine({ id: "l1" })] }), false);
 
-        const cells = screen.getAllByRole("cell");
-        // Date, Invoice photo, Status, Vendor, then the product columns.
-        expect(cells[2].contains(screen.getByLabelText("invoice paid"))).toBe(true);
-        expect(cells[3].contains(screen.getByPlaceholderText("Acme"))).toBe(true);
+        const vendorField = screen.getByPlaceholderText("Acme");
+        const paidCheckbox = screen.getByLabelText("invoice paid");
+
+        // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING bitmask check
+        expect(vendorField.compareDocumentPosition(paidCheckbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("renders an empty-state row with an add action when the invoice has no products", () => {
         const { container } = renderGroup(makeInvoice({ lines: [] }), false);
 
-        expect(container.querySelectorAll("tr")).toHaveLength(1);
+        // strip + empty-state row.
+        expect(container.querySelectorAll("tr")).toHaveLength(2);
         expect(screen.getByText("No products yet — use + to add one")).toBeTruthy();
         expect(screen.getByTestId("add-line-inv-a")).toBeTruthy();
+    });
+
+    // Unit-level guard: this file renders PurchaseInvoiceGroup in isolation. The integration-level
+    // twin in PurchaseTablePopup.test.tsx exercises the same invariant through the full popup —
+    // the two are deliberately not redundant (see phases-status.md Phase 2/4 notes).
+    it("keeps the strip's colSpan in sync with the inline header's cell count", () => {
+        renderGroup(makeInvoice({ lines: [makeLine({ id: "l1" })] }), false);
+
+        const stripCell = screen.getAllByRole("cell")[0];
+        const headerCells = screen.getAllByRole("columnheader");
+
+        expect(Number(stripCell.getAttribute("colspan"))).toBe(PRODUCT_COLUMN_COUNT);
+        expect(headerCells).toHaveLength(PRODUCT_COLUMN_COUNT);
     });
 });

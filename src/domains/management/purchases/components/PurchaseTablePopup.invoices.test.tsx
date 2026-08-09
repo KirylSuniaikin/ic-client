@@ -107,16 +107,11 @@ describe("PurchaseTablePopup nested invoices", () => {
         expect(screen.getByTestId("add-line-inv-1")).toBeTruthy();
     });
 
-    // Distinct data-invoice values, which works whether a group is collapsed (one summary row)
-    // or expanded (one row per line).
-    const invoiceIdsInOrder = (): string[] => {
-        const seen: string[] = [];
-        document.querySelectorAll("tr[data-invoice]").forEach((tr) => {
-            const id = tr.getAttribute("data-invoice");
-            if (id && !seen.includes(id)) seen.push(id);
-        });
-        return seen;
-    };
+    // The strip carries invoice-group-${id} whether collapsed or expanded, so its DOM order is
+    // the invoice order regardless of which invoices happen to be open. A Testing Library query
+    // (not raw DOM traversal) keeps this scoped to real invoices instead of every tr[data-invoice].
+    const invoiceIdsInOrder = (): string[] =>
+        screen.getAllByTestId(/^invoice-group-/).map((el) => el.getAttribute("data-invoice") ?? "");
 
     it("prepends a new invoice when Add invoice is used", async () => {
         renderPopup("edit");
@@ -126,33 +121,38 @@ describe("PurchaseTablePopup nested invoices", () => {
 
         fireEvent.click(screen.getByTestId("add-invoice"));
 
-        await waitFor(() => {
-            const ids = invoiceIdsInOrder();
-            expect(ids).toHaveLength(3);
-            // Prepended, mirroring how a new line used to be added at the top.
-            expect(ids[0]).not.toBe("inv-0");
-            expect(ids.slice(1)).toEqual(["inv-0", "inv-1"]);
-        });
+        await waitFor(() => expect(invoiceIdsInOrder()).toHaveLength(3));
+
+        const ids = invoiceIdsInOrder();
+        // Prepended, mirroring how a new line used to be added at the top.
+        expect(ids[0]).not.toBe("inv-0");
+        expect(ids.slice(1)).toEqual(["inv-0", "inv-1"]);
     });
 
     it("adds a product to the targeted invoice without touching the other one", async () => {
         renderPopup("edit");
         await screen.findByTestId("invoice-group-inv-0");
 
-        // An expanded rowSpan group has no wrapper element, so lines are scoped by data-invoice.
-        const rowsIn = (id: string) => document.querySelectorAll(`tr[data-invoice="${id}"]`).length;
+        // The strip row also carries data-invoice (so it stays scoped to one invoice whether
+        // collapsed or expanded), but only a product line's cell carries the unit-price-cell
+        // testid. Counting that testid scoped to one invoice's rows means this counts product
+        // lines only, never the always-present strip.
+        const rowsIn = (id: string) =>
+            document.querySelectorAll(`tr[data-invoice="${id}"] [data-testid="unit-price-cell"]`).length;
 
-        // Both start collapsed: one summary row each.
-        expect(rowsIn("inv-0")).toBe(1);
-        expect(rowsIn("inv-1")).toBe(1);
+        // Both start collapsed: strip only, no product rows.
+        expect(rowsIn("inv-0")).toBe(0);
+        expect(rowsIn("inv-1")).toBe(0);
 
         fireEvent.click(screen.getByTestId("toggle-invoice-inv-0"));
         await waitFor(() => expect(rowsIn("inv-0")).toBe(1)); // one line, expanded
 
-        fireEvent.click(screen.getByTestId("add-line-inv-0"));
+        // Expanded, the "+" lives on both the strip and the last line's row, so this testid now
+        // resolves to two elements — either one calls the same onAddLine(invoiceId).
+        fireEvent.click(screen.getAllByTestId("add-line-inv-0")[0]);
 
         await waitFor(() => expect(rowsIn("inv-0")).toBe(2));
-        expect(rowsIn("inv-1")).toBe(1);
+        expect(rowsIn("inv-1")).toBe(0);
     });
 
     it("opens an existing report collapsed, so ~40 invoices stay scannable", async () => {
@@ -168,8 +168,11 @@ describe("PurchaseTablePopup nested invoices", () => {
 
         fireEvent.click(screen.getByTestId("expand-all"));
 
-        await waitFor(() => expect(screen.queryByTestId("invoice-group-inv-0")).toBeNull());
-        expect(screen.getAllByTestId("unit-price-cell")).toHaveLength(2);
+        // The strip stays in the DOM either way (collapsed or expanded) — it always carries
+        // invoice-group-inv-0 — so "now expanded" is only observable via the product rows
+        // appearing, which is what this assertion (and its waitFor) actually verifies.
+        await waitFor(() => expect(screen.getAllByTestId("unit-price-cell")).toHaveLength(2));
+        expect(screen.getByTestId("invoice-group-inv-0")).toBeTruthy();
     });
 
     it("totals every line across every invoice", async () => {
@@ -177,7 +180,7 @@ describe("PurchaseTablePopup nested invoices", () => {
         await screen.findByTestId("invoice-group-inv-0");
 
         // 10 + 20 across two invoices.
-        await waitFor(() => expect(screen.getByText("30.000")).toBeTruthy());
+        expect(await screen.findByText("30.000")).toBeTruthy();
     });
 
     it("sends the nested invoice payload on save, preserving server invoice ids", async () => {

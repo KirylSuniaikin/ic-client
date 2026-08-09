@@ -1,7 +1,11 @@
 import React from "react";
-import { Box } from "@mui/material";
+import { Box, Stack, Tooltip } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 const BRAND = "#E44B4C";
+
+/** Number of real product columns (Product, Amount, Total Price, Unit Price, Target Price, blank). */
+export const PRODUCT_COLUMN_COUNT = 6;
 
 /**
  * Shared chrome for the purchase table's cells.
@@ -33,13 +37,6 @@ export const editableFieldSx = {
     "&:focus-within": { borderColor: BRAND, bgcolor: "#fff" },
 } as const;
 
-/**
- * The band an invoice-level cell occupies on the group's first row. Date, photo and status each
- * hold a control of a different height; pinning them to one band puts them on a single centreline
- * instead of letting each sit wherever its own control happens to end.
- */
-export const groupCellBandSx = { minHeight: 40, display: "flex", alignItems: "center" } as const;
-
 /** MUI's standard-variant underline, removed — the box above is the only chrome a field gets. */
 const noUnderlineSx = {
     "& .MuiInput-underline:before": { borderBottom: "none" },
@@ -67,8 +64,64 @@ export const numericInputSx = {
 /** One look for every delete bin in the table — invoice-level and line-level alike. */
 export const binSx = { color: "text.disabled", "&:hover": { color: "error.main" } } as const;
 
-/** A 2px rule opening each invoice's block, applied to the whole <tr>. */
-export const groupStartSx = { "& > td": { borderTop: "2px solid rgba(0,0,0,0.14)" } } as const;
+/**
+ * Moved in verbatim from `PurchaseTablePopup.tsx` (Phase 1). Shared by the invoice strip and the
+ * inline per-group product header — this file is now the single home for header chrome.
+ */
+export const headerCellSx = {
+    fontWeight: 700,
+    color: "text.secondary",
+    whiteSpace: "nowrap",
+    fontSize: "0.75rem",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    bgcolor: "#f7f6f2",
+} as const;
+
+/**
+ * The inline product header rendered under each expanded invoice's strip. Same type treatment as
+ * `headerCellSx`, but it doesn't need a sticky/table-wide background (each group paints its own)
+ * and sits closer to the strip above it, so it gets less vertical padding.
+ */
+export const inlineHeaderCellSx = {
+    ...headerCellSx,
+    bgcolor: "transparent",
+    py: 0.5,
+} as const;
+
+/**
+ * The invoice strip row's shaded background + 2px top rule — the strip's single full-width cell
+ * is now the only place a group-opening rule needs to be drawn.
+ */
+export const groupStripSx = {
+    bgcolor: "rgba(0,0,0,0.02)",
+    "& > td": { borderTop: "2px solid rgba(0,0,0,0.14)" },
+} as const;
+
+/**
+ * Column header with a tap-to-open ⓘ. Purchases are entered on tablets, where hover never
+ * fires — enterTouchDelay/leaveTouchDelay are the house idiom for that.
+ *
+ * `align` follows its column: the numeric headers sit over right-aligned figures.
+ *
+ * Moved in verbatim from `PurchaseTablePopup.tsx` (Phase 1).
+ */
+export function HeaderWithInfo({ label, info, align = "left" }: { label: string; info: string; align?: "left" | "right" }) {
+    return (
+        <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent={align === "right" ? "flex-end" : "flex-start"}
+            gap={0.5}
+            sx={{ whiteSpace: "nowrap" }}
+        >
+            <span>{label}</span>
+            <Tooltip title={info} arrow enterTouchDelay={0} leaveTouchDelay={6000}>
+                <InfoOutlinedIcon fontSize="small" sx={{ color: "text.disabled", cursor: "pointer" }} />
+            </Tooltip>
+        </Stack>
+    );
+}
 
 type Tone = "neutral" | "error";
 

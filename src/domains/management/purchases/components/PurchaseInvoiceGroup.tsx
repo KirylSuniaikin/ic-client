@@ -2,9 +2,9 @@ import React, { useCallback, useMemo } from "react";
 import {
     Autocomplete,
     Box,
+    Checkbox,
     IconButton,
     Stack,
-    Switch,
     TableCell,
     TableRow,
     TextField,
@@ -24,36 +24,29 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { NumericField, PurchaseTableRow } from "./PurchaseTableRow";
 import { InvoiceImageField } from "./InvoiceImageField";
-import { binSx, editableFieldSx, fieldInputSx, groupCellBandSx, groupStartSx } from "./cellChrome";
+import {
+    binSx,
+    editableFieldSx,
+    fieldInputSx,
+    groupStripSx,
+    HeaderWithInfo,
+    inlineHeaderCellSx,
+    PRODUCT_COLUMN_COUNT,
+} from "./cellChrome";
 
 const BRAND = "#E44B4C";
-
-// Every invoice-level cell is centred down its own products: with 3 products the whole block sits
-// against the 2nd, with 4 it sits between the 2nd and 3rd. rowSpan already covers every line, so
-// this is one CSS keyword rather than any height arithmetic.
-const groupCellSx = { verticalAlign: "middle" as const };
 
 const PAID_GREEN = "#34C759";
 const UNPAID_RED = "#E53935";
 
-// Red when off, green when on — MUI only colours the checked state, so the unchecked track and
-// thumb have to be set explicitly or "unpaid" would read as the neutral grey of a disabled control.
-const paidSwitchSx = {
-    "& .MuiSwitch-switchBase": {
-        color: UNPAID_RED,
-        "&:hover": { backgroundColor: `${UNPAID_RED}14` },
-    },
-    "& .MuiSwitch-switchBase + .MuiSwitch-track": {
-        backgroundColor: UNPAID_RED,
-        opacity: 0.5,
-    },
-    "& .MuiSwitch-switchBase.Mui-checked": {
+// Red when off, green when on — MUI only colours the checked state, so the unchecked state has to
+// be set explicitly or "unpaid" would read as the neutral grey of a disabled control.
+const paidCheckboxSx = {
+    color: UNPAID_RED,
+    "&:hover": { backgroundColor: `${UNPAID_RED}14` },
+    "&.Mui-checked": {
         color: PAID_GREEN,
         "&:hover": { backgroundColor: `${PAID_GREEN}14` },
-    },
-    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-        backgroundColor: PAID_GREEN,
-        opacity: 0.5,
     },
 } as const;
 
@@ -75,19 +68,18 @@ type PurchaseInvoiceGroupProps = {
 };
 
 /**
- * One invoice rendered as a rowSpan group inside the shared purchase table: its date, photo,
- * vendor and paid cells span that invoice's product rows. A single dense table rather than a
- * stack of cards, because a month is ~40 invoices / ~200 lines and card chrome would make that
- * scroll for pages.
+ * One invoice rendered inside the shared purchase table as a full-width header strip — identity on
+ * the left (collapse chevron, photo, date, vendor, paid), aggregates on the right (product count,
+ * subtotal, delete, add) — followed by its own inline product header and product rows. A single
+ * dense table rather than a stack of cards, because a month is ~40 invoices / ~200 lines and card
+ * chrome would make that scroll for pages.
  *
- * Collapsed, the same cells span a single summary row — so collapse-all turns 200 lines into
- * ~40 scannable rows.
+ * Collapsed, only the strip renders — so collapse-all turns 200 lines into ~40 scannable rows.
  *
  * Returns a Fragment of <tr>s, so it must be rendered directly inside <TableBody>.
  *
- * NOTE ON MEMOIZATION: rowSpan puts the invoice-level cells physically inside the FIRST product
- * row's <tr>. So editing any line in this invoice re-renders that first row too — unavoidable
- * with rowSpan, and the price of the density. Sibling invoices and lines 2..N are still skipped.
+ * NOTE ON MEMOIZATION: the invoice's identity cells live in the strip row, not inside any product
+ * row's <tr>, so editing a line can never re-render the strip or a sibling line.
  */
 function PurchaseInvoiceGroupInner({
                                        invoice,
@@ -138,168 +130,163 @@ function PurchaseInvoiceGroupInner({
         : null;
     const invoiceInvalid = invalid.get(invoiceId);
 
-    // rowSpan must cover every product row of this invoice; collapsed (or empty) is a single row.
-    const span = collapsed || invoice.lines.length === 0 ? 1 : invoice.lines.length;
-
-    const dateCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 200, ...groupCellSx }}>
-            <Stack direction="row" alignItems="center" gap={0.25} sx={groupCellBandSx}>
-                <IconButton
-                    size="small"
-                    aria-label={collapsed ? "expand invoice" : "collapse invoice"}
-                    data-testid={`toggle-invoice-${invoiceId}`}
-                    onClick={() => onToggleCollapse(invoiceId)}
-                    sx={{ color: "text.secondary" }}
-                >
-                    {collapsed ? <KeyboardArrowRightIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
-                </IconButton>
-                <Box sx={{ ...editableFieldSx, flex: 1, minWidth: 0 }}>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                        <DatePicker
-                            reduceAnimations
-                            format="DD.MM.YYYY"
-                            value={invoice.invoiceDate ? dayjs(invoice.invoiceDate) : null}
-                            onChange={(val) => {
-                                const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
-                                onUpdateInvoice(invoiceId, { invoiceDate: iso });
-                            }}
-                            slotProps={{ textField: { size: "small", variant: "standard", sx: fieldInputSx, fullWidth: true } }}
-                        />
-                    </LocalizationProvider>
-                </Box>
-                {/* Same glyph, size and tone as the per-line bin. Which one it is comes from where
-                    it sits (with the invoice's own fields, not at the end of a product row) and
-                    from the tooltip. */}
-                <Tooltip title="Delete this invoice and all its products">
+    const stripRow = (
+        <TableRow
+            data-testid={`invoice-group-${invoiceId}`}
+            data-invoice={invoiceId}
+            sx={{ ...groupStripSx, "&:hover > td": { backgroundColor: "rgba(0,0,0,0.03)" } }}
+        >
+            <TableCell colSpan={PRODUCT_COLUMN_COUNT}>
+                <Stack direction="row" alignItems="center" gap={1}>
                     <IconButton
                         size="small"
-                        aria-label="delete invoice"
-                        onClick={() => onDeleteInvoice(invoiceId)}
-                        sx={binSx}
+                        aria-label={collapsed ? "expand invoice" : "collapse invoice"}
+                        data-testid={`toggle-invoice-${invoiceId}`}
+                        onClick={() => onToggleCollapse(invoiceId)}
+                        sx={{ color: "text.secondary" }}
                     >
-                        <DeleteOutlineIcon fontSize="small" />
+                        {collapsed ? <KeyboardArrowRightIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
                     </IconButton>
-                </Tooltip>
-            </Stack>
-        </TableCell>
-    );
 
-    const photoCell = (
-        <TableCell rowSpan={span} sx={{ width: 96, ...groupCellSx }}>
-            <Box sx={groupCellBandSx}>
-                <InvoiceImageField
-                    invoiceId={invoiceId}
-                    serverId={invoice.serverId}
-                    hasImage={invoice.hasImage}
-                    pendingImage={invoice.pendingImage}
-                    removeImage={invoice.removeImage}
-                    onUpdateInvoice={onUpdateInvoice}
-                />
-            </Box>
-        </TableCell>
-    );
-
-    const vendorCell = (
-        <TableCell rowSpan={span} sx={{ minWidth: 170, ...groupCellSx }}>
-            <Box sx={editableFieldSx}>
-                <Autocomplete<VendorTO, false, false, false>
-                    openOnFocus
-                    options={vendors}
-                    value={selectedVendor}
-                    getOptionLabel={(o) => o.vendorName}
-                    isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
-                    onChange={(_, val) => onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" })}
-                    renderInput={(p) => (
-                        <TextField
-                            {...p}
-                            size="small"
-                            variant="standard"
-                            error={invoiceInvalid?.has("vendorName")}
-                            placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
-                            sx={fieldInputSx}
-                        />
-                    )}
-                    fullWidth
-                />
-            </Box>
-        </TableCell>
-    );
-
-    const paidCell = (
-        <TableCell rowSpan={span} sx={{ width: 72, ...groupCellSx }}>
-            {/* The word is carried by the tooltip rather than printed beside every switch: the
-                colour and the knob position both already say it, and 40 repetitions of
-                "Unpaid" down a column is noise. */}
-            <Box sx={groupCellBandSx}>
-                <Tooltip title={invoice.paid ? "Paid" : "Unpaid"}>
-                    {/* MUI v7 routes native input attrs through slotProps.input; the older
-                        `inputProps` shorthand is not forwarded, so the label never lands. */}
-                    <Switch
-                        size="small"
-                        checked={invoice.paid}
-                        data-testid={`paid-switch-${invoiceId}`}
-                        slotProps={{ input: { "aria-label": "invoice paid" } }}
-                        onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
-                        sx={paidSwitchSx}
+                    <InvoiceImageField
+                        invoiceId={invoiceId}
+                        serverId={invoice.serverId}
+                        hasImage={invoice.hasImage}
+                        pendingImage={invoice.pendingImage}
+                        removeImage={invoice.removeImage}
+                        onUpdateInvoice={onUpdateInvoice}
                     />
-                </Tooltip>
-            </Box>
-        </TableCell>
+
+                    <Box sx={{ ...editableFieldSx, minWidth: 150 }}>
+                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                            <DatePicker
+                                reduceAnimations
+                                format="DD.MM.YYYY"
+                                value={invoice.invoiceDate ? dayjs(invoice.invoiceDate) : null}
+                                onChange={(val) => {
+                                    const iso = val ? val.startOf("day").format("YYYY-MM-DD") : "";
+                                    onUpdateInvoice(invoiceId, { invoiceDate: iso });
+                                }}
+                                slotProps={{ textField: { size: "small", variant: "standard", sx: fieldInputSx, fullWidth: true } }}
+                            />
+                        </LocalizationProvider>
+                    </Box>
+
+                    <Box sx={{ ...editableFieldSx, minWidth: 170 }}>
+                        <Autocomplete<VendorTO, false, false, false>
+                            openOnFocus
+                            options={vendors}
+                            value={selectedVendor}
+                            getOptionLabel={(o) => o.vendorName}
+                            isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
+                            onChange={(_, val) => onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" })}
+                            renderInput={(p) => (
+                                <TextField
+                                    {...p}
+                                    size="small"
+                                    variant="standard"
+                                    error={invoiceInvalid?.has("vendorName")}
+                                    placeholder={vendorTrimmed !== "" ? vendorTrimmed : "Select Vendor"}
+                                    sx={fieldInputSx}
+                                />
+                            )}
+                            fullWidth
+                        />
+                    </Box>
+
+                    <Stack direction="row" alignItems="center" gap={0.5}>
+                        <Checkbox
+                            size="small"
+                            checked={invoice.paid}
+                            data-testid={`paid-checkbox-${invoiceId}`}
+                            slotProps={{ input: { "aria-label": "invoice paid" } }}
+                            onChange={(e) => onUpdateInvoice(invoiceId, { paid: e.target.checked })}
+                            sx={paidCheckboxSx}
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                            Paid
+                        </Typography>
+                    </Stack>
+
+                    <Stack direction="row" alignItems="baseline" gap={2} sx={{ ml: "auto" }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+                            {invoice.lines.length} product{invoice.lines.length === 1 ? "" : "s"}
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+                        >
+                            {subtotal}
+                        </Typography>
+                        <Tooltip title="Delete this invoice and all its products">
+                            <IconButton
+                                size="small"
+                                aria-label="delete invoice"
+                                onClick={() => onDeleteInvoice(invoiceId)}
+                                sx={binSx}
+                            >
+                                <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Add product to this invoice">
+                            <IconButton
+                                size="small"
+                                aria-label="add product"
+                                data-testid={`add-line-${invoiceId}`}
+                                onClick={boundAddLine}
+                                sx={{ color: BRAND }}
+                            >
+                                <AddIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    </Stack>
+                </Stack>
+            </TableCell>
+        </TableRow>
     );
 
-    const addLineButton = (
-        <Tooltip title="Add product to this invoice">
-            <IconButton
-                size="small"
-                aria-label="add product"
-                data-testid={`add-line-${invoiceId}`}
-                onClick={boundAddLine}
-                sx={{ color: BRAND }}
-            >
-                <AddIcon fontSize="small" />
-            </IconButton>
-        </Tooltip>
-    );
+    if (collapsed) {
+        return stripRow;
+    }
 
-    // Collapsed, or an invoice with no lines yet: one row, product columns replaced by a summary.
-    if (collapsed || invoice.lines.length === 0) {
+    if (invoice.lines.length === 0) {
         return (
-            <TableRow
-                data-testid={`invoice-group-${invoiceId}`}
-                data-invoice={invoiceId}
-                data-group-start="true"
-                sx={{ ...groupStartSx, "&:hover > td": { backgroundColor: "rgba(0,0,0,0.02)" } }}
-            >
-                {dateCell}
-                {photoCell}
-                {paidCell}
-                {vendorCell}
-                <TableCell colSpan={5}>
-                    {invoice.lines.length === 0 ? (
+            <React.Fragment>
+                {stripRow}
+                <TableRow>
+                    <TableCell colSpan={PRODUCT_COLUMN_COUNT}>
                         <Typography variant="body2" color="text.disabled">
                             No products yet — use + to add one
                         </Typography>
-                    ) : (
-                        <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={2}>
-                            <Typography variant="body2" color="text.secondary">
-                                {invoice.lines.length} product{invoice.lines.length === 1 ? "" : "s"}
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
-                            >
-                                {subtotal}
-                            </Typography>
-                        </Stack>
-                    )}
-                </TableCell>
-                <TableCell sx={{ width: 84 }}>{addLineButton}</TableCell>
-            </TableRow>
+                    </TableCell>
+                </TableRow>
+            </React.Fragment>
         );
     }
 
     return (
         <React.Fragment>
+            {stripRow}
+            <TableRow>
+                <TableCell component="th" scope="col" sx={inlineHeaderCellSx}>Product</TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Amount (kg/unit)</TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Total Price</TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>
+                    <HeaderWithInfo
+                        align="right"
+                        label="Unit Price (kg/unit)"
+                        info="Actual price paid per kg/unit — total price ÷ amount."
+                    />
+                </TableCell>
+                <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>
+                    <HeaderWithInfo
+                        align="right"
+                        label="Target Price (kg/unit)"
+                        info="Price we aim to buy this product at, from the product card."
+                    />
+                </TableCell>
+                <TableCell component="th" scope="col" sx={inlineHeaderCellSx} />
+            </TableRow>
             {invoice.lines.map((line, index) => (
                 <PurchaseTableRow
                     key={line.id}
@@ -308,9 +295,7 @@ function PurchaseInvoiceGroupInner({
                     products={products}
                     product={productById.get(line.productId ?? -1) ?? null}
                     invalidFields={invalid.get(line.id)}
-                    leadingCells={index === 0 ? <>{dateCell}{photoCell}{paidCell}{vendorCell}</> : undefined}
                     showAddLine={index === invoice.lines.length - 1}
-                    groupStart={index === 0}
                     onAddLine={boundAddLine}
                     onUpdateRow={boundUpdateLine}
                     onCommitNumeric={boundCommitNumeric}
