@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { PurchaseTablePopup } from "./PurchaseTablePopup";
 import {
     fetchProducts,
@@ -223,10 +223,11 @@ describe("PurchaseTablePopup", () => {
             />
         );
 
-        // Header order is Amount, Unit, Target — three info icons now that Amount carries one too,
-        // so the unit-price hint is the second, not the first.
-        const infoIcons = await screen.findAllByTestId("InfoOutlinedIcon");
-        const unitPriceInfo = infoIcons[1];
+        // Scoped to the Unit header rather than indexed into the row's info icons: three columns
+        // carry a hint now, and a positional index would silently assert the wrong tooltip the
+        // moment a fourth is added ahead of this one.
+        const unitHeader = await screen.findByRole("columnheader", { name: /^unit$/i });
+        const unitPriceInfo = within(unitHeader).getByTestId("InfoOutlinedIcon");
 
         fireEvent.touchStart(unitPriceInfo);
 
