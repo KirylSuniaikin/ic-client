@@ -45,6 +45,10 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
 const STATUS_RANK: Record<string, number> = {
+    // Ranked below Kitchen Phase, and listed explicitly rather than left to the unknown-status
+    // fallback: an unlisted incoming status ranks MAX_SAFE_INTEGER and is always applied, so a
+    // re-delivered arrival frame could drag an order the cashier already paid for back to unpaid.
+    'Awaiting Counter Payment': -1,
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
@@ -100,6 +104,10 @@ export function useAdminOrders(
 
     const stopSoundRef = useRef(stopSound);
     stopSoundRef.current = stopSound;
+    // Read inside the cancelled handler, which is created once per socket connect and would
+    // otherwise close over a stale alertOrder.
+    const alertOrderRef = useRef<Order | null>(null);
+    alertOrderRef.current = alertOrder;
 
     // The initial [branchId] effect above does the first load; the connect callback
     // below only re-hydrates on RECONNECTs. Re-armed on every branch change.
@@ -244,8 +252,13 @@ export function useAdminOrders(
                     const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                     const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
 
-                    stopSoundRef.current();
-                    setAlertOrder(null);
+                    // Only silence the alarm if it is THIS order's. Deletions now push here too
+                    // (an expired counter-payment order, a staff delete), so an unconditional stop
+                    // would kill a live alarm for a different, still-unacknowledged order.
+                    if (alertOrderRef.current && getStringId(alertOrderRef.current) === cancelledOrderId) {
+                        stopSoundRef.current();
+                        setAlertOrder(null);
+                    }
                     setOrders(prev => prev.filter(o => getStringId(o) !== cancelledOrderId));
 
                     socket.publish({
