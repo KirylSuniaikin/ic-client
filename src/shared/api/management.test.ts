@@ -21,6 +21,7 @@ import {
     putWorkingHours,
 } from "./management";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 const mockAuthFetch = jest.mocked(authFetch);
 
@@ -251,6 +252,16 @@ describe("initiateAuth", () => {
         const parsed = JSON.parse(init.body as string) as { username: string; password: string };
         expect(parsed.username).toBe("myuser");
         expect(parsed.password).toBe("mypass");
+    });
+
+    it("sends X-Client-Platform: web", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await initiateAuth({ username: "admin", password: "secret" });
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 });
 

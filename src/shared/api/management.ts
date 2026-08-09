@@ -1,4 +1,5 @@
 import { authFetch, BASE_URL } from './client';
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from './clientPlatform';
 import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from '../../domains/management/inventory/types';
 import type { DoughAvailabilityFlags, DoughInventory, DoughStatus } from '../../domains/management/dough/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../domains/management/prep-plan/types';
@@ -364,7 +365,7 @@ export async function getStaffByBranch(branchId: string): Promise<StaffOption[]>
 export async function initiateAuth(authRequest: AuthRequest): Promise<Response> {
     return await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [CLIENT_PLATFORM_HEADER]: CLIENT_PLATFORM_WEB },
         body: JSON.stringify(authRequest),
     });
 }

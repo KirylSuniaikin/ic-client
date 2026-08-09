@@ -5,6 +5,7 @@ import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@j
 jest.mock("./telemetry");
 
 import { authFetch, BASE_URL, WS_URL } from "./client";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 import { reportClientError } from "./telemetry";
 import type { ClientErrorPayload } from "./telemetry";
 
@@ -139,6 +140,16 @@ describe("authFetch", () => {
         ).rejects.toThrow();
 
         expect(localStorage.getItem("jwt_token")).toBeNull();
+    });
+
+    it("sets X-Client-Platform: web on every request", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await authFetch("https://example.com/api/test", { method: "GET" });
+
+        const [, init] = mockFetch.mock.calls[0] as [RequestInfo, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("preserves custom headers alongside the Authorization header", async () => {

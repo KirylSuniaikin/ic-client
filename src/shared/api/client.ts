@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger";
+import { applyClientPlatform } from "./clientPlatform";
 import { reportClientError } from "./telemetry";
 // Served from a host under the storefront's own domain (a CNAME to Render) rather than
 // *.onrender.com: that is what makes the customer refresh cookie first-party, so it is
@@ -59,6 +60,8 @@ export async function authFetch(url: string, headersWithoutAuth: RequestInit): P
     if (token) {
         headers.set("Authorization", "Bearer " + token);
     }
+
+    applyClientPlatform(headers);
 
     const method = headersWithoutAuth?.method ?? "GET";
 

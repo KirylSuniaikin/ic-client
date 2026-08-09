@@ -79,6 +79,15 @@ export type StatsResponse = {
     // All-time average order preparation time in whole seconds (createdAt -> Ready).
     // null when no order has a recorded prep time yet (legacy-only data).
     averagePrepTimeSeconds: number | null;
+    sourceBreakdown?: SourceBreakdown[];
+};
+
+// Mirrors backend SourceBreakdownTO — task-spec.md §4. Optional: absent on any
+// response predating this field, and no UI consumes it yet.
+export type SourceBreakdown = {
+    source: string;
+    orders: number;
+    revenue: number;
 };
 
 export type ProductStatRow = {
