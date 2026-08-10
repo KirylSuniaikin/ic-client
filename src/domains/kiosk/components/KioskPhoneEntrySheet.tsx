@@ -1,26 +1,30 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Button, CircularProgress, InputAdornment, TextField, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, MenuItem, TextField, Typography } from "@mui/material";
 import { KioskSheet, KIOSK_BRAND_RED } from "./KioskSheet";
-import { PHONE_COUNTRY_CODE, PHONE_DIGIT_COUNT } from "../config";
+import { countries, localizedCountryName } from "../../../shared/utils/countries";
 
 interface KioskPhoneEntrySheetProps {
     open: boolean;
-    /** True while the order is being created and the terminal armed. */
+    /** True while the order is being created. */
     submitting: boolean;
-    /** Order/terminal failure from the checkout hook — distinct from local digit validation. */
+    /** Order failure from the checkout hook — distinct from local digit validation. */
     checkoutError: string | null;
     onClose: () => void;
-    /** Receives the full "973########" string the backend's `tel` field expects. */
+    /** Receives the country code joined to the digits, e.g. "97312345678". */
     onSubmit: (tel: string) => void;
 }
 
 /**
  * The kiosk's only data-entry step: a phone number, nothing else.
  *
- * Deliberately no name field and no branch picker (locked product decision): the backend derives
- * the branch from the paired kiosk, and every extra field is another thing a walk-up customer has
- * to type on a touchscreen.
+ * Deliberately no name field and no branch picker (locked product decision): the branch comes from
+ * the device's own setup, and every extra field is another thing a walk-up customer has to type on
+ * a touchscreen.
+ *
+ * The country selector is the same shared `countries` list ClientInfoPopup and CustomerLoginPopup
+ * use — a kiosk sits in one country, so it opens on the first entry (Bahrain), but a visitor with
+ * a foreign number must still be able to leave one that can actually be called back.
  */
 export function KioskPhoneEntrySheet({
     open,
@@ -29,13 +33,17 @@ export function KioskPhoneEntrySheet({
     onClose,
     onSubmit,
 }: KioskPhoneEntrySheetProps): JSX.Element {
-    const { t } = useTranslation(["kiosk", "checkout"]);
+    const { t, i18n } = useTranslation(["kiosk", "checkout"]);
+    const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [digits, setDigits] = useState("");
     const [error, setError] = useState<string | null>(null);
 
-    // A fresh customer must never find the previous one's number already typed in.
+    const country = countries.find(c => c.name === selectedCountry) ?? countries[0];
+
+    // A fresh customer must never find the previous one's number — or country — already selected.
     useEffect(() => {
         if (!open) {
+            setSelectedCountry(countries[0].name);
             setDigits("");
             setError(null);
         }
@@ -47,16 +55,25 @@ export function KioskPhoneEntrySheet({
             return;
         }
         setError(null);
-        setDigits(value.slice(0, PHONE_DIGIT_COUNT));
+        setDigits(value.slice(0, country.digits));
+    }
+
+    function handleCountryChange(name: string): void {
+        setSelectedCountry(name);
+        // Each country has its own length, so digits typed for the previous one may now overflow.
+        // Truncating beats clearing: the customer keeps what still fits.
+        const next = countries.find(c => c.name === name);
+        if (next) setDigits(prev => prev.slice(0, next.digits));
+        setError(null);
     }
 
     function handleSubmit(): void {
-        if (digits.length !== PHONE_DIGIT_COUNT) {
-            setError(t("checkout:clientInfo.errors.phoneLength", { count: PHONE_DIGIT_COUNT }));
+        if (digits.length !== country.digits) {
+            setError(t("checkout:clientInfo.errors.phoneLength", { count: country.digits }));
             return;
         }
         setError(null);
-        onSubmit(PHONE_COUNTRY_CODE + digits);
+        onSubmit(country.code + digits);
     }
 
     return (
@@ -69,6 +86,23 @@ export function KioskPhoneEntrySheet({
             </Typography>
 
             <TextField
+                select
+                fullWidth
+                label={t("checkout:clientInfo.country")}
+                value={selectedCountry}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                disabled={submitting}
+                InputProps={{ sx: { borderRadius: 4 } }}
+                sx={{ mb: 2 }}
+            >
+                {countries.map((option) => (
+                    <MenuItem key={option.name} value={option.name}>
+                        {localizedCountryName(option, i18n.language)} (+{option.code})
+                    </MenuItem>
+                ))}
+            </TextField>
+
+            <TextField
                 autoFocus
                 fullWidth
                 variant="outlined"
@@ -77,9 +111,8 @@ export function KioskPhoneEntrySheet({
                 placeholder={t("kiosk:phone.placeholder")}
                 disabled={submitting}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-                inputProps={{ inputMode: "numeric", maxLength: PHONE_DIGIT_COUNT, "aria-label": t("kiosk:phone.placeholder") }}
+                inputProps={{ inputMode: "numeric", maxLength: country.digits, "aria-label": t("kiosk:phone.placeholder") }}
                 InputProps={{
-                    startAdornment: <InputAdornment position="start">+{PHONE_COUNTRY_CODE}</InputAdornment>,
                     sx: { borderRadius: 4, fontSize: "1.4rem", fontWeight: "bold", letterSpacing: 1 },
                 }}
                 sx={{ mb: 1 }}
