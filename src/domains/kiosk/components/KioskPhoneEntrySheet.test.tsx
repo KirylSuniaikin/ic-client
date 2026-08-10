@@ -48,6 +48,21 @@ describe("KioskPhoneEntrySheet", () => {
         expect(props.onSubmit).toHaveBeenCalledWith("97312345678");
     });
 
+    // The sheet is a Drawer above MUI's default modal layer; the Select menu portals to <body> at
+    // that default and opened BEHIND the sheet, leaving the customer tapping an invisible list.
+    it("opens the country menu ABOVE the sheet, not behind it", async () => {
+        renderSheet();
+
+        await userEvent.click(screen.getByRole("combobox", { name: "Country" }));
+
+        const menuLayer = screen.getByRole("listbox").closest(".MuiPopover-root");
+        const sheetLayer = document.querySelector(".MuiDrawer-root");
+        const zIndexOf = (el: Element | null): number =>
+            Number(window.getComputedStyle(el as Element).zIndex);
+
+        expect(zIndexOf(menuLayer)).toBeGreaterThan(zIndexOf(sheetLayer));
+    });
+
     it("submits the selected country's code prefixed to the typed digits", async () => {
         const { props } = renderSheet();
 
@@ -135,6 +150,6 @@ describe("KioskPhoneEntrySheet", () => {
         view.rerender(<KioskPhoneEntrySheet {...props} open={true} />);
 
         expect(phoneInput().value).toBe("");
-        expect(screen.getByRole("combobox", { name: "Country" }).textContent).toContain("Bahrain");
+        expect(screen.getByRole("combobox", { name: "Country" }).textContent).toBe("+973");
     });
 });

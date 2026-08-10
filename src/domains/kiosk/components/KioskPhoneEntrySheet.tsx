@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Button, CircularProgress, MenuItem, TextField, Typography } from "@mui/material";
-import { KioskSheet, KIOSK_BRAND_RED } from "./KioskSheet";
+import { Box, Button, CircularProgress, MenuItem, Select, TextField, Typography } from "@mui/material";
+import { KioskSheet, KIOSK_BRAND_RED, KIOSK_SHEET_Z_INDEX } from "./KioskSheet";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
 
 interface KioskPhoneEntrySheetProps {
@@ -85,38 +85,48 @@ export function KioskPhoneEntrySheet({
                 {t("kiosk:phone.subtitle")}
             </Typography>
 
-            <TextField
-                select
-                fullWidth
-                label={t("checkout:clientInfo.country")}
-                value={selectedCountry}
-                onChange={(e) => handleCountryChange(e.target.value)}
-                disabled={submitting}
-                InputProps={{ sx: { borderRadius: 4 } }}
-                sx={{ mb: 2 }}
-            >
-                {countries.map((option) => (
-                    <MenuItem key={option.name} value={option.name}>
-                        {localizedCountryName(option, i18n.language)} (+{option.code})
-                    </MenuItem>
-                ))}
-            </TextField>
+            {/* One field, read left to right: "+973 12345678". The code collapses to a compact
+                dial-code button so the number itself keeps the width — it is what the customer is
+                actually typing. */}
+            <Box sx={{ display: "flex", gap: 1, mb: 1 }}>
+                <Select
+                    value={selectedCountry}
+                    onChange={(e) => handleCountryChange(e.target.value)}
+                    disabled={submitting}
+                    renderValue={(name) => `+${(countries.find(c => c.name === name) ?? countries[0]).code}`}
+                    inputProps={{ "aria-label": t("checkout:clientInfo.country") }}
+                    // The sheet is a Drawer at KIOSK_SHEET_Z_INDEX; this menu portals to <body> at
+                    // MUI's default 1300 and would otherwise open BEHIND the sheet that owns it.
+                    MenuProps={{ sx: { zIndex: KIOSK_SHEET_Z_INDEX + 1 } }}
+                    sx={{
+                        flexShrink: 0,
+                        borderRadius: 4,
+                        fontSize: "1.4rem",
+                        fontWeight: "bold",
+                    }}
+                >
+                    {countries.map((option) => (
+                        <MenuItem key={option.name} value={option.name}>
+                            {localizedCountryName(option, i18n.language)} (+{option.code})
+                        </MenuItem>
+                    ))}
+                </Select>
 
-            <TextField
-                autoFocus
-                fullWidth
-                variant="outlined"
-                value={digits}
-                onChange={(e) => handleChange(e.target.value)}
-                placeholder={t("kiosk:phone.placeholder")}
-                disabled={submitting}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-                inputProps={{ inputMode: "numeric", maxLength: country.digits, "aria-label": t("kiosk:phone.placeholder") }}
-                InputProps={{
-                    sx: { borderRadius: 4, fontSize: "1.4rem", fontWeight: "bold", letterSpacing: 1 },
-                }}
-                sx={{ mb: 1 }}
-            />
+                <TextField
+                    autoFocus
+                    variant="outlined"
+                    value={digits}
+                    onChange={(e) => handleChange(e.target.value)}
+                    placeholder={t("kiosk:phone.placeholder")}
+                    disabled={submitting}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+                    inputProps={{ inputMode: "numeric", maxLength: country.digits, "aria-label": t("kiosk:phone.placeholder") }}
+                    InputProps={{
+                        sx: { borderRadius: 4, fontSize: "1.4rem", fontWeight: "bold", letterSpacing: 1 },
+                    }}
+                    sx={{ flex: 1, minWidth: 0 }}
+                />
+            </Box>
 
             {/* Local digit validation and a failed order attempt are different problems; both land
                 here, but neither ever clears what the customer typed. */}
