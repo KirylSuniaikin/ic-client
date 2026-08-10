@@ -2,7 +2,6 @@ import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { resetKioskSession } from "./resetKioskSession";
 import type { KioskResetDeps } from "./resetKioskSession";
 import { KIOSK_BRANCH_KEY } from "./kioskBranch";
-import { KIOSK_DEVICE_NAME_KEY } from "../services/kioskIdentity";
 import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
 
 function makeDeps(language = "en"): {
@@ -131,14 +130,12 @@ describe("resetKioskSession", () => {
         expect(sessionStorage.getItem("scrollHintDismissed")).toBeNull();
     });
 
-    it("never clears the device's pairing — that outlives customers", () => {
+    it("never clears the device's branch — that outlives customers", () => {
         localStorage.setItem(KIOSK_BRANCH_KEY, JSON.stringify({ id: "branch-1", branchName: "Juffair" }));
-        localStorage.setItem(KIOSK_DEVICE_NAME_KEY, "kiosk-juffair-1");
         const { deps } = makeDeps();
 
         resetKioskSession(deps);
 
-        expect(localStorage.getItem(KIOSK_DEVICE_NAME_KEY)).toBe("kiosk-juffair-1");
         expect(localStorage.getItem(KIOSK_BRANCH_KEY)).not.toBeNull();
     });
 });

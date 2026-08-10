@@ -55,8 +55,8 @@ export interface KioskResetDeps {
  * callback the kiosk checkout hook owns, and making it a hook would create a cycle between the two
  * (the hook would have to be constructed before the thing it resets).
  *
- * The device's own identity — `kiosk_branch_data` and `kiosk_device_name` — is NEVER cleared here.
- * Pairing outlives customers; only the staff re-pair gesture replaces it.
+ * The device's own identity — `kiosk_branch_data` — is NEVER cleared here. The branch outlives
+ * customers; only the staff re-pair gesture replaces it.
  */
 export function resetKioskSession(deps: KioskResetDeps): void {
     const { cart, checkout, i18n, defaultPaymentMethod, defaultOrderType } = deps;

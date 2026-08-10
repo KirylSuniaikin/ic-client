@@ -35,7 +35,7 @@ describe("KioskPhoneEntrySheet", () => {
         const { props } = renderSheet();
 
         await userEvent.type(phoneInput(), "12345678");
-        await userEvent.click(screen.getByRole("button", { name: "Continue to payment" }));
+        await userEvent.click(screen.getByRole("button", { name: "Place order" }));
 
         expect(props.onSubmit).toHaveBeenCalledWith(`${PHONE_COUNTRY_CODE}12345678`);
     });
@@ -44,7 +44,7 @@ describe("KioskPhoneEntrySheet", () => {
         const { props } = renderSheet();
 
         await userEvent.type(phoneInput(), "123");
-        await userEvent.click(screen.getByRole("button", { name: "Continue to payment" }));
+        await userEvent.click(screen.getByRole("button", { name: "Place order" }));
 
         expect(props.onSubmit).not.toHaveBeenCalled();
         expect(screen.getByText(`Phone number must be exactly ${PHONE_DIGIT_COUNT} digits`)).toBeTruthy();
