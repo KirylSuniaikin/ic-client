@@ -83,6 +83,17 @@ describe("HeroSection", () => {
         expect(screen.queryByRole("button", { name: "log in" })).toBeNull();
     });
 
+    // The hero video is several MB and mounts alongside the menu photos, so it must not buffer
+    // eagerly; and the old poster path pointed at public/images/, a directory that does not exist.
+    it("does not eagerly buffer the hero video and requests no poster", () => {
+        const { container } = renderHero([MATCHING_BRANCH]);
+
+        const video = container.querySelector("video");
+
+        expect(video?.getAttribute("preload")).toBe("metadata");
+        expect(video?.hasAttribute("poster")).toBe(false);
+    });
+
     // The hero-scrolled-away check reads getBoundingClientRect().bottom; jsdom returns 0 for every
     // element, so a strict `< 0` keeps the header visible by default and only hides it once the hero
     // has genuinely scrolled above the viewport (negative bottom). Stub the rect to drive both paths.

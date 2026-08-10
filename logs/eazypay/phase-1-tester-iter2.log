@@ -1,0 +1,31 @@
+Test Results:
+- Total (full suite): 1092
+- Passing: 1090
+- Failing: 2
+
+Failing tests:
+- `countries.test.ts › matches the original entries extracted from ClientInfoPopup, plus Arabic names`: pre-existing failure, unrelated to Phase 1 — file not touched by this task (confirmed via `git status`/`git log`, last touched by an unrelated prior commit adding Czech Republic). Not a Phase 1 regression.
+- `ActiveOrderIslandPill.test.tsx › shows 'Ready!' instead of an ETA when the order is ready`: pre-existing failure, unrelated to Phase 1 — file not touched by this task, not in any phase's owned-file list. Not a Phase 1 regression.
+
+Phase 1 scoped suite (7 files, 59 tests) — all passing:
+- `src/domains/kiosk/config.test.ts`
+- `src/domains/kiosk/services/kioskIdentity.test.ts` (added a test pinning the literal `"kiosk_device_name"`)
+- `src/domains/kiosk/utils/kioskBranch.test.ts` (added a test pinning the literal `"kiosk_branch_data"` against the three duplicated call sites)
+- `src/domains/kiosk/hooks/useTripleClick.test.ts`
+- `src/domains/order/utils/orderPayload.test.ts` (manually diffed against `useCheckout.ts:406-424` — extraction is byte-identical)
+- `src/shared/i18n/kioskNamespace.test.ts`
+- `src/shared/i18n/languageDetection.test.ts` (pre-existing, unmodified, still green)
+
+Gates:
+- `yarn tsc --noEmit`: clean.
+- `yarn test --watchAll=false`: 1090/1092 passing (2 pre-existing, out-of-scope failures above).
+- `yarn build`: succeeded; only pre-existing project-wide ESLint warnings in untouched files (per spec, not a regression signal).
+
+Scope check: `git status` confirms only Phase 1's owned files were touched (`config.ts`, `config.test.ts`, `kioskIdentity.ts/.test.ts`, `kioskBranch.ts/.test.ts`, `useTripleClick.ts/.test.ts`, `orderPayload.ts/.test.ts`, `kioskNamespace.test.ts`, `en/ar kiosk.json`, `i18n/index.ts` edit) plus Phase 6's already-DONE `CartComponent` files — nothing outside Phase 1's owned-file list was modified by this test pass.
+
+Coverage gaps (requirements with no test):
+- None. All Phase 1 acceptance criteria are covered: `useTripleClick` window-fire/straddle/reset (+default window, +2-click no-fire); `kioskIdentity` get/set/clear/overwrite + literal key pin; `kioskBranch` read/write/resolve + malformed/missing/no-id edge cases (§16 item 14) + literal key pin; `config.ts` constants pinned against the RN reference; `orderPayload.ts` verbatim-extraction coverage (item mapping, combo children, 3dp `amount_paid`, discount math, empty cart); `kiosk.json` namespace registration in both resource bundles + `ns` array + no duplicated `checkout` keys + EN/AR key-structure parity.
+
+```
+Tests: all 1090 (of 1092) passing. All Phase 1 functional requirements covered. 2 failures are pre-existing and out of Phase 1's scope (unrelated files, not owned by any phase in this task).
+```

@@ -100,6 +100,10 @@ export function useAdminOrders(
 
     const stopSoundRef = useRef(stopSound);
     stopSoundRef.current = stopSound;
+    // Read inside the cancelled handler, which is created once per socket connect and would
+    // otherwise close over a stale alertOrder.
+    const alertOrderRef = useRef<Order | null>(null);
+    alertOrderRef.current = alertOrder;
 
     // The initial [branchId] effect above does the first load; the connect callback
     // below only re-hydrates on RECONNECTs. Re-armed on every branch change.
@@ -244,8 +248,13 @@ export function useAdminOrders(
                     const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                     const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
 
-                    stopSoundRef.current();
-                    setAlertOrder(null);
+                    // Only silence the alarm if it is THIS order's. Staff deletes now push here
+                    // too, so an unconditional stop would kill a live alarm for a different,
+                    // still-unacknowledged order.
+                    if (alertOrderRef.current && getStringId(alertOrderRef.current) === cancelledOrderId) {
+                        stopSoundRef.current();
+                        setAlertOrder(null);
+                    }
                     setOrders(prev => prev.filter(o => getStringId(o) !== cancelledOrderId));
 
                     socket.publish({

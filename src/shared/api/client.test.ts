@@ -1,5 +1,15 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
+
+// Uses the manual mock at __mocks__/telemetry.ts so assertions can observe calls
+// regardless of telemetry's own prod-only gate.
+jest.mock("./telemetry");
+
 import { authFetch, BASE_URL, WS_URL } from "./client";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
+import { reportClientError } from "./telemetry";
+import type { ClientErrorPayload } from "./telemetry";
+
+const mockReportClientError = jest.mocked(reportClientError);
 
 beforeAll(() => {
     // Suppress jsdom navigation errors triggered by the 401 handler's
@@ -51,6 +61,7 @@ describe("authFetch", () => {
         // methods do not affect runtime compatibility as a fetch replacement.
         global.fetch = mockFetch as typeof fetch;
         localStorage.clear();
+        mockReportClientError.mockClear();
     });
 
     afterEach(() => {
@@ -131,6 +142,16 @@ describe("authFetch", () => {
         expect(localStorage.getItem("jwt_token")).toBeNull();
     });
 
+    it("sets X-Client-Platform: web on every request", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await authFetch("https://example.com/api/test", { method: "GET" });
+
+        const [, init] = mockFetch.mock.calls[0] as [RequestInfo, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
+    });
+
     it("preserves custom headers alongside the Authorization header", async () => {
         localStorage.setItem("jwt_token", "token-abc");
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
@@ -144,5 +165,54 @@ describe("authFetch", () => {
         const headers = new Headers(init?.headers);
         expect(headers.get("Authorization")).toBe("Bearer token-abc");
         expect(headers.get("X-Custom")).toBe("value");
+    });
+
+    // ── failed-API-call reporting (ST6) ────────────────────────────────────────
+
+    it("reports source: api-5xx to reportClientError on a 500 response", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await authFetch("https://example.com/api/orders?branchId=abc", { method: "GET" });
+
+        expect(mockReportClientError).toHaveBeenCalledTimes(1);
+        const [payload] = mockReportClientError.mock.calls[0] as [ClientErrorPayload];
+        expect(payload.source).toBe("api-5xx");
+        expect(payload.message).toContain("500");
+        expect(payload.message).toContain("GET");
+        expect(payload.url).toBe("https://example.com/api/orders");
+        expect(payload.url).not.toContain("?");
+    });
+
+    it.each([401, 409, 423])(
+        "does not report to reportClientError on a %d response (handled UX flow)",
+        async (status) => {
+            mockFetch.mockResolvedValueOnce(new Response(null, { status }));
+
+            await authFetch("https://example.com/api/test", { method: "GET" }).catch(() => undefined);
+
+            expect(mockReportClientError).not.toHaveBeenCalled();
+        }
+    );
+
+    it("does not report to reportClientError on a 200 response", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await authFetch("https://example.com/api/test", { method: "GET" });
+
+        expect(mockReportClientError).not.toHaveBeenCalled();
+    });
+
+    it("reports source: api-network and re-throws on a fetch rejection", async () => {
+        const networkError = new Error("network down");
+        mockFetch.mockRejectedValueOnce(networkError);
+
+        await expect(
+            authFetch("https://example.com/api/test", { method: "GET" })
+        ).rejects.toBe(networkError);
+
+        expect(mockReportClientError).toHaveBeenCalledTimes(1);
+        const [payload] = mockReportClientError.mock.calls[0] as [ClientErrorPayload];
+        expect(payload.source).toBe("api-network");
+        expect(payload.message).toContain("network down");
     });
 });

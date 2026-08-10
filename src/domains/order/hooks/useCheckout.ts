@@ -2,7 +2,6 @@ import { logger } from "../../../shared/utils/logger";
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { NavigateFunction } from "react-router-dom";
-import { DEFAULT_LANGUAGE } from "../../../shared/i18n";
 import { createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
@@ -15,8 +14,7 @@ import type { CustomerMeResponse } from "../../customer-auth/types";
 import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
-
-const BRANCH_KEY = 'kiosk_branch_data';
+import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
 
 // Per-checkout idempotency key sent to POST /create_order so the backend can dedupe a retried
 // request (see CreateOrderRequest.idempotency_key). crypto.randomUUID needs a secure context;
@@ -42,6 +40,10 @@ interface UseCheckoutParams {
     setCartOpen: Dispatch<SetStateAction<boolean>>;
     refreshMenu: () => Promise<void>;
     navigate: NavigateFunction;
+    // Kiosk checkout is now owned by useKioskCheckout (domains/kiosk). When set, handleCheckout
+    // hands the cross-sell-gated items off to it instead of building/creating the order itself.
+    // null/undefined on non-kiosk paths, where it is never invoked.
+    onKioskCheckout?: ((items: CartItem[]) => void) | null;
 }
 
 export interface UseCheckoutResult {
@@ -79,6 +81,9 @@ export interface UseCheckoutResult {
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null, infoCollected?: boolean) => Promise<void>;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
+    // wasCrossSellShown never reset before -- on a long-lived kiosk tab only the day's first
+    // customer would see the cross-sell. Called by resetKioskSession at session end.
+    resetCrossSellShown: () => void;
 }
 
 function isCustomerBanned(blackList: Array<{ telephoneNo: string }>, phoneNumber: string): boolean {
@@ -86,7 +91,7 @@ function isCustomerBanned(blackList: Array<{ telephoneNo: string }>, phoneNumber
 }
 
 export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
-    const { isAdmin, isKiosk, isEditMode, adminBranchId, menuData, cartItems, setCartItems, setCartOpen, refreshMenu, navigate } = params;
+    const { isAdmin, isKiosk, isEditMode, adminBranchId, menuData, cartItems, setCartItems, setCartOpen, refreshMenu, navigate, onKioskCheckout } = params;
 
     const { token } = useCustomerAuth();
     const { openOrderDetail, refreshActiveOrder, openLogin, isLoginOpen } = useCustomerAuthUi();
@@ -345,6 +350,14 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             setWasCrossSellShown(true);
             return;
         }
+        // Kiosk checkout is a phone-only, payment-terminal flow owned by useKioskCheckout --
+        // the cross-sell gate above deliberately still runs for kiosk (existing shipped
+        // behaviour), but once it has, hand the items straight to the kiosk hook instead of
+        // falling through to the admin/logged-in/guest identity-collection branches below.
+        if (isKiosk) {
+            onKioskCheckout?.(items);
+            return;
+        }
         // infoCollected is the "identity has been gathered" gate. The cart supplies a real
         // payment method up-front, so it can no longer double as the sentinel — the first
         // checkout click arrives with infoCollected=false and routes to the admin popup,
@@ -401,27 +414,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             customer_name: customerName,
             type: "Pick Up",
             payment_type: paymentMethod,
-            branchId: isKiosk ? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin ? adminBranchId! : branchId!,
+            branchId: isAdmin ? adminBranchId! : branchId!,
             notes,
-            items: items.map(item => ({
-                id: item.id, name: item.name, quantity: item.quantity,
-                amount: parseFloat(String(item.amount)), size: item.size || "",
-                category: item.category, description: item.description || "",
-                note: item.note ?? "",
-                isGarlicCrust: !!item.isGarlicCrust, isThinDough: !!item.isThinDough,
-                discountAmount: item.discountAmount ?? 0,
-                customizations: item.customizations ?? [],
-                comboItems: (item.comboItems || []).map(ci => ({
-                    id: ci.id, name: ci.name, category: ci.category, size: ci.size || "",
-                    quantity: ci.quantity || 1, isGarlicCrust: !!ci.isGarlicCrust,
-                    isThinDough: !!ci.isThinDough, description: ci.description || "",
-                    note: ci.note ?? "",
-                    customizations: ci.customizations ?? []
-                }))
-            })),
-            amount_paid: parseFloat(items.reduce((acc, item) => {
-                return acc + item.amount * (1 - (item.discountAmount ?? 0) / 100) * item.quantity;
-            }, 0).toFixed(3)),
+            items: buildOrderItems(items),
+            amount_paid: computeAmountPaid(items),
             fbc: resolveFbc(),
             fbp: resolveFbp(),
             // Kiosk browser locale is the store's device, not the walk-up customer's -- skip navigator.
@@ -448,42 +444,6 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                         const remaining = submittedItems.filter(item => !e.unavailableIds.includes(item.id));
                         if (remaining.length > 0) { setCartItems(remaining); setCartOpen(true); }
                         else { setCartItems([]); setCartOpen(false); }
-                        setUnavailableItems(removed.map(i => i.name));
-                        setUnavailableMessage(e.message);
-                        setUnavailablePopupOpen(true);
-                        refreshMenu().catch(() => {});
-                        return;
-                    }
-                    throw e;
-                } finally {
-                    submittingRef.current = false;
-                    setCheckoutLoading(false);
-                }
-            } else if (isKiosk) {
-                if (submittingRef.current) return;
-                submittingRef.current = true;
-                setCheckoutLoading(true);
-                try {
-                    const response = await createOrder(order);
-                    setCartItems([]);
-                    localStorage.setItem('suppressSoundIds', JSON.stringify([String(response.id)]));
-                    // The kiosk is one long-lived tab shared by walk-up customers. Without this, a
-                    // customer who switched to Arabic would leave the NEXT customer in Arabic. The
-                    // detector no longer auto-caches, so we persist the reset explicitly: writing
-                    // "ic_lang" = DEFAULT_LANGUAGE (localStorage outranks navigator in the detection
-                    // order) pins the kiosk back to English until the next customer chooses again.
-                    // Only on the success path -- a failed order means the same customer is still
-                    // mid-checkout and about to retry.
-                    if (!i18n.language.startsWith(DEFAULT_LANGUAGE)) {
-                        void i18n.changeLanguage(DEFAULT_LANGUAGE);
-                    }
-                    localStorage.setItem("ic_lang", DEFAULT_LANGUAGE);
-                } catch (e) {
-                    if (e instanceof ItemsUnavailableError) {
-                        const removed = submittedItems.filter(item => e.unavailableIds.includes(item.id));
-                        const remaining = submittedItems.filter(item => !e.unavailableIds.includes(item.id));
-                        setCartItems(remaining);
-                        setCartOpen(true);
                         setUnavailableItems(removed.map(i => i.name));
                         setUnavailableMessage(e.message);
                         setUnavailablePopupOpen(true);
@@ -522,6 +482,13 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
+    // Called by resetKioskSession at session end so the next walk-up customer sees the
+    // cross-sell popup again -- wasCrossSellShown was never reset before this, so on a
+    // long-lived kiosk tab only the day's first customer would ever see it.
+    function resetCrossSellShown(): void {
+        setWasCrossSellShown(false);
+    }
+
     return {
         checkoutLoading, phonePopupOpen, setPhonePopupOpen,
         customerPrefill,
@@ -539,5 +506,6 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         showOrderConfirmed, setShowOrderConfirmed,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, executeOrderCreation,
+        resetCrossSellShown,
     };
 }

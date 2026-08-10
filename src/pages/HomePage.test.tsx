@@ -21,6 +21,10 @@ jest.mock("../shared/api/customerAuth");
 // handleOpenCart entry point, without needing a real working-hours schedule fixture.
 jest.mock("../domains/schedule/utils/isWithinWorkingHours");
 
+// The kiosk flow talks to /api/kiosk/** through this module only, so mocking it is the whole
+// network boundary for the payment tests below.
+jest.mock("../shared/api/kiosk");
+
 // lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
 // provide (no canvas backend installed) -- stub the whole package so HomePage's PizzaLoader
 // (rendered while menu.loading is true) does not crash the test environment. Mirrors
@@ -30,13 +34,29 @@ jest.mock("lottie-react", () => ({
     default: (): null => null,
 }));
 
+// jsdom never fires load events for images, so the real preloader would hold every test at
+// PizzaLoader until its timeout elapsed. Its own behaviour is covered in useImagePreloader.test.ts;
+// here the mock lets each test decide whether the photos are ready, and records the URLs HomePage
+// asked for. Both names need the `mock` prefix -- jest hoists the factory above the imports and
+// only allows it to close over identifiers spelled that way.
+let mockImagesReady = true;
+const mockPreloadedUrls: string[][] = [];
+jest.mock("../shared/hooks/useImagePreloader", () => ({
+    __esModule: true,
+    useImagePreloader: (urls: string[]): boolean => {
+        mockPreloadedUrls.push(urls);
+        return mockImagesReady;
+    },
+}));
+
 import { fetchBaseAppInfo } from "../shared/api/public";
 import { fetchAllBranches } from "../shared/api/management";
 import { refreshCustomerToken } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
-import type { BaseAppInfoResponse } from "../domains/order/types";
+import { createKioskOrder, initiateKioskPayment, fetchKioskPaymentResult } from "../shared/api/kiosk";
+import type { BaseAppInfoResponse, Order } from "../domains/order/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 
@@ -44,6 +64,9 @@ const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
+const mockCreateKioskOrder = jest.mocked(createKioskOrder);
+const mockInitiateKioskPayment = jest.mocked(initiateKioskPayment);
+const mockFetchKioskPaymentResult = jest.mocked(fetchKioskPaymentResult);
 
 // A single available, non-pizza item so useMenuData's recommended-items effect seeds the
 // cart directly (upsellDeclined=true bypasses the pizza/brick-pizza upsell popup entirely --
@@ -133,6 +156,8 @@ beforeEach(() => {
     // test above already relies on. Only the closed-branch ScrollHintArrow test overrides this.
     mockIsWithinWorkingHours.mockReset();
     mockIsWithinWorkingHours.mockReturnValue(true);
+    mockImagesReady = true;
+    mockPreloadedUrls.length = 0;
     localStorage.clear();
 });
 
@@ -160,8 +185,13 @@ function mockMenuTopScrolledIntoView(): void {
 // (localStorage key "kiosk_branch_data" absent) -- seed it so the kiosk tests below start from a
 // steady "device already configured" state and can isolate the assertions to the flags under test,
 // exactly as a real kiosk would be after its one-time setup.
+//
+// Kiosk setup is two steps now: branch AND terminal. Without the device-name half, useMenuData
+// opens the terminal picker instead, which counts towards anyPopupOpen and suppresses everything
+// these tests are asserting on.
 function seedKioskBranchSelected(): void {
     localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
+    localStorage.setItem("kiosk_device_name", "test-kiosk-1");
 }
 
 describe("HomePage -- noPopupOpen suppression", () => {
@@ -228,6 +258,36 @@ describe("HomePage -- noPopupOpen suppression", () => {
     });
 });
 
+describe("HomePage -- menu image preloading", () => {
+    it("holds the loader after the menu data arrives, until the first photos are ready", async () => {
+        mockImagesReady = false;
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalled());
+
+        // Menu data has loaded, so the old gate would already have painted the cards -- with their
+        // photos still in flight. The preload gate keeps the loader up instead.
+        expect(screen.queryByText("Cola")).toBeNull();
+    });
+
+    it("renders the menu once the photos are ready", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+    });
+
+    it("preloads exactly the photo URL the card will render", async () => {
+        // The preloader warms the browser cache by URL, so any mismatch with the card's own photo
+        // would fetch the image twice and leave the card empty on first paint.
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+
+        expect(mockPreloadedUrls.some(urls => urls.includes(AVAILABLE_ITEM.photo))).toBe(true);
+    });
+});
+
 describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
     afterEach(() => {
         restoreMenuTopRect?.();
@@ -289,5 +349,90 @@ describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
         fireEvent.click(screen.getByText("test-open-login"));
         await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
         expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull();
+    });
+});
+
+// The kiosk payment path must never route through checkout.checkoutLoading: HomePage returns a
+// full-page <PizzaLoader/> for that flag (see the early return near the top of HomePage.tsx), which
+// unmounts HomePageModals and every kiosk sheet with it -- mid-payment. These tests drive the real
+// cart -> cross-sell -> phone -> terminal flow and assert the sheets stay mounted throughout.
+describe("HomePage -- kiosk EazyPay payment flow", () => {
+    beforeEach(() => {
+        mockCreateKioskOrder.mockReset();
+        mockInitiateKioskPayment.mockReset();
+        mockFetchKioskPaymentResult.mockReset();
+        mockCreateKioskOrder.mockResolvedValue({ id: "4321" } as Order);
+        mockInitiateKioskPayment.mockResolvedValue({ invoiceNum: "K4321-abc123", status: "PENDING" });
+        mockFetchKioskPaymentResult.mockResolvedValue({
+            invoiceNum: "K4321-abc123", status: "PENDING", orderId: 4321, amount: "1.000",
+            cardNo: null, trnRrn: null, trnAuthCode: null, trnCcy: null, posEntryMode: null,
+            dccMarkup: null, dccRate: null, dccAmount: null, dccCurrency: null,
+            dccCurrencyEx: null, dccMsg: null, failureReason: null,
+        });
+    });
+
+    /** Walks the real UI from a seeded cart to the phone sheet. */
+    async function reachPhoneSheet(): Promise<void> {
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+        fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
+
+        // First Checkout press is swallowed by the cross-sell gate, which kiosk keeps.
+        fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+        await waitFor(() => expect(screen.getByText("Enter your phone number")).toBeTruthy());
+    }
+
+    it("shows a phone-only step on kiosk -- no name field, no branch picker", async () => {
+        await reachPhoneSheet();
+
+        expect(screen.queryByLabelText(/name/i)).toBeNull();
+        expect(screen.queryByLabelText(/branch/i)).toBeNull();
+    });
+
+    it("keeps the terminal sheet mounted while the payment is live (no full-page loader)", async () => {
+        await reachPhoneSheet();
+
+        fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
+        fireEvent.click(screen.getByRole("button", { name: "Continue to payment" }));
+
+        await waitFor(() => expect(mockCreateKioskOrder).toHaveBeenCalledTimes(1));
+        // If anything on this path set checkoutLoading, HomePage's early return would have replaced
+        // the entire tree -- including this sheet -- with PizzaLoader.
+        await waitFor(() => expect(screen.getByText("Tap your card")).toBeTruthy());
+        expect(mockInitiateKioskPayment).toHaveBeenCalledWith("4321");
+    });
+
+    it("hides the floating cart pill while a kiosk sheet is open", async () => {
+        await reachPhoneSheet();
+
+        // noPopupOpen folds in kiosk.isSheetOpen; without it the zIndex 9999 pill paints over the sheet.
+        expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
+    });
+
+    it("reopens the setup pickers when staff triple-click the top of the hero video", async () => {
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        const hotspot = screen.getByTestId("kiosk-repair-hotspot");
+        fireEvent.click(hotspot);
+        fireEvent.click(hotspot);
+        fireEvent.click(hotspot);
+
+        await waitFor(() => expect(screen.getByText("Setup Kiosk Mode")).toBeTruthy());
+    });
+
+    it("opens the terminal picker when the device has no kiosk name yet", async () => {
+        // Branch chosen, terminal not: setup is two steps now.
+        localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+
+        await waitFor(() => expect(screen.getByText("Select This Kiosk")).toBeTruthy());
     });
 });

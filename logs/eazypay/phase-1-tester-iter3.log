@@ -1,0 +1,17 @@
+Test Results:
+- Total: 1092
+- Passing: 1090
+- Failing: 2
+
+Failing tests:
+- `countries.test.ts › matches the original entries extracted from ClientInfoPopup, plus Arabic names`: pre-existing failure, unrelated to Phase 1 (reproduced identically after `git stash`ing all Phase 1/6 changes — `src/shared/utils/countries.ts`/`.test.ts` are untouched, not in Phase 1's owned-file list).
+- `ActiveOrderIslandPill.test.tsx › shows 'Ready!' instead of an ETA when the order is ready`: pre-existing failure, unrelated to Phase 1 (same stash reproduction — `src/domains/customer-auth/**` is untouched, not in Phase 1's owned-file list).
+
+Both are pre-existing baseline failures on `eazypay-integration` and not caused by, nor fixable within, Phase 1's owned files. Flagging per instructions rather than fixing.
+
+Phase 1 files specifically (`config.ts`, `kioskIdentity.ts`, `kioskBranch.ts`, `useTripleClick.ts`, `orderPayload.ts`, `kiosk.json`×2, `i18n/index.ts`): 7 test suites / 59 tests, all passing. `yarn tsc --noEmit` clean. `yarn build` succeeds (only pre-existing project-wide ESLint warnings in untouched files, per the standing "not a regression signal" rule).
+
+Coverage gaps (requirements with no test):
+- None. Every Phase 1 owned file already had a comprehensive test file in place (written alongside the implementation) covering: config constant values pinned to the RN reference (§6/§22 Q2); `kioskIdentity` get/set/clear/overwrite roundtrips; `kioskBranch` read/write/resolve incl. malformed-JSON and missing-id edge cases (§16 item 14); `useTripleClick`'s 3-clicks-in-window/straddling-window/window-reset/default-window/2-clicks-insufficient cases (Phase 1 acceptance criterion, verbatim); `orderPayload.buildOrderItems`/`computeAmountPaid` verified byte-identical against the still-inline `useCheckout.ts:406-424` source (confirmed by direct diff-read) including every coercion (`parseFloat`, `!!`, `??`, `||` fallbacks) and 3dp rounding; `kiosk` i18n namespace registration in both resource bundles + `ns` array + no duplicated `checkout` phone-validation keys + EN/AR key-structure parity. I reviewed all of it against `task-spec.md` §13/§15/§16 and found no requirement left untested — no new test files were needed.
+
+Tests: all Phase-1-owned suites passing (59/59). Full repo suite has 2 pre-existing, out-of-scope failures unrelated to Phase 1 (see above). All Phase 1 functional requirements covered.

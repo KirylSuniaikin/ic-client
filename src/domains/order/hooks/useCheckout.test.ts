@@ -130,6 +130,7 @@ function makeParams(overrides: {
     navigate?: ReturnType<typeof jest.fn>;
     cartItems?: CartItem[];
     menuData?: MenuItem[];
+    onKioskCheckout?: ((items: CartItem[]) => void) | null;
 } = {}) {
     const navigate = overrides.navigate ?? jest.fn<void, [string]>();
     const setCartItems = jest.fn<void, [CartItem[] | ((prev: CartItem[]) => CartItem[])]>();
@@ -148,6 +149,7 @@ function makeParams(overrides: {
         refreshMenu,
         // react-router NavigateFunction is typed as a function -- jest.fn() satisfies it at runtime
         navigate: navigate as unknown as import("react-router-dom").NavigateFunction,
+        onKioskCheckout: overrides.onKioskCheckout,
     };
 }
 
@@ -986,18 +988,21 @@ describe("useCheckout — new customer parks the order behind the pick-up remind
     });
 });
 
-describe("useCheckout — kiosk flow never gated", () => {
+// Kiosk checkout is owned by useKioskCheckout (domains/kiosk) -- handleCheckout only needs to
+// hand the cross-sell-gated items off to onKioskCheckout, never build/create the order itself.
+describe("useCheckout — kiosk flow hands off to onKioskCheckout", () => {
     afterEach(() => {
         jest.clearAllMocks();
     });
 
-    it("never opens the login sheet for a kiosk checkout", async () => {
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
-        const params = makeParams({ isAdmin: false, isKiosk: true });
+    it("never opens the login sheet, never calls createOrder, and fires onKioskCheckout once with the items", async () => {
+        const onKioskCheckout = jest.fn<void, [CartItem[]]>();
+        const params = makeParams({ isAdmin: false, isKiosk: true, onKioskCheckout });
 
         const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
         await waitForAuthReady();
 
+        // The first call is swallowed by the cross-sell gate; the second reaches the kiosk intercept.
         await act(async () => {
             await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
@@ -1006,76 +1011,9 @@ describe("useCheckout — kiosk flow never gated", () => {
         });
 
         expect(result.current.ui.isLoginOpen).toBe(false);
-        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-    });
-});
-
-// The kiosk is a single long-lived tab shared by walk-up customers, and the language detector
-// caches the chosen language in localStorage ("ic_lang"), which outranks navigator. Without a
-// reset, one customer switching to Arabic would leave every customer after them in Arabic.
-describe("useCheckout — kiosk resets the shared tab's language after checkout", () => {
-    beforeEach(async () => {
-        await act(async () => { await i18n.changeLanguage("ar"); });
-    });
-
-    afterEach(async () => {
-        jest.clearAllMocks();
-        await act(async () => { await i18n.changeLanguage(DEFAULT_LANGUAGE); });
-    });
-
-    it("resets an Arabic kiosk back to English once the order is placed", async () => {
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
-
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
-        await waitForAuthReady();
-
-        // The first call is swallowed by the cross-sell gate; the second places the order.
-        await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
-        });
-        await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
-        });
-
-        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-        await waitFor(() => expect(i18n.language).toBe("en"));
-        // Persisted too, so the next customer still starts in English if the tab reloads.
-        expect(localStorage.getItem("ic_lang")).toBe("en");
-    });
-
-    it("leaves the language in Arabic when the order fails, so the same customer can retry", async () => {
-        mockCreateOrder.mockRejectedValue(new Error("network down"));
-
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
-        await waitForAuthReady();
-
-        await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
-        });
-        await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
-        });
-
-        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-        expect(result.current.errorSnackBarOpen).toBe(true);
-        expect(i18n.language).toBe("ar");
-    });
-
-    it("does not touch the language on a non-kiosk order — a customer keeps their own choice", async () => {
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
-
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: false })), { wrapper });
-        await waitForAuthReady();
-
-        await act(async () => {
-            await result.current.executeOrderCreation(
-                { tel: "12345678", type: "Pick Up", branchId: "branch-1", items: [], notes: "", amount_paid: 2.5, customer_name: null, payment_type: "Cash" },
-                ITEMS,
-            );
-        });
-
-        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-        expect(i18n.language).toBe("ar");
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        expect(onKioskCheckout).toHaveBeenCalledTimes(1);
+        expect(onKioskCheckout).toHaveBeenCalledWith(ITEMS);
     });
 });
 
@@ -1153,15 +1091,93 @@ describe("useCheckout — stamps language from the browser locale when the app i
 
         expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "ar" }));
     });
+});
 
-    it("stamps language 'en' on a kiosk order even when the browser locale is Arabic (kiosk ignores navigator)", async () => {
-        setBrowserLanguages(["ar-SA"]);
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+// wasCrossSellShown was never reset before this task -- on a long-lived kiosk tab only the day's
+// first customer would ever see the cross-sell popup. resetCrossSellShown is called by
+// resetKioskSession (domains/kiosk, Phase 4) at session end.
+describe("useCheckout — resetCrossSellShown re-arms the cross-sell gate", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
 
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false, isKiosk: true })), { wrapper });
+    it("opens the cross-sell popup again on the next checkout call after resetCrossSellShown, even though it already fired once", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // The first call is swallowed by the cross-sell gate; the second places the order.
+        // First call trips the gate.
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+        expect(result.current.isCrossSellOpen).toBe(true);
+
+        // Second call passes through it (gate already tripped) and lands on ClientInfoPopup.
+        act(() => {
+            result.current.setIsCrossSellOpen(false);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+        expect(result.current.isCrossSellOpen).toBe(false);
+        expect(result.current.phonePopupOpen).toBe(true);
+
+        // Reset (as resetKioskSession does at session end) re-arms the gate for the next customer.
+        act(() => {
+            result.current.resetCrossSellShown();
+        });
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+        });
+
+        expect(result.current.isCrossSellOpen).toBe(true);
+    });
+});
+
+// §11 Risks (last bullet): the kiosk branch's suppressSoundIds write was deleted (kiosk orders
+// are now published server-side on APPROVED, so a client-side chime-suppression write is
+// meaningless there) -- but useAdminOrders.ts still reads SUPPRESS_KEY = 'suppressSoundIds' to
+// mute the new-order chime for the order the admin who is placing it just created themselves.
+// That admin-flow write must survive this task's edits untouched.
+describe("useCheckout — admin flow still writes suppressSoundIds (read by useAdminOrders' chime suppression)", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it("writes the newly created order id to localStorage under suppressSoundIds after an admin order is placed", async () => {
+        mockCreateOrder.mockResolvedValue({ ...MOCK_ORDER, id: "999" });
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(JSON.parse(localStorage.getItem("suppressSoundIds") ?? "[]")).toEqual(["999"]);
+    });
+});
+
+// §3 item 5 / §14 item 4 (non-negotiable): deleting the kiosk branch of handleCheckout is what
+// makes "nothing on the kiosk path may set checkoutLoading" structural -- HomePage.tsx:103 returns
+// a full-page PizzaLoader whenever checkoutLoading is true, which would unmount every kiosk
+// payment sheet mid-payment. This is the direct regression guard for that constraint at the
+// useCheckout.ts layer (Phase 8 adds the HomePage-level guard separately).
+describe("useCheckout — kiosk hand-off never sets checkoutLoading and never mutates the cart itself", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("leaves checkoutLoading false throughout a kiosk checkout hand-off", async () => {
+        const onKioskCheckout = jest.fn<void, [CartItem[]]>();
+        const params = makeParams({ isAdmin: false, isKiosk: true, onKioskCheckout });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
@@ -1169,6 +1185,66 @@ describe("useCheckout — stamps language from the browser locale when the app i
             await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
         });
 
-        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ language: "en" }));
+        expect(onKioskCheckout).toHaveBeenCalledTimes(1);
+        expect(result.current.checkoutLoading).toBe(false);
+    });
+
+    it("does not call setCartItems or setCartOpen itself on the kiosk hand-off -- cart mutation belongs to useKioskCheckout", async () => {
+        const onKioskCheckout = jest.fn<void, [CartItem[]]>();
+        const params = makeParams({ isAdmin: false, isKiosk: true, onKioskCheckout });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+
+        expect(params.setCartItems).not.toHaveBeenCalled();
+        expect(params.setCartOpen).not.toHaveBeenCalled();
+    });
+
+    it("does not throw when onKioskCheckout is not provided (null on every non-kiosk composition)", async () => {
+        const params = makeParams({ isAdmin: false, isKiosk: true, onKioskCheckout: null });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        });
+
+        await expect(act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", null, true);
+        })).resolves.not.toThrow();
+
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+});
+
+// Confirms the buildOrderItems/computeAmountPaid extraction (item 6) is actually wired into the
+// order literal handleCheckout builds -- orderPayload.test.ts pins the pure functions in
+// isolation; this exercises the wiring itself with a non-trivial (discounted, multi-quantity)
+// cart that the pre-existing flat ITEMS fixture never exercised.
+describe("useCheckout — amount_paid wiring through the extracted orderPayload money path", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("sends amount_paid computed via computeAmountPaid (discount % applied before quantity)", async () => {
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const discounted = makeCartItem("Pepperoni", 10, 2);
+        discounted.discountAmount = 20; // 10 * (1 - 20/100) * 2 = 16
+        const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout([discounted], "12345678", "Sara", null, "Cash", "", null, true);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ amount_paid: 16 }));
     });
 });

@@ -1,0 +1,55 @@
+## Summary
+
+**Files owned by Phase 1 (per `phases-status.md`) — verified against `task-spec.md` §12–15 and cross-checked line-by-line against the `ic-pizza-kiosk` reference (`services/config.ts`, `confirm.tsx`, `PhoneEntryPopup.tsx`):**
+
+| File | Status |
+|---|---|
+| `src/domains/kiosk/config.ts` | Correct — constants verbatim-match the RN reference (2000/120000/60000/15000ms, `"973"`/`8`) |
+| `src/domains/kiosk/services/kioskIdentity.ts` | Correct |
+| `src/domains/kiosk/utils/kioskBranch.ts` | Correct — malformed-JSON guard present |
+| `src/domains/kiosk/hooks/useTripleClick.ts` + existing `.test.ts` | Correct; implementer's own test already covers the 4 required window scenarios — left untouched |
+| `src/domains/order/utils/orderPayload.ts` | Byte-identical extraction from `useCheckout.ts:406-424`, confirmed by diffing against the still-present original block |
+| `src/shared/i18n/locales/{en,ar}/kiosk.json` | Correct groups, phone-validation keys correctly *not* duplicated |
+| `src/shared/i18n/index.ts` edit | Registered in all 3 required places |
+
+**New test files added (Phase 1 scope only — new/untested logic within owned files):**
+- `src/domains/kiosk/config.test.ts`
+- `src/domains/kiosk/services/kioskIdentity.test.ts`
+- `src/domains/kiosk/utils/kioskBranch.test.ts`
+- `src/domains/order/utils/orderPayload.test.ts`
+- `src/shared/i18n/kioskNamespace.test.ts`
+
+No existing test file was modified. `useTripleClick.test.ts` already existed and satisfies the acceptance criteria verbatim — left as-is.
+
+### Gates (verbatim)
+
+**`yarn tsc --noEmit`**
+```
+Done in 8.04s.
+```
+Clean.
+
+**`yarn test --watchAll=false`** (full suite)
+```
+Test Suites: 2 failed, 82 passed, 84 total
+Tests:       2 failed, 1088 passed, 1090 total
+```
+**`yarn build`** — succeeded (`Done in 16.01s`, `build folder is ready to be deployed`); only pre-existing project-wide ESLint warnings in files no phase touches (`StaffSummaryContent.tsx`, `DoughUsageTable.tsx`, `MenuItemCardHorizontal.tsx`, etc.) — per task rules, not a regression signal.
+
+```
+Test Results:
+- Total: 1090
+- Passing: 1088
+- Failing: 2
+
+Failing tests:
+- countries.test.ts › "matches the original entries extracted from ClientInfoPopup, plus Arabic names": pre-existing bug, unrelated to Phase 1 — src/shared/utils/countries.ts is not owned/touched by any phase in this task (confirmed via `git status`: no diff on that file). A "Czech Republic" entry exists in the source that the test's expected array doesn't include.
+- ActiveOrderIslandPill.test.tsx › "shows 'Ready!' instead of an ETA when the order is ready": pre-existing bug, unrelated to Phase 1 — component renders "Ready" (no exclamation mark / split across nodes) but the test asserts "Ready!". File not touched by any phase.
+
+Coverage gaps (requirements with no test):
+- None for Phase 1's scope. Every new file/export in Phase 1's owned-file list (config.ts, kioskIdentity.ts, kioskBranch.ts, useTripleClick.ts, orderPayload.ts, kiosk.json ×2, i18n/index.ts registration) has direct test coverage, including the malformed-localStorage edge case (§16 item 14) and the 3dp money-path requirement (§8 "Order payload").
+```
+
+Both failures pre-date this session's Phase 1 work (files untouched, confirmed via `git status --porcelain`) and are out of Phase 1's scope to fix — flagging per instructions rather than touching files outside the owned-file list.
+
+**Phase 1 acceptance criteria: all met.** `yarn tsc --noEmit` clean, full suite green except two pre-existing unrelated failures, `yarn build` succeeds, no existing test changed, nothing renders differently (no call sites added), pickers stay English-only (no `kiosk.json` references added anywhere yet).

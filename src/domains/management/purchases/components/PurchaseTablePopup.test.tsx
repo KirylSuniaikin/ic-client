@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { PurchaseTablePopup } from "./PurchaseTablePopup";
 import {
     fetchProducts,
@@ -13,7 +13,7 @@ import type { IBranch, ProductTO } from "../../inventory/types";
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../../shared/api/management");
 
-// jsdom's test environment lacks crypto.randomUUID (used by mkEmptyRow).
+// jsdom's test environment lacks crypto.randomUUID (used by mkEmptyInvoice/mkEmptyLine).
 let uuidCounter = 0;
 function stubRandomUUID() { uuidCounter = uuidCounter + 1; return "test-uuid-" + uuidCounter; }
 beforeAll(function () {
@@ -35,8 +35,7 @@ const branch: IBranch = {
     locale: "en",
 };
 
-// The DatePicker inputs are the only DD.MM.YYYY fields in the table, so their DOM order
-// is the row order.
+// One DatePicker per INVOICE header now, so DD.MM.YYYY inputs in DOM order are the invoice order.
 function allDateInputs(): HTMLInputElement[] {
     return Array.from(document.querySelectorAll("input")).filter((i) =>
         /^\d{2}\.\d{2}\.\d{4}$/.test((i as HTMLInputElement).value)
@@ -58,8 +57,8 @@ const flour: ProductTO = {
     topVendor: "Acme",
 };
 
-/** Opens an existing report whose lines differ only by purchase date, in the given order. */
-function renderReportWithDates(purchaseDates: string[]) {
+/** Opens an existing report with one invoice per given date, each holding a single line. */
+function renderReportWithDates(invoiceDates: string[]) {
     jest.mocked(fetchProducts).mockResolvedValue([flour]);
     jest.mocked(getPurchaseReport).mockResolvedValue({
         id: 7,
@@ -67,13 +66,14 @@ function renderReportWithDates(purchaseDates: string[]) {
         finalPrice: 0,
         userId: 1,
         purchaseDate: "2026-07-14",
-        purchaseProducts: purchaseDates.map((purchaseDate) => ({
-            product: flour,
-            quantity: 1,
-            finalPrice: 10,
-            price: 10,
+        invoices: invoiceDates.map((invoiceDate) => ({
+            id: 1,
+            invoiceDate,
             vendorName: "Acme",
-            purchaseDate,
+            paid: false,
+            finalPrice: 10,
+            hasImage: false,
+            products: [{ product: flour, quantity: 1, finalPrice: 10, price: 10 }],
         })),
     });
 
@@ -97,7 +97,7 @@ describe("PurchaseTablePopup", () => {
         mockGetUser.mockResolvedValue({ id: 1, userName: "admin" });
     });
 
-    it("renders a brand-new row's quantity and finalPrice cells as empty placeholders, not literal 0.000", async () => {
+    it("renders a brand-new line's quantity and finalPrice cells as empty placeholders, not literal 0.000", async () => {
         render(
             <PurchaseTablePopup
                 open={true}
@@ -110,7 +110,7 @@ describe("PurchaseTablePopup", () => {
 
         const placeholders = await screen.findAllByPlaceholderText("0.000");
 
-        // quantity + finalPrice cells for the single mkEmptyRow()
+        // quantity + finalPrice cells for the single line of the single mkEmptyInvoice()
         expect(placeholders).toHaveLength(2);
         placeholders.forEach((el) => {
             expect((el as HTMLInputElement).value).toBe("");
@@ -155,34 +155,60 @@ describe("PurchaseTablePopup", () => {
         });
     });
 
-    it("reorders by purchase date on header tap, newest first then oldest first", async () => {
+    it("reorders invoices by date on sort tap, newest first then oldest first", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
 
-        fireEvent.click(screen.getByText("Date of purchase"));
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
 
-        fireEvent.click(screen.getByText("Date of purchase"));
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
     });
 
-    it("leaves an edited row in place, re-ordering only on the next header tap", async () => {
+    it("sorts from the toolbar control, with no separate sort block above the table", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
 
-        fireEvent.click(screen.getByText("Date of purchase"));
+        expect(screen.queryByText("Sort by:")).toBeNull();
+
+        // There is no <TableHead> any more — each invoice group carries its own inline header
+        // instead — and these two invoices load collapsed, so no inline header renders either:
+        // there is no columnheader anywhere for a sort control to attach to. sort-invoiceDate
+        // instead resolves to a plain toolbar Button.
+        expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+        const sortButton = screen.getByTestId("sort-invoiceDate");
+        expect(sortButton.tagName).toBe("BUTTON");
+
+        // Positively place the sort control inside the toolbar, alongside collapse-all/expand-all
+        // — not just "not a columnheader". Both live in the same toolbar row (purchase-toolbar);
+        // .contains() is the allowed containment check here (unlike .closest()/querySelectorAll).
+        const toolbar = screen.getByTestId("purchase-toolbar");
+        expect(toolbar.contains(sortButton)).toBe(true);
+        expect(toolbar.contains(screen.getByTestId("collapse-all"))).toBe(true);
+
+        fireEvent.click(sortButton);
+
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
+    });
+
+    it("leaves an edited invoice in place, re-ordering only on the next sort tap", async () => {
+        renderReportWithDates(["2026-07-10", "2026-07-20"]);
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
+
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
 
-        // Give the bottom row the newest date of all. Under a live re-sort it would jump to
+        // Give the bottom invoice the newest date of all. Under a live re-sort it would jump to
         // the top mid-edit; with a snapshot it must stay exactly where it is.
         fireEvent.change(allDateInputs()[1], { target: { value: "31.07.2026" } });
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "31.07.2026"]));
 
         // Tapping again resumes ordering: asc first (the toggle), then desc.
-        fireEvent.click(screen.getByText("Date of purchase"));
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "31.07.2026"]));
 
-        fireEvent.click(screen.getByText("Date of purchase"));
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["31.07.2026", "20.07.2026"]));
     });
 
@@ -197,7 +223,11 @@ describe("PurchaseTablePopup", () => {
             />
         );
 
-        const [unitPriceInfo] = await screen.findAllByTestId("InfoOutlinedIcon");
+        // Scoped to the Unit header rather than indexed into the row's info icons: three columns
+        // carry a hint now, and a positional index would silently assert the wrong tooltip the
+        // moment a fourth is added ahead of this one.
+        const unitHeader = await screen.findByRole("columnheader", { name: /^unit$/i });
+        const unitPriceInfo = within(unitHeader).getByTestId("InfoOutlinedIcon");
 
         fireEvent.touchStart(unitPriceInfo);
 
@@ -205,18 +235,7 @@ describe("PurchaseTablePopup", () => {
     });
 
     it("does not prefill the unit price with the product's target price on selection", async () => {
-        mockFetchProducts.mockResolvedValue([
-            {
-                id: 1,
-                name: "Flour",
-                targetPrice: 7,
-                price: 7,
-                isInventory: true,
-                isPurchasable: true,
-                isBundle: false,
-                topVendor: "Acme",
-            },
-        ]);
+        mockFetchProducts.mockResolvedValue([flour]);
         mockFetchVendors.mockResolvedValue([{ id: 1, vendorName: "Acme" }]);
 
         render(
@@ -242,6 +261,32 @@ describe("PurchaseTablePopup", () => {
         expect(screen.getByTestId("unit-price-cell").textContent).toBe("—");
     });
 
+    it("fills the invoice vendor from the product's top vendor when the vendor is still empty", async () => {
+        mockFetchProducts.mockResolvedValue([flour]);
+        mockFetchVendors.mockResolvedValue([{ id: 1, vendorName: "Acme" }]);
+
+        render(
+            <PurchaseTablePopup
+                open={true}
+                mode="new"
+                userId={1}
+                branch={branch}
+                onClose={jest.fn()}
+            />
+        );
+
+        const productInput = await screen.findByPlaceholderText("Select Product");
+        // Grab the vendor input BEFORE selecting: once auto-fill lands, its placeholder becomes
+        // the vendor name, so "Select Vendor" no longer matches.
+        const vendorInput = screen.getByPlaceholderText("Select Vendor") as HTMLInputElement;
+
+        fireEvent.change(productInput, { target: { value: "Flour" } });
+        fireEvent.click(await screen.findByRole("option", { name: "Flour" }));
+
+        // Vendor auto-fill now lands on the invoice's strip, not on the line.
+        await waitFor(() => expect(vendorInput.value).toBe("Acme"));
+    });
+
     it("commits a typed value on blur and displays it as a real (non-placeholder) value", async () => {
         render(
             <PurchaseTablePopup
@@ -261,5 +306,40 @@ describe("PurchaseTablePopup", () => {
         await waitFor(() => {
             expect((quantityInput as HTMLInputElement).value).toBe("2.500");
         });
+    });
+
+    // colSpan guard — mirrors inventory/components/InventoryPopup.test.tsx:172-192. Nothing else
+    // keeps the strip cell's colSpan and the inline header row's cell count in sync besides both
+    // deriving from PRODUCT_COLUMN_COUNT; this catches the two literals drifting apart.
+    // Integration-level guard: exercises the invariant through the full popup (real save/collapse
+    // wiring, not an isolated group). The unit-level twin in PurchaseInvoiceGroup.test.tsx covers
+    // the same invariant on the isolated component — the two are deliberately not redundant (see
+    // phases-status.md Phase 2/4 notes).
+    it("keeps the strip cell's colSpan equal to the inline header row's cell count", async () => {
+        render(
+            <PurchaseTablePopup
+                open={true}
+                mode="new"
+                userId={1}
+                branch={branch}
+                onClose={jest.fn()}
+            />
+        );
+
+        // A brand-new invoice opens expanded with one empty line, so both the strip and the
+        // inline header are present as soon as the line's placeholders render.
+        await screen.findAllByPlaceholderText("0.000");
+
+        // Sanity-check the strip itself rendered before reading its cell.
+        expect(screen.getByText("1 product")).toBeTruthy();
+
+        const headerCellCount = screen.getAllByRole("columnheader").length;
+        // With one invoice and one line, getAllByRole("cell") is [strip cell, ...6 line cells] —
+        // the strip is always first. Reading the colspan attribute (rather than the `.colSpan`
+        // DOM property) mirrors the getAttribute("colspan") form PurchaseInvoiceGroup.test.tsx:192
+        // already uses, so no `as HTMLTableCellElement` cast is needed here either.
+        const stripCell = screen.getAllByRole("cell")[0];
+
+        expect(Number(stripCell.getAttribute("colspan"))).toBe(headerCellCount);
     });
 });

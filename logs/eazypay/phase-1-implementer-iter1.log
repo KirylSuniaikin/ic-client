@@ -1,0 +1,5 @@
+Good — this confirms Phase 6 was already completed in parallel (unrelated to my work), and my Phase 1 update landed correctly. Everything is consistent.
+
+Phase 1 is complete: all owned files created/edited, `yarn tsc --noEmit` clean, `yarn test --watchAll=false` passes (2 pre-existing unrelated failures confirmed via stash-diff), `yarn build` succeeds.
+
+PHASE 1 COMPLETE — unblocks: Phase 2 (Kiosk API layer), Phase 7 (Checkout + menu hook edits)

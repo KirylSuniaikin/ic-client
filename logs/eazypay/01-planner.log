@@ -1,0 +1,622 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Now writing the complete spec.
+
+BEGIN_TASK_SPEC
+```markdown
+# Task Spec — Web Kiosk EazyPay Terminal Checkout (`ic-client`)
+
+Branch: `eazypay-integration` in `/Users/andrew/Documents/ICpizza/Main/ic-client` (already checked out, clean — plan Step 0 is DONE. Do not create it again, do not commit, do not push.)
+
+Source documents this spec is derived from (implementers do **not** have access to these — this spec must be self-contained):
+- `/Users/andrew/.claude/plans/serialized-booping-tarjan.md` — approved, user-researched implementation plan (source of truth for every product decision).
+- `/Users/andrew/Documents/ICpizza/Main/ic-client/phases-status.md` — the 8-phase breakdown (triage output).
+- `/Users/andrew/Documents/ICpizza/Main/ic-client/task-description.txt` — user's non-negotiables.
+
+**This spec is organized into 8 numbered phase sections.** If you have been assigned a phase, find `### Phase N — <title>` and implement **only** that section's owned files. Other phases are not yours — do not touch their files even if you see something you'd improve. Read the "Non-negotiables", "Backend contract", "State machine", "Reset for next customer", and "Sheet styling & z-index" sections first — every phase depends on that shared context.
+
+---
+
+## 1. Objective
+
+The `?mode=kiosk` path in `ic-client` currently shows delivery-type and payment-method toggles that make no sense on a walk-up terminal, collects phone + name + branch, and creates the order through the public `POST /api/create_order`, which pushes straight to the kitchen with **no payment taken**. This task ports the already-designed, already-shipping flow from the Expo/RN kiosk app (`Main/ic-pizza-kiosk`) into a **temporary web kiosk** inside `ic-client`, wired to the backend's `eazypay-integration` branch (already built, no backend changes in scope). Target flow: branch selector (exists) → new kiosk/terminal picker → cart with just a Checkout button → cross-sell (unchanged) → phone-only step → create order as `Pending Payment` → fire EazyPay at the terminal → poll and show "Tap your card" → **APPROVED** = backend settles and publishes to the kitchen itself → **any other terminal failure** = "pay at the front desk?" Yes/No → **No or 60s silence** = abandon the order, close everything, and clear the cart for the next customer.
+
+## 2. Scope
+
+**In scope:** everything named in the New files / Edits to existing files tables below, across the 8 phases. New `domains/kiosk/*` infrastructure (config, identity, branch resolution, triple-click re-pair gesture, payment polling, checkout state machine, session reset, 6 UI sheets), a new `shared/api/kiosk*` HTTP layer, a shared `orderPayload.ts` money/item-mapping extraction reused by both kiosk and non-kiosk checkout, a new `kiosk` i18n namespace, and the minimal edits to `useCheckout.ts`, `useMenuData.ts`, `HomePage.tsx`, `HomePageModals.tsx`, `HeroSection.tsx`, `CartComponent.tsx` needed to wire it in.
+
+**Out of scope** (see §10 for the full list): any backend change, the non-kiosk `ClientInfoPopup` flow, the cross-sell logic itself (only its call-site gating), any refactor not explicitly named, a global idle timer for abandoned carts (explicitly deferred — see Risks), adding new npm dependencies, committing or pushing.
+
+## 3. Non-negotiables (user-locked product decisions)
+
+1. **No card retry.** Every terminal failure status (`DECLINED`/`CANCELLED`/`EXPIRED`/`ERROR`, plus the polling hook's own `TIMEOUT`) goes straight to the "pay at the front desk?" Yes/No sheet. `AMOUNT_MISMATCH` is the **one** exception — dead-ends to "see a member of staff", is **never** abandoned or deferred and gets **no** 60s timer, because money already left the card.
+2. **Phone-only kiosk info step.** No name, no branch dropdown. `customer_name: null` on the payload. The non-kiosk `ClientInfoPopup` is **left completely untouched**.
+3. **Re-pairing** = admin triple-clicks the **top of the hero video**. No PIN.
+4. **All payment UI** is MUI `Drawer anchor="bottom"` bottom sheets, copying `src/domains/management/cash-register/components/CashInputDrawer.tsx` **exactly** (see §7). The user explicitly said "please pay attention to the UI" — this is a customer-facing walk-up screen.
+5. **Nothing on the kiosk payment path may set `checkoutLoading`.** `HomePage.tsx:103` returns a full-page `<PizzaLoader/>` whenever `checkout.checkoutLoading` is true, which would unmount every sheet mid-payment.
+
+## 4. System context
+
+`ic-client` is a domain-first React 18 + CRA + MUI v7 app (`ic-client/.claude/CLAUDE.md` — architecture map). The customer-ordering flow is `HomePage.tsx` (thin shell) composing `useMenuData` → `useCart` → `useCheckout`, with all popups rendered by the sibling `HomePageModals.tsx`. Kiosk mode is detected via `isKioskSearch(searchParams)` (`shared/utils/kioskMode.ts`, `?mode=kiosk`) and today reuses the same `useCheckout`/`useMenuData` hooks with `isKiosk` branches sprinkled through them — this task **deletes** those inline branches and replaces them with a dedicated `domains/kiosk/*` module, following the existing domain-first convention (compare `domains/cart`, `domains/order`). The kiosk domain already has two files: `components/KioskBranchSelector.tsx` (the existing branch picker, kept and reused unchanged) and `components/ScrollHintArrow.tsx`. This task adds `services/`, `utils/`, `hooks/` and more `components/` under that same `domains/kiosk/` directory. All new HTTP calls follow the existing `shared/api/{client,public,management}.ts` pattern (one file per concern, manual Jest mocks in `shared/api/__mocks__/`) but get their **own** `kioskClient.ts`/`kiosk.ts` because kiosk devices carry no staff JWT and must never hit the `authFetch` 401→redirect path (`shared/api/client.ts:29-34`).
+
+## 5. Backend contract (already built — READ ONLY, no backend changes in scope)
+
+Branch `eazypay-integration` of `/Users/andrew/Documents/ICpizza/Main/backend` — **never checked out, never modified**; read with `git -C /Users/andrew/Documents/ICpizza/Main/backend show eazypay-integration:<path>`. All `/api/kiosk/**` routes require header `X-Kiosk-Name: <deviceName>` and send **no** bearer token; the backend returns 401 otherwise.
+
+| Endpoint | Notes |
+|---|---|
+| `GET /kiosk/pairing/kiosks` | `permitAll`. Returns `[{deviceName, terminalId, branchId, branchName}]`. **Not branch-filtered by the backend** — the client filters by the branch already stored locally. |
+| `POST /kiosk/orders` | Same body shape as `/api/create_order` (`CreateOrderRequest`). Creates the order with status `Pending Payment`, **not** pushed to the kitchen. The server overrides `payment_type`, `type`, and `branchId` regardless of what the client sends. `tel` is **required**. 409 → items unavailable (same `Items409Response` shape as `/api/create_order`), 423 → branch closed (`BranchClosedResponse`). |
+| `POST /kiosk/payments/initiate` `{orderId}` | → `{invoiceNum, status}`. The device never sends an amount (the backend reads it off the order). **Idempotent per order** — calling it again for the same order is safe. |
+| `GET /kiosk/payments/{invoiceNum}/result` | 16 fields including `cardNo`, `trnRrn`, `trnAuthCode`, `posEntryMode`, six `dcc*` fields, and `failureReason`. |
+| `POST /kiosk/payments/{invoiceNum}/cancel` | Releases the terminal. |
+| `POST /kiosk/orders/{id}/defer-to-counter` | Publishes the order, unpaid, to the kitchen as `Cash`. **Idempotent.** |
+| `POST /kiosk/orders/{id}/abandon` | Hard-deletes the order. **Not idempotent** — a second call 404s. This is by design; do not "fix" it by retrying harder. |
+
+`PaymentStatus` = `INITIATING | PENDING | APPROVED | DECLINED | CANCELLED | EXPIRED | AMOUNT_MISMATCH | ERROR`. Terminal states are all of these except `INITIATING`/`PENDING`. **On `APPROVED` the backend settles the payment and publishes the order to the kitchen itself — the client does nothing beyond showing confirmation and clearing the cart.**
+
+> **OPEN QUESTION — backend DTO field list not independently verified.** This spec-writing pass had no shell/git access to the backend repo and no filesystem permission to browse it directly, so the exact field names/casing of the `GET /kiosk/payments/{invoiceNum}/result` response beyond the ones the plan names (`cardNo`, `trnRrn`, `trnAuthCode`, `posEntryMode`, `dccMsg`/`dccRate`/`dccAmount` + 3 more `dcc*` fields, `failureReason`, plus presumably `invoiceNum`/`orderId`/`status`) could not be confirmed. **Phase 2's implementer MUST run `git -C /Users/andrew/Documents/ICpizza/Main/backend show eazypay-integration:<path-to-the-PaymentResultTO-or-equivalent>` before writing `PaymentResultResponse` in `kiosk.ts`, and must not guess field names.** Do not invent fields; if the DTO can't be located, stop and write `needs-clarification.md` per the standing rule.
+
+## 6. Reference implementation — port, do not invent
+
+`/Users/andrew/Documents/ICpizza/Main/ic-pizza-kiosk` (Expo/RN) has this exact flow fully worked out, with its edge cases documented in code comments. Mirror the logic (translate RN/NativeWind → React/MUI; keep the logic, the guards, and the explanatory comments) from:
+- `domains/payment/hooks/usePaymentPolling.ts` — self-scheduling `setTimeout` (never `setInterval`), an `activeRef` checked on every async continuation, status reset on invoice change, `TIMEOUT` → `cancelPayment`, network errors set `error` but **keep polling**.
+- `domains/order/hooks/useCheckout.ts` — `submittingRef`, `pendingOrderIdRef`, `ItemsUnavailableError` cart-splitting, 3-decimal `amount_paid` (BHD/fils).
+- `domains/order/components/PaymentFailurePrompt.tsx` — 5 phases, a 60s countdown in a *separate* effect from the tick effect (`expiredRef` caps it at once), 409 → terminal, 404-on-abandon → treated as success, `amountMismatch` never enters the `asking` phase.
+- `app/(kiosk)/{payment,confirm,pay-at-counter}.tsx` and `app/kiosk-picker.tsx` — screen-level composition to mirror as the 6 new sheets/pickers.
+- `services/config.ts` — poll 2000ms, payment timeout 120000ms, failure prompt 60000ms.
+
+> **OPEN QUESTION — reference files not independently readable in this environment.** This spec-writing pass had no filesystem permission to open `/Users/andrew/Documents/ICpizza/Main/ic-pizza-kiosk`, so the guard logic above is reproduced from the plan's description only, not independently re-verified against the RN source, and the exact `APPROVED_AUTO_RETURN_MS` value (referenced by the plan's New Files table but never given a number) could not be confirmed. **Before starting Phase 1, the implementer must open `ic-pizza-kiosk/services/config.ts` and copy the real constant; do not invent a number.** Every other phase that touches polling/state-machine/failure-sheet logic must open the corresponding `ic-pizza-kiosk` file listed above and port it line-by-line, per the plan's explicit "port, don't invent" instruction — this spec's phase sections describe the *shape* and *contracts*, not a replacement for reading that source.
+
+## 7. Sheet styling & z-index (verbatim — applies to every sheet built in Phase 5)
+
+All six kiosk surfaces (`KioskTerminalPicker`, `KioskPhoneEntrySheet`, `KioskPaymentSheet`, `KioskPaymentFailureSheet`, `KioskOrderApprovedSheet`, `KioskPayAtCounterSheet`) copy `src/domains/management/cash-register/components/CashInputDrawer.tsx` **exactly**:
+- `Drawer anchor="bottom"`.
+- `PaperProps.sx`: `borderTopLeftRadius: 16`, `borderTopRightRadius: 16`, `maxWidth: { sm: 500 }`, `mx: { sm: 'auto' }`.
+- A centered grey drag-handle pill at the top: `Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2, mx: 'auto', mb: 2 }}`.
+- Content wrapped in `<Box sx={{ p: 3, pb: 4 }}>`.
+- `KioskOrderApprovedSheet` (the "approved" sheet) additionally needs `maxHeight: '90vh', overflowY: 'auto'` on the Drawer's `PaperProps.sx`, because it renders the optional DCC disclosure block.
+- `KioskPaymentSheet` and `KioskPaymentFailureSheet` are **non-dismissible while live**: `onClose={() => {}}` plus `ModalProps={{ disableEscapeKeyDown: true }}`. Dismissing either would strand a real unpaid order with neither Yes nor No answered.
+
+| Layer | z-index |
+|---|---|
+| Cart `Modal` (`CartComponent.tsx`, MUI default) | 1300 |
+| **Kiosk sheets** (all six) | **1400** — above the cart, so an `ItemsUnavailableError` reopening the cart mid-payment can't bury a live sheet |
+| Fixed cart pill (`HomePage.tsx:197`) | 9999 — neutralised via the `noPopupOpen` change in Phase 8 |
+| Branch / terminal pickers (`KioskBranchSelector`, `KioskTerminalPicker`) | 99999 — always wins; a device that lost its pairing must never be orderable |
+
+## 8. Kiosk checkout state machine (verbatim)
+
+```
+idle → phone → awaiting-card → approved | failed | mismatch
+                                  failed → deferred | idle
+```
+
+`submitting` is a **separate boolean, not a phase** — the phone sheet stays mounted with an inline spinner so an error lands back on the same sheet without wiping the typed digits.
+
+Three load-bearing refs, all owned by `useKioskCheckout`:
+- `submittingRef` — synchronous double-tap guard (React state commits asynchronously; a rapid double-tap must not fire two `createKioskOrder` calls).
+- `pendingOrderIdRef` — once an order is created, a retry re-runs `initiate` **only**, never `createOrder` again.
+- `onSessionEndRef` — the latest `onSessionEnd` closure, called via ref so effects don't need it in their deps.
+
+`submitPhone(tel)`: guard on `submittingRef` → call `createKioskOrder` only if `pendingOrderIdRef.current` is unset → call `initiateKioskPayment` → set phase `awaiting-card`. Error routing:
+- `ItemsUnavailableError` → split the cart and reopen it **unconditionally** (this is a kiosk-specific rule — unlike the admin path, kiosk always reopens the cart) and call `refreshMenu()`.
+- `BranchClosedError` → show the existing error snackbar.
+- `KioskUnauthorizedError` → send the customer to the terminal picker (the device lost its pairing).
+- Anything else → inline error rendered on the phone sheet itself; `pendingOrderIdRef` is **left set** so the retry re-runs `initiate` only.
+
+Poll with `useKioskPaymentPolling(phase === "awaiting-card" ? invoiceNum : null)` — passing `null` outside that phase stops the polling loop with no second guard needed.
+
+Terminal outcomes:
+- `APPROVED` → clear the cart, show the confirmation sheet (the backend already published the order to the kitchen; the client does nothing else).
+- `AMOUNT_MISMATCH` → phase `mismatch`, a dead end: **no abandon, no defer, no timer.**
+- Everything else (`DECLINED`/`CANCELLED`/`EXPIRED`/`ERROR`/the polling hook's own `TIMEOUT`) → phase `failed`.
+
+On `failed`:
+- **Yes** ("pay at counter") → `deferOrderToCounter`. 409 → phase `error-terminal` (dead end — the order was already paid/published elsewhere; do not retry). Any other error → phase `error-retryable`, whose "Try again" button re-invokes *defer*, never re-asks Yes/No.
+- **No** → `abandonKioskOrder`. 404 → treat as success (idempotency edge case — see Risks).
+- **60s silence** → fire-and-forget `abandonKioskOrder`, then reset. Silence must always resolve to *discard*, never *save*.
+
+### Order payload
+`tel` formatted `"973########"` (Bahrain country code `973` + 8 digits), `customer_name: null`, `type: "Pick Up"`, `payment_type: "Card"` (all three of `type`/`payment_type`/`branchId` are server-overridden anyway, per the contract table, but the client still sends sane values), `branchId: resolveKioskBranchId()`, `items: buildOrderItems(...)`, `amount_paid: computeAmountPaid(...)` (3 decimal places / BHD fils), `fbc`/`fbp` via the existing `resolveFbc()`/`resolveFbp()` (`shared/utils/adAttribution.ts`), `language: resolveCustomerLanguage(i18n.language, false)` (kiosk passes `includeNavigator=false` — the shared tab's browser locale reflects the store device, not the walk-up customer, exactly as the existing non-kiosk call already does at `useCheckout.ts:428`). **No `idempotency_key`** — that field does not exist on `CreateOrderTO` in the `eazypay-integration` backend branch (it exists on the current `main`-branch DTO but this task targets a different backend branch; do not add it to the kiosk payload).
+
+## 9. Reset for next customer (verbatim)
+
+`resetKioskSession(deps)` is a **pure function over explicit setters** (unit-testable, no hook, no dependency cycle). It clears:
+- **Cart**: `setCartItems([])`, `setCartOpen(false)`, `setPopupGroup(null)`, edit flags, and every popup flag (pizza/combo/pizzaCombo/detroitCombo/generic/baguette/upsell/closed).
+- **Checkout**: phone popup, cross-sell (`setIsCrossSellOpen(false)`), **`resetCrossSellShown()`** (new — see Phase 7 item 2), pickup reminder, order-confirmed, unavailable state (`setUnavailablePopupOpen(false)`, `setUnavailableItems([])`, `setUnavailableMessage(null)`), both snackbars, `paymentMethod`/`orderType` reset to their defaults.
+- **Kiosk hook**: phase → `idle`, invoice → `null`, pending items → `[]`, both `submittingRef`/`pendingOrderIdRef` cleared.
+- **Language**: back to `en` + `localStorage["ic_lang"] = "en"`. This happens at **session end** (i.e. inside `resetKioskSession`), **not** right after order creation the way the deleted kiosk branch of `useCheckout.ts` used to do it — on the web kiosk the customer is still reading the payment sheets in the same tab, and flipping the language mid-payment is user-hostile.
+- **Session**: `sessionStorage.clear()` (mirrors the existing pattern at `HomePage.tsx:50-53`) + scroll to top.
+
+**Never cleared:** `kiosk_branch_data` (the `KIOSK_BRANCH_KEY` constant lives in the new `kioskBranch.ts`), `kiosk_device_name` (`KIOSK_DEVICE_NAME_KEY` in `kioskIdentity.ts`) — device identity outlives customers; only the triple-click re-pair gesture replaces it.
+
+## 10. i18n
+
+New `kiosk` namespace (EN + AR), grouped `phone.*`, `payment.*`, `errors.*`, `failure.*`, `approved.*`, `counter.*`. Phone validation copy is **reused** from `checkout` (`clientInfo.errors.onlyDigits`, `clientInfo.errors.phoneLength`) — do not duplicate those keys into `kiosk.json`. Sheets that need both call `useTranslation(["kiosk", "checkout"])`.
+
+The six `dcc*` result fields are a **regulatory disclosure**, not decoration — render that block only when `dccMsg ?? dccRate ?? dccAmount` is populated, or a normal BHD (non-DCC) transaction shows a row of blanks.
+
+Branch/terminal pickers (`KioskBranchSelector`, the new `KioskTerminalPicker`) stay **English-only**, matching the existing `KioskBranchSelector` and the staff-screens convention (`enI18n`/`LtrBoundary`).
+
+## 11. Risks (verbatim — carry these constraints into implementation, do not "fix" them)
+
+- **Backend not merged.** `eazypay-integration` isn't on `main`; nothing is end-to-end testable until it ships. Every kiosk call sits behind `shared/api/kiosk.ts` so a mock server is a one-file swap, and `PairingUnavailableError` makes a stale-backend deploy diagnosable on-screen. Verify `Items409Response.unavailableIds` is actually returned on that branch before relying on the cart-splitting path.
+- **CORS.** Confirm the deployment origin against the backend's actual CORS allowlist before testing — do not assume it matches `ic-client`'s current `BASE_URL`/`WS_URL` hosts (`shared/api/client.ts` currently points at `api.ic-pizza.com` in prod / `localhost:8000` in dev; see the Open Question in §5 flagging that the plan's named allowlist — `localhost:3000`, `ic-pizza.com`, `www.ic-pizza.com`, `icpizza-back.onrender.com` — may be stale relative to that). A Vercel preview, a LAN IP, or a Capacitor origin fails preflight — and it surfaces as a generic network error, not a CORS error.
+- **Stranded `Pending Payment` orders** when `createOrder` succeeds, `initiate` fails, and the customer walks away (or the browser is closed mid-payment). The reconciliation sweeper covers the payment side; confirm with the backend owner that it reaps orderless-transaction cases too, or it becomes an ops cleanup task. Not this task's job to fix — just be aware it's a known gap.
+- **No global idle timer.** The RN app has `IDLE_TIMEOUT_MS`; the web kiosk has no equivalent today and this task does not add one. A customer who abandons at the *cart* (before the phone step) still leaves their cart for the next person. Explicitly out of scope — worth a follow-up task, not this one.
+- **`abandon` is not idempotent** (second call 404s) — that is exactly why 404-on-abandon is treated as success in §8. Do not "fix" it by retrying harder.
+- **Late approval after a decline** makes `defer` return 409. Route to `error-terminal`, not a retry: the order is already paid and published.
+- **`suppressSoundIds`** was written by the kiosk branch of `useCheckout.ts` being deleted in Phase 7. Kiosk orders are now published server-side on `APPROVED`, so the write looks meaningless — but **confirm no admin tab depends on it before removing** (grep the admin order-board code for reads of that localStorage key). If in doubt, leave it and note it, don't silently delete a cross-cutting behavior.
+
+---
+
+## 12. New files (verbatim summary table)
+
+| Path | Exports |
+|---|---|
+| `src/domains/kiosk/config.ts` | poll/timeout constants, `APPROVED_AUTO_RETURN_MS`, phone country code + digit count |
+| `src/domains/kiosk/services/kioskIdentity.ts` | `KIOSK_DEVICE_NAME_KEY = "kiosk_device_name"`, get/set/clear |
+| `src/domains/kiosk/utils/kioskBranch.ts` | `KIOSK_BRANCH_KEY`, `readKioskBranch`, `writeKioskBranch`, `resolveKioskBranchId` — single home for the `'kiosk_branch_data'` literal (verified duplicated today at `HomePageModals.tsx:26`, `useMenuData.ts:48`, `useCheckout.ts:19`) |
+| `src/shared/api/kioskClient.ts` | `KioskUnauthorizedError`, `KioskHttpError` (carries `status`), `kioskFetch` |
+| `src/shared/api/kiosk.ts` | types + `fetchPairingOptions`, `createKioskOrder`, `initiateKioskPayment`, `fetchKioskPaymentResult`, `cancelKioskPayment`, `deferOrderToCounter`, `abandonKioskOrder`, `PairingUnavailableError` |
+| `src/shared/api/__mocks__/kiosk.ts` | mirrors `__mocks__/public.ts` (factoryless `jest.mock`) |
+| `src/domains/kiosk/hooks/useKioskPaymentPolling.ts` | `(invoiceNum: string \| null) => {status, result, secondsRemaining, error, cancel}` |
+| `src/domains/kiosk/hooks/useKioskCheckout.ts` | the state machine in §8 |
+| `src/domains/kiosk/hooks/useTripleClick.ts` | `(onTrigger: () => void, windowMs?: number) => (event: React.MouseEvent) => void` |
+| `src/domains/kiosk/utils/resetKioskSession.ts` | pure fn over explicit setters — no hook, no cycle |
+| `src/domains/kiosk/components/{KioskTerminalPicker,KioskPhoneEntrySheet,KioskPaymentSheet,KioskPaymentFailureSheet,KioskOrderApprovedSheet,KioskPayAtCounterSheet}.tsx` | the six sheets/pickers |
+| `src/domains/order/utils/orderPayload.ts` | `buildOrderItems`, `computeAmountPaid` — extracted from `useCheckout.ts:406-424` so kiosk and web share **one** money path |
+| `src/shared/i18n/locales/{en,ar}/kiosk.json` | new 8th namespace |
+
+## 13. Data model & interfaces
+
+These are implementer-detail additions (the plan is thin on exact TypeScript signatures) — they must not contradict §5/§8/§12 above. Where the plan is silent on a backend field name, do **not** invent it; confirm against the backend DTO per the Open Question in §5.
+
+```ts
+// src/domains/kiosk/services/kioskIdentity.ts
+export const KIOSK_DEVICE_NAME_KEY = "kiosk_device_name";
+export function getKioskDeviceName(): string | null;
+export function setKioskDeviceName(name: string): void;
+export function clearKioskDeviceName(): void;
+
+// src/domains/kiosk/utils/kioskBranch.ts
+export const KIOSK_BRANCH_KEY = "kiosk_branch_data";
+export function readKioskBranch(): IBranch | null;              // JSON.parse guarded, malformed -> null
+export function writeKioskBranch(branch: IBranch): void;
+export function resolveKioskBranchId(): string;                  // readKioskBranch()?.id ?? DEFAULT_BRANCH_ID
+
+// src/shared/api/kioskClient.ts
+export class KioskUnauthorizedError extends Error {}
+export class KioskHttpError extends Error { readonly status: number; }
+export async function kioskFetch(path: string, init?: RequestInit): Promise<Response>;
+
+// src/shared/api/kiosk.ts
+export type PaymentStatus =
+  | "INITIATING" | "PENDING" | "APPROVED" | "DECLINED"
+  | "CANCELLED" | "EXPIRED" | "AMOUNT_MISMATCH" | "ERROR";
+
+export type PairingKiosk = { deviceName: string; terminalId: string; branchId: string; branchName: string };
+
+export type InitiatePaymentResponse = { invoiceNum: string; status: PaymentStatus };
+
+// Field list beyond these four is NOT independently verified in this spec pass — see §5 Open Question.
+export type PaymentResultResponse = {
+  invoiceNum: string;
+  status: PaymentStatus;
+  cardNo?: string;
+  trnRrn?: string;
+  trnAuthCode?: string;
+  posEntryMode?: string;
+  dccMsg?: string | null;
+  dccRate?: string | null;
+  dccAmount?: string | null;
+  // + 3 more dcc* fields per the backend DTO — confirm exact names before implementing.
+  failureReason?: string | null;
+};
+
+export class PairingUnavailableError extends Error {}
+
+export async function fetchPairingOptions(): Promise<PairingKiosk[]>;                 // sends no X-Kiosk-Name by design
+export async function createKioskOrder(order: CreateOrderRequest): Promise<Order>;    // reuses ItemsUnavailableError/BranchClosedError
+export async function initiateKioskPayment(orderId: string): Promise<InitiatePaymentResponse>;
+export async function fetchKioskPaymentResult(invoiceNum: string): Promise<PaymentResultResponse>;
+export async function cancelKioskPayment(invoiceNum: string): Promise<void>;
+export async function deferOrderToCounter(orderId: string): Promise<void>;            // 409 must surface as KioskHttpError(409, ...)
+export async function abandonKioskOrder(orderId: string): Promise<void>;              // 404 must surface as KioskHttpError(404, ...)
+
+// src/domains/kiosk/hooks/useKioskPaymentPolling.ts
+export interface UseKioskPaymentPollingResult {
+  status: PaymentStatus | "TIMEOUT" | null;
+  result: PaymentResultResponse | null;
+  secondsRemaining: number;
+  error: string | null;
+  cancel: () => void;
+}
+export function useKioskPaymentPolling(invoiceNum: string | null): UseKioskPaymentPollingResult;
+
+// src/domains/order/utils/orderPayload.ts
+export function buildOrderItems(items: CartItem[]): OrderItemRequest[];   // byte-identical to the map at useCheckout.ts:406-421
+export function computeAmountPaid(items: CartItem[]): number;             // byte-identical to the reduce at useCheckout.ts:422-424, 3dp
+
+// src/domains/kiosk/hooks/useKioskCheckout.ts
+export type KioskCheckoutPhase =
+  | "idle" | "phone" | "awaiting-card" | "approved"
+  | "failed" | "mismatch" | "deferred"
+  | "error-terminal" | "error-retryable";
+
+export interface UseKioskCheckoutParams {
+  isKiosk: boolean;
+  cartItems: CartItem[];
+  setCartItems: Dispatch<SetStateAction<CartItem[]>>;
+  setCartOpen: Dispatch<SetStateAction<boolean>>;
+  menuData: MenuItem[];
+  refreshMenu: () => Promise<void>;
+  onUnauthorized: () => void;       // opens the terminal picker
+  onUnavailable: (removedNames: string[], message: string, remaining: CartItem[]) => void;
+  onBranchClosed: (message: string) => void;
+}
+
+export interface UseKioskCheckoutResult {
+  phase: KioskCheckoutPhase;
+  submitting: boolean;
+  isSheetOpen: boolean;             // true whenever phase !== "idle" — drives HomePage's noPopupOpen/anyPopupOpen
+  invoiceNum: string | null;
+  phoneError: string | null;
+  startPhoneStep: (items: CartItem[]) => void;   // the onKioskCheckout callback passed into useCheckout
+  submitPhone: (tel: string) => Promise<void>;
+  confirmPayAtCounter: () => Promise<void>;       // "Yes" on the failure sheet
+  declinePayAtCounter: () => Promise<void>;       // "No" on the failure sheet
+  retryDefer: () => Promise<void>;                // "Try again" from error-retryable
+  finishSession: () => void;                      // approved-sheet auto-return / manual close -> resetKioskSession
+}
+export function useKioskCheckout(params: UseKioskCheckoutParams): UseKioskCheckoutResult;
+
+// src/domains/kiosk/utils/resetKioskSession.ts
+export interface ResetKioskSessionDeps {
+  // cart setters, checkout setters, kiosk-hook reset, i18n changeLanguage — one function ref per
+  // item enumerated in §9. Exact field list is an implementer decision (Phase 4); every setter
+  // named in §9 MUST appear here and be called exactly once.
+}
+export function resetKioskSession(deps: ResetKioskSessionDeps): void;
+
+// src/domains/kiosk/hooks/useTripleClick.ts
+export function useTripleClick(onTrigger: () => void, windowMs?: number): (event: React.MouseEvent) => void;
+```
+
+## 14. Edits to existing files (exact, line-verified against the current `eazypay-integration` working tree)
+
+**`src/domains/order/hooks/useCheckout.ts`** (currently 544 lines total)
+1. `UseCheckoutParams` (interface starts `:34`) gains `onKioskCheckout?: ((items: CartItem[]) => void) | null`.
+2. `UseCheckoutResult` (interface starts `:47`) gains `resetCrossSellShown: () => void`. `wasCrossSellShown` (state at `:111`) is set `true` at `:345` but is **never reset** today — on a long-lived kiosk tab only the first customer of the day sees the cross-sell.
+3. In `handleCheckout` (starts `:333`), **after** the cross-sell gate at `:343-347` and **before** the `!infoCollected` block at `:352`, insert: `if (isKiosk) { onKioskCheckout?.(items); return; }`. Cross-sell **deliberately stays** for kiosk (existing shipped behaviour the user asked to keep) — this new line only intercepts *after* the cross-sell has already been shown once.
+4. **Delete** the `else if (isKiosk)` branch at `:462-497` entirely, including its `localStorage.setItem('suppressSoundIds', ...)` write and the inline language-reset block (`:470-480`) — the language reset now lives in `resetKioskSession` (§9), triggered at session end, not at order-creation time.
+5. Delete the now-dead kiosk arm of the `branchId` ternary at `:404` (`isKiosk ? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : ...`) and the module-level `const BRANCH_KEY = 'kiosk_branch_data';` at `:19`. Kiosk no longer reaches this `order` construction at all (item 3 returns before it), so the ternary's kiosk arm is unreachable dead code once item 3 lands — remove it for clarity, not because it's still hit.
+6. Replace the inline item map + reduce at `:406-424` (the `items:` and `amount_paid:` fields of the `order` object literal) with `items: buildOrderItems(items)` and `amount_paid: computeAmountPaid(items)`, imported from `../utils/orderPayload`. **Do not** touch the structurally-similar map+reduce inside `buildOrderTO` (`:141-170`, used by the admin edit-order path) — that is a different request type (`EditOrderRequest`) and is out of scope.
+
+**`src/domains/menu/hooks/useMenuData.ts`** (currently 292 lines total)
+- Drop the local `const BRANCH_KEY = 'kiosk_branch_data';` at `:48`. `resolveBranchId()` (`:106-118`) delegates its kiosk branch to `resolveKioskBranchId()` from the new `kioskBranch.ts` instead of inline `JSON.parse(localStorage.getItem(BRANCH_KEY) ...)`.
+- Add `terminalSelector` state (`useState<boolean | null>(null)`, mirroring `branchSelector`) to `UseMenuDataResult` and its setter.
+- In `load()` inside the mount effect, at the point currently `:154-156` (`if (isKiosk && !localStorage.getItem(BRANCH_KEY)) { setBranchSelector(true); }`), also `setTerminalSelector(true)` when `isKiosk && !getKioskDeviceName()` (no device name stored). Both checks are independent — a device can have a branch but no paired terminal name, or vice versa after a partial re-pair.
+
+**`src/pages/HomePage.tsx`** (currently 212 lines total)
+- Compose `useKioskCheckout` after `cart` (`:73`) and before `checkout` (`:74-79`), so `checkout`'s `onKioskCheckout` param can reference it. Pass `onKioskCheckout: isKiosk ? kiosk.startPhoneStep : null` into the `useCheckout({...})` call.
+- `onSessionEnd`/session-end wiring reads `checkout` (and `cart`) through a ref, mirroring the existing `completeVerifiedCheckoutRef` pattern at `useCheckout.ts:314` — `useKioskCheckout` cannot close over `checkout`/`cart` directly without a circular render dependency, since `checkout` is constructed after it.
+- **Line `:103`** (`if (menu.loading || checkout.checkoutLoading) return <PizzaLoader/>;`) **stays byte-for-byte unchanged.** Add a comment immediately above or below it recording the constraint from §3 item 5: nothing on the kiosk path may ever set `checkoutLoading`, because deleting the kiosk branch in `useCheckout.ts` (Phase 7) makes this structurally true and this line is the regression tripwire.
+- `noPopupOpen` (`:133`) gains `&& !kiosk.isSheetOpen` appended to the boolean chain — this is what stops the fixed cart pill (`zIndex 9999`, rendered at `:196-203`) from painting over a live kiosk sheet (`zIndex 1400`).
+- `anyPopupOpen` (`:138-145`) gains `|| !!menu.terminalSelector` appended.
+- Pass a new `onAdminGesture` prop to `<HeroSection>` (`:165`) that sets both `menu.setBranchSelector(true)` and `menu.setTerminalSelector(true)` — the triple-click re-pair gesture (§3 item 3).
+
+**`src/pages/HomePageModals.tsx`** (currently 315 lines total)
+- Drop the local `const BRANCH_KEY = 'kiosk_branch_data';` at `:26`; the existing `KioskBranchSelector`'s `onSelect` callback (`:113-125`) writes via `writeKioskBranch(branch)` instead of the inline `localStorage.setItem(BRANCH_KEY, ...)` at `:118`.
+- Render the new `<KioskTerminalPicker>` gated `{!branchSelector && terminalSelector && (...)}`, placed adjacent to the existing `{branchSelector && (<KioskBranchSelector .../>)}` block (`:113-125`) — the `!branchSelector` guard is required so the two `zIndex 99999` overlays never stack (branch selection must complete before terminal selection is shown).
+- Add the five kiosk payment sheets (`KioskPhoneEntrySheet`, `KioskPaymentSheet`, `KioskPaymentFailureSheet`, `KioskOrderApprovedSheet`, `KioskPayAtCounterSheet`) after the existing `<UnavailablePopup .../>` block near the end of the JSX (`:303-311`), each gated on the relevant `kiosk.phase` value from §8's state machine (e.g. `KioskPhoneEntrySheet` renders when `kiosk.phase === "phone"`, `KioskPaymentSheet` when `"awaiting-card"`, `KioskPaymentFailureSheet` when `"failed" | "error-terminal" | "error-retryable" | "mismatch"`, `KioskOrderApprovedSheet` when `"approved"`, `KioskPayAtCounterSheet` when `"deferred"`).
+
+**`src/domains/cart/components/CartComponent.tsx`** (currently 317 lines total)
+- Line `:198`: `{!isAdmin && (` → `{!isAdmin && !isKiosk && (`. This removes **both** toggle groups (delivery-type at `:200-225` and payment-method at `:227-243`) on kiosk in one change — the delivery-type block already had its own inner `{!isKiosk && (...)}` guard (`:200`), which becomes redundant but harmless once the outer guard also excludes kiosk; leave the inner guard in place rather than removing it (out of scope to touch working code beyond what's named). `isKiosk` is already a prop (interface `:47`, destructured `:74`) — no signature change needed.
+- `onCheckout` args at `:284` (`onCheckout?.(items, null, null, orderType, paymentMethod, "", null, false)`) are **unchanged** — the cart's Checkout button still calls the same `onCheckout` signature; on kiosk the delivery/payment defaults it passes are simply ignored downstream because `useCheckout.ts`'s new kiosk intercept (item 3 above) fires before those values are read.
+
+**`src/pages/HeroSection.tsx`** (currently 57 lines total)
+- New optional prop `onAdminGesture?: () => void`. When `isKiosk`, render an invisible `position: "absolute"` hotspot `Box` spanning the **top 20%** of the hero (`top: 0, left: 0, width: "100%", height: "20%"`) at `zIndex: 1`, `onClick={useTripleClick(onAdminGesture ?? (() => {}))}`. The video is `zIndex: 0` with `pointerEvents: "none"` (`:37`) and the language-toggle cluster is `zIndex: 2` (`:42`), so this hotspot at `zIndex: 1` sits above the video but below the toggle cluster and never swallows the toggle's own taps. No PIN, no confirmation dialog — a triple-click alone reopens both pickers via `onAdminGesture`.
+
+**`src/shared/i18n/index.ts`** (currently 68 lines total)
+- Register the `kiosk` namespace in all three places the existing 7 namespaces appear: the two import blocks (`:5-11` for `en*`, `:13-19` for `ar*`), both entries of the `resources` object (`:22-25`), and the `ns` array (`:42`, currently `["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth"]`).
+
+## 15. Algorithm / logic steps
+
+The `handleCheckout` kiosk intercept, the `useKioskCheckout` state machine transitions, and the failure-sheet Yes/No/60s routing are already given as numbered/ordered prose in §8 and are not repeated here. The only additional non-trivial logic not covered above:
+
+1. **`useTripleClick`**: on each click, push `Date.now()` into a ref-held array, drop entries older than `windowMs` (default a reasonable value such as 600ms — not specified by the plan; pick one and document it in a code comment, since no click-speed value was given), and if 3 timestamps remain within the window, call `onTrigger()` and clear the array. A click that arrives after a fire starts a fresh window.
+2. **`kioskFetch`**: build headers with `X-Kiosk-Name` set from `getKioskDeviceName()` only when non-null, plus `X-Client-Platform: kiosk-web` always; call `fetch` with no `Authorization` header and no `credentials`; on `response.status === 401` throw `KioskUnauthorizedError` without touching `window.location` (this is the entire reason this wrapper exists instead of reusing `authFetch`); on any other non-ok status throw `KioskHttpError(status, message)`, reading `message` the same defensive way `public.ts`'s `createOrder` does (`:82-96`: try `response.json().message`, fall back to `response.text()`, fall back to a generic string).
+3. **`resolveKioskBranchId`**: `JSON.parse` the stored value inside a try/catch (malformed data must not throw), return `parsed?.id` if present, else `DEFAULT_BRANCH_ID` (imported from `shared/api/client.ts`) — this is the same fallback chain `useMenuData.ts`'s current inline `resolveBranchId` already implements (`:106-118`), just centralized.
+
+## 16. Edge cases & error handling
+
+Follow the project's existing error-handling pattern (`ic-client/.claude/CLAUDE.md` — typed `Error` subclasses, never throw raw strings, propagate to the caller). Specific to this task:
+
+1. **Double-tap on the phone sheet's submit button** → `submittingRef` must make the second call a no-op; only one `createKioskOrder` fires (Phase 4 acceptance criterion).
+2. **`initiateKioskPayment` fails after `createKioskOrder` already succeeded** → retrying `submitPhone` must call `initiateKioskPayment` only, never `createKioskOrder` again (`pendingOrderIdRef` guard).
+3. **`ItemsUnavailableError` during `submitPhone`** → cart is split and reopened unconditionally + `refreshMenu()` is called; the phone step is abandoned for this attempt (customer re-enters checkout from the cart).
+4. **`BranchClosedError` during `submitPhone`** → error snackbar, no cart mutation.
+5. **`KioskUnauthorizedError` (401) from any kiosk call** → route to the terminal picker (device lost its pairing); this must work uniformly whether it happens during `submitPhone`, polling, or the failure sheet's defer/abandon calls.
+6. **`AMOUNT_MISMATCH`** → dead-end `mismatch` phase, no further network calls, no timer.
+7. **`defer` returns 409 (late approval after decline)** → `error-terminal`, not retryable.
+8. **`defer` returns any other error** → `error-retryable`; "Try again" re-invokes defer only.
+9. **`abandon` returns 404** → treated as success (idempotency edge case, §11).
+10. **60 seconds of silence on the failure sheet** → fire-and-forget `abandonKioskOrder`, ignore its result/errors beyond logging, then `resetKioskSession`. Must fire **exactly once** (`expiredRef` cap).
+11. **Network error during polling** (`fetchKioskPaymentResult` rejects) → set `error` on the polling result but **keep polling** — do not stop the loop.
+12. **120s payment timeout** → polling hook produces status `TIMEOUT`, which the checkout hook must also call `cancelKioskPayment` for (mirrors `cancelPayment` in the RN reference), then routes into the same `failed` phase as any other terminal failure (per §3 item 1, `TIMEOUT` is not a special case beyond that).
+13. **Unmount mid-poll** (customer navigates away / tab closes) → no state update after unmount; the `activeRef` guard from the reference implementation covers this.
+14. **Malformed/missing `kiosk_branch_data` or `kiosk_device_name` in `localStorage`** → treated as "not set" (falls through to the branch/terminal picker), never a thrown error.
+
+## 17. Dependency graph & execution order
+
+```
+Phase 6 (Cart chrome)  ─────────────────────────────────────── independent, start any time
+Phase 1 (Foundation: config / identity / branch util / triple-click / orderPayload / i18n)
+    │
+    ├──> Phase 2 (Kiosk API layer)
+    │        │
+    │        ├──> Phase 3 (Payment polling hook)
+    │        │        │
+    │        │        └──> Phase 4 (Checkout state machine + session reset)
+    │        │
+    │        └──> Phase 5 (Sheets + pickers UI)   [unblocks as soon as Phase 2's kiosk.ts signatures land]
+    │
+    └──> Phase 7 (useCheckout / useMenuData edits) [unblocks as soon as orderPayload.ts + kioskBranch.ts land]
+                     │
+   Phases 4 + 5 + 7 ─┴──> Phase 8 (HomePage / HomePageModals / HeroSection wiring + regression guards)
+```
+
+Verified non-overlapping file sets: no file appears in two phases. The one ordering hazard that is not pure file overlap: Phase 7 deletes `useCheckout.test.ts:1016` and `:1157` (the kiosk-language tests); those cases must exist in `resetKioskSession.test.ts` / `useKioskCheckout.test.ts` (Phase 4) **before or in the same landing** as Phase 7, or kiosk-language coverage is momentarily zero.
+
+**Standing rules for every phase** (from `phases-status.md`, apply uniformly): follow `ic-client/.claude/CLAUDE.md` strictly — no `any`, no `as X` without a justifying comment, explicit `Promise<T>` return types, typed `Error` subclasses (never throw strings), all popups as `Drawer anchor="bottom"` bottom sheets. No `@types/jest`: `import { jest } from "@jest/globals"`; always `const m = jest.fn<TReturn, TArgs>()`; never annotate `let m: jest.Mock<…>` (breaks `tsc`). Reuse before writing new code; port from `ic-pizza-kiosk` including its explanatory comments — do not invent. Backend repo is read-only, no backend changes in scope. Do not commit or push — leave all changes in the working tree. If a requirement turns out ambiguous or depends on something not visible, write `needs-clarification.md` with the exact open questions and STOP — do not guess, do not invent values, do not silently descope.
+
+---
+
+### Phase 1 — Foundation: config, identity, branch util, triple-click, order payload, i18n
+
+**Goal:** Land every dependency-free primitive the rest of the work imports, with **zero user-visible behaviour change**.
+
+**Files owned**
+- New: `src/domains/kiosk/config.ts` — poll interval 2000ms, payment timeout 120000ms, failure-prompt 60000ms, `APPROVED_AUTO_RETURN_MS` (get the real value from `ic-pizza-kiosk/services/config.ts` — do not invent, see §6 Open Question), phone country code `"973"` + digit count `8` (derived from §8's `"973########"` pattern).
+- New: `src/domains/kiosk/services/kioskIdentity.ts` — signature per §13.
+- New: `src/domains/kiosk/utils/kioskBranch.ts` — signature per §13. This phase only *creates* it; the three duplicated call sites (`HomePageModals.tsx:26`, `useMenuData.ts:48`, `useCheckout.ts:19`) are de-duplicated in Phases 7 and 8, not here.
+- New: `src/domains/kiosk/hooks/useTripleClick.ts` + `useTripleClick.test.ts` — signature per §13, algorithm per §15 item 1.
+- New: `src/domains/order/utils/orderPayload.ts` — `buildOrderItems`, `computeAmountPaid`, extracted **verbatim** from `useCheckout.ts:406-424` (the `items:` map and `amount_paid:` reduce inside the `order` object literal — see §14 edit item 6 for exact source lines). Created here, **not yet wired into `useCheckout.ts`** — that wiring is Phase 7's job.
+- New: `src/shared/i18n/locales/en/kiosk.json`, `src/shared/i18n/locales/ar/kiosk.json` — grouped `phone.* / payment.* / errors.* / failure.* / approved.* / counter.*`. Phone-validation copy is reused from `checkout` (`clientInfo.errors.onlyDigits`, `clientInfo.errors.phoneLength`) — do not duplicate those keys here.
+- Edit: `src/shared/i18n/index.ts` — register the 8th namespace per §14's exact edit.
+
+**Acceptance criteria**
+- `yarn tsc --noEmit` clean; `yarn test --watchAll=false` fully green with **no existing test changed**.
+- `useTripleClick.test.ts` covers: 3 clicks inside the window fires once; 3 clicks straddling the window does not fire; the window resets after a fire.
+- Nothing renders differently anywhere — this phase adds no call sites into any page/component.
+- Branch/terminal pickers stay English-only (no `kiosk.json` keys referenced by them — they don't exist yet).
+
+---
+
+### Phase 2 — Kiosk API layer
+
+**Goal:** One-file-swappable boundary for all 7 `/api/kiosk/**` endpoints, with a fetch wrapper that can never bounce the tab to `/auth`.
+
+**Files owned**
+- New: `src/shared/api/kioskClient.ts` — per §13/§15 item 2.
+- New: `src/shared/api/kiosk.ts` — per §13; endpoints per §5's contract table. **Before writing `PaymentResultResponse`, resolve the Open Question in §5** by reading the actual backend DTO.
+- New: `src/shared/api/__mocks__/kiosk.ts` — mirrors the factoryless-mock pattern in `shared/api/__mocks__/public.ts` (§ reference: every exported function becomes a `jest.fn<ReturnType, ArgTypes>()`, no `let m: jest.Mock<...>` annotations).
+- New: `src/shared/api/kioskClient.test.ts`, `src/shared/api/kiosk.test.ts`.
+
+**Hard constraints**
+- `kioskFetch` attaches `X-Kiosk-Name` from `kioskIdentity` (omitted when unset) + `X-Client-Platform: kiosk-web`. **Never** an `Authorization` header, never `credentials`.
+- 401 → `KioskUnauthorizedError`; other non-ok → `KioskHttpError(status, message)`. `window.location` must never be touched — this is exactly the behaviour `authFetch` has (`client.ts:29-34`) and exactly why it's banned here.
+- `createKioskOrder` reuses `ItemsUnavailableError` / `BranchClosedError` from `domains/order/types.ts` for 409/423, following `public.ts`'s `createOrder` throwing style (`public.ts:63-100`).
+- `fetchPairingOptions` sends no device name by design (it's how a freshly-unpaired device discovers what it can pair to); 401/403/404 → `PairingUnavailableError`.
+- Typed `Error` subclasses only — never throw a raw string.
+
+**Acceptance criteria**
+- `kioskClient.test.ts`: header attached when set / omitted when unset; **no `Authorization` header in any request**; 401 → typed error with `window.location` left untouched (assert `window.location.href` unchanged, or spy that `window.location.href` setter is never called).
+- `kiosk.test.ts`: per-endpoint URL + HTTP method assertions; 409 → `ItemsUnavailableError` carrying `unavailableIds`; 423 → `BranchClosedError`.
+- `yarn tsc --noEmit` clean; full suite green.
+
+**Unblock point:** Phase 5 can start as soon as this phase's exported types + function signatures in `kiosk.ts` are committed — it does not need this phase's tests finished.
+
+---
+
+### Phase 3 — Payment polling hook
+
+**Goal:** Port `ic-pizza-kiosk/domains/payment/hooks/usePaymentPolling.ts` to React, keeping every guard and every explanatory comment (§6 — read that file directly before writing this hook).
+
+**Files owned**
+- New: `src/domains/kiosk/hooks/useKioskPaymentPolling.ts` — signature per §13.
+- New: `src/domains/kiosk/hooks/useKioskPaymentPolling.test.ts`.
+
+**Hard constraints**
+- Self-scheduling `setTimeout`, **never `setInterval`**. `activeRef` checked on every async continuation (fetch resolves after unmount → no state update). Status resets whenever the `invoiceNum` argument changes. Network errors set `error` but **keep polling** — do not stop the loop on a transient failure.
+- 120s (`PAYMENT_TIMEOUT_MS` from Phase 1's `config.ts`) → status `TIMEOUT`, and this hook (or its caller — decide during implementation and document the choice) must trigger `cancelPayment`/`cancelKioskPayment` for the invoice.
+- Passing `null` for `invoiceNum` stops the loop with **no second guard needed elsewhere** — this is what Phase 4's `useKioskCheckout` relies on (`useKioskPaymentPolling(phase === "awaiting-card" ? invoiceNum : null)`).
+
+**Acceptance criteria**
+- Fake-timer tests: at most one request in flight at a time; a terminal status stops the loop; a rejected request keeps polling; 120s produces `TIMEOUT` **and** calls the cancel path; unmount is silent (no "state update on an unmounted component" warning); changing the invoice argument resets `status`/`result`/`error` to their initial values.
+- `yarn tsc --noEmit` clean; full suite green.
+
+---
+
+### Phase 4 — Kiosk checkout state machine + session reset
+
+**Goal:** The `idle → phone → awaiting-card → approved | failed | mismatch` machine from §8, plus the pure reset-for-next-customer function from §9.
+
+**Files owned**
+- New: `src/domains/kiosk/hooks/useKioskCheckout.ts` — signature per §13, full behavior per §8.
+- New: `src/domains/kiosk/utils/resetKioskSession.ts` — signature per §13, clear-list per §9. Pure function over explicit setters; no hook, no cycle.
+- New: `src/domains/kiosk/hooks/useKioskCheckout.test.ts`, `src/domains/kiosk/utils/resetKioskSession.test.ts`.
+
+**Hard constraints (user-locked — reproduced from §3/§8/§9, do not deviate)**
+- `submitting` is a separate boolean, not a phase.
+- Three refs: `submittingRef`, `pendingOrderIdRef`, `onSessionEndRef` — exact semantics per §8.
+- **No card retry.** `DECLINED`/`CANCELLED`/`EXPIRED`/`ERROR`/`TIMEOUT` → `failed` → front-desk Yes/No only.
+- `AMOUNT_MISMATCH` → `mismatch` dead end: no abandon, no defer, no timer, never enters `failed`/`asking`.
+- `APPROVED` → clear cart, show confirmation. The backend already settled and published — the client does nothing else.
+- Error routing on `submitPhone` exactly per §8/§16 items 3-5.
+- Poll via `useKioskPaymentPolling(phase === "awaiting-card" ? invoiceNum : null)`.
+- Payload construction exactly per §8 "Order payload" — including the **no `idempotency_key`** rule.
+- `resetKioskSession` clears exactly the list in §9, in particular: language reset happens at session end, not at order-creation time; `kiosk_branch_data`/`kiosk_device_name` are **never** cleared.
+- **Nothing in this file may set `checkoutLoading`** — it doesn't have access to that setter at all, which is what makes §3 item 5 structural once Phase 7 lands.
+
+**Acceptance criteria**
+- `useKioskCheckout.test.ts`: full phase walk `idle → phone → awaiting-card → approved`; **two taps in one tick ⇒ exactly one `createKioskOrder` call**; an initiate-retry (after `initiate` failed once) calls `createOrder` exactly once total across both attempts; an `ItemsUnavailableError` during `submitPhone` splits the cart and reopens it; `AMOUNT_MISMATCH` never calls `abandonKioskOrder` or `deferOrderToCounter` and sets no timer; `customer_name` in the built payload is `null`; `amount_paid` has exactly 3 decimal places.
+- `resetKioskSession.test.ts`: every setter enumerated in §9 is called exactly once with the documented reset value; `kiosk_branch_data` and `kiosk_device_name` survive a call. **This test file absorbs the kiosk-language reset cases migrated out of `useCheckout.test.ts:1016` and `:1157`** (see §14 item 4 and the Phase 7 test edit).
+- `yarn tsc --noEmit` clean; full suite green.
+
+**Coordination note:** land this phase **before or together with** Phase 7 — Phase 7 deletes the two kiosk-language tests in `useCheckout.test.ts`; if Phase 7 lands first without this phase's replacement tests, kiosk-language coverage is momentarily zero.
+
+---
+
+### Phase 5 — Kiosk sheets + terminal picker (UI)
+
+**Goal:** All six kiosk surfaces, as MUI bottom sheets that copy `CashInputDrawer.tsx` exactly (§7). Presentation + the sheet-local defer/abandon button wiring; no dependency on Phase 3/4 beyond the `kiosk.ts` types from Phase 2.
+
+**Files owned** (all under `src/domains/kiosk/components/`)
+- New: `KioskTerminalPicker.tsx`, `KioskPhoneEntrySheet.tsx`, `KioskPaymentSheet.tsx`, `KioskPaymentFailureSheet.tsx`, `KioskOrderApprovedSheet.tsx`, `KioskPayAtCounterSheet.tsx`.
+- New: `KioskTerminalPicker.test.tsx`, `KioskPhoneEntrySheet.test.tsx`, `KioskPaymentFailureSheet.test.tsx`.
+
+**Hard constraints (user-locked — "please pay attention to the UI")**
+- Every sheet follows §7 exactly: `Drawer anchor="bottom"`, rounded top corners, grey `40×4` drag pill, `<Box sx={{ p: 3, pb: 4 }}>` content wrapper, `maxWidth: { sm: 500 }`, `mx: { sm: 'auto' }`. `KioskOrderApprovedSheet` adds `maxHeight: '90vh', overflowY: 'auto'`.
+- `KioskPaymentSheet` and `KioskPaymentFailureSheet`: `onClose={() => {}}` + `ModalProps={{ disableEscapeKeyDown: true }}`.
+- z-index per §7's table: the five payment sheets at 1400, `KioskTerminalPicker` at 99999 (matching the existing `KioskBranchSelector` convention — `zIndex: 99999`, full-screen `position: "fixed"` overlay backdrop, per the file read in this spec's grounding pass).
+- `KioskPaymentFailureSheet`: 5 phases (`failed`/asking-yes-no, `deferred`-in-flight, `error-terminal`, `error-retryable`, the `mismatch` dead-end display), the 60s countdown in a **separate effect** from any tick/display effect, `expiredRef` capping the auto-abandon at one fire. Yes → `deferOrderToCounter` (409 → `error-terminal`; other → `error-retryable`, whose "Try again" re-invokes defer only). No → `abandonKioskOrder` (404 → treated as success). Silence → fire-and-forget abandon then reset.
+- `KioskOrderApprovedSheet`: render the 6 `dcc*` fields only when `dccMsg ?? dccRate ?? dccAmount` is populated (§10).
+- Sheets use `useTranslation(["kiosk", "checkout"])`; phone validation copy comes from `checkout`'s existing keys. `KioskTerminalPicker` stays English-only (plain strings or `enI18n`, matching `KioskBranchSelector`'s current plain-English copy).
+- No `any`, no unexplained `as X`, explicit `Promise<T>` return types on every async handler.
+
+**Acceptance criteria**
+- `KioskPaymentFailureSheet.test.tsx`: all 5 phases render their distinct content; 409-on-defer routes to `error-terminal`; non-409-on-defer routes to `error-retryable`; 404-on-abandon is treated as success; the 60s timer fires abandon **exactly once** (fake timers, advance past 60s twice, assert one call).
+- `KioskPhoneEntrySheet.test.tsx`: digits-only + length validation using the reused `checkout` i18n keys; an inline error does not clear already-typed digits; a spinner/disabled state shows while `submitting` is true.
+- `KioskTerminalPicker.test.tsx`: client-side filtering of `fetchPairingOptions()` results by the locally-stored branch id; a selection persists via `kioskIdentity.setKioskDeviceName`; a `PairingUnavailableError` renders a diagnosable on-screen message (not a silent blank screen).
+- `yarn tsc --noEmit` clean; full suite green.
+
+---
+
+### Phase 6 — Cart chrome on kiosk
+
+**Goal:** Remove the delivery-type and payment-method toggle groups from the cart in kiosk mode. Fully independent file pair — can be implemented at any point, including before Phase 1.
+
+**Files owned**
+- Edit: `src/domains/cart/components/CartComponent.tsx` — exact change per §14's `CartComponent.tsx` entry (line `:198` guard change only).
+- Edit: `src/domains/cart/components/CartComponent.test.tsx` — the test at `:95-101` ("hides the delivery-type toggle on kiosk") currently asserts `expect(screen.getByRole("button", { name: "Card" })).toBeTruthy();` at line `:100`, i.e. it asserts the payment toggle **is still present** on kiosk. Flip that assertion to `expect(screen.queryByRole("button", { name: "Card" })).toBeNull();`, rename the `it(...)` description to reflect that both toggle groups are now hidden on kiosk, and add companion `queryByRole(...).toBeNull()` assertions for `"Cash"`, `"Benefit"`, and the `paymentTitle` translated label (the `Typography` at `CartComponent.tsx:227-229`).
+
+**Acceptance criteria**
+- Non-kiosk (`isKiosk: false`) and admin (`isAdmin: true`) cart rendering is **byte-for-byte behaviourally identical** to before this change — the existing tests at `:61-84` and `:87-94`/`:103-107` and `:110-121` must all still pass unmodified.
+- `yarn tsc --noEmit` clean; full suite green.
+
+---
+
+### Phase 7 — Checkout + menu hook edits
+
+**Goal:** Cut the old kiosk arm out of `useCheckout`, hand kiosk checkout off to the new hook, and route both hooks through the shared branch util / money path.
+
+**Files owned**
+- Edit: `src/domains/order/hooks/useCheckout.ts` — all six edits from §14's `useCheckout.ts` entry, verbatim.
+- Edit: `src/domains/menu/hooks/useMenuData.ts` — both edits from §14's `useMenuData.ts` entry, verbatim.
+- Edit: `src/domains/order/hooks/useCheckout.test.ts` —
+  - Rewrite the `describe("useCheckout — kiosk flow never gated", ...)` block (currently `:989-1011`, the `it("never opens the login sheet for a kiosk checkout", ...)` test at `:994-1010`) to assert `onKioskCheckout` fires exactly once with the submitted items and `createOrder` is **not** called at all (currently it asserts `mockCreateOrder` **was** called once — that assertion inverts).
+  - Remove the `describe("useCheckout — kiosk resets the shared tab's language after checkout", ...)` block (`:1016-1080`) and the single kiosk-specific test inside `describe("useCheckout — stamps language from the browser locale when the app itself is English", ...)` (the `it("stamps language 'en' on a kiosk order even when the browser locale is Arabic (kiosk ignores navigator)", ...)` test at `:1157-1173`) — both are migrated to `resetKioskSession.test.ts` / `useKioskCheckout.test.ts` in Phase 4. **Keep** the non-kiosk sibling test at `:1143-1155` ("stamps language 'ar' when the app is English but the browser locale is Arabic (non-kiosk)") in place, unmodified.
+
+**Hard constraints**
+- Deleting the kiosk branch is what makes the `checkoutLoading` constraint (§3 item 5) structural — after this phase, nothing in `useCheckout.ts`'s kiosk path exists to set it, because there is no kiosk path left in this file.
+- Admin, logged-in-customer, and guest checkout paths must be behaviourally identical before/after — the only diff is the kiosk-only intercept (item 3) plus the pure `orderPayload` extraction (item 6), which must produce byte-identical `items`/`amount_paid` values to the code it replaces.
+- Before removing the `suppressSoundIds` write (item 4), confirm no admin tab depends on it (§11, last bullet) — grep the admin order-board hooks/components for reads of that localStorage key before deleting the write.
+
+**Acceptance criteria**
+- `yarn tsc --noEmit` clean; `useCheckout.test.ts` green with the rewritten kiosk-gating test and the two kiosk-language tests removed; the whole suite green.
+- Non-kiosk `createOrder` payload is byte-identical before/after the `orderPayload` extraction — the existing money-assertion tests elsewhere in `useCheckout.test.ts` (e.g. the amount_paid / 3dp cases) must pass **unmodified**.
+
+**Unblock point:** can start as soon as Phase 1 has committed `orderPayload.ts` and `kioskBranch.ts` — does not need Phases 2-5.
+
+---
+
+### Phase 8 — Page wiring + regression guards
+
+**Goal:** Compose everything on `HomePage`, render the sheets and pickers, add the re-pair gesture, and lock the `PizzaLoader` regression down with a test.
+
+**Files owned**
+- Edit: `src/pages/HomePage.tsx` — all edits from §14's `HomePage.tsx` entry, verbatim.
+- Edit: `src/pages/HomePageModals.tsx` — all edits from §14's `HomePageModals.tsx` entry, verbatim.
+- Edit: `src/pages/HeroSection.tsx` — all edits from §14's `HeroSection.tsx` entry, verbatim.
+- Edit: `src/pages/HomePage.test.tsx` — the existing kiosk-mode tests seed `localStorage.setItem("kiosk_branch_data", ...)` around `:164` (confirmed: `:160-164`, comment "localStorage key "kiosk_branch_data" absent) -- seed it so the kiosk tests below start from a..."). Every such test must **also** seed `kiosk_device_name` (via `KIOSK_DEVICE_NAME_KEY`/`setKioskDeviceName`, or the raw localStorage key it resolves to), or `menu.terminalSelector` opens `KioskTerminalPicker` and `anyPopupOpen` suppresses the scroll-hint arrow those tests may be asserting on. Add the plan's **highest-value new test**: `?mode=kiosk` with a live payment (`kiosk.phase === "awaiting-card"` or similar) **never renders `<PizzaLoader/>`**, and the payment sheet stays mounted throughout.
+
+**Acceptance criteria**
+- `HomePage.test.tsx`: existing kiosk tests pass with the added `kiosk_device_name` seed; the new `PizzaLoader` regression guard passes.
+- Gates: `yarn tsc --noEmit` clean, `yarn test --watchAll=false` fully green, `yarn build` succeeds. (`CI=true yarn build` failing on pre-existing project-wide ESLint warnings in files this task does not touch is **not** a regression signal — do not attempt to fix those warnings.)
+- **Every non-kiosk mode is behaviourally identical** to before this task. Do not touch the cross-sell, cart, hero, or any non-kiosk path beyond what §14 lists.
+- Manual walkthrough per §18 (End-to-end verification) steps 3-5, once the backend branch is running locally.
+
+---
+
+## 18. Test plan
+
+**Preconditions for `code-tester`:** this task can only be considered done once, for the files each phase owns, the following all pass: `yarn tsc --noEmit`, `yarn test --watchAll=false`, `yarn build`. Follow the project's existing Jest conventions (`ic-client/.claude/CLAUDE.md`): no `@types/jest`, `import { jest } from "@jest/globals"`, always `const m = jest.fn<TReturn, TArgs>()` (never `let m: jest.Mock<...>`), factoryless `jest.mock("../path/to/module")` resolving to a manual `__mocks__/` file for every new API module (mirrors the existing `public.ts`/`management.ts`/`customerAuth.ts` mocks).
+
+**Breaks that must be fixed (existing tests the plan explicitly changes):**
+- `CartComponent.test.tsx:95-101` — flip the "Card toggle is present on kiosk" assertion to null, per Phase 6.
+- `useCheckout.test.ts:989-1011` — rewrite the kiosk-gating test to assert `onKioskCheckout` fires and `createOrder` does not, per Phase 7.
+- `useCheckout.test.ts:1016-1080` and `:1157-1173` — remove (migrated to Phase 4's `resetKioskSession.test.ts`/`useKioskCheckout.test.ts`); keep the non-kiosk sibling at `:1143-1155`.
+- `HomePage.test.tsx` (around `:160-164`) — kiosk tests must additionally seed `kiosk_device_name`, per Phase 8.
+
+**New test files, one per phase, listed in full in each `### Phase N` section above:**
+- Phase 1: `useTripleClick.test.ts`.
+- Phase 2: `kioskClient.test.ts`, `kiosk.test.ts`.
+- Phase 3: `useKioskPaymentPolling.test.ts`.
+- Phase 4: `useKioskCheckout.test.ts`, `resetKioskSession.test.ts`.
+- Phase 5: `KioskTerminalPicker.test.tsx`, `KioskPhoneEntrySheet.test.tsx`, `KioskPaymentFailureSheet.test.tsx`.
+- Phase 8: the `PizzaLoader`-never-renders-with-a-live-kiosk-payment regression test, added to `HomePage.test.tsx`.
+
+**Highest-value new test (call this out explicitly to whoever reviews the PR):** `?mode=kiosk` with a live payment in progress must never render `<PizzaLoader/>` — this is the direct regression guard for §3 item 5.
+
+## 19. End-to-end verification (manual, once the backend branch is runnable)
+
+1. `yarn tsc --noEmit` && `yarn test --watchAll=false` && `yarn build`. (`CI=true yarn build` failing on pre-existing project-wide ESLint warnings is not a regression signal.)
+2. Backend: check out `eazypay-integration` (in the **backend** repo only — never in `ic-client`), apply the two manual DDL statements (unique index on `kiosks.device_name`; partial unique index on `payment_transactions(order_id) WHERE status IN ('INITIATING','PENDING')`), run with EazyPay credentials, register a kiosk via `POST /api/kiosk-admin/kiosks`.
+3. `yarn start` → `http://localhost:3000/menu?mode=kiosk` — confirm this origin is on the backend's CORS allowlist (see the Open Question in §11). Pick branch → pick kiosk → add items → Checkout → cross-sell → Checkout → phone → "Tap your card".
+4. Exercise all four terminal outcomes: approve; decline → Yes (order appears on the admin board unpaid as `Cash`); decline → No (order gone, cart cleared, back at the menu); decline → wait 60s (same end state as No).
+5. Triple-click the top of the hero video → both pickers reopen.
+
+## 20. Acceptance criteria (global — in addition to each phase's own)
+
+- [ ] All 8 phases' individual acceptance criteria (above) pass.
+- [ ] `yarn tsc --noEmit` clean at the end of the full task.
+- [ ] `yarn test --watchAll=false` fully green, including every "Breaks that must be fixed" item in §18.
+- [ ] `yarn build` succeeds (pre-existing project-wide ESLint warnings in untouched files are not a blocker).
+- [ ] No file outside the tables in §12/§14 was created or modified.
+- [ ] No new npm dependency was added to `package.json`.
+- [ ] No `any`, no unexplained `as X`, typed `Error` subclasses only, across every new/edited file.
+- [ ] Working tree has no commits beyond the pre-existing `eazypay-integration` branch state — nothing was committed or pushed.
+- [ ] Non-kiosk mode (`isAdmin`, logged-in customer, guest, admin edit-mode) is behaviourally unchanged — verified by the untouched existing tests still passing.
+- [ ] `?mode=kiosk` with a live payment never renders `<PizzaLoader/>` (Phase 8 regression test).
+- [ ] Two rapid taps on the kiosk phone-submit button produce exactly one `createKioskOrder` call (Phase 4 test).
+- [ ] `AMOUNT_MISMATCH` never triggers `abandonKioskOrder` or `deferOrderToCounter` and starts no 60s timer (Phase 4/5 tests).
+- [ ] `kioskFetch` never sends an `Authorization` header and never redirects via `window.location` on 401 (Phase 2 test).
+
+## 21. Out of scope
+
+- Any change to `/Users/andrew/Documents/ICpizza/Main/backend` — read-only for this task, checked out or edited by no one.
+- The non-kiosk `ClientInfoPopup` component and flow — must remain byte-for-byte untouched.
+- The cross-sell logic itself (`CrossSellPopup`, `finalCrossSellItems`/`generalCrossSellItems` selection) — only its kiosk call-site gating in `useCheckout.ts` item 3 changes; the popup and its content are untouched.
+- A global idle timer for an abandoned cart before the phone step is reached (§11, explicitly deferred to a follow-up task).
+- "Fixing" the non-idempotent `abandon` endpoint or the idempotent-but-money-already-moved `AMOUNT_MISMATCH` case — these are backend behaviours to route around, not to change.
+- Any refactor of `buildOrderTO` / `EditOrderRequest` construction (`useCheckout.ts:141-170`) — structurally similar to the extraction in Phase 1/7 but a different type, explicitly out of scope.
+- Adding an `idempotency_key` to the kiosk order payload — does not exist on this backend branch's `CreateOrderTO`.
+- Any new npm/yarn dependency.
+- Committing or pushing any change — everything stays in the working tree.
+- Removing the `suppressSoundIds` localStorage write without first confirming (per §11) that no admin tab reads it.
+
+## 22. Open questions
+
+These could not be resolved during this spec-writing pass because this environment had no shell/Bash tool (so `git -C backend show eazypay-integration:<path>` could not be run) and no filesystem read permission for `/Users/andrew/Documents/ICpizza/Main/backend` or `/Users/andrew/Documents/ICpizza/Main/ic-pizza-kiosk`. **Implementers of the affected phases must resolve these by reading the actual source before writing code that depends on them — do not guess.**
+
+1. **Full `PaymentResultResponse` field list** (Phase 2) — only `cardNo`, `trnRrn`, `trnAuthCode`, `posEntryMode`, 3 of 6 `dcc*` field names, and `failureReason` are known from the plan text; the remaining ~9 of 16 fields (including the exact `dcc*` sextet) must be read off the backend DTO directly.
+2. **`APPROVED_AUTO_RETURN_MS` numeric value** (Phase 1) — the plan names the constant but never gives a number; it must be copied from `ic-pizza-kiosk/services/config.ts`.
+3. **`useTripleClick`'s default `windowMs`** — not specified anywhere in the plan or the RN reference description available to this pass; Phase 1's implementer should check `ic-pizza-kiosk`'s equivalent gesture (if one exists there) before picking an arbitrary value, and must document the chosen value with a comment either way.
+4. **CORS allowlist currency** — the plan names `localhost:3000`, `ic-pizza.com`, `www.ic-pizza.com`, `icpizza-back.onrender.com`, but the actual `shared/api/client.ts` in this working tree points at `api.ic-pizza.com` (prod) / `localhost:8000` (dev), not `icpizza-back.onrender.com` / `:8080`. Confirm the real `eazypay-integration` backend's CORS allowlist against whatever origin `kioskFetch` actually targets before relying on it in manual testing (§19 step 3).
+5. **Exact JSON field casing for the kiosk endpoints** (`invoiceNum` vs `invoice_num`, etc.) — assumed camelCase in §13 by analogy with the existing `Items409Response.unavailableIds` convention in this codebase, but not independently confirmed against the backend's serialization config for the `/kiosk/**` controllers specifically.
+
+If any of the above cannot be resolved by reading the source directly (e.g. the backend branch truly isn't reachable), stop per the standing rule in §17 and write `needs-clarification.md` rather than inventing values.
+```
+END_TASK_SPEC
