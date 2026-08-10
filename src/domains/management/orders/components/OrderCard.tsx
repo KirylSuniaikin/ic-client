@@ -23,23 +23,8 @@ import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderL
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
-const colorGray = '#E0E0E0';
-
-/** Kiosk orders the customer has gone to the front desk to pay for. */
-const AWAITING_COUNTER_PAYMENT = 'Awaiting Counter Payment';
-
-function isAwaitingCounterPayment(order: Order): boolean {
-    return order.status === AWAITING_COUNTER_PAYMENT;
-}
-
-/**
- * Status wins over order_type. A counter-payment order is a kiosk "Pick Up", so the order_type
- * chain alone would render it as an ordinary white card, indistinguishable from a paid one.
- *
- * Extracted from an inline four-deep ternary that was already at its readability limit.
- */
+/** Extracted from an inline four-deep ternary that was already at its readability limit. */
 function cardBackgroundColor(order: Order): string {
-    if (isAwaitingCounterPayment(order)) return colorGray;
     if (order.order_type === "Jahez") return "#fff5f5";
     if (order.order_type === "Keeta") return '#CDBA2E';
     if (order.order_type === "Talabat") return '#fbaa66';
@@ -191,19 +176,9 @@ function OrderCard({
         [order.estimation]
     );
 
-    // An unpaid counter order isn't being cooked to an estimate — it's being held, and it
-    // disappears when the hold runs out. Counting down the kitchen ETA on that card would show a
-    // number that means nothing and hide the one that matters.
-    const holdEndTs = useMemo(
-        () => (order.counter_hold_expires_at ? toEpochMsBahrain(order.counter_hold_expires_at) : null),
-        [order.counter_hold_expires_at]
-    );
-
     const endTs = useMemo(
-        () => (isAwaitingCounterPayment(order) && holdEndTs !== null
-            ? holdEndTs
-            : createdMs + (TOTAL_SEC + extraSec) * 1000),
-        [order, holdEndTs, createdMs, TOTAL_SEC, extraSec]
+        () => createdMs + (TOTAL_SEC + extraSec) * 1000,
+        [createdMs, TOTAL_SEC, extraSec]
     );
 
     const msLeft = usePreciseCountdown(endTs, 250);
@@ -280,27 +255,6 @@ function OrderCard({
                                 #{order.order_type === "Jahez" || order.order_type === "Keeta" || order.order_type === "Talabat" ? formatExternalId(order.external_id) : order.order_no}{" "}
                             </Typography>
                         </Typography>
-
-                        {/* The gray card alone is a weak signal on a bright kitchen tablet, and it
-                            is invisible to a colour-vision-impaired member of staff. The label is
-                            what actually says "this one has not been paid for". */}
-                        {isAwaitingCounterPayment(order) && (
-                            <Box
-                                data-testid="awaiting-counter-payment-chip"
-                                sx={{
-                                    px: 1,
-                                    py: 0.25,
-                                    borderRadius: 1,
-                                    backgroundColor: colorRed,
-                                    color: "#fff",
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    whiteSpace: "nowrap"
-                                }}
-                            >
-                                PAY AT COUNTER
-                            </Box>
-                        )}
 
                         <IconButton
                             size="small"

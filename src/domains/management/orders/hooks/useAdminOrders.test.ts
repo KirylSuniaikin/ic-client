@@ -257,31 +257,7 @@ describe("useAdminOrders — forward-only status guard", () => {
         expect(view.result.current.orders[0].status).toBe("Ready");
     });
 
-    it("promotes an awaiting-counter-payment order when the cashier takes the money", async () => {
-        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Awaiting Counter Payment")]);
-        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
-        await act(async () => {
-            view = renderHook(() => useAdminOrders("branch-1", stopSound));
-        });
 
-        act(() => sendStatus(7, "Kitchen Phase"));
-
-        expect(view.result.current.orders[0].status).toBe("Kitchen Phase");
-    });
-
-    it("ignores a re-delivered counter-payment frame for an order already in the kitchen", async () => {
-        // Without an explicit STATUS_RANK entry an unknown incoming status ranks
-        // MAX_SAFE_INTEGER and is always applied — dragging a paid order back to gray.
-        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Oven")]);
-        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
-        await act(async () => {
-            view = renderHook(() => useAdminOrders("branch-1", stopSound));
-        });
-
-        act(() => sendStatus(7, "Awaiting Counter Payment"));
-
-        expect(view.result.current.orders[0].status).toBe("Oven");
-    });
 });
 
 describe("useAdminOrders — order removal does not silence an unrelated alarm", () => {
@@ -313,8 +289,8 @@ describe("useAdminOrders — order removal does not silence an unrelated alarm",
     });
 
     it("removes the cancelled order from the board", async () => {
-        // The expiry sweeper reuses this topic, which is why no tenth subscription was needed.
-        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Awaiting Counter Payment")]);
+        // Deleting an order pushes here, which is why no tenth subscription was needed.
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Kitchen Phase")]);
         const stopSound = jest.fn<void, []>();
         let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
         await act(async () => {
@@ -327,8 +303,8 @@ describe("useAdminOrders — order removal does not silence an unrelated alarm",
     });
 
     it("does not stop the alarm when a different order is removed", async () => {
-        // The handler used to call stopSound unconditionally. Now that ordinary deletes and the
-        // expiry sweeper both push here, that would silence a live alarm for another order.
+        // The handler used to call stopSound unconditionally. Now that ordinary deletes push
+        // here too, that would silence a live alarm for another order.
         mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Kitchen Phase"), orderWith(8, "Kitchen Phase")]);
         const stopSound = jest.fn<void, []>();
         await act(async () => {

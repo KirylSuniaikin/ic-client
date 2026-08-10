@@ -63,39 +63,11 @@ function backgroundOf(card: HTMLElement): string {
     return window.getComputedStyle(card).backgroundColor;
 }
 
-describe("OrderCard — counter-payment orders", () => {
-    it("renders an awaiting-counter-payment order on a gray card", () => {
-        const card = renderCard(makeOrder({ status: "Awaiting Counter Payment" }));
-
-        expect(backgroundOf(card)).toBe("rgb(224, 224, 224)");
-    });
-
-    it("labels the card so the gray is not the only signal", () => {
-        renderCard(makeOrder({ status: "Awaiting Counter Payment" }));
-
-        expect(screen.getByTestId("awaiting-counter-payment-chip").textContent).toBe("PAY AT COUNTER");
-    });
-
-    it("does not offer OVEN on an unpaid counter order", () => {
-        // The kitchen flow starts only once the cashier has taken the money.
-        renderCard(makeOrder({ status: "Awaiting Counter Payment" }));
-
-        expect(screen.queryByText("OVEN")).toBeNull();
-    });
-
-    it("leaves PAY enabled so the cashier can take the money", () => {
-        renderCard(makeOrder({ status: "Awaiting Counter Payment" }));
-
-        expect((screen.getByText("PAY").closest("button") as HTMLButtonElement).disabled).toBe(false);
-    });
-});
-
-describe("OrderCard — background colours are unchanged for every other order", () => {
+describe("OrderCard — background colours", () => {
     it("renders an ordinary kitchen order white", () => {
         const card = renderCard(makeOrder({ status: "Kitchen Phase" }));
 
         expect(backgroundOf(card)).toBe("rgb(255, 255, 255)");
-        expect(screen.queryByTestId("awaiting-counter-payment-chip")).toBeNull();
     });
 
     it.each([
@@ -103,8 +75,7 @@ describe("OrderCard — background colours are unchanged for every other order",
         ["Keeta", "rgb(205, 186, 46)"],
         ["Talabat", "rgb(251, 170, 102)"],
     ] as const)("keeps the %s colour", (orderType, expected) => {
-        // Regression guard: the status check was added ahead of the order_type chain, so these
-        // must still resolve exactly as before.
+        // Regression guard for cardBackgroundColor(), which replaced an inline four-deep ternary.
         const card = renderCard(makeOrder({ order_type: orderType }));
 
         expect(backgroundOf(card)).toBe(expected);

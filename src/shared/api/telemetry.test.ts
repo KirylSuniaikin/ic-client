@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach, afterEach, afterAll } from "@je
 import { reportClientError } from "./telemetry";
 import type { ClientErrorPayload, ClientErrorSource } from "./telemetry";
 import { BASE_URL } from "./client";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 const ALLOWED_SOURCES: ClientErrorSource[] = [
     "error-boundary",
@@ -63,6 +64,16 @@ describe("reportClientError", () => {
             source: "error-boundary",
         });
         expect(ALLOWED_SOURCES).toContain(body.source);
+    });
+
+    it("sends X-Client-Platform: web", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await reportClientError({ message: "platform-header-test", source: "api-network" });
+
+        const [, init] = mockFetch.mock.calls[0] as [RequestInfo, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("dedups within the cooldown window — a repeated identical error posts only once", async () => {

@@ -1,4 +1,5 @@
 import { BASE_URL } from './client';
+import { applyClientPlatform } from './clientPlatform';
 
 // Allowed `source` values, locked by the backend's ClientErrorReportRequest DTO
 // (core/notification/ClientErrorController.java, ST3).
@@ -79,9 +80,12 @@ export async function reportClientError(payload: ClientErrorPayload): Promise<vo
     };
 
     try {
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        applyClientPlatform(headers);
+
         await fetch(`${BASE_URL}/client-errors`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(body),
         });
     } catch {

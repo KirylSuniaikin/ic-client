@@ -64,8 +64,7 @@ export default function PaymentPopup({
     const [payers, setPayers] = useState<Payer[]>([{ id: mkId(), type: "cash", amount: "" }]);
 
     // A failed leg used to leave the popup frozen forever with no message and the order half-paid,
-    // because nothing here caught. That became reachable when counter-payment orders started
-    // expiring on a timer: the order can be gone by the time the cashier hits Confirm.
+    // because nothing here caught: leg 1 succeeds, leg 2 throws, onPaymentSuccess never fires.
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 

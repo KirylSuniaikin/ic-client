@@ -45,10 +45,6 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
 const STATUS_RANK: Record<string, number> = {
-    // Ranked below Kitchen Phase, and listed explicitly rather than left to the unknown-status
-    // fallback: an unlisted incoming status ranks MAX_SAFE_INTEGER and is always applied, so a
-    // re-delivered arrival frame could drag an order the cashier already paid for back to unpaid.
-    'Awaiting Counter Payment': -1,
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
@@ -252,9 +248,9 @@ export function useAdminOrders(
                     const payload = JSON.parse(frame.body) as { orderId?: unknown; id?: unknown };
                     const cancelledOrderId = normalizeId(payload?.orderId ?? payload?.id ?? payload);
 
-                    // Only silence the alarm if it is THIS order's. Deletions now push here too
-                    // (an expired counter-payment order, a staff delete), so an unconditional stop
-                    // would kill a live alarm for a different, still-unacknowledged order.
+                    // Only silence the alarm if it is THIS order's. Staff deletes now push here
+                    // too, so an unconditional stop would kill a live alarm for a different,
+                    // still-unacknowledged order.
                     if (alertOrderRef.current && getStringId(alertOrderRef.current) === cancelledOrderId) {
                         stopSoundRef.current();
                         setAlertOrder(null);

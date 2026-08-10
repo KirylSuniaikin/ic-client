@@ -57,14 +57,7 @@ function AdminHomePage(): JSX.Element {
     if (branchError) return <div>Error: {branchError}</div>;
     const sortedOrders = [...orders].sort((a, b) => new Date(a.order_created).getTime() - new Date(b.order_created).getTime());
     const branchForComponents = selectedBranch ? { ...selectedBranch, id: String(selectedBranch.id) } : null; // id: string for History/Config
-    // Patches the status too, not just isPaid: taking payment on a counter-payment order promotes
-    // it into the kitchen server-side. Without the local patch, a dropped status frame leaves a
-    // gray card whose PAY button is now disabled — an order nobody can action.
-    // Conditional on purpose: an unconditional flip would drag a "Ready" order back to the kitchen.
-    const handlePaymentSuccess = (orderId: string): void => setOrders(prev => prev.map(o =>
-        o.id === orderId
-            ? { ...o, isPaid: true, status: o.status === 'Awaiting Counter Payment' ? 'Kitchen Phase' : o.status }
-            : o));
+    const handlePaymentSuccess = (orderId: string): void => setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: true } : o));
     return (
         <LtrBoundary>
         <div className="p-4 max-w-4xl mx-auto">
