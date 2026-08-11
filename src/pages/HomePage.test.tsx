@@ -21,10 +21,6 @@ jest.mock("../shared/api/customerAuth");
 // handleOpenCart entry point, without needing a real working-hours schedule fixture.
 jest.mock("../domains/schedule/utils/isWithinWorkingHours");
 
-// The kiosk flow talks to /api/kiosk/** through this module only, so mocking it is the whole
-// network boundary for the payment tests below.
-jest.mock("../shared/api/kiosk");
-
 // lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
 // provide (no canvas backend installed) -- stub the whole package so HomePage's PizzaLoader
 // (rendered while menu.loading is true) does not crash the test environment. Mirrors
@@ -55,7 +51,7 @@ import { refreshCustomerToken } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
-import { createKioskOrder, initiateKioskPayment, fetchKioskPaymentResult } from "../shared/api/kiosk";
+import { createOrder } from "../shared/api/public";
 import type { BaseAppInfoResponse, Order } from "../domains/order/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
@@ -64,9 +60,7 @@ const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
-const mockCreateKioskOrder = jest.mocked(createKioskOrder);
-const mockInitiateKioskPayment = jest.mocked(initiateKioskPayment);
-const mockFetchKioskPaymentResult = jest.mocked(fetchKioskPaymentResult);
+const mockCreateOrder = jest.mocked(createOrder);
 
 // A single available, non-pizza item so useMenuData's recommended-items effect seeds the
 // cart directly (upsellDeclined=true bypasses the pizza/brick-pizza upsell popup entirely --
@@ -185,13 +179,8 @@ function mockMenuTopScrolledIntoView(): void {
 // (localStorage key "kiosk_branch_data" absent) -- seed it so the kiosk tests below start from a
 // steady "device already configured" state and can isolate the assertions to the flags under test,
 // exactly as a real kiosk would be after its one-time setup.
-//
-// Kiosk setup is two steps now: branch AND terminal. Without the device-name half, useMenuData
-// opens the terminal picker instead, which counts towards anyPopupOpen and suppresses everything
-// these tests are asserting on.
 function seedKioskBranchSelected(): void {
     localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
-    localStorage.setItem("kiosk_device_name", "test-kiosk-1");
 }
 
 describe("HomePage -- noPopupOpen suppression", () => {
@@ -352,23 +341,14 @@ describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
     });
 });
 
-// The kiosk payment path must never route through checkout.checkoutLoading: HomePage returns a
+// The kiosk checkout must never route through checkout.checkoutLoading: HomePage returns a
 // full-page <PizzaLoader/> for that flag (see the early return near the top of HomePage.tsx), which
-// unmounts HomePageModals and every kiosk sheet with it -- mid-payment. These tests drive the real
-// cart -> cross-sell -> phone -> terminal flow and assert the sheets stay mounted throughout.
-describe("HomePage -- kiosk EazyPay payment flow", () => {
+// unmounts HomePageModals and every kiosk sheet with it -- mid-order. These tests drive the real
+// cart -> cross-sell -> phone -> placed flow and assert the sheets stay mounted throughout.
+describe("HomePage -- kiosk checkout flow", () => {
     beforeEach(() => {
-        mockCreateKioskOrder.mockReset();
-        mockInitiateKioskPayment.mockReset();
-        mockFetchKioskPaymentResult.mockReset();
-        mockCreateKioskOrder.mockResolvedValue({ id: "4321" } as Order);
-        mockInitiateKioskPayment.mockResolvedValue({ invoiceNum: "K4321-abc123", status: "PENDING" });
-        mockFetchKioskPaymentResult.mockResolvedValue({
-            invoiceNum: "K4321-abc123", status: "PENDING", orderId: 4321, amount: "1.000",
-            cardNo: null, trnRrn: null, trnAuthCode: null, trnCcy: null, posEntryMode: null,
-            dccMarkup: null, dccRate: null, dccAmount: null, dccCurrency: null,
-            dccCurrencyEx: null, dccMsg: null, failureReason: null,
-        });
+        mockCreateOrder.mockReset();
+        mockCreateOrder.mockResolvedValue({ id: "4321" } as Order);
     });
 
     /** Walks the real UI from a seeded cart to the phone sheet. */
@@ -393,17 +373,17 @@ describe("HomePage -- kiosk EazyPay payment flow", () => {
         expect(screen.queryByLabelText(/branch/i)).toBeNull();
     });
 
-    it("keeps the terminal sheet mounted while the payment is live (no full-page loader)", async () => {
+    it("creates the order from the phone step and shows the number to quote at the counter", async () => {
         await reachPhoneSheet();
 
         fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
-        fireEvent.click(screen.getByRole("button", { name: "Continue to payment" }));
+        fireEvent.click(screen.getByRole("button", { name: "Place order" }));
 
-        await waitFor(() => expect(mockCreateKioskOrder).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         // If anything on this path set checkoutLoading, HomePage's early return would have replaced
         // the entire tree -- including this sheet -- with PizzaLoader.
-        await waitFor(() => expect(screen.getByText("Tap your card")).toBeTruthy());
-        expect(mockInitiateKioskPayment).toHaveBeenCalledWith("4321");
+        await waitFor(() => expect(screen.getByText("Order placed")).toBeTruthy());
+        expect(screen.getByText("4321")).toBeTruthy();
     });
 
     it("hides the floating cart pill while a kiosk sheet is open", async () => {
@@ -413,7 +393,7 @@ describe("HomePage -- kiosk EazyPay payment flow", () => {
         expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
     });
 
-    it("reopens the setup pickers when staff triple-click the top of the hero video", async () => {
+    it("reopens the branch picker when staff triple-click the top of the hero video", async () => {
         seedKioskBranchSelected();
         renderHomePage(["/menu?mode=kiosk"]);
         await waitForAuthReady();
@@ -425,14 +405,5 @@ describe("HomePage -- kiosk EazyPay payment flow", () => {
         fireEvent.click(hotspot);
 
         await waitFor(() => expect(screen.getByText("Setup Kiosk Mode")).toBeTruthy());
-    });
-
-    it("opens the terminal picker when the device has no kiosk name yet", async () => {
-        // Branch chosen, terminal not: setup is two steps now.
-        localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
-        renderHomePage(["/menu?mode=kiosk"]);
-        await waitForAuthReady();
-
-        await waitFor(() => expect(screen.getByText("Select This Kiosk")).toBeTruthy());
     });
 });

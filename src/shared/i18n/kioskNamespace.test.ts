@@ -29,7 +29,7 @@ describe("i18n kiosk namespace registration", () => {
 
     it("groups the English kiosk copy under the documented top-level sections", () => {
         expect(Object.keys(enKiosk).sort()).toEqual(
-            ["approved", "counter", "errors", "failure", "payment", "phone"].sort()
+            ["counter", "errors", "phone"].sort()
         );
     });
 

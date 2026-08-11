@@ -15,7 +15,6 @@ import {
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
 import { resolveKioskBranchId, readKioskBranch } from "../../kiosk/utils/kioskBranch";
-import { getKioskDeviceName } from "../../kiosk/services/kioskIdentity";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -29,8 +28,6 @@ export interface UseMenuDataResult {
     availableBranches: IBranch[];
     branchSelector: boolean | null;
     setBranchSelector: Dispatch<SetStateAction<boolean | null>>;
-    terminalSelector: boolean | null;
-    setTerminalSelector: Dispatch<SetStateAction<boolean | null>>;
     pendingInitialItems: CartItem[];
     pendingUnavailableNames: string[];
     refreshMenu: () => Promise<void>;
@@ -122,7 +119,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const [phone, setPhone] = useState("");
     const [availableBranches, setAvailableBranches] = useState<IBranch[]>([]);
     const [branchSelector, setBranchSelector] = useState<boolean | null>(null);
-    const [terminalSelector, setTerminalSelector] = useState<boolean | null>(null);
     const [pendingInitialItems, setPendingInitialItems] = useState<CartItem[]>([]);
     const [pendingUnavailableNames, setPendingUnavailableNames] = useState<string[]>([]);
     // Guard against React 18 StrictMode invoking this effect twice in development,
@@ -148,11 +144,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
 
                 if (isKiosk && !readKioskBranch()) {
                     setBranchSelector(true);
-                }
-                // Independent of the branch check above -- a device can have a paired branch but
-                // no paired terminal name (or vice versa) after a partial re-pair.
-                if (isKiosk && !getKioskDeviceName()) {
-                    setTerminalSelector(true);
                 }
 
                 let productsToAdd: MenuItem[] = [];
@@ -286,7 +277,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     return {
         menuData, extraIngredients, toppings, isSDoughAvailable,
         loading, error, username, phone, availableBranches, branchSelector, setBranchSelector,
-        terminalSelector, setTerminalSelector,
         pendingInitialItems, pendingUnavailableNames, refreshMenu, workingHours,
     };
 }
