@@ -26,6 +26,8 @@ import BluetoothPrinterService from "../services/BluetoothPrinterService";
 import { DeleteOrderDialog } from "../domains/management/orders/components/DeleteOrderDialog";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
+import AdminSurfaceTabs from "../domains/management/_shared/components/AdminSurfaceTabs";
+import TaskBoardScreen from "../domains/management/tasks/components/TaskBoardScreen";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
@@ -40,6 +42,8 @@ function AdminHomePage(): JSX.Element {
     const audioStopRef = useRef<() => void>(() => {});
     const stopSoundProxy = (): void => audioStopRef.current();
     const isReviewer = role === StaffRoles.REVIEWER;
+    const isBoardEligible = role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+    const showBoardPanel = isBoardEligible && ui.activeAdminTab === 'board';
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
         cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
     } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, !isReviewer);
@@ -88,6 +92,9 @@ function AdminHomePage(): JSX.Element {
                 <CashPopup isOpen={ui.cashPopupOpen} onClose={() => ui.setCashPopupOpen(false)} stage={cashStage} branchId={String(selectedBranch.id)} onCashWarning={ui.setCashWarning} />
             </>)}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && (
+                <AdminSurfaceTabs role={role} activeTab={ui.activeAdminTab} onChange={ui.setActiveAdminTab} />
+            )}
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && (
                 <Box sx={{ p: 1, boxSizing: 'border-box', backgroundColor: "#fbfaf6", minHeight: '100vh', width: '100%',
                     display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
                     gap: 1, gridAutoRows: 'max-content' }}>
@@ -102,6 +109,9 @@ function AdminHomePage(): JSX.Element {
                         onPickedUpClick={o => setOrders(prev => prev.filter(x => x.id !== o.id))}
                         onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))} />)}
                 </Box>
+            )}
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
+                <TaskBoardScreen role={role} />
             )}
             {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}

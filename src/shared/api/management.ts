@@ -40,6 +40,14 @@ import type {
     CreateAccountingReportPayload,
     UpdateAccountingReportPayload
 } from '../../domains/management/accounting/types';
+import type {
+    BoardOwner,
+    ChangeTaskCardPriorityPayload,
+    CreateTaskCardPayload,
+    EditTaskCardPayload,
+    MoveTaskCardPayload,
+    TaskCard
+} from '../../domains/management/tasks/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -460,6 +468,79 @@ export async function putDoughAvailability(
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(availability),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// ── Task board ─────────────────────────────────────────────────────────────────
+// Types co-located in domains/management/tasks/types.ts per the domain-first pattern
+// used by dough/types.ts, purchases/types.ts, shift/types.ts.
+
+export async function fetchTaskBoard(assigneeId?: number): Promise<TaskCard[]> {
+    const query = assigneeId !== undefined ? `?assigneeId=${assigneeId}` : '';
+    const res = await authFetch(BASE_URL + '/tasks' + query, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function createTaskCard(payload: CreateTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function editTaskCard(id: number, payload: EditTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function changeTaskCardPriority(id: number, payload: ChangeTaskCardPriorityPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id + '/priority', {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function deleteTaskCard(id: number): Promise<void> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// The resolved TaskCard is intentionally not used to patch local state by callers — the move
+// endpoint returns only the moved card, not its renumbered siblings, so it exists here purely
+// to signal success/failure; the caller (useTaskBoard.moveCard) refetches the full board instead.
+export async function moveTaskCard(id: number, payload: MoveTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id + '/move', {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function fetchBoardOwners(): Promise<BoardOwner[]> {
+    const res = await authFetch(BASE_URL + '/board_owners', {
+        method: "GET",
+        headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

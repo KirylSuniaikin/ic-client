@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Order } from '../../../order/types';
 
+export type AdminTabKey = 'orders' | 'board';
+
 export type AdminUIState = {
     isHistoryOpen: boolean; setIsHistoryOpen: (v: boolean) => void;
     isConfigOpen: boolean; setIsConfigOpen: (v: boolean) => void;
@@ -16,6 +18,7 @@ export type AdminUIState = {
     blacklistOpen: boolean; setBlacklistOpen: (v: boolean) => void;
     cashRegisterOpen: boolean; setCashRegisterOpen: (v: boolean) => void;
     accountingOpen: boolean; setAccountingOpen: (v: boolean) => void;
+    activeAdminTab: AdminTabKey; setActiveAdminTab: (v: AdminTabKey) => void;
 };
 
 export function useAdminUIState(): AdminUIState {
@@ -33,6 +36,7 @@ export function useAdminUIState(): AdminUIState {
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
+    const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>('orders');
 
     return {
         isHistoryOpen, setIsHistoryOpen,
@@ -49,5 +53,6 @@ export function useAdminUIState(): AdminUIState {
         blacklistOpen, setBlacklistOpen,
         cashRegisterOpen, setCashRegisterOpen,
         accountingOpen, setAccountingOpen,
+        activeAdminTab, setActiveAdminTab,
     };
 }

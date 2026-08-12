@@ -1,0 +1,68 @@
+// Assumed: §5.5's TaskCardMenuProps (priority/disabled/onSelect) omits a card identifier,
+// but §5.6 requires the trigger button's testid to be `task-card-menu-button-${card.id}`.
+// Adding a required `cardId` prop is the simplest reconciliation — it does not change the
+// menu's public behavior contract, only lets it compose the id-scoped testid.
+import React, { useState } from "react";
+import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import type { TaskCardPriority } from "../types";
+import { TASK_CARD_PRIORITY_COLORS } from "../types";
+
+export interface TaskCardMenuProps {
+    cardId: number;
+    priority: TaskCardPriority;
+    disabled?: boolean;
+    onSelect: (priority: TaskCardPriority) => void;
+}
+
+const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
+    { value: "GREEN", label: "Green" },
+    { value: "YELLOW", label: "Yellow" },
+    { value: "RED", label: "Red" },
+];
+
+export default function TaskCardMenu({ cardId, disabled, onSelect }: TaskCardMenuProps): JSX.Element {
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const open = Boolean(anchorEl);
+
+    const handleOpen = (event: React.MouseEvent<HTMLElement>): void => {
+        event.stopPropagation();
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = (event?: React.SyntheticEvent): void => {
+        event?.stopPropagation();
+        setAnchorEl(null);
+    };
+
+    const handleSelect = (event: React.MouseEvent<HTMLElement>, value: TaskCardPriority): void => {
+        event.stopPropagation();
+        onSelect(value);
+        setAnchorEl(null);
+    };
+
+    return (
+        <>
+            <IconButton
+                data-testid={`task-card-menu-button-${cardId}`}
+                size="small"
+                disabled={disabled}
+                onClick={handleOpen}
+                aria-label="Change priority"
+            >
+                <MoreVertIcon fontSize="small" />
+            </IconButton>
+            <Menu anchorEl={anchorEl} open={open} onClose={handleClose} onClick={(e): void => e.stopPropagation()}>
+                {PRIORITY_OPTIONS.map(option => (
+                    <MenuItem key={option.value} onClick={(e): void => handleSelect(e, option.value)}>
+                        <ListItemIcon>
+                            <FiberManualRecordIcon fontSize="small" sx={{ color: TASK_CARD_PRIORITY_COLORS[option.value] }} />
+                        </ListItemIcon>
+                        <ListItemText>{option.label}</ListItemText>
+                    </MenuItem>
+                ))}
+            </Menu>
+        </>
+    );
+}

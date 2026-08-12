@@ -14,6 +14,14 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest } from '../management';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
+import type {
+    BoardOwner,
+    ChangeTaskCardPriorityPayload,
+    CreateTaskCardPayload,
+    EditTaskCardPayload,
+    MoveTaskCardPayload,
+    TaskCard
+} from '../../../domains/management/tasks/types';
 
 // Manual mock for shared/api/management.ts.
 // jest.fn() is at module level here — no jest.mock() factory restrictions apply.
@@ -50,3 +58,14 @@ export const setPurchaseInvoicePaid = jest.fn<Promise<void>, [SetPurchaseInvoice
 
 // Cash register transaction history (paged).
 export const getBranchEvents = jest.fn<Promise<GetBranchEventsResponse>, [GetBranchEventsParams]>();
+
+// Task board (ST4).
+export const fetchTaskBoard = jest.fn<Promise<TaskCard[]>, [number?]>();
+export const createTaskCard = jest.fn<Promise<TaskCard>, [CreateTaskCardPayload]>();
+export const editTaskCard = jest.fn<Promise<TaskCard>, [number, EditTaskCardPayload]>();
+export const changeTaskCardPriority = jest.fn<Promise<TaskCard>, [number, ChangeTaskCardPriorityPayload]>();
+export const deleteTaskCard = jest.fn<Promise<void>, [number]>();
+export const moveTaskCard = jest.fn<Promise<TaskCard>, [number, MoveTaskCardPayload]>();
+
+// Board owners sidebar (ST6).
+export const fetchBoardOwners = jest.fn<Promise<BoardOwner[]>, []>();
