@@ -67,6 +67,12 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
         setDeleteDialogOpen(true);
     };
 
+    // Delete straight from a card's three-dots menu, without opening the detail popup first.
+    const handleRequestDeleteFromCard = (card: TaskCard): void => {
+        setActiveCard(card);
+        setDeleteDialogOpen(true);
+    };
+
     const handleCreate = async (values: TaskCardFormValues): Promise<void> => {
         const trimmedDescription = values.description.trim();
         const ok = await board.createCard({
@@ -115,7 +121,31 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
     };
 
     return (
-        <Box sx={{ display: "flex", gap: 2, p: 2, width: "100%", boxSizing: "border-box", alignItems: "flex-start" }}>
+        <Box
+            data-board-scroller
+            data-testid="task-board-scroller"
+            sx={{
+                display: "flex",
+                gap: 1.5,
+                p: { xs: 1.5, sm: 2 },
+                width: "100%",
+                boxSizing: "border-box",
+                alignItems: "flex-start",
+                // Matches the order desk's page treatment so switching tabs doesn't change the canvas.
+                backgroundColor: "#fbfaf6",
+                minHeight: "100vh",
+                // Three columns cannot fit a phone, so the board scrolls sideways and snaps one
+                // column at a time. Vertical scrolling is left to the page — nesting a second
+                // scroll axis here is what made the board feel stuck on touch.
+                overflowX: "auto",
+                overflowY: "visible",
+                scrollSnapType: { xs: "x proximity", sm: "none" },
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "thin",
+                "&::-webkit-scrollbar": { height: 8 },
+                "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(15,23,42,0.18)", borderRadius: 4 },
+            }}
+        >
             {TASK_CARD_STATUSES.map(status => (
                 <TaskColumn
                     key={status}
@@ -125,6 +155,7 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
                     onChangePriority={(cardId, priority): void => {
                         void handleChangePriority(cardId, priority);
                     }}
+                    onRequestDelete={handleRequestDeleteFromCard}
                     onAddClick={status === "BACKLOG" ? handleAddClick : undefined}
                     mutatingCardId={priorityMutatingId}
                     getDragHandlers={getDragHandlers}

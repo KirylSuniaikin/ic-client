@@ -64,20 +64,21 @@ describe("TaskCardItem", () => {
     });
 
     it("omits the description block when description is null", () => {
-        const { container } = render(<TaskCardItem card={makeCard({ description: null })} onClick={jest.fn()} onChangePriority={jest.fn()} />);
+        render(<TaskCardItem card={makeCard({ description: null })} onClick={jest.fn()} onChangePriority={jest.fn()} />);
 
-        expect(container.querySelectorAll(".MuiTypography-body2").length).toBe(0);
+        expect(screen.queryByTestId("task-card-description-1")).toBeNull();
     });
 
     it.each([
         ["GREEN", "#32a852"],
         ["YELLOW", "#e4b11b"],
         ["RED", "#e44b4c"],
-    ] as [TaskCardPriority, string][])("renders the %s priority as the card border color", (priority, expected) => {
+    ] as [TaskCardPriority, string][])("renders the %s priority as the card's left edge color", (priority, expected) => {
         render(<TaskCardItem card={makeCard({ priority })} onClick={jest.fn()} onChangePriority={jest.fn()} />);
 
         const card = screen.getByTestId("task-card-1");
-        expect(window.getComputedStyle(card).borderTopColor).toBe(expected);
+        // jsdom echoes the hex back verbatim rather than normalising it, so compare case-insensitively.
+        expect(window.getComputedStyle(card).borderLeftColor.toLowerCase()).toBe(expected);
     });
 
     it("clicking the card body calls onClick with the card", () => {

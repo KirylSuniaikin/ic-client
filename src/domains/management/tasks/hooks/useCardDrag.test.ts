@@ -20,10 +20,13 @@ import type { TaskCard, TaskCardStatus } from "../types";
 // actually reach the hook.
 class PointerEventPolyfill extends MouseEvent {
     readonly pointerId: number;
+    readonly pointerType: string;
 
     constructor(type: string, params: PointerEventInit = {}) {
         super(type, params);
         this.pointerId = params.pointerId ?? 0;
+        // Drives the touch-vs-mouse branch: touch lifts a card on a long press, a mouse on movement.
+        this.pointerType = params.pointerType ?? "";
     }
 }
 
@@ -293,5 +296,68 @@ describe("useCardDrag", () => {
         fireEvent.pointerUp(card1, { pointerId: 1, clientX: 50, clientY: 250 });
 
         expect(onDrop).toHaveBeenCalledWith({ cardId: 1, targetStatus: "BACKLOG", targetIndex: 1 });
+    });
+
+    // The board is used on phones, where every card previously declared `touch-action: none` and so
+    // ate the scroll gesture: the columns are covered by cards, which left the board unscrollable
+    // and any off-screen column (DOING, DONE) unreachable. Touch now scrolls by default and only
+    // lifts a card after a long press.
+    describe("touch", () => {
+        it("a swipe over a card does not start a drag, so the board can still scroll", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            // Finger moves well before the long-press timer would fire: this is a scroll.
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 50, button: 0 });
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 250 });
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 250 });
+
+            expect(onDrop).not.toHaveBeenCalled();
+            jest.useRealTimers();
+        });
+
+        it("a long press lifts the card, and dragging it into another column drops there", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 50, button: 0 });
+            jest.advanceTimersByTime(300); // hold past the long-press threshold
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 400, clientY: 50 });
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 400, clientY: 50 });
+
+            expect(onDrop).toHaveBeenCalledWith({ cardId: 1, targetStatus: "DOING", targetIndex: 0 });
+            jest.useRealTimers();
+        });
+
+        it("a long press released without moving stays a tap: it opens the card and reports no move", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 50, button: 0 });
+            jest.advanceTimersByTime(300);
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 50 });
+            fireEvent.click(card1);
+
+            // Lifted but never moved. Without the `moved` guard this would swallow the click AND
+            // report a same-slot move, so a long press would do nothing at all.
+            expect(onDrop).not.toHaveBeenCalled();
+            expect(onCardClick).toHaveBeenCalledWith(cards[0]);
+            jest.useRealTimers();
+        });
     });
 });

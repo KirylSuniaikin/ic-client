@@ -48,7 +48,11 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
                 onToggle={(): void => setSidebarOpen(prev => !prev)}
                 onSelect={(ownerId): void => setSelectedOwnerId(ownerId)}
             />
-            <TaskBoardPanel ownerId={selectedOwnerId ?? undefined} />
+            {/* minWidth:0 is what lets the board's horizontal scroller actually shrink and scroll —
+                a flex item defaults to min-width:auto and would instead push the page wider. */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+                <TaskBoardPanel ownerId={selectedOwnerId ?? undefined} />
+            </Box>
             <ErrorSnackbar
                 open={errorMessage !== null}
                 message={errorMessage ?? ""}

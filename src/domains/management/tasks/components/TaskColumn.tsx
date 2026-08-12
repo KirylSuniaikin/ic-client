@@ -11,6 +11,7 @@ export interface TaskColumnProps {
     cards: TaskCard[];
     onCardClick: (card: TaskCard) => void;
     onChangePriority: (cardId: number, priority: TaskCardPriority) => void;
+    onRequestDelete?: (card: TaskCard) => void;
     onAddClick?: () => void; // passed only for the BACKLOG column
     mutatingCardId?: number | null; // disables that one card's menu while its own mutation is in flight
     getDragHandlers?: TaskCardItemProps["getDragHandlers"];
@@ -21,6 +22,7 @@ export default function TaskColumn({
     cards,
     onCardClick,
     onChangePriority,
+    onRequestDelete,
     onAddClick,
     mutatingCardId,
     getDragHandlers,
@@ -30,17 +32,47 @@ export default function TaskColumn({
             data-testid={`task-column-${status}`}
             data-column-status={status}
             sx={{
-                flex: 1,
-                minWidth: 280,
-                backgroundColor: "#fbfaf6",
-                borderRadius: 2,
-                p: 1.5,
+                // One column fills a phone screen (with a sliver of the next as a swipe affordance),
+                // then they share the row from tablet up.
+                flex: { xs: "0 0 auto", sm: 1 },
+                width: { xs: "86vw", sm: "auto" },
+                minWidth: { sm: 260 },
+                maxWidth: { sm: 420 },
+                scrollSnapAlign: "start",
+                alignSelf: "flex-start",
+                minHeight: 140, // an empty column must stay a big enough drop target
+                // Warm grey, not the usual cool Trello grey — it has to sit on the admin's cream page.
+                backgroundColor: "#f0eee9",
+                borderRadius: "14px",
+                p: 1,
             }}
         >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                <Typography variant="subtitle1" fontWeight={700}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 0.75, py: 0.5, mb: 1 }}>
+                <Typography
+                    variant="caption"
+                    sx={{ fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}
+                >
                     {TASK_CARD_STATUS_LABELS[status]}
                 </Typography>
+                <Box
+                    data-testid={`task-column-count-${status}`}
+                    sx={{
+                        minWidth: 20,
+                        height: 20,
+                        px: 0.75,
+                        borderRadius: "10px",
+                        backgroundColor: "rgba(15,23,42,0.08)",
+                        color: "text.secondary",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    {cards.length}
+                </Box>
+                <Box sx={{ flexGrow: 1 }} />
                 {onAddClick && (
                     <IconButton data-testid="task-board-add-button" size="small" onClick={onAddClick} aria-label="Add Task">
                         <AddIcon fontSize="small" />
@@ -53,6 +85,7 @@ export default function TaskColumn({
                     card={card}
                     onClick={onCardClick}
                     onChangePriority={onChangePriority}
+                    onRequestDelete={onRequestDelete}
                     disabled={mutatingCardId === card.id}
                     getDragHandlers={getDragHandlers}
                 />

@@ -68,6 +68,7 @@ describe("TaskColumn", () => {
             onPointerCancel: jest.fn(),
             onClick: jest.fn(),
             style: { touchAction: "none" },
+            isDragging: false,
         }));
 
         render(

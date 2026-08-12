@@ -1,14 +1,25 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { resolveDropTarget } from "../dragOrdering";
 import type { ColumnGeometry, Rect } from "../dragOrdering";
 import type { TaskCard, TaskCardStatus } from "../types";
 import { logger } from "../../../../shared/utils/logger";
 
 const DEFAULT_DRAG_THRESHOLD_PX = 8;
+const DEFAULT_LONG_PRESS_MS = 250;
+
+// While dragging, a pointer this close to the scroller's edge scrolls the board towards it —
+// the only way to reach an off-screen column on a phone, where one column fills the viewport.
+const EDGE_SCROLL_ZONE_PX = 56;
+const EDGE_SCROLL_STEP_PX = 14;
+const EDGE_SCROLL_INTERVAL_MS = 16;
+
+// Marks the horizontally-scrollable board container that edge auto-scroll drives.
+export const BOARD_SCROLLER_SELECTOR = "[data-board-scroller]";
 
 export interface UseCardDragOptions {
     onDrop: (input: { cardId: number; targetStatus: TaskCardStatus; targetIndex: number }) => void;
     dragThresholdPx?: number; // default 8
+    longPressMs?: number; // default 250; touch only
     containerDocument?: Document; // defaults to `document`; test-only override
 }
 
@@ -18,7 +29,8 @@ export interface CardDragHandlers {
     onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
     onPointerCancel: (event: React.PointerEvent<HTMLElement>) => void;
     onClick: (event: React.MouseEvent<HTMLElement>) => void; // replaces the card's own onClick wiring
-    style: React.CSSProperties; // touchAction: "none" always; transform/zIndex/opacity only while this card is the active drag
+    style: React.CSSProperties; // transform/zIndex/opacity/touchAction only while this card is the active drag
+    isDragging: boolean;
 }
 
 export interface UseCardDragResult {
@@ -32,7 +44,11 @@ interface DragState {
     startX: number;
     startY: number;
     dragging: boolean;
+    // A long press lifts the card without moving it. If the finger is then released in place, the
+    // gesture is still a tap — it must open the card rather than report a move it never made.
+    moved: boolean;
     target: HTMLElement;
+    isTouch: boolean;
 }
 
 interface ActiveDragVisual {
@@ -46,7 +62,7 @@ function toRect(domRect: DOMRect): Rect {
 }
 
 // A `pointerdown` that originates on an interactive control nested inside the card (the
-// three-dots priority menu's `IconButton`, which MUI always renders as a native `<button>`) must
+// three-dots menu's `IconButton`, which MUI always renders as a native `<button>`) must
 // never be allowed to start a drag candidate. Per Pointer Events Level 3, `setPointerCapture` on
 // the card would otherwise retarget the trailing `click` to the card, so the control's own
 // `onClick`/`stopPropagation` may never run on a real browser — see review-feedback-ST5.md
@@ -71,7 +87,7 @@ function isInteractiveTarget(event: React.PointerEvent<HTMLElement>): boolean {
     return !event.currentTarget.contains(target);
 }
 
-// DOM glue: reads live geometry off the already-rendered ST4 DOM structure
+// DOM glue: reads live geometry off the already-rendered DOM structure
 // (`[data-column-status]` columns, `[data-card-id]` cards). Intentionally not part of the pure
 // `dragOrdering.ts` module — see task-spec-ST5.md §6.4.
 function readColumnGeometry(containerDocument: Document): ColumnGeometry[] {
@@ -90,7 +106,12 @@ function readColumnGeometry(containerDocument: Document): ColumnGeometry[] {
 }
 
 export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
-    const { onDrop, dragThresholdPx = DEFAULT_DRAG_THRESHOLD_PX, containerDocument = document } = options;
+    const {
+        onDrop,
+        dragThresholdPx = DEFAULT_DRAG_THRESHOLD_PX,
+        longPressMs = DEFAULT_LONG_PRESS_MS,
+        containerDocument = document,
+    } = options;
 
     // Only one drag can be active at a time, so a single mutable slot (not per-card) tracks it.
     // Kept as a ref, not state, because the pointerdown->threshold bookkeeping must not trigger
@@ -101,12 +122,82 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
     // event on that same card can be told apart from a genuine tap. Cleared as soon as read.
     const justDraggedCardIdRef = useRef<number | null>(null);
 
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const edgeScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const edgeScrollDirectionRef = useRef<-1 | 0 | 1>(0);
+
     // Drives the live transform/zIndex/opacity of whichever card is actively being dragged —
     // this one DOES need to be state, since it must repaint on every pointermove.
     const [activeDrag, setActiveDrag] = useState<ActiveDragVisual | null>(null);
 
+    // Touch scrolling is NOT disabled up front. A card that permanently declares
+    // `touch-action: none` makes the whole board unscrollable on a phone, since the cards cover
+    // the column. Instead the page scrolls normally until a long-press promotes the gesture to a
+    // drag, at which point this non-passive listener suppresses scrolling for the rest of it.
+    // `touch-action` cannot do that job: it is latched when the gesture starts, so flipping it
+    // mid-gesture has no effect on the in-flight touch.
+    const blockTouchScrollRef = useRef<((event: TouchEvent) => void) | null>(null);
+
+    const stopBlockingTouchScroll = useCallback((): void => {
+        if (blockTouchScrollRef.current) {
+            containerDocument.removeEventListener("touchmove", blockTouchScrollRef.current);
+            blockTouchScrollRef.current = null;
+        }
+    }, [containerDocument]);
+
+    const startBlockingTouchScroll = useCallback((): void => {
+        if (blockTouchScrollRef.current) return;
+        const handler = (event: TouchEvent): void => {
+            if (event.cancelable) event.preventDefault();
+        };
+        blockTouchScrollRef.current = handler;
+        containerDocument.addEventListener("touchmove", handler, { passive: false });
+    }, [containerDocument]);
+
+    const stopEdgeScroll = useCallback((): void => {
+        edgeScrollDirectionRef.current = 0;
+        if (edgeScrollTimerRef.current !== null) {
+            clearInterval(edgeScrollTimerRef.current);
+            edgeScrollTimerRef.current = null;
+        }
+    }, []);
+
+    const startEdgeScroll = useCallback((): void => {
+        if (edgeScrollTimerRef.current !== null) return;
+        edgeScrollTimerRef.current = setInterval(() => {
+            const direction = edgeScrollDirectionRef.current;
+            if (direction === 0) return;
+            const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+            if (scroller) scroller.scrollLeft += direction * EDGE_SCROLL_STEP_PX;
+        }, EDGE_SCROLL_INTERVAL_MS);
+    }, [containerDocument]);
+
+    const cancelLongPress = useCallback((): void => {
+        if (longPressTimerRef.current !== null) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    }, []);
+
+    // A gesture in flight when the board unmounts would otherwise leave the document-level
+    // touchmove blocker and the auto-scroll interval running forever.
+    useEffect(() => {
+        return (): void => {
+            cancelLongPress();
+            stopEdgeScroll();
+            stopBlockingTouchScroll();
+        };
+    }, [cancelLongPress, stopEdgeScroll, stopBlockingTouchScroll]);
+
     const getDragHandlers = useCallback(
         (card: TaskCard, onCardClick: (card: TaskCard) => void): CardDragHandlers => {
+            const beginDragging = (state: DragState, dx: number, dy: number): void => {
+                state.dragging = true;
+                if (state.isTouch) startBlockingTouchScroll();
+                startEdgeScroll();
+                setActiveDrag({ cardId: state.cardId, dx, dy });
+            };
+
             const onPointerDown = (event: React.PointerEvent<HTMLElement>): void => {
                 // A new gesture is starting: any suppression flag left behind by a PREVIOUS drag on
                 // this (or any) card is now stale. On touch, a real drag produces no trailing `click`
@@ -121,15 +212,18 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 if (dragStateRef.current !== null) return; // a drag is already tracked (e.g. multi-touch)
 
                 const target = event.currentTarget;
-                dragStateRef.current = {
+                const state: DragState = {
                     pointerId: event.pointerId,
                     cardId: card.id,
                     sourceStatus: card.status,
                     startX: event.clientX,
                     startY: event.clientY,
                     dragging: false,
+                    moved: false,
                     target,
+                    isTouch: event.pointerType === "touch",
                 };
+                dragStateRef.current = state;
                 try {
                     target.setPointerCapture(event.pointerId);
                 } catch (err) {
@@ -137,7 +231,31 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                     // onPointerDown's re-entry guard would refuse every future drag — Issue 3.
                     dragStateRef.current = null;
                     logger.warn("setPointerCapture failed:", err);
+                    return;
                 }
+
+                // Touch lifts the card on a long press instead of on movement, so that an ordinary
+                // swipe over a card still scrolls the board. A mouse keeps the movement threshold:
+                // there is no scroll gesture to disambiguate from.
+                if (state.isTouch) {
+                    longPressTimerRef.current = setTimeout(() => {
+                        longPressTimerRef.current = null;
+                        const current = dragStateRef.current;
+                        if (current === state && !current.dragging) beginDragging(current, 0, 0);
+                    }, longPressMs);
+                }
+            };
+
+            const updateEdgeScrollDirection = (clientX: number): void => {
+                const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+                if (!scroller) {
+                    edgeScrollDirectionRef.current = 0;
+                    return;
+                }
+                const rect = scroller.getBoundingClientRect();
+                if (clientX > rect.right - EDGE_SCROLL_ZONE_PX) edgeScrollDirectionRef.current = 1;
+                else if (clientX < rect.left + EDGE_SCROLL_ZONE_PX) edgeScrollDirectionRef.current = -1;
+                else edgeScrollDirectionRef.current = 0;
             };
 
             const onPointerMove = (event: React.PointerEvent<HTMLElement>): void => {
@@ -150,19 +268,39 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 if (!state.dragging) {
                     const distance = Math.hypot(dx, dy);
                     if (distance < dragThresholdPx) return;
-                    state.dragging = true;
+
+                    if (state.isTouch) {
+                        // Moved before the long press completed: this is a scroll, not a drag.
+                        // Abandon the candidate and hand the gesture back to the browser — nothing
+                        // has blocked scrolling yet, so the board scrolls as the user expects.
+                        cancelLongPress();
+                        dragStateRef.current = null;
+                        try {
+                            state.target.releasePointerCapture(event.pointerId);
+                        } catch (err) {
+                            logger.warn("releasePointerCapture failed (pointer already inactive):", err);
+                        }
+                        return;
+                    }
+
+                    beginDragging(state, dx, dy);
                 }
 
-                // Safe to preventDefault here specifically because `touch-action: none` (via
-                // `style`, applied unconditionally below) already stops the browser from starting
-                // its own scroll gesture on this element before this handler ever runs.
+                // Safe to preventDefault: for touch the document-level non-passive blocker installed
+                // at lift time already owns the gesture; for mouse there is no scroll to cancel.
                 event.preventDefault();
+                state.moved = true;
+                updateEdgeScrollDirection(event.clientX);
                 setActiveDrag({ cardId: state.cardId, dx, dy });
             };
 
             const finishGesture = (event: React.PointerEvent<HTMLElement>): DragState | null => {
                 const state = dragStateRef.current;
                 if (!state || state.pointerId !== event.pointerId) return null;
+
+                cancelLongPress();
+                stopEdgeScroll();
+                stopBlockingTouchScroll();
 
                 // Clear the tracked state BEFORE attempting to release capture, and independently of
                 // whether that release succeeds. `releasePointerCapture` is specified to throw once the
@@ -183,8 +321,10 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 const state = finishGesture(event);
                 if (!state) return;
 
-                if (!state.dragging) {
-                    // A tap: leave the browser's own subsequent `click` event to fire onClick normally.
+                if (!state.dragging || !state.moved) {
+                    // A tap — including a long press released without moving. Leave the browser's own
+                    // subsequent `click` event to fire onClick normally, and report no move.
+                    setActiveDrag(null);
                     return;
                 }
 
@@ -213,20 +353,30 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
             };
 
             const isActiveDragCard = activeDrag !== null && activeDrag.cardId === card.id;
-            const style: React.CSSProperties = {
-                touchAction: "none",
-                ...(isActiveDragCard
-                    ? {
-                          transform: `translate(${activeDrag.dx}px, ${activeDrag.dy}px)`,
-                          zIndex: 1000,
-                          opacity: 0.85,
-                      }
-                    : {}),
-            };
+            const style: React.CSSProperties = isActiveDragCard
+                ? {
+                      touchAction: "none",
+                      transform: `translate(${activeDrag.dx}px, ${activeDrag.dy}px) rotate(2deg) scale(1.02)`,
+                      zIndex: 1000,
+                      opacity: 0.92,
+                      cursor: "grabbing",
+                  }
+                : {};
 
-            return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick, style };
+            return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick, style, isDragging: isActiveDragCard };
         },
-        [activeDrag, containerDocument, dragThresholdPx, onDrop]
+        [
+            activeDrag,
+            containerDocument,
+            dragThresholdPx,
+            longPressMs,
+            onDrop,
+            cancelLongPress,
+            startBlockingTouchScroll,
+            stopBlockingTouchScroll,
+            startEdgeScroll,
+            stopEdgeScroll,
+        ]
     );
 
     return { getDragHandlers };

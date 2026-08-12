@@ -3,9 +3,10 @@
 // Adding a required `cardId` prop is the simplest reconciliation — it does not change the
 // menu's public behavior contract, only lets it compose the id-scoped testid.
 import React, { useState } from "react";
-import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
+import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Divider } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import type { TaskCardPriority } from "../types";
 import { TASK_CARD_PRIORITY_COLORS } from "../types";
 
@@ -14,6 +15,7 @@ export interface TaskCardMenuProps {
     priority: TaskCardPriority;
     disabled?: boolean;
     onSelect: (priority: TaskCardPriority) => void;
+    onDelete?: () => void; // omitted = no Delete entry (the card popup still offers one)
 }
 
 const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
@@ -22,7 +24,7 @@ const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
     { value: "RED", label: "Red" },
 ];
 
-export default function TaskCardMenu({ cardId, disabled, onSelect }: TaskCardMenuProps): JSX.Element {
+export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: TaskCardMenuProps): JSX.Element {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const open = Boolean(anchorEl);
 
@@ -40,6 +42,12 @@ export default function TaskCardMenu({ cardId, disabled, onSelect }: TaskCardMen
         event.stopPropagation();
         onSelect(value);
         setAnchorEl(null);
+    };
+
+    const handleDelete = (event: React.MouseEvent<HTMLElement>): void => {
+        event.stopPropagation();
+        setAnchorEl(null);
+        onDelete?.();
     };
 
     return (
@@ -62,6 +70,15 @@ export default function TaskCardMenu({ cardId, disabled, onSelect }: TaskCardMen
                         <ListItemText>{option.label}</ListItemText>
                     </MenuItem>
                 ))}
+                {onDelete && <Divider />}
+                {onDelete && (
+                    <MenuItem data-testid={`task-card-delete-${cardId}`} onClick={handleDelete} sx={{ color: "error.main" }}>
+                        <ListItemIcon>
+                            <DeleteOutlineIcon fontSize="small" color="error" />
+                        </ListItemIcon>
+                        <ListItemText>Delete</ListItemText>
+                    </MenuItem>
+                )}
             </Menu>
         </>
     );

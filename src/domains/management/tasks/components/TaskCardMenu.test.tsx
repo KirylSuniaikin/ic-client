@@ -47,6 +47,26 @@ describe("TaskCardMenu", () => {
         expect(onSelect).toHaveBeenCalledWith("RED");
     });
 
+    it("offers no Delete entry when onDelete is omitted", () => {
+        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={jest.fn()} />);
+
+        fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
+
+        expect(screen.queryByTestId("task-card-delete-1")).toBeNull();
+    });
+
+    it("clicking Delete calls onDelete exactly once and never changes priority", () => {
+        const onDelete = jest.fn();
+        const onSelect = jest.fn();
+        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={onSelect} onDelete={onDelete} />);
+
+        fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
+        fireEvent.click(screen.getByTestId("task-card-delete-1"));
+
+        expect(onDelete).toHaveBeenCalledTimes(1);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
     it("disables the trigger button when disabled is true", () => {
         render(<TaskCardMenu cardId={1} priority="GREEN" disabled onSelect={jest.fn()} />);
 

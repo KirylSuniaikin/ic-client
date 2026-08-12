@@ -219,6 +219,28 @@ describe("TaskBoardPanel", () => {
         });
     });
 
+    it("deleting from the card's three-dots menu deletes that card without opening the drawer first", async () => {
+        const card = makeCard({ id: 42 });
+        const deleteCard = jest.fn<Promise<boolean>, [number]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] }, deleteCard })
+        );
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByTestId("task-card-menu-button-42"));
+        fireEvent.click(screen.getByTestId("task-card-delete-42"));
+
+        // The confirmation still stands between the menu entry and the deletion.
+        expect(screen.getByText("Delete Task")).toBeTruthy();
+        const deleteButtons = screen.getAllByText("Delete");
+        fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+
+        await waitFor(() => {
+            expect(deleteCard).toHaveBeenCalledWith(42);
+        });
+    });
+
     it("a failed deleteCard leaves the dialog/drawer open and shows ErrorSnackbar", async () => {
         const card = makeCard();
         const deleteCard = jest.fn<Promise<boolean>, [number]>().mockResolvedValue(false);
