@@ -113,20 +113,29 @@ describe("PurchaseTablePopup nested invoices", () => {
     const invoiceIdsInOrder = (): string[] =>
         screen.getAllByTestId(/^invoice-group-/).map((el) => el.getAttribute("data-invoice") ?? "");
 
+    // inv-1 is dated 2026-07-20 and inv-0 2026-07-10, so the report opens with inv-1 on top.
+    it("opens with the newest invoice first, whatever order the server sent", async () => {
+        renderPopup("edit");
+        await screen.findByTestId("invoice-group-inv-0");
+
+        expect(invoiceIdsInOrder()).toEqual(["inv-1", "inv-0"]);
+    });
+
     it("prepends a new invoice when Add invoice is used", async () => {
         renderPopup("edit");
         await screen.findByTestId("invoice-group-inv-0");
 
-        expect(invoiceIdsInOrder()).toEqual(["inv-0", "inv-1"]);
+        expect(invoiceIdsInOrder()).toEqual(["inv-1", "inv-0"]);
 
         fireEvent.click(screen.getByTestId("add-invoice"));
 
         await waitFor(() => expect(invoiceIdsInOrder()).toHaveLength(3));
 
         const ids = invoiceIdsInOrder();
-        // Prepended, mirroring how a new line used to be added at the top.
-        expect(ids[0]).not.toBe("inv-0");
-        expect(ids.slice(1)).toEqual(["inv-0", "inv-1"]);
+        // Prepended, mirroring how a new line used to be added at the top. A blank invoice has no
+        // date yet, so it stays at the top rather than sinking to the bottom of the date order.
+        expect(ids[0]).not.toBe("inv-1");
+        expect(ids.slice(1)).toEqual(["inv-1", "inv-0"]);
     });
 
     it("adds a product to the targeted invoice without touching the other one", async () => {
@@ -203,13 +212,17 @@ describe("PurchaseTablePopup nested invoices", () => {
 
         expect(payload.id).toBe(7);
         expect(payload.invoices).toHaveLength(2);
+        // Keyed by clientRef rather than position: the table decides its own display order (newest
+        // invoice first), and the payload follows it. What matters is that each invoice keeps its
+        // own identity, not where it sits in the array.
+        const byRef = new Map(payload.invoices.map((inv) => [inv.clientRef, inv]));
         // Server ids must survive the round trip, or the invoice's stored photo orphans.
-        expect(payload.invoices[0].id).toBe(11);
-        expect(payload.invoices[1].id).toBe(22);
-        expect(payload.invoices[0].clientRef).toBe("inv-0");
-        expect(payload.invoices[0].vendorName).toBe("Acme");
-        expect(payload.invoices[1].paid).toBe(true);
-        expect(payload.invoices[0].products).toEqual([{ id: 1, quantity: 1, price: 10, finalPrice: 10 }]);
+        expect(byRef.get("inv-0")?.id).toBe(11);
+        expect(byRef.get("inv-1")?.id).toBe(22);
+        expect(byRef.get("inv-0")?.vendorName).toBe("Acme");
+        // inv-1 loads paid and is the one on top, so the click above cleared it.
+        expect(byRef.get("inv-1")?.paid).toBe(false);
+        expect(byRef.get("inv-0")?.products).toEqual([{ id: 1, quantity: 1, price: 10, finalPrice: 10 }]);
 
         // onSaved receives the report summary out of SavePurchaseResponse, not the envelope.
         expect(onSaved).toHaveBeenCalledWith(

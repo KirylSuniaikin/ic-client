@@ -32,20 +32,30 @@ export const toPayloadInvoice = (invoice: PurchaseInvoiceRow): PurchaseInvoiceRe
     };
 };
 
-/** Direction a column starts in on its first tap: dates newest-first, text A→Z. */
+/** Direction a column starts in on its first tap: dates newest-first, text A→Z, unpaid first. */
 export const DEFAULT_SORT_DIR: Record<PurchaseSortKey, SortDir> = {
     invoiceDate: "desc",
     vendorName: "asc",
+    unpaid: "asc",
+};
+
+/** The order the table opens in: the most recent invoices first. */
+export const INITIAL_SORT: { key: PurchaseSortKey; dir: SortDir } = {
+    key: "invoiceDate",
+    dir: DEFAULT_SORT_DIR.invoiceDate,
 };
 
 // Every sortable column compares as a string: invoiceDate is ISO (YYYY-MM-DD), so
-// lexicographic order is chronological order.
+// lexicographic order is chronological order. `unpaid` maps to "0"/"1" so that ascending —
+// its default direction — puts the unpaid invoices first.
 function sortValue(row: PurchaseInvoiceRow, key: PurchaseSortKey): string {
     switch (key) {
         case "invoiceDate":
             return String(row.invoiceDate ?? "").trim();
         case "vendorName":
             return String(row.vendorName ?? "").trim();
+        case "unpaid":
+            return row.paid ? "1" : "0";
     }
 }
 
@@ -68,7 +78,14 @@ export function sortPurchaseInvoices(
             if (av === bv) return 0;
             return av === "" ? 1 : -1;
         }
-        return factor * av.localeCompare(bv);
+        const primary = factor * av.localeCompare(bv);
+        if (primary !== 0) return primary;
+        // Grouping by paid state leaves every invoice in a group tied, which would otherwise
+        // expose whatever order they happened to arrive in. Keep newest-first inside each group.
+        if (key === "unpaid") {
+            return String(b.invoiceDate ?? "").localeCompare(String(a.invoiceDate ?? ""));
+        }
+        return 0;
     });
 }
 
