@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage';
 import AdminHomePage from '../pages/AdminHomePage';
 import {OrderStatusPage} from '../pages/OrderStatusPage';
 import {AuthPage} from '../pages/AuthPage';
+import {PrivacyPolicyPage} from '../pages/PrivacyPolicyPage';
 import {ProtectedRoute} from '../domains/auth/components/ProtectedRoute';
 import {captureFbclid} from '../shared/utils/adAttribution';
 
@@ -40,6 +41,9 @@ export function AppRouter(): JSX.Element {
             <Route path="/order_status" element={<WatchOrderStatus/>}/>
             <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
             <Route path="/auth" element={<AuthPage/>}/>
+            {/* Public and unauthenticated by design: Google Play requires the privacy policy
+                URL to be reachable without a login. */}
+            <Route path="/privacy" element={<PrivacyPolicyPage/>}/>
         </Routes>
     );
 }
