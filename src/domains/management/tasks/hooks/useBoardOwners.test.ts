@@ -15,6 +15,7 @@ function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
         id: 12,
         username: "avery.super",
         role: StaffRoles.SUPER_MANAGER,
+        openCardCount: 0,
         ...overrides,
     };
 }

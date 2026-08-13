@@ -13,10 +13,24 @@ import type { TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
 
 export interface TaskBoardPanelProps {
     ownerId?: number | null; // seam for ST6; omitted/null = caller's own board
+    /**
+     * Reports how many unfinished cards this board holds, so the sidebar badge tracks edits
+     * instead of showing whatever the count was when the page loaded. Derived from cards already
+     * in hand — it costs no request, and it cannot disagree with what is on screen.
+     */
+    onOpenCardCountChange?: (ownerId: number | null, openCardCount: number) => void;
 }
 
-export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): JSX.Element {
+export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskBoardPanelProps = {}): JSX.Element {
     const board = useTaskBoard(ownerId);
+
+    const openCardCount = board.cards.filter(card => card.status !== "DONE").length;
+    useEffect(() => {
+        // Not while the board is still loading: `cards` is empty then, and reporting 0 would blank
+        // the badge on every board switch before the real number arrives.
+        if (board.loading) return;
+        onOpenCardCountChange?.(ownerId ?? null, openCardCount);
+    }, [board.loading, openCardCount, ownerId, onOpenCardCountChange]);
 
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<TaskCardDrawerMode>("view");

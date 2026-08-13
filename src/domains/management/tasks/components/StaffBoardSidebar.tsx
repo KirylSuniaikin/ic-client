@@ -1,5 +1,5 @@
 import React from "react";
-import { Avatar, Box, CircularProgress, Divider, IconButton, List, ListItemButton, Tooltip, Typography } from "@mui/material";
+import { Avatar, Badge, Box, CircularProgress, Divider, IconButton, List, ListItemButton, Tooltip, Typography } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import type { BoardOwner } from "../types";
@@ -60,18 +60,45 @@ export default function StaffBoardSidebar({
                     },
                 }}
             >
-                <Avatar
+                {/* Sits on the avatar's bottom-right corner. `badgeContent` of 0 renders nothing
+                    without showZero, so somebody with a clear board gets a plain avatar rather
+                    than a zero to read past — and the count survives the collapsed rail, where
+                    the avatar is all there is. */}
+                <Badge
+                    data-testid={`staff-board-sidebar-avatar-${owner.id}`}
+                    badgeContent={owner.openCardCount}
+                    max={99}
+                    overlap="circular"
+                    anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                     sx={{
-                        width: 30,
-                        height: 30,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: selected ? "#fff" : "text.secondary",
-                        backgroundColor: selected ? ACCENT : "rgba(15,23,42,0.08)",
+                        "& .MuiBadge-badge": {
+                            backgroundColor: selected ? ACCENT : "rgba(15,23,42,0.55)",
+                            color: "#fff",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            height: 16,
+                            minWidth: 16,
+                            padding: "0 4px",
+                            // The rail packs avatars tightly; a ring lifts the badge off whichever
+                            // avatar sits behind it.
+                            border: "2px solid #fff",
+                            boxSizing: "content-box",
+                        },
                     }}
                 >
-                    {initials(owner.username)}
-                </Avatar>
+                    <Avatar
+                        sx={{
+                            width: 30,
+                            height: 30,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: selected ? "#fff" : "text.secondary",
+                            backgroundColor: selected ? ACCENT : "rgba(15,23,42,0.08)",
+                        }}
+                    >
+                        {initials(owner.username)}
+                    </Avatar>
+                </Badge>
                 {open && (
                     <Box sx={{ minWidth: 0 }}>
                         <Typography

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
@@ -26,6 +26,24 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     // Initial value only: once toggled, the choice is the user's for the rest of the session.
     const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    // Counts for boards opened during this session, keyed by owner. The fetched list is the
+    // starting point; whichever board is on screen keeps its own badge honest as cards are added,
+    // moved to Done or deleted, without another round trip.
+    const [liveCardCounts, setLiveCardCounts] = useState<Record<number, number>>({});
+
+    const handleOpenCardCountChange = useCallback((ownerId: number | null, openCardCount: number): void => {
+        if (ownerId === null) return;
+        setLiveCardCounts(prev => (prev[ownerId] === openCardCount ? prev : { ...prev, [ownerId]: openCardCount }));
+    }, []);
+
+    const ownersWithCounts = useMemo(
+        () => owners.map(owner => (
+            liveCardCounts[owner.id] === undefined
+                ? owner
+                : { ...owner, openCardCount: liveCardCounts[owner.id] }
+        )),
+        [owners, liveCardCounts]
+    );
 
     // Display default only: owners[0] is always the caller (server-pinned), so this is
     // functionally identical to leaving selectedOwnerId unset.
@@ -47,7 +65,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     return (
         <Box sx={{ display: "flex", width: "100%", alignItems: "flex-start", backgroundColor: "#fbfaf6", minHeight: "100vh" }}>
             <StaffBoardSidebar
-                owners={owners}
+                owners={ownersWithCounts}
                 loading={loading}
                 selectedOwnerId={selectedOwnerId}
                 open={sidebarOpen}
@@ -57,7 +75,10 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
             {/* minWidth:0 is what lets the board's horizontal scroller actually shrink and scroll —
                 a flex item defaults to min-width:auto and would instead push the page wider. */}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-                <TaskBoardPanel ownerId={selectedOwnerId ?? undefined} />
+                <TaskBoardPanel
+                    ownerId={selectedOwnerId ?? undefined}
+                    onOpenCardCountChange={handleOpenCardCountChange}
+                />
             </Box>
             <ErrorSnackbar
                 open={errorMessage !== null}

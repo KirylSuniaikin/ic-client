@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { BoardOwner } from "../types";
 import type { UseBoardOwnersResult } from "../hooks/useBoardOwners";
@@ -9,8 +9,20 @@ import type { UseBoardOwnersResult } from "../hooks/useBoardOwners";
 // through) can be asserted without depending on TaskBoardPanel's internals -- that
 // component already has its own dedicated TaskBoardPanel.test.tsx. Echoes ownerId
 // into a data attribute so tests can assert its value across re-renders.
-function mockTaskBoardPanel({ ownerId }: { ownerId?: number | null }): JSX.Element {
-    return <div data-testid="task-board-panel" data-owner-id={ownerId === undefined || ownerId === null ? "" : String(ownerId)} />;
+function mockTaskBoardPanel({ ownerId, onOpenCardCountChange }: {
+    ownerId?: number | null;
+    onOpenCardCountChange?: (ownerId: number | null, openCardCount: number) => void;
+}): JSX.Element {
+    return (
+        <div data-testid="task-board-panel" data-owner-id={ownerId === undefined || ownerId === null ? "" : String(ownerId)}>
+            {/* Stands in for the real panel's effect: a card was added/moved/deleted and the board
+                now holds this many unfinished cards. */}
+            <button
+                data-testid="panel-reports-4-open-cards"
+                onClick={(): void => onOpenCardCountChange?.(ownerId ?? null, 4)}
+            />
+        </div>
+    );
 }
 
 jest.mock("./TaskBoardPanel", () => ({
@@ -33,6 +45,7 @@ function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
         id: 12,
         username: "avery.super",
         role: StaffRoles.SUPER_MANAGER,
+        openCardCount: 0,
         ...overrides,
     };
 }
@@ -93,6 +106,58 @@ describe("TaskBoardScreen", () => {
         render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
 
         expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("true");
+    });
+
+    // The count comes down with the owners list, but the board on screen is the thing being
+    // edited — a badge that only reflected page-load state would be wrong the moment a card moved.
+    describe("open-card badge", () => {
+        const badgeFor = (ownerId: number) =>
+            within(screen.getByTestId(`staff-board-sidebar-avatar-${ownerId}`));
+
+        it("badges each owner with the count that came down with the list", async () => {
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({
+                owners: [
+                    makeOwner({ id: 12, openCardCount: 7 }),
+                    makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER, openCardCount: 2 }),
+                ],
+            }));
+
+            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+
+            await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
+            expect(badgeFor(4).getByText("2")).toBeTruthy();
+        });
+
+        it("takes the live count from the board on screen over the fetched one", async () => {
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({
+                owners: [makeOwner({ id: 12, openCardCount: 7 })],
+            }));
+
+            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+            await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
+
+            fireEvent.click(screen.getByTestId("panel-reports-4-open-cards"));
+
+            await waitFor(() => expect(badgeFor(12).getByText("4")).toBeTruthy());
+            expect(badgeFor(12).queryByText("7")).toBeNull();
+        });
+
+        it("leaves the other owners' badges untouched", async () => {
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({
+                owners: [
+                    makeOwner({ id: 12, openCardCount: 7 }),
+                    makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER, openCardCount: 2 }),
+                ],
+            }));
+
+            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+            await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
+
+            fireEvent.click(screen.getByTestId("panel-reports-4-open-cards"));
+
+            await waitFor(() => expect(badgeFor(12).getByText("4")).toBeTruthy());
+            expect(badgeFor(4).getByText("2")).toBeTruthy();
+        });
     });
 
     it("role=MANAGER: sidebar absent, TaskBoardPanel rendered with no ownerId", () => {
