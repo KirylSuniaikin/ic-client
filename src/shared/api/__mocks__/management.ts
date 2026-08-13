@@ -28,6 +28,7 @@ import type {
     AccountingReportTO,
     AccountingType,
     CreateAccountingReportPayload,
+    EntryImageMetaTO,
     UpdateAccountingReportPayload
 } from '../../../domains/management/accounting/types';
 
@@ -84,3 +85,8 @@ export const getAccountingReport = jest.fn<Promise<AccountingReportTO>, [number]
 export const createAccountingReport = jest.fn<Promise<AccountingReportTO>, [CreateAccountingReportPayload]>();
 export const updateAccountingReport = jest.fn<Promise<AccountingReportTO>, [number, UpdateAccountingReportPayload]>();
 export const getAccountingCategories = jest.fn<Promise<AccountingCategoryTO[]>, [string, (AccountingType | undefined)?]>();
+
+// Accounting entry photos.
+export const uploadAccountingEntryImage = jest.fn<Promise<EntryImageMetaTO>, [number, Blob]>();
+export const fetchAccountingEntryImage = jest.fn<Promise<Blob | null>, [number]>();
+export const deleteAccountingEntryImage = jest.fn<Promise<void>, [number]>();

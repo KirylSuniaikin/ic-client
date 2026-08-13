@@ -38,6 +38,7 @@ import type {
     AccountingReportTO,
     AccountingType,
     CreateAccountingReportPayload,
+    EntryImageMetaTO,
     UpdateAccountingReportPayload
 } from '../../domains/management/accounting/types';
 import type {
@@ -409,6 +410,36 @@ export async function updateAccountingReport(id: number, payload: UpdateAccounti
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+export async function uploadAccountingEntryImage(entryId: number, file: Blob): Promise<EntryImageMetaTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "POST",
+        // No Content-Type header: the browser must generate the multipart/form-data boundary
+        // itself from the FormData body. Setting a fixed value here strips that boundary and the
+        // backend fails with an opaque 500.
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchAccountingEntryImage(entryId: number): Promise<Blob | null> {
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "GET",
+    });
+    if (res.status === 404) return null; // no photo yet — not an exception
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
+}
+
+export async function deleteAccountingEntryImage(entryId: number): Promise<void> {
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
 }
 
 export async function getAccountingCategories(branchId: string, type?: AccountingType): Promise<AccountingCategoryTO[]> {

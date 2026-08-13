@@ -152,10 +152,9 @@ export function AccountingHomePage({ open, onClose, branch }: Props): JSX.Elemen
                     reportId={accountingPopup.mode === "edit" ? accountingPopup.reportId : undefined}
                     branch={branch}
                     onClose={() => setAccountingPopup({ open: false })}
-                    onSaved={(report) => {
-                        setReports((prev) => upsertReport(prev, report));
-                        setAccountingPopup({ open: false });
-                    }}
+                    // Refresh only — the popup decides when to dismiss itself, because a save that
+                    // succeeded but could not upload a photo has to stay open to say so.
+                    onSaved={(report) => setReports((prev) => upsertReport(prev, report))}
                 />
             )}
         </>
