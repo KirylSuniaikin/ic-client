@@ -123,6 +123,14 @@ function SortButton({
     );
 }
 
+type PaidFilter = "all" | "paid" | "unpaid";
+
+const PAID_FILTER_OPTIONS: { value: PaidFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "paid", label: "Paid" },
+    { value: "unpaid", label: "Unpaid" },
+];
+
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
     const [products, setProducts] = useState<ProductTO[]>([]);
     const [vendors, setVendors] = useState<VendorTO[]>([]);
@@ -140,6 +148,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [admin, setAdmin] = useState<IUser>(null);
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
     const [sort, setSort] = useState<PurchaseSort | null>(null);
+    const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
     // Ids of COLLAPSED invoices. A month is ~40 invoices / ~200 lines, so an existing report
     // opens fully collapsed and is scanned as ~40 rows; a freshly added invoice starts expanded
     // because it has to be filled in.
@@ -320,6 +329,13 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         setSort({ key, dir });
         setInvoices(prev => sortPurchaseInvoices(prev, key, dir));
     }, [sort]);
+
+    // VIEW ONLY. `invoices` stays the source of truth for saving — filtering the saved payload
+    // instead would silently drop every invoice the filter happens to hide.
+    const visibleInvoices = useMemo(() => {
+        if (paidFilter === "all") return invoices;
+        return invoices.filter(inv => (paidFilter === "paid" ? inv.paid : !inv.paid));
+    }, [invoices, paidFilter]);
 
     const total = useMemo(
         () =>
@@ -503,10 +519,28 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             alignItems="center"
                             justifyContent="space-between"
                         >
-                            <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
-                                <SortButton label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
-                                <SortButton label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
-                            </ButtonGroup>
+                            <Stack direction="row" alignItems="center" gap={1}>
+                                <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
+                                    <SortButton label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
+                                </ButtonGroup>
+                                {/* Replaces the Vendor sort: on a ~40-invoice month, "what is still
+                                    unpaid" is the question actually being asked of this table. */}
+                                <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
+                                    {PAID_FILTER_OPTIONS.map(option => (
+                                        <Button
+                                            key={option.value}
+                                            data-testid={`paid-filter-${option.value}`}
+                                            aria-pressed={paidFilter === option.value}
+                                            onClick={() => setPaidFilter(option.value)}
+                                            sx={paidFilter === option.value
+                                                ? { bgcolor: `${BRAND}1F`, borderColor: `${BRAND} !important` }
+                                                : undefined}
+                                        >
+                                            {option.label}
+                                        </Button>
+                                    ))}
+                                </ButtonGroup>
+                            </Stack>
                             <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
                                 <Button
                                     data-testid="collapse-all"
@@ -537,7 +571,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         >
                             <Table size="small" aria-label="purchases" sx={{ minWidth: 860 }}>
                                 <TableBody>
-                                    {invoices.map((invoice) => (
+                                    {visibleInvoices.map((invoice) => (
                                         <PurchaseInvoiceGroup
                                             key={invoice.id}
                                             invoice={invoice}
@@ -557,10 +591,14 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                         />
                                     ))}
 
-                                    {invoices.length === 0 && (
+                                    {visibleInvoices.length === 0 && (
                                         <TableRow>
                                             <TableCell colSpan={PRODUCT_COLUMN_COUNT} align="center" sx={{ py: 3, color: "text.secondary" }}>
-                                                No invoices yet — use Add invoice to create one
+                                                {/* An empty table under a filter is not an empty report — say which
+                                                    it is, or "Add invoice" looks like the only way forward. */}
+                                                {invoices.length === 0
+                                                    ? "No invoices yet — use Add invoice to create one"
+                                                    : `No ${paidFilter} invoices in this report`}
                                             </TableCell>
                                         </TableRow>
                                     )}

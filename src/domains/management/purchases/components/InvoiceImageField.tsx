@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { downscaleImage } from "../../../../shared/utils/imageCompress";
 import { logger } from "../../../../shared/utils/logger";
@@ -105,15 +106,21 @@ export function InvoiceImageField({
                     />
                 </Tooltip>
             ) : (
-                <Tooltip title={storedPhotoAvailable ? "View photo" : "Add invoice photo"}>
+                <Tooltip title={storedPhotoAvailable ? "View photo" : "Upload invoice photo"}>
                     <IconButton
                         size="small"
-                        aria-label={storedPhotoAvailable ? "view invoice photo" : "add invoice photo"}
+                        aria-label={storedPhotoAvailable ? "view invoice photo" : "upload invoice photo"}
                         disabled={busy}
                         onClick={() => (storedPhotoAvailable ? setViewerOpen(true) : inputRef.current?.click())}
                         sx={{ color: storedPhotoAvailable ? "success.main" : "text.secondary" }}
                     >
-                        <PhotoCameraOutlinedIcon fontSize="small" />
+                        {/* A camera icon on an empty slot reads as "a photo lives here", not "put one
+                            here" — an upload arrow says what the control actually wants. Once a photo
+                            exists the green camera is right: it now IS a photo, and viewing is what
+                            the button does. */}
+                        {storedPhotoAvailable
+                            ? <PhotoCameraOutlinedIcon fontSize="small" />
+                            : <FileUploadOutlinedIcon fontSize="small" />}
                     </IconButton>
                 </Tooltip>
             )}

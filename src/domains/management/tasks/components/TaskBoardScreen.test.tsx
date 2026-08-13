@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
@@ -50,10 +50,49 @@ function getOwnerId(): string | null {
     return screen.getByTestId("task-board-panel").getAttribute("data-owner-id");
 }
 
+// jsdom implements no `matchMedia`, so MUI's `useMediaQuery` falls back to false (desktop) for
+// every test that does not install this.
+function stubViewportAsMobile(matches: boolean): void {
+    Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+            matches,
+            media: query,
+            onchange: null,
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+            dispatchEvent: jest.fn(),
+        }),
+    });
+}
+
 describe("TaskBoardScreen", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockUseBoardOwners.mockReturnValue(boardOwnersValue());
+    });
+
+    afterEach(() => {
+        Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    it("starts the sidebar collapsed on a phone, where expanded would leave the board half a screen", () => {
+        stubViewportAsMobile(true);
+
+        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+
+        expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("false");
+    });
+
+    it("starts the sidebar expanded on desktop", () => {
+        stubViewportAsMobile(false);
+
+        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+
+        expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("true");
     });
 
     it("role=MANAGER: sidebar absent, TaskBoardPanel rendered with no ownerId", () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Box } from "@mui/material";
+import { Box, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import { StaffRoles } from "../../../auth/types";
 import { useBoardOwners } from "../hooks/useBoardOwners";
@@ -17,8 +18,13 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     // Called unconditionally (Rules of Hooks) and no-ops internally when disabled.
     const { owners, loading, error } = useBoardOwners(isSuperManager);
 
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
     const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(null);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    // Expanded, the sidebar takes ~230px — on a phone that leaves the board barely half the screen.
+    // Initial value only: once toggled, the choice is the user's for the rest of the session.
+    const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     // Display default only: owners[0] is always the caller (server-pinned), so this is
