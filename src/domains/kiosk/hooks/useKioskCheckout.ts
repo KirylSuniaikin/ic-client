@@ -70,7 +70,7 @@ export interface UseKioskCheckoutResult {
     isSheetOpen: boolean;
     startPhoneStep: (items: CartItem[]) => void;
     closePhoneStep: () => void;
-    submitPhone: (tel: string) => Promise<void>;
+    submitPhone: (tel: string, customerName: string) => Promise<void>;
     /** Customer pressed Cancel while the terminal was waiting. */
     cancelPayment: () => Promise<void>;
     /** The failure sheet successfully deferred the order to the counter. */
@@ -152,7 +152,7 @@ export function useKioskCheckout(params: UseKioskCheckoutParams): UseKioskChecko
         setCartOpen(true);
     }
 
-    async function submitPhone(tel: string): Promise<void> {
+    async function submitPhone(tel: string, customerName: string): Promise<void> {
         if (submittingRef.current) return;
         submittingRef.current = true;
         setCheckoutError(null);
@@ -163,8 +163,7 @@ export function useKioskCheckout(params: UseKioskCheckoutParams): UseKioskChecko
         if (orderId === null) {
             const order: CreateOrderRequest = {
                 tel,
-                // Locked product decision: the kiosk asks for a phone number only.
-                customer_name: null,
+                customer_name: customerName,
                 type: "Pick Up",
                 payment_type: "Card",
                 // All three above, plus branchId, are overridden server-side from the kiosk

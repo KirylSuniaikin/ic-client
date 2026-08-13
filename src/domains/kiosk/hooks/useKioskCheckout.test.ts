@@ -112,7 +112,7 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
 
         act(() => { result.current.startPhoneStep(ITEMS); });
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
         expect(mockInitiate).toHaveBeenCalledWith("4321");
@@ -120,16 +120,17 @@ describe("useKioskCheckout", () => {
         expect(result.current.pendingOrderId).toBe("4321");
     });
 
-    it("sends a phone-only payload: no name, 3-decimal amount, kiosk branch", async () => {
+    it("sends the name and phone the sheet collected, a 3-decimal amount and the kiosk branch", async () => {
         const params = makeParams();
         const { result } = renderHook(() => useKioskCheckout(params));
 
         act(() => { result.current.startPhoneStep(ITEMS); });
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         const payload = mockCreateOrder.mock.calls[0][0];
         expect(payload.tel).toBe("97312345678");
-        expect(payload.customer_name).toBeNull();
+        // Was hardcoded null while the kiosk asked for a phone number only.
+        expect(payload.customer_name).toBe("Layla");
         expect(payload.type).toBe("Pick Up");
         expect(payload.payment_type).toBe("Card");
         expect(payload.branchId).toBe("branch-uuid-1");
@@ -146,8 +147,8 @@ describe("useKioskCheckout", () => {
         // Both calls start before React can flush setSubmitting(true) — only the synchronous
         // submittingRef guard stops the second one, and a second order here is a real duplicate.
         await act(async () => {
-            const first = result.current.submitPhone("97312345678");
-            const second = result.current.submitPhone("97312345678");
+            const first = result.current.submitPhone("97312345678", "Layla");
+            const second = result.current.submitPhone("97312345678", "Layla");
             await Promise.all([first, second]);
         });
 
@@ -160,11 +161,11 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
         act(() => { result.current.startPhoneStep(ITEMS); });
 
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
         expect(result.current.phase).toBe("phone");
         expect(result.current.checkoutError).not.toBeNull();
 
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
         expect(mockInitiate).toHaveBeenCalledTimes(2);
@@ -177,7 +178,7 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
         act(() => { result.current.startPhoneStep(ITEMS); });
 
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         expect(params.setCartItems).toHaveBeenCalledWith([ITEMS[1]]);
         expect(params.setCartOpen).toHaveBeenCalledWith(true);
@@ -192,7 +193,7 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
         act(() => { result.current.startPhoneStep(ITEMS); });
 
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         expect(result.current.phase).toBe("phone");
         // Distinct from the generic failure copy — a closed branch is actionable information.
@@ -205,7 +206,7 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
         act(() => { result.current.startPhoneStep(ITEMS); });
 
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         expect(params.onUnauthorized).toHaveBeenCalledTimes(1);
         expect(result.current.phase).toBe("idle");
@@ -216,7 +217,7 @@ describe("useKioskCheckout", () => {
         const { result } = renderHook(() => useKioskCheckout(params));
         act(() => { result.current.startPhoneStep(ITEMS); });
         mockInitiate.mockRejectedValueOnce(new Error("nope"));
-        await act(async () => { await result.current.submitPhone("97312345678"); });
+        await act(async () => { await result.current.submitPhone("97312345678", "Layla"); });
 
         act(() => { result.current.closePhoneStep(); });
 
@@ -230,7 +231,7 @@ describe("useKioskCheckout", () => {
         async function reachAwaitingCard(params: UseKioskCheckoutParams) {
             const hook = renderHook(() => useKioskCheckout(params));
             act(() => { hook.result.current.startPhoneStep(ITEMS); });
-            await act(async () => { await hook.result.current.submitPhone("97312345678"); });
+            await act(async () => { await hook.result.current.submitPhone("97312345678", "Layla"); });
             return hook;
         }
 

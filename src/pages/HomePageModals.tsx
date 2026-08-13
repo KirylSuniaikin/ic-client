@@ -338,7 +338,7 @@ export default function HomePageModals({
                         submitting={kiosk.submitting}
                         checkoutError={kiosk.checkoutError}
                         onClose={kiosk.closePhoneStep}
-                        onSubmit={(tel: string) => { void kiosk.submitPhone(tel); }}
+                        onSubmit={(tel: string, name: string) => { void kiosk.submitPhone(tel, name); }}
                     />
 
                     <KioskPaymentSheet

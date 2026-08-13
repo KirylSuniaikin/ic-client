@@ -11,16 +11,16 @@ interface KioskPhoneEntrySheetProps {
     /** Order/terminal failure from the checkout hook — distinct from local digit validation. */
     checkoutError: string | null;
     onClose: () => void;
-    /** Receives the full "973########" string the backend's `tel` field expects. */
-    onSubmit: (tel: string) => void;
+    /** Receives the full "973########" string the backend's `tel` field expects, plus the name. */
+    onSubmit: (tel: string, name: string) => void;
 }
 
 /**
- * The kiosk's only data-entry step: a phone number, nothing else.
+ * The kiosk's data-entry step: name and phone number.
  *
- * Deliberately no name field and no branch picker (locked product decision): the backend derives
- * the branch from the paired kiosk, and every extra field is another thing a walk-up customer has
- * to type on a touchscreen.
+ * Still no branch picker — the backend derives the branch from the paired kiosk. The name was
+ * deliberately absent at first (every extra field is one more thing a walk-up customer has to type
+ * on a touchscreen) and was added back because an order nobody can call out is worse than a field.
  */
 export function KioskPhoneEntrySheet({
     open,
@@ -31,12 +31,14 @@ export function KioskPhoneEntrySheet({
 }: KioskPhoneEntrySheetProps): JSX.Element {
     const { t } = useTranslation(["kiosk", "checkout"]);
     const [digits, setDigits] = useState("");
+    const [name, setName] = useState("");
     const [error, setError] = useState<string | null>(null);
 
-    // A fresh customer must never find the previous one's number already typed in.
+    // A fresh customer must never find the previous one's details already typed in.
     useEffect(() => {
         if (!open) {
             setDigits("");
+            setName("");
             setError(null);
         }
     }, [open]);
@@ -51,12 +53,18 @@ export function KioskPhoneEntrySheet({
     }
 
     function handleSubmit(): void {
+        // Name first: it is the field above, so reporting the phone problem while the name is also
+        // empty would point at the wrong box.
+        if (name.trim() === "") {
+            setError(t("checkout:clientInfo.errors.nameRequired"));
+            return;
+        }
         if (digits.length !== PHONE_DIGIT_COUNT) {
             setError(t("checkout:clientInfo.errors.phoneLength", { count: PHONE_DIGIT_COUNT }));
             return;
         }
         setError(null);
-        onSubmit(PHONE_COUNTRY_CODE + digits);
+        onSubmit(PHONE_COUNTRY_CODE + digits, name.trim());
     }
 
     return (
@@ -68,8 +76,23 @@ export function KioskPhoneEntrySheet({
                 {t("kiosk:phone.subtitle")}
             </Typography>
 
+            {/* Name before phone: it is what gets called out when the order is ready, and the
+                phone field's numeric keypad is the natural last step before Pay. */}
             <TextField
                 autoFocus
+                fullWidth
+                variant="outlined"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setError(null); }}
+                placeholder={t("checkout:clientInfo.name")}
+                disabled={submitting}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+                inputProps={{ maxLength: 60, "aria-label": t("checkout:clientInfo.name") }}
+                InputProps={{ sx: { borderRadius: 4, fontSize: "1.4rem", fontWeight: "bold" } }}
+                sx={{ mb: 1.5 }}
+            />
+
+            <TextField
                 fullWidth
                 variant="outlined"
                 value={digits}

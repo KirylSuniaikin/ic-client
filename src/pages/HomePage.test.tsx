@@ -386,16 +386,20 @@ describe("HomePage -- kiosk EazyPay payment flow", () => {
         await waitFor(() => expect(screen.getByText("Enter your phone number")).toBeTruthy());
     }
 
-    it("shows a phone-only step on kiosk -- no name field, no branch picker", async () => {
+    it("asks for name and phone on kiosk -- and still no branch picker", async () => {
         await reachPhoneSheet();
 
-        expect(screen.queryByLabelText(/name/i)).toBeNull();
+        expect(screen.getByRole("textbox", { name: "Name" })).toBeTruthy();
+        expect(screen.getByRole("textbox", { name: "Phone number" })).toBeTruthy();
+        // The backend derives the branch from the paired kiosk; asking would be a second way to
+        // get it wrong.
         expect(screen.queryByLabelText(/branch/i)).toBeNull();
     });
 
     it("keeps the terminal sheet mounted while the payment is live (no full-page loader)", async () => {
         await reachPhoneSheet();
 
+        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
         fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
         fireEvent.click(screen.getByRole("button", { name: "Continue to payment" }));
 
