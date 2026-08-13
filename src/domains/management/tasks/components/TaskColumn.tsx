@@ -32,10 +32,12 @@ export default function TaskColumn({
             data-testid={`task-column-${status}`}
             data-column-status={status}
             sx={{
-                // One column fills a phone screen (with a sliver of the next as a swipe affordance),
-                // then they share the row from tablet up.
+                // One column fills the board's visible width (with a sliver of the next as a swipe
+                // affordance), then they share the row from tablet up. This is a percentage of the
+                // scroll container, NOT `vw`: the board is narrower than the viewport whenever the
+                // sidebar is open or the page has padding, and a vw-sized column overflows it.
                 flex: { xs: "0 0 auto", sm: 1 },
-                width: { xs: "86vw", sm: "auto" },
+                width: { xs: "88%", sm: "auto" },
                 minWidth: { sm: 260 },
                 maxWidth: { sm: 420 },
                 scrollSnapAlign: "start",

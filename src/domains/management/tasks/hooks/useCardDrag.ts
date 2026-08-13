@@ -9,8 +9,8 @@ const DEFAULT_LONG_PRESS_MS = 250;
 
 // While dragging, a pointer this close to the scroller's edge scrolls the board towards it —
 // the only way to reach an off-screen column on a phone, where one column fills the viewport.
-const EDGE_SCROLL_ZONE_PX = 56;
-const EDGE_SCROLL_STEP_PX = 14;
+const EDGE_SCROLL_ZONE_PX = 72;
+const EDGE_SCROLL_STEP_PX = 18;
 const EDGE_SCROLL_INTERVAL_MS = 16;
 
 // Marks the horizontally-scrollable board container that edge auto-scroll drives.
@@ -49,6 +49,10 @@ interface DragState {
     moved: boolean;
     target: HTMLElement;
     isTouch: boolean;
+    // Board scroll offset when the card was lifted. The card is a child of the scrolling content,
+    // so without compensating for scroll it slides out from under the finger the moment edge
+    // auto-scroll kicks in — which looks exactly like "the card won't come with me".
+    startScrollLeft: number;
 }
 
 interface ActiveDragVisual {
@@ -122,6 +126,10 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
     // event on that same card can be told apart from a genuine tap. Cleared as soon as read.
     const justDraggedCardIdRef = useRef<number | null>(null);
 
+    // Last pointer position, so the drag visual can be recomputed by the auto-scroll ticker while
+    // the finger is held perfectly still at the board's edge.
+    const lastPointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
     const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const edgeScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const edgeScrollDirectionRef = useRef<-1 | 0 | 1>(0);
@@ -154,23 +162,44 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
         containerDocument.addEventListener("touchmove", handler, { passive: false });
     }, [containerDocument]);
 
+    const applyDragVisual = useCallback((): void => {
+        const state = dragStateRef.current;
+        if (!state || !state.dragging) return;
+        const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+        const scrolled = scroller ? scroller.scrollLeft - state.startScrollLeft : 0;
+        setActiveDrag({
+            cardId: state.cardId,
+            dx: lastPointRef.current.x - state.startX + scrolled,
+            dy: lastPointRef.current.y - state.startY,
+        });
+    }, [containerDocument]);
+
     const stopEdgeScroll = useCallback((): void => {
         edgeScrollDirectionRef.current = 0;
         if (edgeScrollTimerRef.current !== null) {
             clearInterval(edgeScrollTimerRef.current);
             edgeScrollTimerRef.current = null;
         }
-    }, []);
+        const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+        if (scroller) scroller.style.scrollSnapType = "";
+    }, [containerDocument]);
 
     const startEdgeScroll = useCallback((): void => {
         if (edgeScrollTimerRef.current !== null) return;
+        // Scroll snapping fights an in-progress auto-scroll: each programmatic nudge is pulled back
+        // to the nearest column start, so the board never actually reaches the next column while a
+        // card is held at the edge. Suspend it for the duration of the drag and restore it after.
+        const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+        if (scroller) scroller.style.scrollSnapType = "none";
         edgeScrollTimerRef.current = setInterval(() => {
             const direction = edgeScrollDirectionRef.current;
             if (direction === 0) return;
-            const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
-            if (scroller) scroller.scrollLeft += direction * EDGE_SCROLL_STEP_PX;
+            const target = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+            if (!target) return;
+            target.scrollLeft += direction * EDGE_SCROLL_STEP_PX;
+            applyDragVisual();
         }, EDGE_SCROLL_INTERVAL_MS);
-    }, [containerDocument]);
+    }, [containerDocument, applyDragVisual]);
 
     const cancelLongPress = useCallback((): void => {
         if (longPressTimerRef.current !== null) {
@@ -191,11 +220,13 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
 
     const getDragHandlers = useCallback(
         (card: TaskCard, onCardClick: (card: TaskCard) => void): CardDragHandlers => {
-            const beginDragging = (state: DragState, dx: number, dy: number): void => {
+            const beginDragging = (state: DragState): void => {
+                const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+                state.startScrollLeft = scroller ? scroller.scrollLeft : 0;
                 state.dragging = true;
                 if (state.isTouch) startBlockingTouchScroll();
                 startEdgeScroll();
-                setActiveDrag({ cardId: state.cardId, dx, dy });
+                applyDragVisual();
             };
 
             const onPointerDown = (event: React.PointerEvent<HTMLElement>): void => {
@@ -222,8 +253,10 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                     moved: false,
                     target,
                     isTouch: event.pointerType === "touch",
+                    startScrollLeft: 0,
                 };
                 dragStateRef.current = state;
+                lastPointRef.current = { x: event.clientX, y: event.clientY };
                 try {
                     target.setPointerCapture(event.pointerId);
                 } catch (err) {
@@ -241,7 +274,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                     longPressTimerRef.current = setTimeout(() => {
                         longPressTimerRef.current = null;
                         const current = dragStateRef.current;
-                        if (current === state && !current.dragging) beginDragging(current, 0, 0);
+                        if (current === state && !current.dragging) beginDragging(current);
                     }, longPressMs);
                 }
             };
@@ -283,15 +316,17 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                         return;
                     }
 
-                    beginDragging(state, dx, dy);
+                    lastPointRef.current = { x: event.clientX, y: event.clientY };
+                    beginDragging(state);
                 }
 
                 // Safe to preventDefault: for touch the document-level non-passive blocker installed
                 // at lift time already owns the gesture; for mouse there is no scroll to cancel.
                 event.preventDefault();
                 state.moved = true;
+                lastPointRef.current = { x: event.clientX, y: event.clientY };
                 updateEdgeScrollDirection(event.clientX);
-                setActiveDrag({ cardId: state.cardId, dx, dy });
+                applyDragVisual();
             };
 
             const finishGesture = (event: React.PointerEvent<HTMLElement>): DragState | null => {
@@ -371,6 +406,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
             dragThresholdPx,
             longPressMs,
             onDrop,
+            applyDragVisual,
             cancelLongPress,
             startBlockingTouchScroll,
             stopBlockingTouchScroll,

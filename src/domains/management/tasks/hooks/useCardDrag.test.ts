@@ -70,7 +70,7 @@ function Harness(props: {
 
     return React.createElement(
         "div",
-        null,
+        { "data-board-scroller": true, "data-testid": "board-scroller" },
         statuses.map(status =>
             React.createElement(
                 "div",
@@ -336,6 +336,39 @@ describe("useCardDrag", () => {
             fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 400, clientY: 50 });
 
             expect(onDrop).toHaveBeenCalledWith({ cardId: 1, targetStatus: "DOING", targetIndex: 0 });
+            jest.useRealTimers();
+        });
+
+        it("holding a lifted card at the board's edge scrolls the board towards the next column", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+            const scroller = screen.getByTestId("board-scroller");
+            // The mocked getBoundingClientRect gives the scroller a 0-width rect, so pin one that
+            // spans the columns — edge detection is measured against this box.
+            jest.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+                top: 0, bottom: 1000, left: 0, right: 400, width: 400, height: 1000, x: 0, y: 0,
+                toJSON: () => ({}),
+            } as DOMRect);
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 50, button: 0 });
+            jest.advanceTimersByTime(300); // lift
+            // Drag to within the right-hand edge zone and hold still.
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 380, clientY: 50 });
+
+            expect(scroller.scrollLeft).toBe(0);
+            jest.advanceTimersByTime(100); // dwell at the edge
+
+            expect(scroller.scrollLeft).toBeGreaterThan(0);
+            // Snapping is suspended while dragging, or each nudge would be pulled straight back.
+            expect(scroller.style.scrollSnapType).toBe("none");
+
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 380, clientY: 50 });
+            expect(scroller.style.scrollSnapType).toBe("");
             jest.useRealTimers();
         });
 
