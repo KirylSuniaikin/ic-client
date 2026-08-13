@@ -13,7 +13,9 @@ export default function AdminSurfaceTabs({ role, activeTab, onChange }: AdminSur
     if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER) return null;
 
     return (
-        <Box data-testid="admin-surface-tabs" sx={{ px: 1, pt: 2, pb: 1 }}>
+        // Without an explicit background this strip renders white against the admin's cream page
+        // and reads as a stray white band above the board.
+        <Box data-testid="admin-surface-tabs" sx={{ px: 1, pt: 2, pb: 1, backgroundColor: '#fbfaf6' }}>
             <ToggleButtonGroup
                 exclusive
                 value={activeTab}
@@ -33,6 +35,8 @@ export default function AdminSurfaceTabs({ role, activeTab, onChange }: AdminSur
                     '& .MuiToggleButton-root': {
                         textTransform: 'none',
                         px: 2,
+                        backgroundColor: '#fff',
+                        '&:hover': { backgroundColor: '#f4f2ed' },
                     },
                     '& .MuiToggleButton-root.Mui-selected': {
                         backgroundColor: '#E44B4C',

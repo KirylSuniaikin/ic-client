@@ -39,7 +39,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     }
 
     return (
-        <Box sx={{ display: "flex", width: "100%", alignItems: "flex-start" }}>
+        <Box sx={{ display: "flex", width: "100%", alignItems: "flex-start", backgroundColor: "#fbfaf6", minHeight: "100vh" }}>
             <StaffBoardSidebar
                 owners={owners}
                 loading={loading}

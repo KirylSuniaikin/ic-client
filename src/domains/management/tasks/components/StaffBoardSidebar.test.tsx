@@ -66,11 +66,13 @@ describe("StaffBoardSidebar", () => {
         expect(otherRow.className).not.toEqual(expect.stringContaining("Mui-selected"));
     });
 
-    it("renders zero rows when open=false but keeps the toggle visible", () => {
+    it("collapses to an avatar rail when open=false: rows stay selectable, names are hidden", () => {
         render(<StaffBoardSidebar {...baseProps({ open: false })} />);
 
-        expect(screen.queryByTestId("staff-board-sidebar-list")).toBeNull();
-        expect(screen.queryByTestId(/staff-board-sidebar-row-/)).toBeNull();
+        expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("false");
+        // The rail keeps every board reachable — collapsing must not strand the other boards.
+        expect(screen.getByTestId("staff-board-sidebar-row-9")).toBeTruthy();
+        expect(screen.queryByText("riley.super")).toBeNull();
         expect(screen.getByTestId("staff-board-sidebar-toggle")).toBeTruthy();
     });
 

@@ -61,7 +61,33 @@ export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: T
             >
                 <MoreVertIcon fontSize="small" />
             </IconButton>
-            <Menu anchorEl={anchorEl} open={open} onClose={handleClose} onClick={(e): void => e.stopPropagation()}>
+            <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleClose}
+                onClick={(e): void => e.stopPropagation()}
+                slotProps={{
+                    paper: {
+                        elevation: 0,
+                        sx: {
+                            mt: 0.5,
+                            minWidth: 170,
+                            borderRadius: "12px",
+                            backgroundColor: "#fbfaf6",
+                            border: "1px solid rgba(15,23,42,0.08)",
+                            boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
+                            "& .MuiList-root": { py: 0.5 },
+                            "& .MuiMenuItem-root": {
+                                mx: 0.5,
+                                borderRadius: "8px",
+                                minHeight: 38,
+                                "&:hover": { backgroundColor: "rgba(15,23,42,0.05)" },
+                            },
+                            "& .MuiListItemIcon-root": { minWidth: 30 },
+                        },
+                    },
+                }}
+            >
                 {PRIORITY_OPTIONS.map(option => (
                     <MenuItem key={option.value} onClick={(e): void => handleSelect(e, option.value)}>
                         <ListItemIcon>

@@ -12,7 +12,7 @@ export interface TaskColumnProps {
     onCardClick: (card: TaskCard) => void;
     onChangePriority: (cardId: number, priority: TaskCardPriority) => void;
     onRequestDelete?: (card: TaskCard) => void;
-    onAddClick?: () => void; // passed only for the BACKLOG column
+    onAddClick?: () => void; // every column gets one; adds a card to that column
     mutatingCardId?: number | null; // disables that one card's menu while its own mutation is in flight
     getDragHandlers?: TaskCardItemProps["getDragHandlers"];
 }
@@ -47,7 +47,9 @@ export default function TaskColumn({
                 p: 1,
             }}
         >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 0.75, py: 0.5, mb: 1 }}>
+            {/* Fixed height, not padding: the header must sit on the same baseline in all three
+                columns whether or not its add button renders. */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 0.75, height: 36, mb: 0.5 }}>
                 <Typography
                     variant="caption"
                     sx={{ fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}
@@ -74,7 +76,13 @@ export default function TaskColumn({
                 </Box>
                 <Box sx={{ flexGrow: 1 }} />
                 {onAddClick && (
-                    <IconButton data-testid="task-board-add-button" size="small" onClick={onAddClick} aria-label="Add Task">
+                    <IconButton
+                        data-testid={`task-board-add-button-${status}`}
+                        size="small"
+                        onClick={onAddClick}
+                        aria-label={`Add task to ${TASK_CARD_STATUS_LABELS[status]}`}
+                        sx={{ color: "text.secondary", "&:hover": { backgroundColor: "rgba(15,23,42,0.06)" } }}
+                    >
                         <AddIcon fontSize="small" />
                     </IconButton>
                 )}

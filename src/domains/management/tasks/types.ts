@@ -19,6 +19,7 @@ export type CreateTaskCardPayload = {
     title: string;
     description: string | null;
     priority?: TaskCardPriority;
+    status?: TaskCardStatus; // omitted = BACKLOG, matching the backend default
     assigneeId?: number;
 };
 

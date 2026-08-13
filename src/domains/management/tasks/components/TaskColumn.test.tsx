@@ -33,10 +33,10 @@ describe("TaskColumn", () => {
         const { rerender } = render(
             <TaskColumn status="BACKLOG" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} onAddClick={jest.fn()} />
         );
-        expect(screen.getByTestId("task-board-add-button")).toBeTruthy();
+        expect(screen.getByTestId("task-board-add-button-BACKLOG")).toBeTruthy();
 
         rerender(<TaskColumn status="DOING" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} />);
-        expect(screen.queryByTestId("task-board-add-button")).toBeNull();
+        expect(screen.queryByTestId("task-board-add-button-BACKLOG")).toBeNull();
     });
 
     it("clicking a card forwards to onCardClick", () => {

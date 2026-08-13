@@ -22,6 +22,8 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
     const [drawerMode, setDrawerMode] = useState<TaskCardDrawerMode>("view");
     const [activeCard, setActiveCard] = useState<TaskCard | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    // Which column the "+" was pressed in, so the new card lands there rather than always in Backlog.
+    const [createStatus, setCreateStatus] = useState<TaskCardStatus>("BACKLOG");
     const [priorityMutatingId, setPriorityMutatingId] = useState<number | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -49,7 +51,8 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
         setDrawerOpen(true);
     };
 
-    const handleAddClick = (): void => {
+    const handleAddClick = (status: TaskCardStatus): void => {
+        setCreateStatus(status);
         setActiveCard(null);
         setDrawerMode("create");
         setDrawerOpen(true);
@@ -79,6 +82,7 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
             title: values.title,
             description: trimmedDescription.length > 0 ? trimmedDescription : null,
             priority: values.priority,
+            status: createStatus,
             assigneeId: ownerId ?? undefined,
         });
         if (ok) {
@@ -156,7 +160,7 @@ export default function TaskBoardPanel({ ownerId }: TaskBoardPanelProps = {}): J
                         void handleChangePriority(cardId, priority);
                     }}
                     onRequestDelete={handleRequestDeleteFromCard}
-                    onAddClick={status === "BACKLOG" ? handleAddClick : undefined}
+                    onAddClick={(): void => handleAddClick(status)}
                     mutatingCardId={priorityMutatingId}
                     getDragHandlers={getDragHandlers}
                 />

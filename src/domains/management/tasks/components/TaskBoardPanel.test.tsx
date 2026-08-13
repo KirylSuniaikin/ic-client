@@ -139,16 +139,35 @@ describe("TaskBoardPanel", () => {
     it("clicking 'Add Task' opens the drawer in 'create' mode", () => {
         render(<TaskBoardPanel />);
 
-        fireEvent.click(screen.getByTestId("task-board-add-button"));
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
 
         expect(screen.getByText("New Task")).toBeTruthy();
         expect(screen.getByLabelText("Title")).toHaveProperty("value", "");
     });
 
+    it("every column has its own Add button, and each creates in that column", async () => {
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
+
+        render(<TaskBoardPanel />);
+
+        expect(screen.getByTestId("task-board-add-button-BACKLOG")).toBeTruthy();
+        expect(screen.getByTestId("task-board-add-button-DOING")).toBeTruthy();
+        expect(screen.getByTestId("task-board-add-button-DONE")).toBeTruthy();
+
+        fireEvent.click(screen.getByTestId("task-board-add-button-DOING"));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Started already" } });
+        fireEvent.click(screen.getByText("Save"));
+
+        await waitFor(() => {
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }));
+        });
+    });
+
     it("a successful createCard closes the drawer", async () => {
         render(<TaskBoardPanel />);
 
-        fireEvent.click(screen.getByTestId("task-board-add-button"));
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
         fireEvent.click(screen.getByText("Save"));
 
@@ -163,7 +182,7 @@ describe("TaskBoardPanel", () => {
 
         render(<TaskBoardPanel />);
 
-        fireEvent.click(screen.getByTestId("task-board-add-button"));
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
         fireEvent.click(screen.getByText("Save"));
 
@@ -289,7 +308,7 @@ describe("TaskBoardPanel", () => {
 
         render(<TaskBoardPanel ownerId={7} />);
 
-        fireEvent.click(screen.getByTestId("task-board-add-button"));
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
         fireEvent.click(screen.getByText("Save"));
 
@@ -304,7 +323,7 @@ describe("TaskBoardPanel", () => {
 
         render(<TaskBoardPanel />);
 
-        fireEvent.click(screen.getByTestId("task-board-add-button"));
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
         fireEvent.click(screen.getByText("Save"));
 

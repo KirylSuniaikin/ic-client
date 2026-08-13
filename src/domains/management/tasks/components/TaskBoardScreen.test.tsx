@@ -129,11 +129,11 @@ describe("TaskBoardScreen", () => {
         });
 
         fireEvent.click(screen.getByTestId("staff-board-sidebar-toggle"));
-        expect(screen.queryByTestId("staff-board-sidebar-list")).toBeNull();
+        expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("false");
         expect(getOwnerId()).toBe("12");
 
         fireEvent.click(screen.getByTestId("staff-board-sidebar-toggle"));
-        expect(screen.getByTestId("staff-board-sidebar-list")).toBeTruthy();
+        expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("true");
         expect(getOwnerId()).toBe("12");
     });
 
