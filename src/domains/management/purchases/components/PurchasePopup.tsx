@@ -20,6 +20,8 @@ import {PurchaseCard} from "./PurchaseCard";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import {PurchaseTablePopup} from "./PurchaseTablePopup";
 import {UnpaidInvoicesDrawer} from "./UnpaidInvoicesDrawer";
+import {useIncrementalList} from "../../../../shared/hooks/useIncrementalList";
+import {InfiniteScrollSentinel} from "../../../../shared/components/InfiniteScrollSentinel";
 
 const BRAND = "#E44B4C";
 // MUI's warning.main (#ed6c02) at low alpha — the banner has to read as a warning without
@@ -49,6 +51,12 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
         mode: "new" | "edit";
         purchaseId?: number;
     }>({open: false, mode: "new"});
+
+    // Windows the loaded list; the outstanding banner and the report count below still read the
+    // FULL list, which is exactly why this pages the view and not the request.
+    const {visible: visibleReports, hasMore, sentinelRef} = useIncrementalList(purchaseReports, {
+        resetKey: branch.id.toString(),
+    });
 
     function upsertReport(list: BasePurchaseResponse[], next: BasePurchaseResponse): BasePurchaseResponse[] {
         const idx = list.findIndex(r => r.id === next.id);
@@ -251,15 +259,18 @@ export function PurchasePopup({open, onClose, adminId, branch}: Props) {
                             </Button>
                         </Stack>
                     ) : (
-                        <Stack gap={1.5}>
-                            {purchaseReports.map((r) => (
-                                <PurchaseCard
-                                    key={r.id}
-                                    report={r}
-                                    onEditClick={() => handleEditClick(r.id)}
-                                />
-                            ))}
-                        </Stack>
+                        <>
+                            <Stack gap={1.5}>
+                                {visibleReports.map((r) => (
+                                    <PurchaseCard
+                                        key={r.id}
+                                        report={r}
+                                        onEditClick={() => handleEditClick(r.id)}
+                                    />
+                                ))}
+                            </Stack>
+                            {hasMore && <InfiniteScrollSentinel sentinelRef={sentinelRef} testId="purchase-scroll-sentinel" />}
+                        </>
                     )}
                 </Container>
             </Dialog>

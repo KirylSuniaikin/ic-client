@@ -12,6 +12,8 @@ import ReportCard from "./ReportCard";
 import * as React from "react";
 import InventoryPopup from "./InventoryPopup";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
+import {useIncrementalList} from "../../../../shared/hooks/useIncrementalList";
+import {InfiniteScrollSentinel} from "../../../../shared/components/InfiniteScrollSentinel";
 
 type Props = {
     isOpen: boolean;
@@ -31,6 +33,11 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
             reportId?: number;
         }>
     ({open: false, mode: "new"});
+
+    // The endpoint already returns newest first, so the first page IS the latest reports.
+    const {visible: visibleReports, hasMore, sentinelRef} = useIncrementalList(reports, {
+        resetKey: branch.id.toString(),
+    });
 
     function handleCreateReportClick() {
         setInventoryPopup({open: true, mode: "new"});
@@ -119,16 +126,19 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
                             <Typography color="text.secondary">There are no reports</Typography>
                         </Box>
                     ) : (
-                        <Stack gap={2}>
-                            {reports.map((r) => (
-                                <Box key={r.id}>
-                                    <ReportCard
-                                        report={r}
-                                        onEditClick={() => handleEditClick(r.id)}
-                                    />
-                                </Box>
-                            ))}
-                        </Stack>
+                        <>
+                            <Stack gap={2}>
+                                {visibleReports.map((r) => (
+                                    <Box key={r.id}>
+                                        <ReportCard
+                                            report={r}
+                                            onEditClick={() => handleEditClick(r.id)}
+                                        />
+                                    </Box>
+                                ))}
+                            </Stack>
+                            {hasMore && <InfiniteScrollSentinel sentinelRef={sentinelRef} testId="inventory-scroll-sentinel" />}
+                        </>
                     )}
                 </Container>
             </Dialog>
