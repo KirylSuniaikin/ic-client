@@ -1,8 +1,28 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TaskCardDrawer from "./TaskCardDrawer";
 import type { TaskCard } from "../types";
+
+// jsdom implements no `matchMedia` at all, so MUI's `useMediaQuery` falls back to its
+// `defaultMatches` (false) — i.e. every other test in this file renders the desktop dialog.
+// Installing a stub is the only way to drive the phone branch.
+function stubViewportAsMobile(matches: boolean): void {
+    Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+            matches,
+            media: query,
+            onchange: null,
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+            dispatchEvent: jest.fn(),
+        }),
+    });
+}
 
 function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
     return {
@@ -20,6 +40,58 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
 }
 
 describe("TaskCardDrawer", () => {
+    afterEach(() => {
+        // Leaving a stub installed would silently flip every later test to the phone branch.
+        Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    describe("responsive presentation", () => {
+        function renderView(): void {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard()}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+        }
+
+        it("renders a centred dialog on desktop, not a bottom sheet", () => {
+            stubViewportAsMobile(false);
+
+            renderView();
+
+            expect(document.querySelector(".MuiDialog-root")).toBeTruthy();
+            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        });
+
+        it("renders a bottom sheet on a phone, keeping the drag handle", () => {
+            stubViewportAsMobile(true);
+
+            renderView();
+
+            expect(document.querySelector(".MuiDrawer-root")).toBeTruthy();
+            expect(document.querySelector(".MuiDialog-root")).toBeNull();
+        });
+
+        it("shows the same content in both presentations", () => {
+            stubViewportAsMobile(true);
+
+            renderView();
+
+            expect(screen.getByTestId("task-card-drawer")).toBeTruthy();
+            expect(screen.getByText("Restock mozzarella")).toBeTruthy();
+            expect(screen.getByText("Edit")).toBeTruthy();
+            expect(screen.getByText("Delete")).toBeTruthy();
+        });
+    });
+
     it("'view' mode shows the full description and Edit/Delete actions", () => {
         const card = makeCard();
         render(
