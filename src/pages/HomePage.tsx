@@ -98,7 +98,6 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
             checkoutRef.current?.setUnavailableMessage(message);
             checkoutRef.current?.setUnavailablePopupOpen(true);
         },
-        onUnauthorized: () => menu.setTerminalSelector(true),
         onSessionEnd: () => {
             const checkoutApi = checkoutRef.current;
             if (!checkoutApi) return;
@@ -121,11 +120,10 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     });
     checkoutRef.current = checkout;
 
-    // Staff re-pairing: three taps on the top of the hero video reopens both setup pickers. No PIN
+    // Staff re-pairing: three taps on the top of the hero video reopens the branch picker. No PIN
     // by product decision — the gesture itself is the only gate.
     const handleRepairGesture = useTripleClick(() => {
         menu.setBranchSelector(true);
-        menu.setTerminalSelector(true);
     });
 
     usePixelTracking();
@@ -205,8 +203,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         || checkout.isCrossSellOpen
         || checkout.pickUpReminder
         || checkout.showOrderConfirmed
-        || !!menu.branchSelector
-        || !!menu.terminalSelector;
+        || !!menu.branchSelector;
 
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the
@@ -251,7 +248,6 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 isSDoughAvailable={menu.isSDoughAvailable}
                 phone={menu.phone} username={menu.username}
                 branchSelector={menu.branchSelector} setBranchSelector={menu.setBranchSelector}
-                terminalSelector={menu.terminalSelector} setTerminalSelector={menu.setTerminalSelector}
                 kiosk={kiosk}
                 refreshMenu={menu.refreshMenu}
                 pizzas={groups.pizzas} brickPizzas={groups.brickPizzas}

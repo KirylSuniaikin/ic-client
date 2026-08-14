@@ -6,10 +6,14 @@ export const KIOSK_BRAND_RED = "#E44B4C";
 
 /**
  * Kiosk sheets sit above the cart's MUI `Modal` (default z-index 1300) so that an
- * items-unavailable error, which reopens the cart, can never bury a live payment sheet.
- * Below the branch/terminal pickers (99999), which must always win.
+ * items-unavailable error, which reopens the cart, can never bury a live sheet.
+ * Below the branch picker (99999), which must always win.
+ *
+ * Exported because anything a sheet opens in a PORTAL — a Select menu, a popover — lands at the
+ * MUI default 1300 and would render *behind* the sheet that opened it. Those must be lifted
+ * relative to this value rather than to a second hardcoded number.
  */
-const KIOSK_SHEET_Z_INDEX = 1400;
+export const KIOSK_SHEET_Z_INDEX = 1400;
 
 interface KioskSheetProps {
     open: boolean;

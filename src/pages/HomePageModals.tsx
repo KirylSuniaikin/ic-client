@@ -6,13 +6,9 @@ import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaCo
 import { DetroitComboPopup } from "../domains/menu/components/popups/combo/DetroitComboPopup";
 import { UpsellPopup } from "../domains/order/components/UpSellPopup";
 import { KioskBranchSelector } from "../domains/kiosk/components/KioskBranchSelector";
-import { KioskTerminalPicker } from "../domains/kiosk/components/KioskTerminalPicker";
 import { KioskPhoneEntrySheet } from "../domains/kiosk/components/KioskPhoneEntrySheet";
-import { KioskPaymentSheet } from "../domains/kiosk/components/KioskPaymentSheet";
-import { KioskPaymentFailureSheet } from "../domains/kiosk/components/KioskPaymentFailureSheet";
-import { KioskOrderApprovedSheet } from "../domains/kiosk/components/KioskOrderApprovedSheet";
-import { KioskPayAtCounterSheet } from "../domains/kiosk/components/KioskPayAtCounterSheet";
-import { writeKioskBranch, readKioskBranch } from "../domains/kiosk/utils/kioskBranch";
+import { KioskOrderPlacedSheet } from "../domains/kiosk/components/KioskOrderPlacedSheet";
+import { writeKioskBranch } from "../domains/kiosk/utils/kioskBranch";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
@@ -43,8 +39,6 @@ interface HomePageModalsProps {
     username: string;
     branchSelector: boolean | null;
     setBranchSelector: Dispatch<SetStateAction<boolean | null>>;
-    terminalSelector: boolean | null;
-    setTerminalSelector: Dispatch<SetStateAction<boolean | null>>;
     kiosk: UseKioskCheckoutResult;
     refreshMenu: () => Promise<void>;
     pizzas: Group[];
@@ -60,7 +54,7 @@ interface HomePageModalsProps {
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
-    branchSelector, setBranchSelector, terminalSelector, setTerminalSelector, kiosk, refreshMenu,
+    branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
@@ -130,15 +124,6 @@ export default function HomePageModals({
                         // against the default branch because no branch was stored yet.
                         refreshMenu();
                     }}
-                />
-            )}
-
-            {/* Second half of setup. Gated on the branch selector being closed so the two
-                z-index 99999 overlays can never stack — branch first, then its terminals. */}
-            {!branchSelector && terminalSelector && (
-                <KioskTerminalPicker
-                    selectedBranchId={readKioskBranch()?.id ?? null}
-                    onSelect={() => setTerminalSelector(false)}
                 />
             )}
 
@@ -328,9 +313,10 @@ export default function HomePageModals({
                 />
             )}
 
-            {/* Kiosk payment flow. Each sheet is driven purely by the checkout hook's phase, so at
-                most one is ever mounted, and none of them touches checkoutLoading (which would
-                unmount this whole tree behind a full-page loader). */}
+            {/* Kiosk checkout: phone number, then the order number to quote at the counter. Both
+                sheets are driven purely by the checkout hook's phase, so at most one is ever
+                mounted, and neither touches checkoutLoading (which would unmount this whole tree
+                behind a full-page loader). */}
             {isKiosk && (
                 <>
                     <KioskPhoneEntrySheet
@@ -341,33 +327,9 @@ export default function HomePageModals({
                         onSubmit={(tel: string, name: string) => { void kiosk.submitPhone(tel, name); }}
                     />
 
-                    <KioskPaymentSheet
-                        open={kiosk.phase === "awaiting-card"}
-                        secondsRemaining={kiosk.secondsRemaining}
-                        pollError={kiosk.pollError}
-                        onCancel={() => { void kiosk.cancelPayment(); }}
-                    />
-
-                    {(kiosk.phase === "failed" || kiosk.phase === "mismatch") && (
-                        <KioskPaymentFailureSheet
-                            open
-                            orderId={kiosk.pendingOrderId}
-                            amountMismatch={kiosk.phase === "mismatch"}
-                            onDeferred={kiosk.handleDeferred}
-                            onAbandoned={kiosk.handleAbandoned}
-                            onUnauthorized={() => setTerminalSelector(true)}
-                        />
-                    )}
-
-                    <KioskOrderApprovedSheet
-                        open={kiosk.phase === "approved"}
-                        result={kiosk.paymentResult}
-                        onDone={kiosk.finishSession}
-                    />
-
-                    <KioskPayAtCounterSheet
-                        open={kiosk.phase === "deferred"}
-                        orderId={kiosk.pendingOrderId}
+                    <KioskOrderPlacedSheet
+                        open={kiosk.phase === "placed"}
+                        orderId={kiosk.placedOrderId}
                         onDone={kiosk.finishSession}
                     />
                 </>

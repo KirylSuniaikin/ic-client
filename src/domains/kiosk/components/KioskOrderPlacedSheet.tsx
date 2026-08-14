@@ -3,30 +3,33 @@ import { useTranslation } from "react-i18next";
 import { Box, Button, Typography } from "@mui/material";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import { KioskSheet, KIOSK_BRAND_RED } from "./KioskSheet";
-import { APPROVED_AUTO_RETURN_MS } from "../config";
+import { ORDER_PLACED_AUTO_RETURN_MS } from "../config";
 
-interface KioskPayAtCounterSheetProps {
+interface KioskOrderPlacedSheetProps {
     open: boolean;
     orderId: string | null;
     onDone: () => void;
 }
 
 /**
- * The card failed and the customer chose to pay at the front desk. The order has already been
- * published to the kitchen as unpaid/Cash by the backend's defer-to-counter endpoint, so all that
- * is left is telling the customer which number to quote.
+ * The end of the kiosk flow: the order is created and on its way to the kitchen, unpaid. The
+ * kiosk takes no money, so all that is left is telling the customer which number to quote at the
+ * counter.
+ *
+ * Auto-returns to the menu so a customer who walks off doesn't leave their order number on screen
+ * for the next person.
  */
-export function KioskPayAtCounterSheet({ open, orderId, onDone }: KioskPayAtCounterSheetProps): JSX.Element {
+export function KioskOrderPlacedSheet({ open, orderId, onDone }: KioskOrderPlacedSheetProps): JSX.Element {
     const { t } = useTranslation("kiosk");
-    const [secondsRemaining, setSecondsRemaining] = useState(Math.floor(APPROVED_AUTO_RETURN_MS / 1000));
+    const [secondsRemaining, setSecondsRemaining] = useState(Math.floor(ORDER_PLACED_AUTO_RETURN_MS / 1000));
 
     useEffect(() => {
         if (!open) return;
-        setSecondsRemaining(Math.floor(APPROVED_AUTO_RETURN_MS / 1000));
+        setSecondsRemaining(Math.floor(ORDER_PLACED_AUTO_RETURN_MS / 1000));
         const interval = setInterval(() => {
             setSecondsRemaining((seconds) => Math.max(seconds - 1, 0));
         }, 1000);
-        const timeout = setTimeout(onDone, APPROVED_AUTO_RETURN_MS);
+        const timeout = setTimeout(onDone, ORDER_PLACED_AUTO_RETURN_MS);
         return () => {
             clearInterval(interval);
             clearTimeout(timeout);
@@ -75,11 +78,11 @@ export function KioskPayAtCounterSheet({ open, orderId, onDone }: KioskPayAtCoun
                 </Button>
 
                 <Typography variant="caption" sx={{ color: "text.secondary", mt: 1.5 }}>
-                    {t("approved.countdown", { count: secondsRemaining })}
+                    {t("counter.countdown", { count: secondsRemaining })}
                 </Typography>
             </Box>
         </KioskSheet>
     );
 }
 
-export default KioskPayAtCounterSheet;
+export default KioskOrderPlacedSheet;

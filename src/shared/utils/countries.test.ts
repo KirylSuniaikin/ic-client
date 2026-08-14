@@ -2,7 +2,10 @@ import { describe, it, expect } from "@jest/globals";
 import { countries, localizedCountryName } from "./countries";
 
 describe("countries", () => {
-    it("matches the original entries extracted from ClientInfoPopup, plus Arabic names", () => {
+    // Pins the full list, in order: the entries extracted from ClientInfoPopup with their Arabic
+    // names, plus everything added since. Order is load-bearing — countries[0] is the default
+    // selection in every phone input that renders this list.
+    it("matches the supported country list, in order", () => {
         expect(countries).toEqual([
             { name: "Bahrain", nameAr: "البحرين", code: "973", digits: 8 },
             { name: "Saudi Arabia", nameAr: "السعودية", code: "966", digits: 9 },
@@ -15,6 +18,7 @@ describe("countries", () => {
             { name: "United States", nameAr: "الولايات المتحدة", code: "1", digits: 10 },
             { name: "France", nameAr: "فرنسا", code: "33", digits: 9 },
             { name: "Poland", nameAr: "بولندا", code: "48", digits: 9 },
+            { name: "Czech Republic", nameAr: "جمهورية التشيك", code: "420", digits: 9 },
         ]);
     });
 
