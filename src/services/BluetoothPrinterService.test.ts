@@ -107,6 +107,10 @@ function buildOrder(items: OrderItem[]): Order {
 
 beforeEach(() => {
     mockWriteCalls.length = 0;
+    // Real Cordova environments always set this global before app code runs (cordova.js
+    // bootstraps it); stub it here so this suite continues to represent a cordova-present
+    // device now that BluetoothPrinterService gates every native call on its presence.
+    window.cordova = {};
 });
 
 describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
