@@ -1,25 +1,30 @@
 import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Drawer, Typography } from "@mui/material";
-import { fetchPurchaseInvoiceImage } from "../../../../shared/api/management";
-import { logger } from "../../../../shared/utils/logger";
+import { logger } from "../utils/logger";
 
 type Props = {
     open: boolean;
     onClose: () => void;
     /** Not yet uploaded — shown straight from memory, no request. */
     blob: Blob | null;
-    /** Server-side invoice; only fetched when there is no local blob. */
-    invoiceId: number | null;
+    /** Server-side row id; only fetched when there is no local blob. */
+    serverId: number | null;
+    /** Fetches the stored photo. Returns null when the row has none. */
+    fetchImage: (serverId: number) => Promise<Blob | null>;
+    /** Heading, e.g. "Invoice photo". */
+    title: string;
+    /** Prefix for the rendered image's data-testid, e.g. "invoice-image". */
+    testIdPrefix: string;
 };
 
 /**
- * Full-size view of one invoice photo.
+ * Full-size view of one stored photo, for any entity that has one.
  *
  * The image cannot be loaded with a plain <img src="/api/...">: the JWT lives in localStorage and
  * is attached by authFetch, so a browser-issued image request carries no credential and gets a
  * 401. Bytes are fetched, turned into an object URL, and revoked on cleanup.
  */
-export function InvoiceImageViewer({ open, onClose, blob, invoiceId }: Props) {
+export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, title, testIdPrefix }: Props) {
     const [url, setUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -35,13 +40,13 @@ export function InvoiceImageViewer({ open, onClose, blob, invoiceId }: Props) {
             try {
                 let source = blob;
                 if (!source) {
-                    if (invoiceId == null) return;
+                    if (serverId == null) return;
                     setLoading(true);
-                    source = await fetchPurchaseInvoiceImage(invoiceId);
+                    source = await fetchImage(serverId);
                 }
                 if (!alive) return;
                 if (!source) {
-                    setError("No photo stored for this invoice.");
+                    setError("No photo stored here.");
                     return;
                 }
                 objectUrl = URL.createObjectURL(source);
@@ -61,7 +66,10 @@ export function InvoiceImageViewer({ open, onClose, blob, invoiceId }: Props) {
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             setUrl(null);
         };
-    }, [open, blob, invoiceId]);
+        // fetchImage is intentionally omitted: callers pass a module-level function, and including
+        // an inline arrow in the deps would re-fetch the blob on every parent render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, blob, serverId]);
 
     return (
         <Drawer
@@ -84,7 +92,7 @@ export function InvoiceImageViewer({ open, onClose, blob, invoiceId }: Props) {
                 <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
 
                 <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: "center" }}>
-                    Invoice photo
+                    {title}
                 </Typography>
 
                 {loading && (
@@ -101,8 +109,8 @@ export function InvoiceImageViewer({ open, onClose, blob, invoiceId }: Props) {
                     <Box
                         component="img"
                         src={url}
-                        alt="Invoice"
-                        data-testid="invoice-image-full"
+                        alt={title}
+                        data-testid={`${testIdPrefix}-full`}
                         sx={{ width: "100%", maxWidth: "100%", borderRadius: 2, display: "block" }}
                     />
                 )}

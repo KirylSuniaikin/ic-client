@@ -11,16 +11,16 @@ interface KioskPhoneEntrySheetProps {
     /** Order failure from the checkout hook — distinct from local digit validation. */
     checkoutError: string | null;
     onClose: () => void;
-    /** Receives the country code joined to the digits, e.g. "97312345678". */
-    onSubmit: (tel: string) => void;
+    /** Receives the country code joined to the digits (e.g. "97312345678"), plus the name. */
+    onSubmit: (tel: string, name: string) => void;
 }
 
 /**
- * The kiosk's only data-entry step: a phone number, nothing else.
+ * The kiosk's data-entry step: name and phone number.
  *
- * Deliberately no name field and no branch picker (locked product decision): the branch comes from
- * the device's own setup, and every extra field is another thing a walk-up customer has to type on
- * a touchscreen.
+ * Still no branch picker — the backend derives the branch from the paired kiosk. The name was
+ * deliberately absent at first (every extra field is one more thing a walk-up customer has to type
+ * on a touchscreen) and was added back because an order nobody can call out is worse than a field.
  *
  * The country selector is the same shared `countries` list ClientInfoPopup and CustomerLoginPopup
  * use — a kiosk sits in one country, so it opens on the first entry (Bahrain), but a visitor with
@@ -36,15 +36,17 @@ export function KioskPhoneEntrySheet({
     const { t, i18n } = useTranslation(["kiosk", "checkout"]);
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [digits, setDigits] = useState("");
+    const [name, setName] = useState("");
     const [error, setError] = useState<string | null>(null);
 
     const country = countries.find(c => c.name === selectedCountry) ?? countries[0];
 
-    // A fresh customer must never find the previous one's number — or country — already selected.
+    // A fresh customer must never find the previous one's details — or country — already there.
     useEffect(() => {
         if (!open) {
             setSelectedCountry(countries[0].name);
             setDigits("");
+            setName("");
             setError(null);
         }
     }, [open]);
@@ -68,12 +70,18 @@ export function KioskPhoneEntrySheet({
     }
 
     function handleSubmit(): void {
+        // Name first: it is the field above, so reporting the phone problem while the name is also
+        // empty would point at the wrong box.
+        if (name.trim() === "") {
+            setError(t("checkout:clientInfo.errors.nameRequired"));
+            return;
+        }
         if (digits.length !== country.digits) {
             setError(t("checkout:clientInfo.errors.phoneLength", { count: country.digits }));
             return;
         }
         setError(null);
-        onSubmit(country.code + digits);
+        onSubmit(country.code + digits, name.trim());
     }
 
     return (
@@ -84,6 +92,22 @@ export function KioskPhoneEntrySheet({
             <Typography variant="body2" sx={{ mb: 3, textAlign: "center", color: "text.secondary" }}>
                 {t("kiosk:phone.subtitle")}
             </Typography>
+
+            {/* Name before phone: it is what gets called out when the order is ready, and the
+                phone field's numeric keypad is the natural last step before Pay. */}
+            <TextField
+                autoFocus
+                fullWidth
+                variant="outlined"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setError(null); }}
+                placeholder={t("checkout:clientInfo.name")}
+                disabled={submitting}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+                inputProps={{ maxLength: 60, "aria-label": t("checkout:clientInfo.name") }}
+                InputProps={{ sx: { borderRadius: 4, fontSize: "1.4rem", fontWeight: "bold" } }}
+                sx={{ mb: 1.5 }}
+            />
 
             {/* One field, read left to right: "+973 12345678". The code collapses to a compact
                 dial-code button so the number itself keeps the width — it is what the customer is
@@ -113,7 +137,6 @@ export function KioskPhoneEntrySheet({
                 </Select>
 
                 <TextField
-                    autoFocus
                     variant="outlined"
                     value={digits}
                     onChange={(e) => handleChange(e.target.value)}

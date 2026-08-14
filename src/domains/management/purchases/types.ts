@@ -121,8 +121,13 @@ export type SetPurchaseInvoicePaidPayload = {
 
 // ── UI state model ───────────────────────────────────────────────────────────
 
-/** Columns whose header can be tapped to reorder the table. */
-export type PurchaseSortKey = "invoiceDate" | "vendorName";
+/**
+ * Orders the invoice list can be put in. `unpaid` is not a column — it groups the still-owed
+ * invoices to the top, which is the question this screen exists to answer. It deliberately
+ * reorders rather than filters: hiding the paid ones made the report look like it was missing
+ * invoices, and the totals below never matched what was on screen.
+ */
+export type PurchaseSortKey = "invoiceDate" | "vendorName" | "unpaid";
 
 export type SortDir = "asc" | "desc";
 

@@ -47,6 +47,7 @@ import {
 import type { SavePurchaseResponse } from "../types";
 import {
     DEFAULT_SORT_DIR,
+    INITIAL_SORT,
     sortPurchaseInvoices,
     toDecimal,
     toPayloadInvoice,
@@ -139,7 +140,9 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const [error, setError] = useState<string | null>(null);
     const [admin, setAdmin] = useState<IUser>(null);
     const [invalid, setInvalid] = useState<Map<string, Set<string>>>(new Map());
-    const [sort, setSort] = useState<PurchaseSort | null>(null);
+    // Not null: the table opens already sorted newest-first, so the Date button reads as active
+    // from the start because it genuinely is the order on screen.
+    const [sort, setSort] = useState<PurchaseSort | null>(INITIAL_SORT);
     // Ids of COLLAPSED invoices. A month is ~40 invoices / ~200 lines, so an existing report
     // opens fully collapsed and is scanned as ~40 rows; a freshly added invoice starts expanded
     // because it has to be filled in.
@@ -193,7 +196,10 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             finalPrice: Number(x.finalPrice),
                         })),
                     }));
-                    setInvoices(loaded);
+                    // Newest invoice first. The backend returns them in insertion order, which for a
+                    // month of entry is roughly "whatever order they were typed in" — the most
+                    // recent one is what anyone opening the report is looking for.
+                    setInvoices(sortPurchaseInvoices(loaded, INITIAL_SORT.key, INITIAL_SORT.dir));
                     // ~40 invoices a month: opening collapsed makes the whole report scannable,
                     // and the unpaid ones stand out immediately.
                     setCollapsed(new Set(loaded.map(inv => inv.id)));
@@ -503,10 +509,16 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                             alignItems="center"
                             justifyContent="space-between"
                         >
-                            <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
-                                <SortButton label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
-                                <SortButton label="Vendor" sortKey="vendorName" sort={sort} onSort={applySort} />
-                            </ButtonGroup>
+                            <Stack direction="row" alignItems="center" gap={1}>
+                                {/* Date is the order the table opens in; Unpaid sits beside it and
+                                    lifts the still-owed invoices to the top — on a ~40-invoice
+                                    month that is the question actually being asked of this table.
+                                    Both reorder; neither hides anything. */}
+                                <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
+                                    <SortButton label="Date" sortKey="invoiceDate" sort={sort} onSort={applySort} />
+                                    <SortButton label="Unpaid" sortKey="unpaid" sort={sort} onSort={applySort} />
+                                </ButtonGroup>
+                            </Stack>
                             <ButtonGroup size="small" variant="outlined" sx={toolbarGroupSx}>
                                 <Button
                                     data-testid="collapse-all"

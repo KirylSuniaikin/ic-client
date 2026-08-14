@@ -155,20 +155,27 @@ describe("PurchaseTablePopup", () => {
         });
     });
 
-    it("reorders invoices by date on sort tap, newest first then oldest first", async () => {
+    // Opening a month of entry on the oldest invoice buried the one anybody had come to look at.
+    it("opens sorted newest first, before any sort tap", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
-        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
 
-        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
+    });
+
+    it("toggles the date order on each sort tap", async () => {
+        renderReportWithDates(["2026-07-10", "2026-07-20"]);
         await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
 
         fireEvent.click(screen.getByTestId("sort-invoiceDate"));
         await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
+
+        fireEvent.click(screen.getByTestId("sort-invoiceDate"));
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
     });
 
     it("sorts from the toolbar control, with no separate sort block above the table", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
-        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
 
         expect(screen.queryByText("Sort by:")).toBeNull();
 
@@ -187,29 +194,30 @@ describe("PurchaseTablePopup", () => {
         expect(toolbar.contains(sortButton)).toBe(true);
         expect(toolbar.contains(screen.getByTestId("collapse-all"))).toBe(true);
 
+        // The table already opens newest-first, so the first tap flips it to oldest-first.
         fireEvent.click(sortButton);
 
-        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
     });
 
     it("leaves an edited invoice in place, re-ordering only on the next sort tap", async () => {
         renderReportWithDates(["2026-07-10", "2026-07-20"]);
-        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
 
         fireEvent.click(screen.getByTestId("sort-invoiceDate"));
-        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "10.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "20.07.2026"]));
 
         // Give the bottom invoice the newest date of all. Under a live re-sort it would jump to
         // the top mid-edit; with a snapshot it must stay exactly where it is.
         fireEvent.change(allDateInputs()[1], { target: { value: "31.07.2026" } });
-        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "31.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "31.07.2026"]));
 
-        // Tapping again resumes ordering: asc first (the toggle), then desc.
+        // Tapping again resumes ordering: desc first (the toggle), then asc.
         fireEvent.click(screen.getByTestId("sort-invoiceDate"));
-        await waitFor(() => expect(dateCellValues()).toEqual(["20.07.2026", "31.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["31.07.2026", "10.07.2026"]));
 
         fireEvent.click(screen.getByTestId("sort-invoiceDate"));
-        await waitFor(() => expect(dateCellValues()).toEqual(["31.07.2026", "20.07.2026"]));
+        await waitFor(() => expect(dateCellValues()).toEqual(["10.07.2026", "31.07.2026"]));
     });
 
     it("opens the unit-price header hint on tap, not just on hover (tablet entry)", async () => {

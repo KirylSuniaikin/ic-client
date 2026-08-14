@@ -111,11 +111,28 @@ describe("InvoiceImageField", () => {
         expect(createdUrls).toHaveLength(2);
     });
 
-    it("offers a view action instead of a camera when the server already holds a photo", () => {
+    it("offers a view action instead of an upload control when the server already holds a photo", () => {
         renderField({ hasImage: true, serverId: 42 });
 
         expect(screen.getByLabelText("view invoice photo")).toBeTruthy();
-        expect(screen.queryByLabelText("add invoice photo")).toBeNull();
+        expect(screen.queryByLabelText("upload invoice photo")).toBeNull();
+    });
+
+    // An empty slot has to advertise that something goes IN it — a camera glyph reads as
+    // "a photo lives here" and left people unsure anything was expected of them.
+    it("offers an upload control while the invoice has no photo", () => {
+        renderField();
+
+        expect(screen.getByLabelText("upload invoice photo")).toBeTruthy();
+        expect(screen.queryByLabelText("view invoice photo")).toBeNull();
+        expect(screen.queryByLabelText("remove invoice photo")).toBeNull();
+    });
+
+    it("keeps the photo action and a remove control side by side once a photo exists", () => {
+        renderField({ hasImage: true, serverId: 42 });
+
+        expect(screen.getByLabelText("view invoice photo")).toBeTruthy();
+        expect(screen.getByLabelText("remove invoice photo")).toBeTruthy();
     });
 
     it("flags removeImage when clearing a photo that exists on the server", () => {

@@ -21,6 +21,19 @@ function phoneInput(): HTMLInputElement {
     return screen.getByRole("textbox", { name: "Phone number" }) as HTMLInputElement;
 }
 
+function nameInput(): HTMLInputElement {
+    return screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement;
+}
+
+// Both fields filled, in the order a customer meets them.
+async function fillBoth(name = "Layla", digits = "12345678"): Promise<void> {
+    await userEvent.type(nameInput(), name);
+    await userEvent.type(phoneInput(), digits);
+}
+
+const submitButton = (): HTMLElement =>
+    screen.getByRole("button", { name: "Place order" });
+
 /** Opens the MUI select and picks a country by its visible option text. */
 async function selectCountry(optionText: string | RegExp): Promise<void> {
     await userEvent.click(screen.getByRole("combobox", { name: "Country" }));
@@ -28,12 +41,14 @@ async function selectCountry(optionText: string | RegExp): Promise<void> {
 }
 
 describe("KioskPhoneEntrySheet", () => {
-    it("asks for a country and a phone number only — no name, no branch picker", () => {
+    // Still no branch picker — the backend derives the branch from the paired kiosk.
+    it("asks for a name, a country and a phone number, and nothing else", () => {
         renderSheet();
 
         expect(screen.getByText("Enter your phone number")).toBeTruthy();
+        expect(nameInput()).toBeTruthy();
         expect(screen.getByRole("combobox", { name: "Country" })).toBeTruthy();
-        expect(screen.queryByLabelText(/name/i)).toBeNull();
+        expect(phoneInput()).toBeTruthy();
         expect(screen.queryByLabelText(/branch/i)).toBeNull();
     });
 
@@ -42,10 +57,10 @@ describe("KioskPhoneEntrySheet", () => {
     it("opens on Bahrain so the overwhelmingly common case needs no interaction", async () => {
         const { props } = renderSheet();
 
-        await userEvent.type(phoneInput(), "12345678");
-        await userEvent.click(screen.getByRole("button", { name: "Place order" }));
+        await fillBoth();
+        await userEvent.click(submitButton());
 
-        expect(props.onSubmit).toHaveBeenCalledWith("97312345678");
+        expect(props.onSubmit).toHaveBeenCalledWith("97312345678", "Layla");
     });
 
     // The sheet is a Drawer above MUI's default modal layer; the Select menu portals to <body> at
@@ -63,14 +78,45 @@ describe("KioskPhoneEntrySheet", () => {
         expect(zIndexOf(menuLayer)).toBeGreaterThan(zIndexOf(sheetLayer));
     });
 
-    it("submits the selected country's code prefixed to the typed digits", async () => {
+    it("submits the name alongside the selected country's code prefixed to the typed digits", async () => {
         const { props } = renderSheet();
 
+        await userEvent.type(nameInput(), "Layla");
         await selectCountry(/Saudi Arabia/);
         await userEvent.type(phoneInput(), "512345678");
-        await userEvent.click(screen.getByRole("button", { name: "Place order" }));
+        await userEvent.click(submitButton());
 
-        expect(props.onSubmit).toHaveBeenCalledWith("966512345678");
+        expect(props.onSubmit).toHaveBeenCalledWith("966512345678", "Layla");
+    });
+
+    it("trims surrounding whitespace off the name", async () => {
+        const { props } = renderSheet();
+
+        await fillBoth("  Layla  ");
+        await userEvent.click(submitButton());
+
+        expect(props.onSubmit).toHaveBeenCalledWith("97312345678", "Layla");
+    });
+
+    it("rejects a missing name and does not submit", async () => {
+        const { props } = renderSheet();
+
+        await userEvent.type(phoneInput(), "12345678");
+        await userEvent.click(submitButton());
+
+        expect(props.onSubmit).not.toHaveBeenCalled();
+        expect(screen.getByText("Name is required")).toBeTruthy();
+    });
+
+    // A name of nothing but spaces would otherwise reach the kitchen as a blank label.
+    it("rejects a name of only whitespace", async () => {
+        const { props } = renderSheet();
+
+        await fillBoth("   ");
+        await userEvent.click(submitButton());
+
+        expect(props.onSubmit).not.toHaveBeenCalled();
+        expect(screen.getByText("Name is required")).toBeTruthy();
     });
 
     // Bahrain wants 8 digits, Saudi Arabia 9 — validating against a hardcoded length would reject
@@ -78,12 +124,23 @@ describe("KioskPhoneEntrySheet", () => {
     it("validates the length against the selected country, not a fixed 8", async () => {
         const { props } = renderSheet();
 
+        await userEvent.type(nameInput(), "Layla");
         await selectCountry(/Saudi Arabia/);
         await userEvent.type(phoneInput(), "12345678");
-        await userEvent.click(screen.getByRole("button", { name: "Place order" }));
+        await userEvent.click(submitButton());
 
         expect(props.onSubmit).not.toHaveBeenCalled();
         expect(screen.getByText("Phone number must be exactly 9 digits")).toBeTruthy();
+    });
+
+    it("clears the previous customer's name when the sheet closes", async () => {
+        const { view, props } = renderSheet();
+
+        await userEvent.type(nameInput(), "Layla");
+        view.rerender(<KioskPhoneEntrySheet {...props} open={false} />);
+        view.rerender(<KioskPhoneEntrySheet {...props} open={true} />);
+
+        expect(nameInput().value).toBe("");
     });
 
     it("truncates digits that no longer fit when the customer switches to a shorter country", async () => {
@@ -99,6 +156,7 @@ describe("KioskPhoneEntrySheet", () => {
     it("rejects a short number and does not submit", async () => {
         const { props } = renderSheet();
 
+        await userEvent.type(nameInput(), "Layla");
         await userEvent.type(phoneInput(), "123");
         await userEvent.click(screen.getByRole("button", { name: "Place order" }));
 

@@ -46,7 +46,7 @@ export interface UseKioskCheckoutResult {
     isSheetOpen: boolean;
     startPhoneStep: (items: CartItem[]) => void;
     closePhoneStep: () => void;
-    submitPhone: (tel: string) => Promise<void>;
+    submitPhone: (tel: string, customerName: string) => Promise<void>;
     /** Confirmation sheet dismissed, by button or auto-return. */
     finishSession: () => void;
 }
@@ -100,7 +100,7 @@ export function useKioskCheckout(params: UseKioskCheckoutParams): UseKioskChecko
         setCartOpen(true);
     }
 
-    async function submitPhone(tel: string): Promise<void> {
+    async function submitPhone(tel: string, customerName: string): Promise<void> {
         if (submittingRef.current) return;
         submittingRef.current = true;
         setCheckoutError(null);
@@ -108,8 +108,8 @@ export function useKioskCheckout(params: UseKioskCheckoutParams): UseKioskChecko
 
         const order: CreateOrderRequest = {
             tel,
-            // Locked product decision: the kiosk asks for a phone number only.
-            customer_name: null,
+            // The kiosk asks for a name so the order can be called out when it is ready.
+            customer_name: customerName,
             type: "Pick Up",
             // The kiosk cart hides the payment selector, so there is no customer choice to carry
             // here — the order goes to the counter to be settled, same as before the kiosk ever
