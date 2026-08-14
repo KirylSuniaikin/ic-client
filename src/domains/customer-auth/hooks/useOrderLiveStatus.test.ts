@@ -140,6 +140,53 @@ describe("useOrderLiveStatus — subscription lifecycle", () => {
         expect(result.current.resyncTick).toBe(1);
     });
 
+    // DELIVERY_SPEC.md §12.1-C: before the delivery statuses were ranked they resolved to
+    // MAX_SAFE_INTEGER and always passed the guard, so a retried "Out for delivery" frame
+    // landing after "Delivered" walked the customer's view backwards.
+    it("ranks the delivery statuses — a stale 'Out for delivery' after 'Delivered' is dropped", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Out for delivery" }) });
+        });
+        expect(result.current.liveStatus).toBe("Out for delivery");
+        expect(result.current.resyncTick).toBe(1);
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Delivered" }) });
+        });
+        expect(result.current.liveStatus).toBe("Delivered");
+        expect(result.current.resyncTick).toBe(2);
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Out for delivery" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Delivered");
+        expect(result.current.resyncTick).toBe(2);
+    });
+
+    // "Ready" precedes the delivery hand-off, so a retried "Ready" must not undo it.
+    it("drops a stale 'Ready' arriving after 'Out for delivery'", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Out for delivery" }) });
+        });
+        expect(result.current.liveStatus).toBe("Out for delivery");
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Ready" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Out for delivery");
+        expect(result.current.resyncTick).toBe(1);
+    });
+
     it("a reconnect (second onConnect firing) bumps resyncTick without a frame", async () => {
         const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
         await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));

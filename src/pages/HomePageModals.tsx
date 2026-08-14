@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
@@ -17,6 +17,13 @@ import OrderConfirmed from "../domains/order/components/OrderConfirmed";
 import GenericItemPopupContent from "../domains/menu/components/popups/GenericItemPopupContent";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import { UnavailablePopup } from "../domains/menu/components/UnavailablePopup";
+import { KeetaFallbackCard } from "../domains/delivery/components/KeetaFallbackCard";
+import { useDeliveryAvailability } from "../domains/delivery/hooks/useDeliveryAvailability";
+import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
+import { payForDelivery } from "../shared/api/delivery";
+import { logger } from "../shared/utils/logger";
+import { Snackbar } from "@mui/material";
+import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
@@ -59,6 +66,74 @@ export default function HomePageModals({
     // Local const so the null-check below narrows inside PickUpReminderPopup's onClick
     // (narrowing a property access would not survive into the callback).
     const pendingOrder = checkout.pendingOrder;
+
+    const deliveryAvailability = useDeliveryAvailability();
+    const [keetaOpen, setKeetaOpen] = useState(false);
+    const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
+
+    /**
+     * §1.2 step 1 — the early gate. Runs the moment the customer picks Delivery, before they
+     * invest any effort in an address, so a branch with no free courier is caught up front.
+     *
+     * No pin exists yet, so this is only the branch-level courier question; the radius is
+     * re-checked on Place order (§1.2 step 2). Selecting Pick Up never calls the gate.
+     *
+     * On refusal the toggle stays on Pick Up rather than sitting on a Delivery the customer
+     * cannot have — leaving it selected would let them walk into checkout and be refused again.
+     */
+    /**
+     * §1.7: settle, then create. `useCheckout` stops its funnel at the built order for Delivery
+     * (see finalizeOrder) rather than creating it, so everything the order needs — items,
+     * totals, identity, attribution, idempotency key — is already on `pendingDeliveryOrder`.
+     * Only the two facts this screen owns are layered on top.
+     */
+    async function handleDeliveryConfirm(
+        address: CustomerAddress,
+        availability: DeliveryAvailability,
+        method: DeliveryPaymentMethod
+    ): Promise<void> {
+        const pending = checkout.pendingDeliveryOrder;
+        if (pending === null) return;
+        try {
+            const result = await payForDelivery({
+                method,
+                addressId: address.id,
+                order: {
+                    ...pending,
+                    payment_type: method,
+                    // The gate resolved the nearest branch for this pin (§1.4.5); the branch the
+                    // cart defaulted to would file the order at the wrong kitchen.
+                    branchId: availability.branchId ?? pending.branchId,
+                },
+            });
+
+            checkout.setPendingDeliveryOrder(null);
+            cart.setCartItems([]);
+            checkout.setOrderType("Pick Up");
+            if (result.stub) {
+                // Never let a stubbed order read as a real charge.
+                setDeliveryNotice(t("delivery.stubNotice"));
+            }
+            checkout.setShowOrderConfirmed(true);
+        } catch (error) {
+            logger.error("Delivery checkout failed:", error);
+            setDeliveryNotice(error instanceof Error ? error.message : String(error));
+        }
+    }
+
+    async function handleDeliveryTypeChange(value: string): Promise<void> {
+        if (value !== "Delivery") {
+            checkout.setOrderType(value);
+            return;
+        }
+        const result = await deliveryAvailability.check();
+        if (result.available) {
+            checkout.setOrderType("Delivery");
+            return;
+        }
+        checkout.setOrderType("Pick Up");
+        setKeetaOpen(true);
+    }
 
     function openPizzaEditPopUp(item: CartItem): void {
         cart.setEditItem(item);
@@ -229,10 +304,32 @@ export default function HomePageModals({
                     paymentMethod={checkout.paymentMethod}
                     onPaymentChange={checkout.setPaymentMethod}
                     orderType={checkout.orderType}
-                    onDeliveryTypeChange={checkout.setOrderType}
+                    onDeliveryTypeChange={handleDeliveryTypeChange}
                     isKiosk={isKiosk}
                 />
             )}
+
+            <DeliveryCheckoutDrawer
+                open={checkout.pendingDeliveryOrder !== null}
+                onClose={() => checkout.setPendingDeliveryOrder(null)}
+                onConfirm={(address, availability, method) => {
+                    void handleDeliveryConfirm(address, availability, method);
+                }}
+                onUnavailable={() => { checkout.setPendingDeliveryOrder(null); setKeetaOpen(true); }}
+            />
+
+            <Snackbar
+                open={deliveryNotice !== null}
+                autoHideDuration={6000}
+                onClose={() => setDeliveryNotice(null)}
+                message={deliveryNotice ?? ""}
+            />
+
+            <KeetaFallbackCard
+                open={keetaOpen}
+                reason={deliveryAvailability.availability?.reason ?? null}
+                onClose={() => setKeetaOpen(false)}
+            />
 
             {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} workingHours={workingHours} />}
 

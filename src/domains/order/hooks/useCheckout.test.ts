@@ -325,6 +325,111 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         }));
     });
 
+    // DELIVERY_SPEC.md §12.1-A: `type` was hardcoded to "Pick Up" while deliveryMethod was
+    // accepted and dropped, so a Delivery order could never reach the backend. The Pick Up
+    // assertion above passed for the wrong reason — it could not fail.
+    it("sends the cart's delivery type through to createOrder instead of a hardcoded Pick Up", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+
+        // §1.7 changed where this lands: a Delivery order is built and held for payment rather
+        // than created, so the type is asserted on the held order instead of on createOrder.
+        await waitFor(() => expect(result.current.pendingDeliveryOrder).not.toBeNull());
+        expect(result.current.pendingDeliveryOrder).toEqual(
+            expect.objectContaining({ type: "Delivery" }));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+
+    /**
+     * §1.7: the delivery order must not exist until payment succeeds — but everything before the
+     * creation step still has to run, or a delivery customer would skip checks a pickup customer
+     * gets. The blacklist check is the one that matters most and is asserted here.
+     */
+    it("holds a delivery order for payment without skipping the blacklist check", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+
+        await waitFor(() => expect(result.current.pendingDeliveryOrder).not.toBeNull());
+        expect(mockGetAllBannedCstmrs).toHaveBeenCalled();
+        // The order the drawer will pay for carries everything createOrder would have received.
+        expect(result.current.pendingDeliveryOrder).toEqual(expect.objectContaining({
+            tel: MOCK_CUSTOMER_ME.phone,
+            customer_name: MOCK_CUSTOMER_ME.name,
+            type: "Delivery",
+            idempotency_key: expect.any(String),
+        }));
+    });
+
+    /** A banned customer must not reach the payment screen either. */
+    it("refuses a delivery order from a blacklisted customer before payment", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([{ id: 1, telephoneNo: MOCK_CUSTOMER_ME.phone }]);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Delivery", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+
+        await waitFor(() => expect(result.current.blacklistSnackBarOpen).toBe(true));
+        expect(result.current.pendingDeliveryOrder).toBeNull();
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+
+    // Kiosk and the admin popup legitimately pass null; they must keep defaulting to Pick Up.
+    it("defaults to Pick Up when the caller passes no delivery type", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, DEFAULT_PAYMENT_METHOD, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, null, DEFAULT_PAYMENT_METHOD, "", null);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ type: "Pick Up" }));
+    });
+
     it("falls back to ClientInfoPopup instead of sending a nameless order when the profile has no name", async () => {
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });

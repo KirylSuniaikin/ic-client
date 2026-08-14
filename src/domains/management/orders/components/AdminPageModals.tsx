@@ -1,3 +1,6 @@
+import { Dialog, DialogTitle, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import { CourierDispatcherPanel } from '../../couriers/components/CourierDispatcherPanel';
 import React from 'react';
 import type { IBranch } from '../../inventory/types';
 import { PurchasePopup } from '../../purchases/components/PurchasePopup';
@@ -23,6 +26,8 @@ type Props = {
     onShiftManagementPageClose: () => void;
     accountingOpen: boolean;
     onAccountingClose: () => void;
+    courierDispatcherOpen: boolean;
+    onCourierDispatcherClose: () => void;
 };
 
 export function AdminPageModals({
@@ -41,6 +46,8 @@ export function AdminPageModals({
     onShiftManagementPageClose,
     accountingOpen,
     onAccountingClose,
+    courierDispatcherOpen,
+    onCourierDispatcherClose,
 }: Props): JSX.Element {
     const currentUser = { userName: username, id: userId };
 
@@ -64,6 +71,18 @@ export function AdminPageModals({
             )}
             {accountingOpen && selectedBranch && (
                 <AccountingHomePage open={accountingOpen} onClose={onAccountingClose} branch={selectedBranch} />
+            )}
+
+            {/* §4. Not branch-scoped like the others: the panel lists every courier across
+                branches, and a manager triaging a stuck delivery needs to see all of them. */}
+            {courierDispatcherOpen && (
+                <Dialog fullScreen open={courierDispatcherOpen} onClose={onCourierDispatcherClose}>
+                    <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        Delivery
+                        <IconButton onClick={onCourierDispatcherClose} aria-label="Close"><CloseIcon /></IconButton>
+                    </DialogTitle>
+                    <CourierDispatcherPanel />
+                </Dialog>
             )}
         </>
     );

@@ -14,6 +14,15 @@ import { logger } from "../../../shared/utils/logger";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerActiveOrder } from "../types";
 
+// An order leaves the island once it reaches a terminal status. Pickup ends at "Picked Up";
+// delivery ends at "Delivered". Checking only the pickup string left the island pinned to a
+// finished delivery order forever (DELIVERY_SPEC.md §12.1-D).
+const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Picked Up", "Delivered"]);
+
+function isTerminalStatus(status: string | null): boolean {
+    return status !== null && TERMINAL_STATUSES.has(status);
+}
+
 export type UseActiveOrderIslandResult = {
     activeOrder: CustomerActiveOrder | null;
     status: string | null;
@@ -72,7 +81,7 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     }, [activeOrderRefreshKey, token, loadActiveOrder]);
 
     const effectiveStatus = liveStatus ?? activeOrder?.status ?? null;
-    const isVisible = activeOrder !== null && effectiveStatus !== "Picked Up";
+    const isVisible = activeOrder !== null && !isTerminalStatus(effectiveStatus);
 
     const totalSec = (activeOrder?.estimation ?? 15) * 60;
     const createdMs = toEpochMsBahrain(activeOrder?.createdAt);

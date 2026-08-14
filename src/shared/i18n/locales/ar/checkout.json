@@ -1,38 +1,83 @@
 {
-    "blacklist": {
-        "notice": "لقد تم حظرك. إذا كان هذا خطأً، يُرجى الاتصال على ‎+97333607710"
-    },
-    "clientInfo": {
-        "title": "أدخل رقم هاتفك لإتمام طلبك",
-        "country": "الدولة",
-        "phoneNumber": "رقم الهاتف",
-        "name": "الاسم",
-        "paymentMethod": "طريقة الدفع",
-        "pickUpBranch": "فرع الاستلام",
-        "noteLabel": "أضف ملاحظة إلى طلبك (اختياري)",
-        "checkoutTakeOut": "إتمام الطلب (استلام)",
-        "savedAddress": "العنوان المحفوظ لدينا: {{address}}",
-        "errors": {
-            "onlyDigits": "يُسمح بالأرقام فقط",
-            "phoneLength": "يجب أن يتكوّن رقم الهاتف من {{count}} أرقام بالضبط",
-            "nameRequired": "الاسم مطلوب"
-        }
-    },
-    "orderConfirmed": "تم تأكيد الطلب!",
-    "crossSell": {
-        "title": "يشتري العملاء أيضاً",
-        "next": "التالي"
-    },
-    "upsell": {
-        "offer": "{{product}} + صوص + مشروب مقابل {{price}} فقط",
-        "productPizza": "بيتزا",
-        "productDetroitBrick": "ديترويت بريك",
-        "decline": "لا",
-        "accept": "نعم"
-    },
-    "betterTogether": "ألذّ معاً",
-    "pickUpReminder": {
-        "title": "هذا الطلب للاستلام فقط",
-        "action": "تأكيد طلب الاستلام"
+  "blacklist": {
+    "notice": "لقد تم حظرك. إذا كان هذا خطأً، يُرجى الاتصال على ‎+97333607710"
+  },
+  "clientInfo": {
+    "title": "أدخل رقم هاتفك لإتمام طلبك",
+    "country": "الدولة",
+    "phoneNumber": "رقم الهاتف",
+    "name": "الاسم",
+    "paymentMethod": "طريقة الدفع",
+    "pickUpBranch": "فرع الاستلام",
+    "noteLabel": "أضف ملاحظة إلى طلبك (اختياري)",
+    "checkoutTakeOut": "إتمام الطلب (استلام)",
+    "savedAddress": "العنوان المحفوظ لدينا: {{address}}",
+    "errors": {
+      "onlyDigits": "يُسمح بالأرقام فقط",
+      "phoneLength": "يجب أن يتكوّن رقم الهاتف من {{count}} أرقام بالضبط",
+      "nameRequired": "الاسم مطلوب"
     }
+  },
+  "orderConfirmed": "تم تأكيد الطلب!",
+  "crossSell": {
+    "title": "يشتري العملاء أيضاً",
+    "next": "التالي"
+  },
+  "upsell": {
+    "offer": "{{product}} + صوص + مشروب مقابل {{price}} فقط",
+    "productPizza": "بيتزا",
+    "productDetroitBrick": "ديترويت بريك",
+    "decline": "لا",
+    "accept": "نعم"
+  },
+  "betterTogether": "ألذّ معاً",
+  "pickUpReminder": {
+    "title": "هذا الطلب للاستلام فقط",
+    "action": "تأكيد طلب الاستلام"
+  },
+  "delivery": {
+    "addressTitle": "عنوان التوصيل",
+    "block": "المجمع",
+    "road": "الطريق",
+    "building": "المبنى",
+    "flat": "الشقة",
+    "label": "التسمية (المنزل، العمل)",
+    "note": "ملاحظة للتوصيل",
+    "pinTitle": "تحديد الموقع",
+    "pinHint": "تأكد أن الدبوس على مدخل المبنى بالضبط.",
+    "useMyLocation": "استخدام موقعي الحالي",
+    "updateLocation": "تحديث الموقع",
+    "pinSet": "تم تحديد الموقع",
+    "locationDenied": "تعذّر تحديد موقعك. يرجى السماح بالوصول إلى الموقع والمحاولة مرة أخرى.",
+    "locationUnsupported": "هذا المتصفح لا يدعم مشاركة الموقع.",
+    "saveAddress": "حفظ العنوان",
+    "unlabelledAddress": "عنوان محفوظ",
+    "pinOnlyAddress": "موقع محدد",
+    "keetaTitle": "لا يمكننا التوصيل حالياً",
+    "keetaOutsideRadius": "هذا العنوان خارج نطاق التوصيل لدينا — لكن يمكنك الطلب عبر كيتا.",
+    "keetaNoCourier": "جميع سائقينا مشغولون حالياً. يمكنك الطلب عبر كيتا أو التحويل إلى الاستلام.",
+    "keetaCta": "اطلب عبر كيتا",
+    "keetaDismiss": "العودة إلى الاستلام",
+    "checkoutTitle": "التوصيل",
+    "deliverTo": "التوصيل إلى",
+    "addAddress": "إضافة عنوان جديد",
+    "etaTitle": "الوقت المتوقع للوصول",
+    "etaRange": "الوصول خلال {{min}}–{{max}} دقيقة تقريباً",
+    "etaLoading": "جارٍ التحقق…",
+    "etaUnavailable": "سنؤكد وقت التوصيل قريباً.",
+    "placeOrder": "إتمام الطلب",
+    "lastCheckTitle": "تأكيد أخير",
+    "yourOrder": "طلبك",
+    "total": "الإجمالي",
+    "payingWith": "الدفع عبر",
+    "looksGood": "تأكيد",
+    "editOrder": "تعديل الطلب",
+    "noAddressSelected": "لم يتم اختيار عنوان",
+    "payWith": "الدفع عبر",
+    "payCard": "بطاقة",
+    "payApplePay": "Apple Pay",
+    "payBenefit": "بنفت",
+    "payAndPlace": "ادفع وأكمل الطلب",
+    "stubNotice": "وضع الاختبار — لا يتم خصم أي مبلغ."
+  }
 }

@@ -44,11 +44,16 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // status frames (e.g. a backend-retried "Oven" landing after "Ready") that would move
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
+// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts. "Picked Up"
+// (pickup) and "Out for delivery" (delivery) are the two mutually-exclusive branches out
+// of "Ready", so they share rank 3.
 const STATUS_RANK: Record<string, number> = {
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
     'Picked Up': 3,
+    'Out for delivery': 3,
+    'Delivered': 4,
 };
 
 function normalizeId(x: unknown): string {

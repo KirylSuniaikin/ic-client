@@ -80,7 +80,9 @@ function AdminHomePage(): JSX.Element {
                     onShiftStageClick={() => ui.setShiftPopupOpen(true)} onCashClick={() => ui.setCashPopupOpen(true)}
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
-                    onAccountingOpen={() => ui.setAccountingOpen(true)} role={role} logout={logout} userName={username ?? ""}
+                    onAccountingOpen={() => ui.setAccountingOpen(true)}
+                    onCourierDispatcherOpen={() => ui.setCourierDispatcherOpen(true)}
+                    role={role} logout={logout} userName={username ?? ""}
                 />
             )}
             {selectedBranch && (<>
@@ -112,7 +114,9 @@ function AdminHomePage(): JSX.Element {
                 cashRegisterOpen={ui.cashRegisterOpen} onCashRegisterClose={() => ui.setCashRegisterOpen(false)}
                 managementPageOpen={ui.managementPageOpen} onManagementPageClose={() => ui.setManagementPageOpen(false)}
                 shiftManagementPageOpen={ui.shiftManagementPageOpen} onShiftManagementPageClose={() => ui.setShiftManagementPageOpen(false)}
-                accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)} />
+                accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)}
+                courierDispatcherOpen={ui.courierDispatcherOpen}
+                onCourierDispatcherClose={() => ui.setCourierDispatcherOpen(false)} />
             <ExternalOrderAlert alertOrder={alertOrder} onDismiss={() => { stopSound(); setAlertOrder(null); }} onStopSound={stopSound} {...orderActions} />
             <EditedOrderAlert editedOrder={editedOrder} onClose={() => { stopSound(); setEditedOrder(null); }} />
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />

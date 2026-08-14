@@ -30,6 +30,7 @@ import {
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import TwoWheelerOutlinedIcon from '@mui/icons-material/TwoWheelerOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import {StaffRoles} from "../../../auth/types";
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
@@ -61,6 +62,8 @@ interface AdminTopbarProps {
     onBlacklistopen: () => void;
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
+    /** Courier dispatcher panel (DELIVERY_SPEC.md §4). */
+    onCourierDispatcherOpen: () => void;
     role: StaffRolesType | null;
     logout: () => void;
     userName: string;
@@ -88,6 +91,7 @@ export default function AdminTopbar({
                                         onBlacklistopen,
                                         onCashRegisterOpen,
                                         onAccountingOpen,
+                                        onCourierDispatcherOpen,
                                         role,
                                         logout,
                                         userName
@@ -147,6 +151,7 @@ export default function AdminTopbar({
         {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
         cashRegisterItem,
         {label: "Accounting", icon: <AccountBalanceWalletOutlinedIcon fontSize="small"/>, onClick: onAccountingOpen},
+        {label: "Delivery", icon: <TwoWheelerOutlinedIcon fontSize="small"/>, onClick: onCourierDispatcherOpen},
         {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
         logoutItem
     ]

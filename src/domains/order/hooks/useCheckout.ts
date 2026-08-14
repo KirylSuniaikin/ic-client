@@ -54,6 +54,9 @@ export interface UseCheckoutResult {
     setPaymentMethod: Dispatch<SetStateAction<string>>;
     orderType: string;
     setOrderType: Dispatch<SetStateAction<string>>;
+    /** Built but deliberately not created — payment comes first for delivery (§1.7). */
+    pendingDeliveryOrder: CreateOrderRequest | null;
+    setPendingDeliveryOrder: Dispatch<SetStateAction<CreateOrderRequest | null>>;
     adminOrderDetailsPopUp: boolean;
     setAdminOrderDetailsPopUpOpen: Dispatch<SetStateAction<boolean>>;
     isCrossSellOpen: boolean;
@@ -107,6 +110,9 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // can recover the customer's choices when it re-enters checkout.
     const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
     const [orderType, setOrderType] = useState("Pick Up");
+    // The order a delivery customer has reached payment with, held rather than created (§1.7).
+    // Non-null is what opens DeliveryCheckoutDrawer.
+    const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<CreateOrderRequest | null>(null);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
@@ -248,6 +254,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // never completed an order goes through the Pick-Up reminder first; everyone else
     // has their order created straight away.
     async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
+        // DELIVERY_SPEC.md §1.7: a delivery order must not exist until payment succeeds, so the
+        // funnel stops here and hands the built order to the delivery checkout instead of
+        // creating it. Everything before this point still runs — cross-sell, identity, the
+        // blacklist check and, for a guest, OTP verification, which is also what guarantees a
+        // token by the time the (account-scoped) address book is opened.
+        if (order.type === "Delivery") {
+            setCartOpen(false);
+            setPendingDeliveryOrder(order);
+            return;
+        }
         const orderCount = await resolveOrderCount(order.tel ?? null);
         if (orderCount !== null && orderCount > 0) {
             await executeOrderCreation(order, items);
@@ -399,7 +415,12 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         const order: CreateOrderRequest = {
             tel,
             customer_name: customerName,
-            type: "Pick Up",
+            // The customer's cart choice, not a constant. This was hardcoded to "Pick Up"
+            // while deliveryMethod was accepted and then dropped, so no Delivery order could
+            // ever reach the backend (DELIVERY_SPEC.md §12.1-A). Falls back to "Pick Up" for
+            // the callers that legitimately pass null: kiosk (always pickup, toggle hidden)
+            // and the admin popup, which rings the order type separately.
+            type: deliveryMethod ?? "Pick Up",
             payment_type: paymentMethod,
             branchId: isKiosk ? JSON.parse(localStorage.getItem(BRANCH_KEY) || '{}').id : isAdmin ? adminBranchId! : branchId!,
             notes,
@@ -527,6 +548,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         customerPrefill,
         paymentMethod, setPaymentMethod,
         orderType, setOrderType,
+        pendingDeliveryOrder, setPendingDeliveryOrder,
         adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen,
         isCrossSellOpen, setIsCrossSellOpen,
         pickUpReminder, setPickUpReminder,

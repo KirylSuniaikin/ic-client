@@ -16,11 +16,19 @@ export type UseOrderLiveStatusResult = {
 
 // Local copy of useAdminOrders.STATUS_RANK (task-spec.md §10 — extracting a shared
 // util is a suggestion only, not applied here). Unranked/unknown statuses always pass.
+//
+// "Picked Up" (pickup) and "Out for delivery" (delivery) are the two mutually-exclusive
+// branches out of "Ready", so they share rank 3; an order only ever travels one of them.
+// Without these entries a delivery status resolved to MAX_SAFE_INTEGER below and always
+// passed the guard, so a retried "Out for delivery" frame could land after "Delivered"
+// and move the customer's view backwards (DELIVERY_SPEC.md §12.1-C).
 const STATUS_RANK: Record<string, number> = {
     "Kitchen Phase": 0,
     "Oven": 1,
     "Ready": 2,
     "Picked Up": 3,
+    "Out for delivery": 3,
+    "Delivered": 4,
 };
 
 type OrderStatusFramePayload = { id: number; status: string };

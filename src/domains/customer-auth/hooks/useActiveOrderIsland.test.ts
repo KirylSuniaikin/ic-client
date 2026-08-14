@@ -166,6 +166,50 @@ describe("useActiveOrderIsland", () => {
         expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
     });
 
+    // DELIVERY_SPEC.md §12.1-D: "Delivered" is the delivery branch's terminal status, the
+    // twin of "Picked Up" above. The visibility check used to compare against the pickup
+    // string alone, which left the pill pinned to a finished delivery order indefinitely.
+    it("hides the pill once a live frame advances the tracked order to Delivered", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
+        mockFetchActiveOrder.mockResolvedValueOnce(null);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+
+        await waitFor(() => expect(result.current.isVisible).toBe(true));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: ACTIVE_ORDER.id, status: "Delivered" }) });
+        });
+
+        await waitFor(() => expect(result.current.isVisible).toBe(false));
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+    });
+
+    // The in-transit status must NOT be treated as terminal — the customer is still
+    // waiting and the pill is precisely what they watch during the drive.
+    it("keeps the pill visible while the order is Out for delivery", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValue(ACTIVE_ORDER);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+
+        await waitFor(() => expect(result.current.isVisible).toBe(true));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: ACTIVE_ORDER.id, status: "Out for delivery" }) });
+        });
+
+        await waitFor(() => expect(result.current.status).toBe("Out for delivery"));
+        expect(result.current.isVisible).toBe(true);
+    });
+
     it("handleClick calls openOrderDetail with the active order's id", async () => {
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
