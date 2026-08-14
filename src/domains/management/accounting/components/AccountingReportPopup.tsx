@@ -492,12 +492,12 @@ export function AccountingReportPopup({
                             <TableHead sx={{ bgcolor: "#fff" }}>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
                                     {isSuperManager && (
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
@@ -529,6 +529,18 @@ export function AccountingReportPopup({
                                                     size="small"
                                                     variant="standard"
                                                     sx={{ width: 130, ...noUnderlineSx }}
+                                                />
+                                            </TableCell>
+
+                                            {/* Receipt photo */}
+                                            <TableCell sx={{ minWidth: 90 }}>
+                                                <EntryImageField
+                                                    rowKey={row._key}
+                                                    serverId={row.id ?? null}
+                                                    hasImage={row.hasImage}
+                                                    pendingImage={row.pendingImage}
+                                                    removeImage={row.removeImage}
+                                                    onChange={(patch) => updateRowPhoto(row._key, patch)}
                                                 />
                                             </TableCell>
 
@@ -684,18 +696,6 @@ export function AccountingReportPopup({
                                                         </MenuItem>
                                                     ))}
                                                 </Select>
-                                            </TableCell>
-
-                                            {/* Receipt photo */}
-                                            <TableCell sx={{ minWidth: 90 }}>
-                                                <EntryImageField
-                                                    rowKey={row._key}
-                                                    serverId={row.id ?? null}
-                                                    hasImage={row.hasImage}
-                                                    pendingImage={row.pendingImage}
-                                                    removeImage={row.removeImage}
-                                                    onChange={(patch) => updateRowPhoto(row._key, patch)}
-                                                />
                                             </TableCell>
 
                                             {/* Contributor */}

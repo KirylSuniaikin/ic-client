@@ -8,10 +8,9 @@ import {Box, Container, Divider, Link, Typography} from '@mui/material';
 
 const LAST_UPDATED = '10 August 2026';
 
-// TODO(legal): replace the three placeholders below before publishing.
-const COMPANY_LEGAL_NAME = '[LEGAL ENTITY NAME]';
-const COMPANY_ADDRESS = '[REGISTERED ADDRESS]';
-const CONTACT_EMAIL = '[privacy@ic-pizza.com]';
+const COMPANY_LEGAL_NAME = 'IC PIZZA W.L.L.';
+const COMPANY_ADDRESS = 'Bahrain, Hidd, Block 101, Road 114, Building 1284, Shop 0';
+const CONTACT_EMAIL = 'andrew@ic-pizza.com';
 
 function Section({title, children}: {title: string; children: React.ReactNode}): JSX.Element {
     return (
