@@ -15,10 +15,20 @@ class BluetoothPrinterService {
     private isConnected: boolean = false;
     private monitorTimer?: ReturnType<typeof setInterval>;
 
+    // cordova-plugin-bluetooth-serial calls a bare `cordova` identifier inside its method bodies,
+    // which throws a ReferenceError in a plain (non-Cordova) browser. Probing `window.cordova`
+    // detects the bridge's absence without our code ever touching that bare identifier itself.
+    private isNativeBridgeAvailable(): boolean {
+        return typeof window !== 'undefined' && window.cordova !== undefined;
+    }
+
     async init(): Promise<void> {
         logger.debug("🔹 Initializing Bluetooth...");
 
         try {
+            if (!this.isNativeBridgeAvailable()) {
+                throw new Error("cordova bridge not available");
+            }
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.enable(
                     () => {
@@ -39,6 +49,9 @@ class BluetoothPrinterService {
     async connect(): Promise<void> {
         logger.debug(`🔹 Connecting to ${this.mac}...`);
         try {
+            if (!this.isNativeBridgeAvailable()) {
+                throw new Error("cordova bridge not available");
+            }
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.connect(
                     this.mac,
@@ -97,6 +110,9 @@ class BluetoothPrinterService {
         if (this.monitorTimer) clearInterval(this.monitorTimer);
 
         this.monitorTimer = setInterval(() => {
+            if (!this.isNativeBridgeAvailable()) {
+                return;
+            }
             BluetoothSerial.isConnected(
                 () => logger.debug("✅ Still connected"),
                 async () => {
@@ -123,6 +139,9 @@ class BluetoothPrinterService {
         }
 
         try {
+            if (!this.isNativeBridgeAvailable()) {
+                throw new Error("cordova bridge not available");
+            }
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.write(
                     text,
@@ -200,6 +219,9 @@ class BluetoothPrinterService {
         ].join("");
 
         try {
+            if (!this.isNativeBridgeAvailable()) {
+                throw new Error("cordova bridge not available");
+            }
             await new Promise<void>((resolve, reject) => {
                 BluetoothSerial.write(
                     text,

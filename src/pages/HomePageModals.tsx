@@ -6,6 +6,10 @@ import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaCo
 import { DetroitComboPopup } from "../domains/menu/components/popups/combo/DetroitComboPopup";
 import { UpsellPopup } from "../domains/order/components/UpSellPopup";
 import { KioskBranchSelector } from "../domains/kiosk/components/KioskBranchSelector";
+import { KioskPhoneEntrySheet } from "../domains/kiosk/components/KioskPhoneEntrySheet";
+import { KioskOrderPlacedSheet } from "../domains/kiosk/components/KioskOrderPlacedSheet";
+import { writeKioskBranch } from "../domains/kiosk/utils/kioskBranch";
+import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
 import CartPopup from "../domains/cart/components/CartComponent";
@@ -30,8 +34,6 @@ import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/m
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
 
-const BRANCH_KEY = 'kiosk_branch_data';
-
 interface HomePageModalsProps {
     cart: UseCartResult;
     checkout: UseCheckoutResult;
@@ -44,6 +46,7 @@ interface HomePageModalsProps {
     username: string;
     branchSelector: boolean | null;
     setBranchSelector: Dispatch<SetStateAction<boolean | null>>;
+    kiosk: UseKioskCheckoutResult;
     refreshMenu: () => Promise<void>;
     pizzas: Group[];
     brickPizzas: Group[];
@@ -58,7 +61,7 @@ interface HomePageModalsProps {
 export default function HomePageModals({
     cart, checkout, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
-    branchSelector, setBranchSelector, refreshMenu,
+    branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
@@ -190,7 +193,7 @@ export default function HomePageModals({
                     open={!!branchSelector}
                     branches={availableBranches}
                     onSelect={(branch: IBranch) => {
-                        localStorage.setItem(BRANCH_KEY, JSON.stringify(branch));
+                        writeKioskBranch(branch);
                         setBranchSelector(false);
                         // Reload the menu for the just-selected branch; the initial fetch ran
                         // against the default branch because no branch was stored yet.
@@ -405,6 +408,28 @@ export default function HomePageModals({
                     unavailableItems={checkout.unavailableItems}
                     message={checkout.unavailableMessage ?? undefined}
                 />
+            )}
+
+            {/* Kiosk checkout: phone number, then the order number to quote at the counter. Both
+                sheets are driven purely by the checkout hook's phase, so at most one is ever
+                mounted, and neither touches checkoutLoading (which would unmount this whole tree
+                behind a full-page loader). */}
+            {isKiosk && (
+                <>
+                    <KioskPhoneEntrySheet
+                        open={kiosk.phase === "phone"}
+                        submitting={kiosk.submitting}
+                        checkoutError={kiosk.checkoutError}
+                        onClose={kiosk.closePhoneStep}
+                        onSubmit={(tel: string, name: string) => { void kiosk.submitPhone(tel, name); }}
+                    />
+
+                    <KioskOrderPlacedSheet
+                        open={kiosk.phase === "placed"}
+                        orderId={kiosk.placedOrderId}
+                        onDone={kiosk.finishSession}
+                    />
+                </>
             )}
         </>
     );

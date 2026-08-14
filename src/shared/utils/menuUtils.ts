@@ -25,6 +25,22 @@ export type CategoryGroups = {
     pizzaBaguettes: Group[];
 };
 
+// Mirrors the order MenuSections renders its rows in, top to bottom. KEEP IN SYNC with the
+// `sections` array there: the image preloader walks the menu in this order to decide which photos
+// the customer sees first, so if the two drift apart it warms the wrong images and the customer is
+// back to looking at empty cards.
+export const MENU_SECTION_ORDER = [
+    "ramadan",
+    "bestsellers",
+    "pizzaBaguettes",
+    "brickPizzas",
+    "combos",
+    "pizzas",
+    "sides",
+    "sauces",
+    "beverages",
+] as const satisfies readonly (keyof CategoryGroups)[];
+
 export function groupItemsByName(data: MenuItem[]): Group[] {
     if (!data || !Array.isArray(data)) {
         return [];
@@ -101,4 +117,31 @@ export function groupItemsByCategory(groups: GroupWithMeta[]): CategoryGroups {
         ramadan,
         pizzaBaguettes
     };
+}
+
+// The item a group is represented by on the menu card (its photo, price and name).
+// MenuItemCardHorizontal and the image preloader MUST agree on this: the preloader warms the
+// browser cache by URL, so picking a different item there would fetch a photo the card never
+// renders and leave the card itself uncached.
+export function pickDefaultItem(group: Group): MenuItem {
+    return group.items.find(i => i.size === "S") || group.items[0];
+}
+
+// Photo URLs of the first `limit` cards in render order — the ones the customer sees first, and
+// therefore the only ones worth blocking the loader on. Walks sections in MENU_SECTION_ORDER so
+// this matches what MenuSections paints top to bottom.
+export function collectPreloadUrls(groups: CategoryGroups, limit: number): string[] {
+    const urls: string[] = [];
+
+    for (const section of MENU_SECTION_ORDER) {
+        for (const group of groups[section]) {
+            if (urls.length >= limit) return urls;
+            // Groups can repeat across sections (a bestseller also appears in its own category),
+            // and an item may carry no photo at all — neither is worth a preload slot.
+            const photo = pickDefaultItem(group)?.photo;
+            if (photo && !urls.includes(photo)) urls.push(photo);
+        }
+    }
+
+    return urls;
 }

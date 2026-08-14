@@ -32,10 +32,15 @@ import type {
 } from "../types";
 import {
     createAccountingReport,
+    deleteAccountingEntryImage,
     getAccountingCategories,
     getAccountingReport,
     updateAccountingReport,
+    uploadAccountingEntryImage,
 } from "../../../../shared/api/management";
+import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
+import { EntryImageField } from "./EntryImageField";
+import { logger } from "../../../../shared/utils/logger";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import { dateFormatter } from "../../../../shared/utils/dateFormatter";
@@ -83,6 +88,12 @@ type EntryRow = {
     categoryId: number | null;
     contributorName: string | null;
     runningBalance: number | null;
+    /** A photo is stored on the server for this entry. */
+    hasImage: boolean;
+    /** Picked in this session, not uploaded yet — a new row has no id to upload against. */
+    pendingImage: Blob | null;
+    /** The stored photo should be deleted when the report is saved. */
+    removeImage: boolean;
 };
 
 function todayIso(): string {
@@ -100,6 +111,9 @@ function newRow(): EntryRow {
         categoryId: null,
         contributorName: null,
         runningBalance: null,
+        hasImage: false,
+        pendingImage: null,
+        removeImage: false,
     };
 }
 
@@ -200,6 +214,9 @@ export function AccountingReportPopup({
                                 categoryId: e.categoryId,
                                 contributorName: e.contributorName,
                                 runningBalance: e.runningBalance ?? null,
+                                hasImage: e.hasImage,
+                                pendingImage: null,
+                                removeImage: false,
                             }))
                     );
                 } else {
@@ -237,6 +254,73 @@ export function AccountingReportPopup({
         setRows(prev => prev.filter(r => r._key !== key));
     }
 
+    function updateRowPhoto(key: string, patch: PhotoPatch): void {
+        updateRow(key, patch);
+    }
+
+    /**
+     * Uploads/removes entry photos AFTER the report is saved — a brand-new entry has no id until
+     * the save assigns one, and the response's clientRef -> entry id mapping is what connects a
+     * blob held in memory to its row.
+     *
+     * allSettled, not all: one failed photo must not hide the fact that the report itself saved.
+     * Each upload gets one retry, since the usual cause is a momentary tablet wifi drop.
+     * @returns how many photo operations ultimately failed
+     */
+    async function syncEntryImages(saved: AccountingReportTO): Promise<number> {
+        const serverIdByRef = new Map<string, number>();
+        for (const entry of saved.entries ?? []) {
+            if (entry.clientRef) serverIdByRef.set(entry.clientRef, entry.id);
+        }
+
+        const jobs: Array<() => Promise<unknown>> = [];
+        for (const row of rows) {
+            const serverId = serverIdByRef.get(row._key) ?? row.id;
+            if (serverId == null) continue;
+            if (row.pendingImage) {
+                const blob = row.pendingImage;
+                jobs.push(() => uploadAccountingEntryImage(serverId, blob));
+            } else if (row.removeImage && row.hasImage) {
+                jobs.push(() => deleteAccountingEntryImage(serverId));
+            }
+        }
+        if (jobs.length === 0) return 0;
+
+        const runWithOneRetry = async (job: () => Promise<unknown>): Promise<unknown> => {
+            try {
+                return await job();
+            } catch {
+                return job();
+            }
+        };
+
+        const results = await Promise.allSettled(jobs.map(runWithOneRetry));
+        const failed = results.filter((r) => r.status === "rejected");
+        failed.forEach((r) => logger.error((r as PromiseRejectedResult).reason, "entry photo sync failed"));
+        return failed.length;
+    }
+
+    /**
+     * Re-syncs local rows to what the server now holds, so the popup can stay open after a partial
+     * photo failure without a second save duplicating rows or re-uploading what already landed.
+     */
+    function adoptSavedReport(saved: AccountingReportTO): void {
+        const serverIdByRef = new Map<string, number>();
+        for (const entry of saved.entries ?? []) {
+            if (entry.clientRef) serverIdByRef.set(entry.clientRef, entry.id);
+        }
+        setVersion(saved.version);
+        setRows((prev) =>
+            prev.map((r) => ({
+                ...r,
+                id: serverIdByRef.get(r._key) ?? r.id,
+                hasImage: r.pendingImage ? true : r.removeImage ? false : r.hasImage,
+                pendingImage: null,
+                removeImage: false,
+            }))
+        );
+    }
+
     async function handleSave(): Promise<void> {
         if (!title.trim()) {
             setError("Report title is required.");
@@ -253,6 +337,7 @@ export function AccountingReportPopup({
         setSaving(true);
         setError(null);
         try {
+            let saved: AccountingReportTO;
             if (mode === "new") {
                 const payload: CreateAccountingReportPayload = {
                     branchId: branch.id.toString(),
@@ -263,10 +348,10 @@ export function AccountingReportPopup({
                         occurredAt: r.date + "T00:00:00",
                         accountType: r.account,
                         note: r.note || undefined,
+                        clientRef: r._key,
                     })),
                 };
-                const saved = await createAccountingReport(payload);
-                onSaved(saved);
+                saved = await createAccountingReport(payload);
             } else {
                 if (version == null) return;
                 const payload: UpdateAccountingReportPayload = {
@@ -278,11 +363,27 @@ export function AccountingReportPopup({
                         amount: parseFloat(r.amount),
                         occurredAt: r.date + "T00:00:00",
                         note: r.note || undefined,
+                        clientRef: r._key,
                     })),
                 };
-                const saved = await updateAccountingReport(reportId as number, payload);
-                onSaved(saved);
+                saved = await updateAccountingReport(reportId as number, payload);
             }
+
+            const failedPhotos = await syncEntryImages(saved);
+
+            // The report itself is already persisted, so the parent list is refreshed either way.
+            // A failed photo must never present itself as a failed save.
+            onSaved(saved);
+
+            if (failedPhotos > 0) {
+                adoptSavedReport(saved);
+                setError(
+                    `Report saved, but ${failedPhotos} photo(s) could not be uploaded. ` +
+                    `Re-attach them and save again — the report data is safe.`
+                );
+                return;
+            }
+            onClose();
         } catch (e: unknown) {
             const status = (e as { status?: number })?.status;
             if (status === 409) {
@@ -391,6 +492,7 @@ export function AccountingReportPopup({
                             <TableHead sx={{ bgcolor: "#fff" }}>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
+                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
@@ -400,6 +502,9 @@ export function AccountingReportPopup({
                                     {isSuperManager && (
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
                                     )}
+                                    {/* Header for the delete-button column: unlabelled visually,
+                                        but it has to exist so head and body column counts match. */}
+                                    <TableCell aria-label="Actions" sx={{ width: 40, pr: 1 }} />
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -424,6 +529,18 @@ export function AccountingReportPopup({
                                                     size="small"
                                                     variant="standard"
                                                     sx={{ width: 130, ...noUnderlineSx }}
+                                                />
+                                            </TableCell>
+
+                                            {/* Receipt photo */}
+                                            <TableCell sx={{ minWidth: 90 }}>
+                                                <EntryImageField
+                                                    rowKey={row._key}
+                                                    serverId={row.id ?? null}
+                                                    hasImage={row.hasImage}
+                                                    pendingImage={row.pendingImage}
+                                                    removeImage={row.removeImage}
+                                                    onChange={(patch) => updateRowPhoto(row._key, patch)}
                                                 />
                                             </TableCell>
 
@@ -633,7 +750,7 @@ export function AccountingReportPopup({
                                 {computedRows.length === 0 && (
                                     <TableRow>
                                         <TableCell
-                                            colSpan={isSuperManager ? 8 : 7}
+                                            colSpan={isSuperManager ? 10 : 9}
                                             align="center"
                                             sx={{ py: 3, color: "text.secondary" }}
                                         >

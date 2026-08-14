@@ -26,25 +26,12 @@ import {
     removedFromCustomizations,
     stripExtrasParts,
     stripRemovalTokens,
+    toppingAdditionToken,
+    toppingNameFromAdditionToken,
+    toppingsFromCustomizations,
     toRemoveCustomizations,
     RemovedComponent,
 } from "../../../utils/customizations";
-
-const TOPPING_SUFFIX = " Topping";
-
-// Mirrors extrasFromCustomizations (customizations.ts) for the toppingId ADD rows — kept local
-// since drizzles are combo-specific here; the standalone popup reads toppingId inline too.
-function toppingsFromCustomizations(customizations?: Customization[]): string[] {
-    return (customizations ?? [])
-        .filter(c => c.action === "ADD" && c.toppingId != null && !!c.name)
-        .map(c => c.name as string);
-}
-
-// Legacy-description fallback: the shared additions group mixes extras and " Topping"-suffixed
-// drizzle names, so pull only the suffixed ones back out.
-function toppingNameFromAdditionToken(name: string): string | null {
-    return name.endsWith(TOPPING_SUFFIX) ? name.slice(0, -TOPPING_SUFFIX.length) : null;
-}
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -382,7 +369,7 @@ export function PizzaComboPopup({
         // comboItems[0].note now, never folded into this string.
         const additionNames = [
             ...selectedExtras,
-            ...selectedToppings.map(name => `${name}${TOPPING_SUFFIX}`),
+            ...selectedToppings.map(toppingAdditionToken),
         ];
         const extrasPart = buildAdditionTokens(additionNames);
         const finalDescription = [

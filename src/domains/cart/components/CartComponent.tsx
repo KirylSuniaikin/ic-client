@@ -194,8 +194,9 @@ function CartPopup({
                 </Box>
 
                 {/* Delivery type + payment — customer flow only (admin rings payment via
-                    AdminOrderDetailsPopUp). Delivery toggle is hidden on kiosk (always Pickup). */}
-                {!isAdmin && (
+                    AdminOrderDetailsPopUp). Both toggle groups are hidden on kiosk: kiosk is
+                    always Pickup + Card, and there's nothing for a walk-up customer to choose. */}
+                {!isAdmin && !isKiosk && (
                     <Box sx={{ flexShrink: 0, px: 3, pt: 1.5, pb: 0.5 }}>
                         {!isKiosk && (
                             <Box sx={{ mb: 1.5 }}>

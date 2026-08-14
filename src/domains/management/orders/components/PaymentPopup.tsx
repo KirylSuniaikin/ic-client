@@ -12,6 +12,7 @@ import Input from "@mui/material/Input";
 import InputBase from "@mui/material/InputBase";
 import Divider from "@mui/material/Divider";
 import type { Order } from '../../../order/types';
+import { logger } from "../../../../shared/utils/logger";
 
 const COLOR_RED = "#E44B4C";
 const GRAY_BG = "#F7F7F8";
@@ -62,6 +63,11 @@ export default function PaymentPopup({
     const [cashMode, setCashMode] = useState(false)
     const [payers, setPayers] = useState<Payer[]>([{ id: mkId(), type: "cash", amount: "" }]);
 
+    // A failed leg used to leave the popup frozen forever with no message and the order half-paid,
+    // because nothing here caught: leg 1 succeeds, leg 2 throws, onPaymentSuccess never fires.
+    const [paymentError, setPaymentError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+
     useEffect(() => {
         if (open && order) {
             setSelectedType(null);
@@ -72,6 +78,8 @@ export default function PaymentPopup({
                 type: "cash",
                 amount: amountPaid ? amountPaid.toFixed(2) : ""
             }]);
+            setPaymentError(null);
+            setSubmitting(false);
         }
     }, [open, order, amountPaid]);
 
@@ -94,28 +102,39 @@ export default function PaymentPopup({
 
     const confirmPayment = async (): Promise<void> => {
         const branchId = order.branch_id ?? "1";
-        if (!splitMode) {
-            // single transaction
-            await sendOrderPayment({
-                orderId: order.id,
-                amount: amountPaid,
-                type: selectedType as import('../../../order/types').PaymentType,
-                branchId
-            });
-        } else {
-            if (!remainingZero) return;
-            const txs = payers
-                .map(p => ({ amount: toNumber(p.amount), type: p.type }))
-                .filter(p => p.amount > 0 && ["Cash", "Card", "Benefit"].includes(p.type));
+        if (splitMode && !remainingZero) return;
 
-            for (const tx of txs) {
+        setPaymentError(null);
+        setSubmitting(true);
+        try {
+            if (!splitMode) {
+                // single transaction
                 await sendOrderPayment({
                     orderId: order.id,
-                    amount: tx.amount,
-                    type: tx.type as import('../../../order/types').PaymentType,
+                    amount: amountPaid,
+                    type: selectedType as import('../../../order/types').PaymentType,
                     branchId
                 });
+            } else {
+                const txs = payers
+                    .map(p => ({ amount: toNumber(p.amount), type: p.type }))
+                    .filter(p => p.amount > 0 && ["Cash", "Card", "Benefit"].includes(p.type));
+
+                for (const tx of txs) {
+                    await sendOrderPayment({
+                        orderId: order.id,
+                        amount: tx.amount,
+                        type: tx.type as import('../../../order/types').PaymentType,
+                        branchId
+                    });
+                }
             }
+        } catch (e) {
+            logger.error("[PAYMENT POPUP] Payment failed", e);
+            setPaymentError("Payment could not be recorded. The order may have expired — check the board and re-ring it if it is gone.");
+            return;
+        } finally {
+            setSubmitting(false);
         }
 
         onPaymentSuccess?.(order.id);
@@ -342,10 +361,18 @@ export default function PaymentPopup({
                     borderTop: `1px solid ${GRAY_BORDER}`
                 }}
             >
+                {paymentError && (
+                    <Box
+                        data-testid="payment-popup-error"
+                        sx={{ mb: 1.5, color: COLOR_RED, fontSize: 14, fontWeight: 600 }}
+                    >
+                        {paymentError}
+                    </Box>
+                )}
                 <Button
                     fullWidth
                     variant="contained"
-                    disabled={confirmDisabled}
+                    disabled={confirmDisabled || submitting}
                     onClick={confirmPayment}
                     sx={{
                         borderRadius: 2,

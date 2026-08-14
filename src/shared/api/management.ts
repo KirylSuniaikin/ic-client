@@ -1,4 +1,5 @@
 import { authFetch, BASE_URL } from './client';
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from './clientPlatform';
 import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from '../../domains/management/inventory/types';
 import type { DoughAvailabilityFlags, DoughInventory, DoughStatus } from '../../domains/management/dough/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../domains/management/prep-plan/types';
@@ -6,7 +7,11 @@ import type {
     BasePurchaseResponse,
     CreatePurchasePayload,
     EditPurchasePayload,
+    InvoiceImageMetaTO,
     PurchaseTO,
+    SavePurchaseResponse,
+    SetPurchaseInvoicePaidPayload,
+    UnpaidInvoicesResponse,
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
@@ -33,8 +38,17 @@ import type {
     AccountingReportTO,
     AccountingType,
     CreateAccountingReportPayload,
+    EntryImageMetaTO,
     UpdateAccountingReportPayload
 } from '../../domains/management/accounting/types';
+import type {
+    BoardOwner,
+    ChangeTaskCardPriorityPayload,
+    CreateTaskCardPayload,
+    EditTaskCardPayload,
+    MoveTaskCardPayload,
+    TaskCard
+} from '../../domains/management/tasks/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -147,7 +161,7 @@ export async function fetchVendors(): Promise<VendorTO[]> {
     return res.json();
 }
 
-export async function createPurchaseReport(payload: CreatePurchasePayload): Promise<BasePurchaseResponse> {
+export async function createPurchaseReport(payload: CreatePurchasePayload): Promise<SavePurchaseResponse> {
     const res = await authFetch(BASE_URL + `/create_purchase_report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,7 +180,7 @@ export async function getPurchaseReport(payload: { id: number }): Promise<Purcha
     return res.json();
 }
 
-export async function editPurchaseReport(payload: EditPurchasePayload): Promise<BasePurchaseResponse> {
+export async function editPurchaseReport(payload: EditPurchasePayload): Promise<SavePurchaseResponse> {
     const res = await authFetch(BASE_URL + `/edit_purchase_report`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -174,6 +188,54 @@ export async function editPurchaseReport(payload: EditPurchasePayload): Promise<
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
+}
+
+export async function uploadPurchaseInvoiceImage(invoiceId: number, file: Blob): Promise<InvoiceImageMetaTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/purchase_invoice_image?invoiceId=${invoiceId}`, {
+        method: "POST",
+        // No Content-Type header: the browser must generate the multipart/form-data boundary
+        // itself from the FormData body. Setting "Content-Type": "application/json" (or any
+        // fixed value) here strips that boundary and the backend fails with an opaque 500.
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchPurchaseInvoiceImage(invoiceId: number): Promise<Blob | null> {
+    const res = await authFetch(BASE_URL + `/purchase_invoice_image?invoiceId=${invoiceId}`, {
+        method: "GET",
+    });
+    if (res.status === 404) return null; // no photo yet — not an exception
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
+}
+
+export async function deletePurchaseInvoiceImage(invoiceId: number): Promise<void> {
+    const res = await authFetch(BASE_URL + `/purchase_invoice_image?invoiceId=${invoiceId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+}
+
+export async function fetchUnpaidPurchaseInvoices(branchId: string): Promise<UnpaidInvoicesResponse> {
+    const res = await authFetch(BASE_URL + `/unpaid_purchase_invoices?branchId=${branchId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function setPurchaseInvoicePaid(payload: SetPurchaseInvoicePaidPayload): Promise<void> {
+    const res = await authFetch(BASE_URL + `/purchase_invoice_paid`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
 }
 
 export async function fetchLatestConsumptionReport(branchId: string): Promise<ConsumptionReportTO> {
@@ -312,7 +374,7 @@ export async function getStaffByBranch(branchId: string): Promise<StaffOption[]>
 export async function initiateAuth(authRequest: AuthRequest): Promise<Response> {
     return await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [CLIENT_PLATFORM_HEADER]: CLIENT_PLATFORM_WEB },
         body: JSON.stringify(authRequest),
     });
 }
@@ -348,6 +410,36 @@ export async function updateAccountingReport(id: number, payload: UpdateAccounti
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+export async function uploadAccountingEntryImage(entryId: number, file: Blob): Promise<EntryImageMetaTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "POST",
+        // No Content-Type header: the browser must generate the multipart/form-data boundary
+        // itself from the FormData body. Setting a fixed value here strips that boundary and the
+        // backend fails with an opaque 500.
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchAccountingEntryImage(entryId: number): Promise<Blob | null> {
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "GET",
+    });
+    if (res.status === 404) return null; // no photo yet — not an exception
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
+}
+
+export async function deleteAccountingEntryImage(entryId: number): Promise<void> {
+    const res = await authFetch(BASE_URL + `/accounting/entry_image?entryId=${entryId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
 }
 
 export async function getAccountingCategories(branchId: string, type?: AccountingType): Promise<AccountingCategoryTO[]> {
@@ -407,6 +499,79 @@ export async function putDoughAvailability(
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(availability),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// ── Task board ─────────────────────────────────────────────────────────────────
+// Types co-located in domains/management/tasks/types.ts per the domain-first pattern
+// used by dough/types.ts, purchases/types.ts, shift/types.ts.
+
+export async function fetchTaskBoard(assigneeId?: number): Promise<TaskCard[]> {
+    const query = assigneeId !== undefined ? `?assigneeId=${assigneeId}` : '';
+    const res = await authFetch(BASE_URL + '/tasks' + query, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function createTaskCard(payload: CreateTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function editTaskCard(id: number, payload: EditTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function changeTaskCardPriority(id: number, payload: ChangeTaskCardPriorityPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id + '/priority', {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function deleteTaskCard(id: number): Promise<void> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// The resolved TaskCard is intentionally not used to patch local state by callers — the move
+// endpoint returns only the moved card, not its renumbered siblings, so it exists here purely
+// to signal success/failure; the caller (useTaskBoard.moveCard) refetches the full board instead.
+export async function moveTaskCard(id: number, payload: MoveTaskCardPayload): Promise<TaskCard> {
+    const res = await authFetch(BASE_URL + '/tasks/' + id + '/move', {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function fetchBoardOwners(): Promise<BoardOwner[]> {
+    const res = await authFetch(BASE_URL + '/board_owners', {
+        method: "GET",
+        headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

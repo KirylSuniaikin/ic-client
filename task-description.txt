@@ -1,0 +1,44 @@
+TASK: Implement the web kiosk EazyPay terminal checkout in /Users/andrew/Documents/ICpizza/Main/ic-client (branch: eazypay-integration, already checked out, clean).
+
+THE PLAN IS ALREADY APPROVED AND RESEARCHED BY THE USER.
+Read it in full FIRST: /Users/andrew/.claude/plans/serialized-booping-tarjan.md
+It contains the exact file list, the exact edits to existing files (with line numbers), the state machine, the i18n key list, the test plan, and the risk list.
+DO NOT re-plan from scratch. DO NOT deviate. The product decisions in it were made by the user directly.
+If you genuinely must deviate, say so explicitly and loudly in your output.
+
+NON-NEGOTIABLES (user-locked):
+1. No card retry. Any terminal failure status (DECLINED/CANCELLED/EXPIRED/ERROR/TIMEOUT) goes straight to the "pay at the front desk?" Yes/No sheet. AMOUNT_MISMATCH is the exception - dead-ends to "see a member of staff", never abandoned, never deferred, no timer.
+2. Phone-only kiosk info step. customer_name: null, no branch dropdown. The non-kiosk ClientInfoPopup must be left COMPLETELY UNTOUCHED.
+3. Re-pairing gesture = admin triple-clicks the TOP of the hero video. No PIN.
+4. All payment UI = MUI Drawer anchor="bottom" bottom sheets, copying src/domains/management/cash-register/components/CashInputDrawer.tsx EXACTLY (rounded top 16, grey 40x4 drag pill, <Box sx={{p:3,pb:4}}>, maxWidth:{sm:500}, mx:{sm:'auto'}). The user explicitly said "please pay attention to the UI" - visual polish matters; this is a customer-facing walk-up screen.
+5. NOTHING on the kiosk payment path may set checkoutLoading - HomePage.tsx:103 returns a full-page <PizzaLoader/> that unmounts every modal mid-payment.
+
+REFERENCE IMPLEMENTATION - PORT IT, DO NOT INVENT:
+/Users/andrew/Documents/ICpizza/Main/ic-pizza-kiosk (Expo/RN) already implements this exact flow with its edge cases documented in code comments. Mirror the logic from:
+  domains/payment/hooks/usePaymentPolling.ts
+  domains/order/hooks/useCheckout.ts
+  domains/order/components/PaymentFailurePrompt.tsx
+  app/(kiosk)/{payment,confirm,pay-at-counter}.tsx
+  app/kiosk-picker.tsx
+  services/config.ts
+Translate RN/NativeWind -> React/MUI; keep the logic, the guards and the explanatory comments.
+
+BACKEND - READ-ONLY, NO BACKEND CHANGES IN SCOPE:
+The contract lives on the eazypay-integration branch of /Users/andrew/Documents/ICpizza/Main/backend.
+Read it with: git -C /Users/andrew/Documents/ICpizza/Main/backend show eazypay-integration:<path>
+NEVER modify, never commit, never check out anything in the backend repo. Endpoint table is in the plan.
+
+PROJECT RULES THAT WILL TRIP YOU UP:
+- Follow /Users/andrew/Documents/ICpizza/Main/ic-client/.claude/CLAUDE.md strictly: no `any`, no `as X` without a justifying comment, explicit Promise<T> return types, typed Error subclasses (never throw strings), popups must be Drawer bottom sheets.
+- NO @types/jest. Use `import { jest } from "@jest/globals"`; always `const m = jest.fn<TReturn, TArgs>()`; NEVER annotate `let m: jest.Mock<...>` (breaks tsc).
+- Reuse before writing new code - the plan already identifies what to extract and share (orderPayload.ts, kioskBranch.ts for the 'kiosk_branch_data' literal currently duplicated in 3 files).
+- SCOPE DISCIPLINE IS CRITICAL. A previous pipeline on this repo added unrequested UI behaviour during a refactor. Change ONLY what the plan names. Do not "improve" the cross-sell, the cart, the hero, or any non-kiosk path. ?mode=kiosk behaviour changes; EVERY OTHER MODE must be byte-for-byte behaviourally identical.
+- Do NOT commit or push. Leave changes in the working tree.
+
+GATES BEFORE DONE:
+- yarn tsc --noEmit -> must be clean
+- yarn test --watchAll=false -> must pass, including the existing tests the plan says to UPDATE (CartComponent.test.tsx:95, useCheckout.test.ts:989/:1016/:1157, HomePage.test.tsx kiosk seeds)
+- yarn build -> must succeed. NOTE: `CI=true yarn build` fails on pre-existing project-wide ESLint warnings in untouched files; that is NOT a regression signal.
+- New tests per the plan's test list, especially the PizzaLoader regression guard and the double-tap => one-order guard.
+
+IF ANY REQUIREMENT IS AMBIGUOUS or depends on something you cannot see or were not given: write needs-clarification.md listing the exact open questions and STOP. Do not guess, do not invent values, do not silently descope.

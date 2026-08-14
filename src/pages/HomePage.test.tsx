@@ -30,13 +30,29 @@ jest.mock("lottie-react", () => ({
     default: (): null => null,
 }));
 
+// jsdom never fires load events for images, so the real preloader would hold every test at
+// PizzaLoader until its timeout elapsed. Its own behaviour is covered in useImagePreloader.test.ts;
+// here the mock lets each test decide whether the photos are ready, and records the URLs HomePage
+// asked for. Both names need the `mock` prefix -- jest hoists the factory above the imports and
+// only allows it to close over identifiers spelled that way.
+let mockImagesReady = true;
+const mockPreloadedUrls: string[][] = [];
+jest.mock("../shared/hooks/useImagePreloader", () => ({
+    __esModule: true,
+    useImagePreloader: (urls: string[]): boolean => {
+        mockPreloadedUrls.push(urls);
+        return mockImagesReady;
+    },
+}));
+
 import { fetchBaseAppInfo } from "../shared/api/public";
 import { fetchAllBranches } from "../shared/api/management";
 import { refreshCustomerToken } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
-import type { BaseAppInfoResponse } from "../domains/order/types";
+import { createOrder } from "../shared/api/public";
+import type { BaseAppInfoResponse, Order } from "../domains/order/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 
@@ -44,6 +60,7 @@ const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
+const mockCreateOrder = jest.mocked(createOrder);
 
 // A single available, non-pizza item so useMenuData's recommended-items effect seeds the
 // cart directly (upsellDeclined=true bypasses the pizza/brick-pizza upsell popup entirely --
@@ -133,6 +150,8 @@ beforeEach(() => {
     // test above already relies on. Only the closed-branch ScrollHintArrow test overrides this.
     mockIsWithinWorkingHours.mockReset();
     mockIsWithinWorkingHours.mockReturnValue(true);
+    mockImagesReady = true;
+    mockPreloadedUrls.length = 0;
     localStorage.clear();
 });
 
@@ -228,6 +247,36 @@ describe("HomePage -- noPopupOpen suppression", () => {
     });
 });
 
+describe("HomePage -- menu image preloading", () => {
+    it("holds the loader after the menu data arrives, until the first photos are ready", async () => {
+        mockImagesReady = false;
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalled());
+
+        // Menu data has loaded, so the old gate would already have painted the cards -- with their
+        // photos still in flight. The preload gate keeps the loader up instead.
+        expect(screen.queryByText("Cola")).toBeNull();
+    });
+
+    it("renders the menu once the photos are ready", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+    });
+
+    it("preloads exactly the photo URL the card will render", async () => {
+        // The preloader warms the browser cache by URL, so any mismatch with the card's own photo
+        // would fetch the image twice and leave the card empty on first paint.
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+
+        expect(mockPreloadedUrls.some(urls => urls.includes(AVAILABLE_ITEM.photo))).toBe(true);
+    });
+});
+
 describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
     afterEach(() => {
         restoreMenuTopRect?.();
@@ -289,5 +338,76 @@ describe("HomePage -- kiosk ScrollHintArrow popup suppression", () => {
         fireEvent.click(screen.getByText("test-open-login"));
         await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
         expect(screen.queryByRole("button", { name: "Scroll down to the menu" })).toBeNull();
+    });
+});
+
+// The kiosk checkout must never route through checkout.checkoutLoading: HomePage returns a
+// full-page <PizzaLoader/> for that flag (see the early return near the top of HomePage.tsx), which
+// unmounts HomePageModals and every kiosk sheet with it -- mid-order. These tests drive the real
+// cart -> cross-sell -> phone -> placed flow and assert the sheets stay mounted throughout.
+describe("HomePage -- kiosk checkout flow", () => {
+    beforeEach(() => {
+        mockCreateOrder.mockReset();
+        mockCreateOrder.mockResolvedValue({ id: "4321" } as Order);
+    });
+
+    /** Walks the real UI from a seeded cart to the phone sheet. */
+    async function reachPhoneSheet(): Promise<void> {
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+        fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
+
+        // First Checkout press is swallowed by the cross-sell gate, which kiosk keeps.
+        fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+        await waitFor(() => expect(screen.getByText("Enter your phone number")).toBeTruthy());
+    }
+
+    it("asks for name and phone on kiosk -- and still no branch picker", async () => {
+        await reachPhoneSheet();
+
+        expect(screen.getByRole("textbox", { name: "Name" })).toBeTruthy();
+        expect(screen.getByRole("textbox", { name: "Phone number" })).toBeTruthy();
+        // The backend derives the branch from the paired kiosk; asking would be a second way to
+        // get it wrong.
+        expect(screen.queryByLabelText(/branch/i)).toBeNull();
+    });
+
+    it("creates the order from the phone step and shows the number to quote at the counter", async () => {
+        await reachPhoneSheet();
+
+        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
+        fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
+        fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+        // If anything on this path set checkoutLoading, HomePage's early return would have replaced
+        // the entire tree -- including this sheet -- with PizzaLoader.
+        await waitFor(() => expect(screen.getByText("Order placed")).toBeTruthy());
+        expect(screen.getByText("4321")).toBeTruthy();
+    });
+
+    it("hides the floating cart pill while a kiosk sheet is open", async () => {
+        await reachPhoneSheet();
+
+        // noPopupOpen folds in kiosk.isSheetOpen; without it the zIndex 9999 pill paints over the sheet.
+        expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
+    });
+
+    it("reopens the branch picker when staff triple-click the top of the hero video", async () => {
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        const hotspot = screen.getByTestId("kiosk-repair-hotspot");
+        fireEvent.click(hotspot);
+        fireEvent.click(hotspot);
+        fireEvent.click(hotspot);
+
+        await waitFor(() => expect(screen.getByText("Setup Kiosk Mode")).toBeTruthy());
     });
 });

@@ -13,6 +13,7 @@ import {
     updateCustomerName,
 } from "./customerAuth";
 import { CustomerAuthApiError } from "../../domains/customer-auth/types";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
@@ -45,6 +46,8 @@ describe("requestOtp", () => {
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
         expect(init.body).toBe(JSON.stringify({ phone: "97333607710" }));
+        const headers = new Headers(init.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("throws a CustomerAuthApiError on a non-2xx response", async () => {
@@ -77,6 +80,8 @@ describe("verifyOtp", () => {
         expect(init.credentials).toBe("include");
         expect(init.body).toBe(JSON.stringify(payload));
         expect(result).toEqual({ accessToken: "token-abc" });
+        const headers = new Headers(init.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("throws a CustomerAuthApiError with the extracted message on a 400", async () => {
@@ -101,6 +106,10 @@ describe("refreshCustomerToken", () => {
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
         expect(result).toEqual({ accessToken: "refreshed-token" });
+        // refreshCustomerToken previously sent no headers at all — the platform
+        // header is the first header this request ever carries.
+        const headers = new Headers(init.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 
     it("throws a CustomerAuthApiError on 401", async () => {

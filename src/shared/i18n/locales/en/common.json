@@ -3,5 +3,10 @@
   "language": {
     "switchToArabic": "ع",
     "switchToEnglish": "EN"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. Please reload the page.",
+    "reload": "Reload"
   }
 }

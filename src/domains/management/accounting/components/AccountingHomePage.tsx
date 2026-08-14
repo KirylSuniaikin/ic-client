@@ -20,6 +20,8 @@ import {
 } from "@mui/material";
 import { AccountingCard } from "./AccountingCard";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
+import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
+import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
 
 type Props = {
     open: boolean;
@@ -32,6 +34,11 @@ export function AccountingHomePage({ open, onClose, branch }: Props): JSX.Elemen
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [accountingPopup, setAccountingPopup] = useState<AccountingPopupState>({ open: false });
+
+    // The endpoint already returns newest first, so the first page IS the latest reports.
+    const { visible: visibleReports, hasMore, sentinelRef } = useIncrementalList(reports, {
+        resetKey: branch.id.toString(),
+    });
 
     useEffect(() => {
         let alive = true;
@@ -131,16 +138,19 @@ export function AccountingHomePage({ open, onClose, branch }: Props): JSX.Elemen
                     )}
 
                     {!loading && !error && reports.length > 0 && (
-                        <Stack gap={1.5} sx={{ pb: 2 }}>
-                            {reports.map((r) => (
-                                <Box key={r.id}>
-                                    <AccountingCard
-                                        report={r}
-                                        onEditClick={() => handleEditClick(r.id)}
-                                    />
-                                </Box>
-                            ))}
-                        </Stack>
+                        <>
+                            <Stack gap={1.5} sx={{ pb: 2 }}>
+                                {visibleReports.map((r) => (
+                                    <Box key={r.id}>
+                                        <AccountingCard
+                                            report={r}
+                                            onEditClick={() => handleEditClick(r.id)}
+                                        />
+                                    </Box>
+                                ))}
+                            </Stack>
+                            {hasMore && <InfiniteScrollSentinel sentinelRef={sentinelRef} testId="accounting-scroll-sentinel" />}
+                        </>
                     )}
                 </Container>
             </Dialog>
@@ -152,10 +162,9 @@ export function AccountingHomePage({ open, onClose, branch }: Props): JSX.Elemen
                     reportId={accountingPopup.mode === "edit" ? accountingPopup.reportId : undefined}
                     branch={branch}
                     onClose={() => setAccountingPopup({ open: false })}
-                    onSaved={(report) => {
-                        setReports((prev) => upsertReport(prev, report));
-                        setAccountingPopup({ open: false });
-                    }}
+                    // Refresh only — the popup decides when to dismiss itself, because a save that
+                    // succeeded but could not upload a photo has to stay open to say so.
+                    onSaved={(report) => setReports((prev) => upsertReport(prev, report))}
                 />
             )}
         </>

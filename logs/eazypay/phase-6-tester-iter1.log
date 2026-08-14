@@ -1,0 +1,48 @@
+## Test Results
+
+**Scope:** `src/domains/cart/components/CartComponent.tsx` / `CartComponent.test.tsx` only (Phase 6 — Cart chrome on kiosk), per `phases-status.md` owned files.
+
+**Verification:** Read `task-spec.md` §14 (`CartComponent.tsx` edit) and the Phase 6 section (files owned, acceptance criteria, "Breaks that must be fixed" §18). Confirmed the implementation (`{!isAdmin && (` → `{!isAdmin && !isKiosk && (`) exactly matches the spec, with no scope creep (`onCheckout` args, admin path, non-kiosk path all untouched). The pre-existing test already had the required flip (Card-toggle-present-on-kiosk → null) applied by the implementer; I added one regression test confirming kiosk cart chrome (items/total/Checkout button) still renders once the toggles are stripped — a direct check of the §1 objective ("cart with just a Checkout button" on kiosk).
+
+```
+Test Results:
+- Total: 8 (CartComponent.test.tsx)
+- Passing: 8
+- Failing: 0
+```
+
+Coverage against Phase 6 requirements:
+- Both toggle groups (delivery-type + payment-method) hidden on kiosk — covered.
+- Toggles still shown for non-kiosk customers (byte-for-byte identical) — covered (pre-existing tests).
+- Toggles hidden for admin, unaffected by `isKiosk` — covered (pre-existing tests).
+- `onCheckout` args unchanged — covered (pre-existing test).
+- Rest of the cart (items list, total, Checkout button) unaffected by the kiosk guard — covered (new test I added).
+
+Gates (full repo, verbatim):
+
+**`yarn tsc --noEmit`**
+```
+$ /Users/andrew/Documents/ICpizza/Main/ic-client/node_modules/.bin/tsc --noEmit
+Done in 7.92s.
+```
+→ clean.
+
+**`CI=true yarn test --watchAll=false`**
+```
+Test Suites: 2 failed, 76 passed, 78 total
+Tests:       2 failed, 1039 passed, 1041 total
+```
+Failing: `src/shared/utils/countries.test.ts` and `src/domains/customer-auth/components/ActiveOrderIslandPill.test.tsx` — reason: **pre-existing, unrelated to Phase 6**. Verified by `git stash`-ing my Phase 6 changes and re-running these two files against the untouched base tree: they fail identically with 0 modifications applied. Neither file is in the Phase 6 owned-file list; not fixed, per scope discipline.
+
+**`yarn build`**
+```
+The build folder is ready to be deployed.
+Done in 17.77s.
+```
+→ succeeded. Only pre-existing project-wide ESLint warnings in untouched files (per instructions, not a regression signal).
+
+```
+Tests: all 8 passing. All functional requirements covered.
+```
+
+Note: `git status` shows other phases' (1, etc.) new files already present as untracked in the working tree (`src/domains/kiosk/config.ts`, etc.) — these belong to other phases and were not touched or evaluated by me.

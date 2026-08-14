@@ -23,6 +23,13 @@ import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderL
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
+/** Extracted from an inline four-deep ternary that was already at its readability limit. */
+function cardBackgroundColor(order: Order): string {
+    if (order.order_type === "Jahez") return "#fff5f5";
+    if (order.order_type === "Keeta") return '#CDBA2E';
+    if (order.order_type === "Talabat") return '#fbaa66';
+    return "#fff";
+}
 
 function formatTime(isoString: string): string {
     const date = new Date(isoString);
@@ -213,7 +220,7 @@ function OrderCard({
             borderRadius: 3,
             borderColor: cardBorderColor,
             alignSelf: 'flex-start',
-            backgroundColor: order.order_type === "Jahez" ? "#fff5f5" : order.order_type === "Keeta" ? '#CDBA2E' : order.order_type === "Talabat" ? '#fbaa66' : "#fff",
+            backgroundColor: cardBackgroundColor(order),
             boxShadow: 3
         }}>
             <CardContent>

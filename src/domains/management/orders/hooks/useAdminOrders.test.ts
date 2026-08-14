@@ -256,4 +256,63 @@ describe("useAdminOrders — forward-only status guard", () => {
 
         expect(view.result.current.orders[0].status).toBe("Ready");
     });
+
+
+});
+
+describe("useAdminOrders — order removal does not silence an unrelated alarm", () => {
+    const CANCELLED_TOPIC = "/topic/branch-1/order-cancelled";
+    let handlers: Record<string, (msg: IMessage) => void>;
+
+    const orderWith = (id: number, status: string): Order =>
+        ({ id, status } as unknown as Order);
+
+    const sendCancelled = (id: number): void => {
+        handlers[CANCELLED_TOPIC]({ body: JSON.stringify({ orderId: id }) } as unknown as IMessage);
+    };
+
+    beforeEach(() => {
+        handlers = {};
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockImplementation((destination: string, cb: (msg: IMessage) => void) => {
+            handlers[destination] = cb;
+            return makeSub(destination);
+        });
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("removes the cancelled order from the board", async () => {
+        // Deleting an order pushes here, which is why no tenth subscription was needed.
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Kitchen Phase")]);
+        const stopSound = jest.fn<void, []>();
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendCancelled(7));
+
+        expect(view.result.current.orders).toHaveLength(0);
+    });
+
+    it("does not stop the alarm when a different order is removed", async () => {
+        // The handler used to call stopSound unconditionally. Now that ordinary deletes push
+        // here too, that would silence a live alarm for another order.
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, "Kitchen Phase"), orderWith(8, "Kitchen Phase")]);
+        const stopSound = jest.fn<void, []>();
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendCancelled(8));
+
+        expect(stopSound).not.toHaveBeenCalled();
+    });
 });

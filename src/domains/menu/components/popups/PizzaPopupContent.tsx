@@ -22,13 +22,16 @@ import type { MenuItem, CartItem, ExtraIngr, Topping, Group, Customization, Reci
 import {
     buildAdditionTokens,
     buildRemovalTokens,
+    ingredientNames,
     intersectRemovals,
     matchRemovalNames,
     parseRemovalNames,
     removedFromCustomizations,
+    toppingAdditionToken,
     toRemoveCustomizations,
     RemovedComponent,
 } from "../../utils/customizations";
+import { extrasCost, toppingsCost } from "../../utils/pricing";
 
 
 const brandRed = "#E44B4C";
@@ -143,8 +146,10 @@ function PizzaPopup({
             setSelectedSize(editItem.size);
             setSelectedDough(editItem.isThinDough ? "Thin" : "Traditional");
             setQuantity(editItem.quantity)
-            setSelectedToppings((editItem as unknown as Record<string, string[]>).toppings || [])
-            setSelectedIngr(editItem.extraIngredients as unknown as string[] || [])
+            // Both lists hold plain name strings at runtime for cart lines and catalog objects
+            // for anything hydrated elsewhere — ingredientNames() accepts either.
+            setSelectedToppings(ingredientNames(editItem.toppings))
+            setSelectedIngr(ingredientNames(editItem.extraIngredients))
             setNote((editItem as unknown as Record<string, string>).note || "")
             // Structural removals win; legacy lines without them fall back to parsing the
             // `-(x)` description tokens against the recipe of the edited size.
@@ -206,17 +211,12 @@ function PizzaPopup({
             : [...prev, {id: component.id, name: component.name}]);
     }
 
-    const ingrsForSize = extraIngredients.filter(ing => (ing as unknown as Record<string, unknown>).size === selectedSize);
+    const ingrsForSize = extraIngredients.filter(ing => ing.size === selectedSize);
 
-    const extraCost = (selectedIngr || []).reduce((sum, ingrName) => {
-        const found = ingrsForSize.find(i => i.name === ingrName);
-        return found ? sum + (found as unknown as Record<string, number>).price : sum;
-    }, 0);
-
-    const toppingCost = (selectedToppings || []).reduce((sum, ingrName) => {
-        const found = toppings.find(i => i.name === ingrName);
-        return found ? sum + (found as unknown as Record<string, number>).price : sum;
-    }, 0);
+    // Same pricing helper the cart's size toggle uses, so a line can never be priced one way
+    // in the popup and another way once it is in the cart.
+    const extraCost = extrasCost(selectedIngr || [], extraIngredients, selectedSize);
+    const toppingCost = toppingsCost(selectedToppings || [], toppings);
 
     const finalPizzaPricePerItem = (basePrice + extraCost + toppingCost);
 
@@ -250,7 +250,7 @@ function PizzaPopup({
         // " Topping" marker so they stay distinguishable in the merged group.
         const additionNames = [
             ...(selectedIngr || []),
-            ...(selectedToppings || []).map(topping => `${topping} Topping`),
+            ...(selectedToppings || []).map(toppingAdditionToken),
         ];
         if (additionNames.length > 0) parts.push(buildAdditionTokens(additionNames));
 

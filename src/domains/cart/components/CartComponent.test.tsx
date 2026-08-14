@@ -92,18 +92,29 @@ describe("CartPopup — delivery-type toggle", () => {
         expect(screen.getByRole("button", { name: /delivery/i }).hasAttribute("disabled")).toBe(true);
     });
 
-    it("hides the delivery-type toggle on kiosk (always Pickup)", () => {
+    it("hides both the delivery-type and payment-method toggles on kiosk (always Pickup + Card)", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
-        // Payment toggle still shows on kiosk.
-        expect(screen.getByRole("button", { name: "Card" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
+        expect(screen.queryByText(/payment method/i)).toBeNull();
     });
 
     it("hides the delivery-type toggle for admin", () => {
         renderCart({ isAdmin: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
+    });
+
+    it("leaves the rest of the cart chrome intact on kiosk — items, total and Checkout button still render", () => {
+        renderCart({ isKiosk: true });
+
+        expect(screen.getByText("Water")).toBeTruthy();
+        expect(screen.getByText(/total/i)).toBeTruthy();
+        expect(screen.getAllByText("2.50").length).toBeGreaterThan(0);
+        expect(screen.getByRole("button", { name: /checkout/i })).toBeTruthy();
     });
 });
 

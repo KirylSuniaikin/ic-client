@@ -5,9 +5,16 @@ import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
 import type { MenuItem, ExtraIngr, Topping, CartItem, Customization } from "../types";
-import { parseExtrasNames, splitNote } from "../utils/customizations";
+import {
+    extrasFromCustomizations,
+    parseExtrasNames,
+    splitAdditionNames,
+    splitNote,
+    toppingsFromCustomizations,
+} from "../utils/customizations";
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
+import { resolveKioskBranchId, readKioskBranch } from "../../kiosk/utils/kioskBranch";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -39,8 +46,6 @@ interface UseMenuDataParams {
     adminBranchId?: string | null;
 }
 
-const BRANCH_KEY = 'kiosk_branch_data';
-
 function parseItemNote(rawDesc: string): string {
     // Delegate to the shared note-boundary heuristic (customizations.ts) so this stays in
     // lockstep with localizeDescription.ts, which needs the same boundary to leave the note
@@ -54,6 +59,22 @@ function parseExtraIngr(rawDesc: string): string[] {
     // legacy `(+X +Y)` shape, and its regexes only ever match `+`-prefixed groups so `-(x)`
     // removal tokens can't be misread as extras.
     return parseExtrasNames(rawDesc);
+}
+
+/**
+ * Rebuilds a line's extras/drizzle name lists in the shape the popups expect (plain names, one
+ * list per catalog). Order responses carry no `toppings` field and pack both catalogs into a
+ * single `+(a, b)` description group, so hydrating extras straight from that group dropped every
+ * drizzle into the extras list — where it matched no extra-ingredient row and lost its price on
+ * re-save. Prefer the structural customizations; fall back to splitting the description group.
+ */
+function hydrateAdditions(customizations: Customization[], rawDesc: string): { extras: string[]; toppings: string[] } {
+    const structuralExtras = extrasFromCustomizations(customizations);
+    const structuralToppings = toppingsFromCustomizations(customizations);
+    if (structuralExtras.length > 0 || structuralToppings.length > 0) {
+        return { extras: structuralExtras, toppings: structuralToppings };
+    }
+    return splitAdditionNames(parseExtraIngr(rawDesc));
 }
 
 function normalizeComboItem(ci: Partial<CartItem>): {
@@ -82,15 +103,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     // admin uses the branch it is ordering for, everyone else gets the public default.
     // Mirrors the branch resolution in useCheckout's order creation.
     function resolveBranchId(): string {
-        if (isKiosk) {
-            try {
-                const stored = JSON.parse(localStorage.getItem(BRANCH_KEY) || "{}");
-                if (stored?.id) return stored.id;
-            } catch {
-                // malformed kiosk branch data; fall back to the public default
-            }
-            return DEFAULT_BRANCH_ID;
-        }
+        if (isKiosk) return resolveKioskBranchId();
         if (isAdmin && adminBranchId) return adminBranchId;
         return DEFAULT_BRANCH_ID;
     }
@@ -129,7 +142,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                 const branches = await fetchAllBranches();
                 setAvailableBranches(branches);
 
-                if (isKiosk && !localStorage.getItem(BRANCH_KEY)) {
+                if (isKiosk && !readKioskBranch()) {
                     setBranchSelector(true);
                 }
 
@@ -216,7 +229,9 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                         }>;
                     };
                     if (Array.isArray(parsed.items)) {
-                        const normalized = parsed.items.map(item => ({
+                        const normalized = parsed.items.map(item => {
+                            const additions = hydrateAdditions(item.customizations ?? [], item.description);
+                            return {
                             ...item,
                             photo: imageMap[item.name] || item.photo,
                             quantity: item.quantity || 1,
@@ -226,7 +241,10 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                             // parsing the legacy `+<note>` tail out of description for
                             // pre-migration orders that never had it.
                             note: item.note ?? parseItemNote(item.description),
-                            extraIngredients: parseExtraIngr(item.description),
+                            extraIngredients: additions.extras,
+                            // The order response carries no topping list of its own, so drizzles
+                            // are recovered from the customizations (or the description group).
+                            toppings: additions.toppings,
                             // Structural customizations pass through; legacy orders without them
                             // are re-hydrated by the popups from the `-(x)` description tokens.
                             customizations: item.customizations ?? [],
@@ -237,7 +255,8 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                                     photo: imageMap[ci.name ?? ''] || ci.photo,
                                 }))
                                 : [],
-                        }));
+                            };
+                        });
                         // safe because: normalized originates from JSON.parse of the orderToEdit localStorage payload,
                         // whose extraIngredients are raw strings rather than ExtraIngr[]; the cart consumes these by
                         // reference at runtime. JSON shape does not structurally overlap CartItem, so a checked double-cast is required.

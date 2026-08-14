@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Order } from '../../../order/types';
 
+export type AdminTabKey = 'orders' | 'board';
+
 export type AdminUIState = {
     isHistoryOpen: boolean; setIsHistoryOpen: (v: boolean) => void;
     isConfigOpen: boolean; setIsConfigOpen: (v: boolean) => void;
@@ -18,6 +20,7 @@ export type AdminUIState = {
     accountingOpen: boolean; setAccountingOpen: (v: boolean) => void;
     /** Courier dispatcher panel (DELIVERY_SPEC.md §4). */
     courierDispatcherOpen: boolean; setCourierDispatcherOpen: (v: boolean) => void;
+    activeAdminTab: AdminTabKey; setActiveAdminTab: (v: AdminTabKey) => void;
 };
 
 export function useAdminUIState(): AdminUIState {
@@ -36,6 +39,7 @@ export function useAdminUIState(): AdminUIState {
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
     const [courierDispatcherOpen, setCourierDispatcherOpen] = useState(false);
+    const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>('orders');
 
     return {
         isHistoryOpen, setIsHistoryOpen,
@@ -53,5 +57,6 @@ export function useAdminUIState(): AdminUIState {
         cashRegisterOpen, setCashRegisterOpen,
         accountingOpen, setAccountingOpen,
         courierDispatcherOpen, setCourierDispatcherOpen,
+        activeAdminTab, setActiveAdminTab,
     };
 }

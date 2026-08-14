@@ -47,6 +47,7 @@ jest.mock("../shared/components/ErrorSnackbar", () => ({
 import HomePageModals from "./HomePageModals";
 import { payForDelivery } from "../shared/api/delivery";
 import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
+import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 
@@ -56,6 +57,20 @@ const ADDRESS: CustomerAddress = {
     id: "addr-1", label: "Home", block: "338", road: "3801", building: "12", flat: null,
     note: null, latitude: 26.2285, longitude: 50.586,
 };
+
+// Kiosk is irrelevant to the delivery paths here, so it is parked in its idle state — the
+// prop is required (added on main), not optional.
+const KIOSK_IDLE = {
+    phase: "idle",
+    submitting: false,
+    checkoutError: null,
+    placedOrderId: null,
+    isSheetOpen: false,
+    startPhoneStep: jest.fn(),
+    closePhoneStep: jest.fn(),
+    submitPhone: jest.fn(),
+    finishSession: jest.fn(),
+} as unknown as UseKioskCheckoutResult;
 
 // What useCheckout hands over: already built, already validated, not yet created (§1.7).
 const PENDING_ORDER = {
@@ -122,6 +137,7 @@ function renderModals(
                 sauces={[]}
                 isAdmin={false}
                 isKiosk={false}
+                kiosk={KIOSK_IDLE}
                 adminBranchId={null}
             />
         </I18nextProvider>

@@ -1,0 +1,7 @@
+[driver] phase 2: code-implementer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-2-implementer-iter1.log
+[driver] phase 2: code-implementer exit=0
+[driver] phase 2: code-tester -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-2-tester-iter1.log
+[driver] phase 2: code-tester exit=1
+[driver] phase 2: code-reviewer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-2-reviewer-iter1.log
+[driver] phase 2: code-reviewer exit=1
+[driver] phase 2: LGTM after 1 cycle(s).

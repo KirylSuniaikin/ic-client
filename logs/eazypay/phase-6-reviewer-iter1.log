@@ -1,0 +1,42 @@
+## Review — Phase 6 (Cart chrome on kiosk), iteration 1
+
+**LGTM: implementation matches spec and passes review.**
+
+No `review-feedback-phase6.md` created.
+
+### What I verified
+
+**Scope (clean)** — `git status` shows Phase 6 touched exactly its two owned files:
+- `src/domains/cart/components/CartComponent.tsx`
+- `src/domains/cart/components/CartComponent.test.tsx`
+
+The other working-tree changes (`src/shared/i18n/index.ts`, `src/domains/kiosk/config.ts`, `services/`, `utils/`, `hooks/`, `order/utils/`, `locales/*/kiosk.json`) are Phase 1's owned files from the parallel terminal — not attributable to Phase 6. Backend repo is clean and untouched; nothing committed or pushed.
+
+**Spec compliance (§14 `CartComponent.tsx` / §Phase 6)**
+- `:199` guard is now `{!isAdmin && !isKiosk && (` — exactly the named change, removing both the delivery-type (`:201-226`) and payment-method (`:228-243`) groups on kiosk in one edit.
+- The redundant inner `{!isKiosk && (` at `:201` was **left in place**, as §14 explicitly instructs.
+- `onCheckout` args at `:284` unchanged; `isKiosk` prop signature unchanged.
+- Comment rewrite on `:196-198` was necessary, not scope creep — the old text ("Delivery toggle is hidden on kiosk") would have become factually wrong. It states *why*, per CLAUDE.md.
+
+**Non-kiosk / admin identity** — the diff only adds a conjunct that is false for every non-kiosk render, so `isKiosk: false` and `isAdmin: true` paths are behaviourally identical. Existing tests at `:61-84`, `:88-93`, `:105-109`, `:124-131` all pass unmodified. Confirmed `DEFAULT_PAYMENT_METHOD = 'Card (Through card machine)'`, so the interim (pre-Phase-7) kiosk path still submits Card — no silent product change.
+
+**Tests** — the `:95` assertion inverted correctly (`getByRole("Card").toBeTruthy()` → `queryByRole(...).toBeNull()`), the `it(...)` renamed, and `Cash` / `Benefit` / `paymentTitle` null assertions added. The `paymentTitle` assertion is **non-vacuous**: the suite boots the real i18n instance and `en/cart.json:10` is `"Payment method"`, which `/payment method/i` genuinely matches. Test file follows the `@jest/globals` + `jest.fn<TReturn, TArgs>()` convention; no `let m: jest.Mock<…>` annotations added.
+
+**Non-negotiables 1–5** — none are exercised by this phase (no payment UI, no `checkoutLoading`, no `ClientInfoPopup`, no hero gesture). Nothing here violates them; the CashInputDrawer fidelity rule is Phase 5's surface.
+
+**Type rules** — no `any`, no `as X`, no new async functions, no thrown strings.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `yarn tsc --noEmit` | clean |
+| `yarn test --watchAll=false` (cart) | 53/53 pass |
+| `yarn test --watchAll=false` (full) | 1044 pass, 2 fail — **both pre-existing and unrelated** |
+| `yarn build` | succeeds |
+
+The two full-suite failures are in files no phase has modified: `src/shared/utils/countries.test.ts` (a hardcoded expected array missing a `Czech Republic` entry that exists in `countries.ts` at HEAD) and `src/domains/customer-auth/components/ActiveOrderIslandPill.test.tsx`. Neither imports the cart or i18n index changes; both fail on HEAD independently of this work. Not a Phase 6 regression — but worth flagging to whoever owns the branch, since they will keep failing the Phase 8 join gate.
+
+### One non-blocking observation
+
+The implementer added a sixth test not named in the spec — `"leaves the rest of the cart chrome intact on kiosk — items, total and Checkout button still render"` (`:111-118`). It lives in Phase 6's own owned file, changes no behaviour, and guards against over-deletion of the surrounding chrome, so I'm not treating it as scope creep. Noting it only so the Phase 8 owner isn't surprised by a test the spec doesn't list.

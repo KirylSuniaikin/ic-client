@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type React from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { logoutCustomer, refreshCustomerToken, verifyOtp } from '../../../shared/api/customerAuth';
+import { applyClientPlatform } from '../../../shared/api/clientPlatform';
 import { isKioskSearch } from '../../../shared/utils/kioskMode';
 import { CustomerAuthContextMissingError } from '../types';
 import type { CustomerAuthContextType } from '../types';
@@ -135,6 +136,7 @@ export async function customerAuthFetch(url: string, init: RequestInit = {}): Pr
         if (token) {
             headers.set('Authorization', `Bearer ${token}`);
         }
+        applyClientPlatform(headers);
         return { ...init, headers, credentials: 'include' };
     };
 

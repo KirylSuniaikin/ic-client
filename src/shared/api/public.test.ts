@@ -4,7 +4,7 @@ import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@j
 // A factoryless jest.mock() has no babel-jest hoisting restrictions.
 jest.mock("./client");
 
-import { authFetch } from "./client";
+import { authFetch, reportIfServerError, reportNetworkError } from "./client";
 import {
     createOrder,
     deleteOrder,
@@ -16,8 +16,15 @@ import {
 } from "./public";
 import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
 import type { CreateOrderRequest, AvailabilityChange } from "../../domains/order/types";
+import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 
 const mockAuthFetch = jest.mocked(authFetch);
+// authFetch already reports 5xx/network failures internally (see client.test.ts,
+// tested against the real implementation) — these mocks only verify that
+// fetchBaseAppInfo's raw `fetch` call site (the one path in public.ts that does NOT
+// go through authFetch) is wired to the same shared helpers.
+const mockReportIfServerError = jest.mocked(reportIfServerError);
+const mockReportNetworkError = jest.mocked(reportNetworkError);
 
 beforeAll(() => {
     Object.defineProperty(window, "location", {
@@ -32,6 +39,8 @@ beforeAll(() => {
 
 beforeEach(() => {
     mockAuthFetch.mockReset();
+    mockReportIfServerError.mockReset();
+    mockReportNetworkError.mockReset();
 });
 
 afterEach(() => {
@@ -307,6 +316,56 @@ describe("fetchBaseAppInfo", () => {
 
         const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(url).toContain("branchId=2e8c35f7-d75e-4442-b496-cbb929842c10");
+    });
+
+    // ── failed-API-call reporting (ST6) ───────────────────────────────────────
+
+    it("wires a 500 response into reportIfServerError", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toThrow();
+
+        expect(mockReportIfServerError).toHaveBeenCalledTimes(1);
+        const [response, url, method] = mockReportIfServerError.mock.calls[0] as [Response, string, string];
+        expect(response.status).toBe(500);
+        expect(url).toContain("get_base_app_info");
+        expect(method).toBe("GET");
+    });
+
+    it("still delegates a 200 response to reportIfServerError (the helper itself decides whether to report)", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "branch-1");
+
+        expect(mockReportIfServerError).toHaveBeenCalledTimes(1);
+        expect(mockReportIfServerError.mock.calls[0][0].status).toBe(200);
+    });
+
+    it("wires a fetch rejection into reportNetworkError and re-throws it", async () => {
+        const networkError = new Error("offline");
+        mockFetch.mockRejectedValueOnce(networkError);
+
+        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toBe(networkError);
+
+        expect(mockReportNetworkError).toHaveBeenCalledTimes(1);
+        const [error, url, method] = mockReportNetworkError.mock.calls[0] as [unknown, string, string];
+        expect(error).toBe(networkError);
+        expect(url).toContain("get_base_app_info");
+        expect(method).toBe("GET");
+    });
+
+    it("sends X-Client-Platform: web", async () => {
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "branch-xyz");
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init?.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
     });
 });
 

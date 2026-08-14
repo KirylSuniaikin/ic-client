@@ -1,0 +1,3 @@
+Phase 1 was already marked DONE in `phases-status.md` from the previous cycle, and the only remaining item — the `jest.fn` generic-parameter convention nit in `useTripleClick.test.ts` (5 occurrences) — is now fixed. All gates pass (`tsc` clean, `build` succeeds, test suite green aside from the two pre-existing, unrelated failures already documented in the review notes). `review-feedback-phase1.md` has been deleted.
+
+PHASE 1 COMPLETE — unblocks: Phase 2, Phase 7 (Phase 6 was independent and already DONE)

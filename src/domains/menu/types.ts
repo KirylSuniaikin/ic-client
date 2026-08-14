@@ -69,6 +69,10 @@ export type ExtraIngr = {
     name: string;
     // Arabic display name (nullable — falls back to `name`). Display-only; see useLocalizedItem.
     name_ar?: string | null;
+    // Extras are per-size catalog rows: the same name repeats once per size with its own price.
+    // Both are nullable columns backend-side, so pricing must treat a missing price as 0.
+    size?: string | null;
+    price?: number | null;
 }
 
 export type Topping = {
@@ -77,6 +81,8 @@ export type Topping = {
     name: string;
     // Arabic display name (nullable — falls back to `name`). Display-only; see useLocalizedItem.
     name_ar?: string | null;
+    // Unlike extras the drizzle catalog is not size-scoped — one row, one price.
+    price?: number | null;
 }
 
 export type ComboItem = {

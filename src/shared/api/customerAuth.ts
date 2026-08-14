@@ -1,4 +1,5 @@
 import { BASE_URL } from './client';
+import { applyClientPlatform } from './clientPlatform';
 import { CustomerAuthApiError } from '../../domains/customer-auth/types';
 import type {
     OtpRequestPayload,
@@ -33,6 +34,14 @@ async function extractErrorMessage(response: Response): Promise<string> {
     return `Request failed with status ${response.status}`;
 }
 
+// task-spec.md §8. All raw fetches in this file go straight to `fetch`, not `authFetch`,
+// so each one composes the platform header itself via this local helper.
+function withClientPlatform(headers?: HeadersInit): Headers {
+    const result = new Headers(headers);
+    applyClientPlatform(result);
+    return result;
+}
+
 // All five customer-auth endpoints always send credentials: 'include' —
 // the refresh/logout flow is cookie-driven (customer_refresh_token, HttpOnly).
 
@@ -40,7 +49,7 @@ export async function requestOtp(payload: OtpRequestPayload): Promise<void> {
     const response = await fetch(`${BASE_URL}/auth/otp/request`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withClientPlatform({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
     });
 
@@ -53,7 +62,7 @@ export async function verifyOtp(payload: OtpVerifyPayload): Promise<CustomerToke
     const response = await fetch(`${BASE_URL}/auth/otp/verify`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withClientPlatform({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
     });
 
@@ -68,6 +77,7 @@ export async function refreshCustomerToken(): Promise<CustomerTokenResponse> {
     const response = await fetch(`${BASE_URL}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
+        headers: withClientPlatform(),
     });
 
     if (!response.ok) {
@@ -81,6 +91,7 @@ export async function logoutCustomer(): Promise<void> {
     const response = await fetch(`${BASE_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
+        headers: withClientPlatform(),
     });
 
     if (!response.ok) {
@@ -95,7 +106,7 @@ export async function registerCustomerName(accessToken: string, name: string): P
     const response = await fetch(`${BASE_URL}/customer/name`, {
         method: 'POST',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name }),
     });
 
@@ -113,7 +124,7 @@ export async function updateCustomerName(
     const response = await fetch(`${BASE_URL}/customer/name`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name }),
     });
 
@@ -128,7 +139,7 @@ export async function fetchCustomerMe(accessToken: string): Promise<CustomerMeRe
     const response = await fetch(`${BASE_URL}/customer/me`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (!response.ok) {
@@ -146,7 +157,7 @@ export async function fetchMyOrders(
     const response = await fetch(`${BASE_URL}/customer/orders?page=${page}&size=${size}`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (!response.ok) {
@@ -163,7 +174,7 @@ export async function fetchOrderDetail(
     const response = await fetch(`${BASE_URL}/customer/orders/${orderId}`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (!response.ok) {
@@ -177,7 +188,7 @@ export async function fetchActiveOrder(accessToken: string): Promise<CustomerAct
     const response = await fetch(`${BASE_URL}/customer/orders/active`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (response.status === 204) {
@@ -196,7 +207,7 @@ export async function fetchReviewPrompt(accessToken: string): Promise<ReviewProm
     const response = await fetch(`${BASE_URL}/customer/review-prompt`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (response.status === 204) {
@@ -221,10 +232,10 @@ export async function ackReviewPrompt(
         await fetch(`${BASE_URL}/customer/review-prompt/ack`, {
             method: 'POST',
             credentials: 'include',
-            headers: {
+            headers: withClientPlatform({
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
-            },
+            }),
             body: JSON.stringify({ orderId, outcome }),
         });
     } catch {
@@ -238,7 +249,7 @@ export async function fetchSuggestedItems(accessToken: string): Promise<Suggeste
     const response = await fetch(`${BASE_URL}/customer/orders/suggested`, {
         method: 'GET',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
     });
 
     if (!response.ok) {

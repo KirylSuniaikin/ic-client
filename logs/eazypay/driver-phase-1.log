@@ -1,0 +1,12 @@
+[driver] phase 1: code-implementer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-implementer-iter1.log
+[driver] phase 1: code-implementer exit=0
+[driver] phase 1: code-tester -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-tester-iter1.log
+[driver] phase 1: code-tester exit=0
+[driver] phase 1: code-reviewer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-reviewer-iter1.log
+[driver] phase 1: code-reviewer exit=0
+[driver] phase 1: review cycle 1 produced feedback.
+[driver] phase 1: code-implementer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-implementer-iter2.log
+[driver] phase 1: code-implementer exit=0
+[driver] phase 1: code-tester -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-tester-iter2.log
+[driver] phase 1: code-tester exit=0
+[driver] phase 1: code-reviewer -> /Users/andrew/Documents/ICpizza/Main/ic-client/logs/eazypay/phase-1-reviewer-iter2.log

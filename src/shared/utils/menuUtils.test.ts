@@ -1,6 +1,13 @@
 import { describe, it, expect } from "@jest/globals";
 import type { MenuItem, Group } from "../../domains/menu/types";
-import { groupItemsByName, groupAvailableItemsByName, groupItemsByCategory } from "./menuUtils";
+import {
+    groupItemsByName,
+    groupAvailableItemsByName,
+    groupItemsByCategory,
+    pickDefaultItem,
+    collectPreloadUrls,
+} from "./menuUtils";
+import type { CategoryGroups } from "./menuUtils";
 
 // GroupWithMeta matches the internal MenuGroup shape returned at runtime,
 // which is a superset of Group (cast in the source via `as Group[]`).
@@ -241,5 +248,79 @@ describe("groupItemsByCategory", () => {
 
         expect(result.bestsellers).toHaveLength(1);
         expect(result.pizzas).toHaveLength(1);
+    });
+});
+
+describe("pickDefaultItem", () => {
+    const sized = (name: string, size: string, photo = ""): MenuItem =>
+        ({ ...makeItem(1, name, "Pizzas", true), size, photo } satisfies MenuItem);
+
+    it("prefers the S-size item, whatever its position", () => {
+        const group = { name: "Pepperoni", items: [sized("Pepperoni", "L"), sized("Pepperoni", "S")] } as Group;
+
+        expect(pickDefaultItem(group).size).toBe("S");
+    });
+
+    it("falls back to the first item when there is no S size", () => {
+        const group = { name: "Pepperoni", items: [sized("Pepperoni", "M"), sized("Pepperoni", "L")] } as Group;
+
+        expect(pickDefaultItem(group).size).toBe("M");
+    });
+});
+
+describe("collectPreloadUrls", () => {
+    const emptyCategories: CategoryGroups = {
+        bestsellers: [], brickPizzas: [], combos: [], pizzas: [],
+        sides: [], beverages: [], sauces: [], ramadan: [], pizzaBaguettes: [],
+    };
+
+    const groupWithPhoto = (name: string, photo: string): Group =>
+        ({ name, items: [{ ...makeItem(1, name, "Pizzas", true), photo }] } as Group);
+
+    it("returns [] when there is no menu yet", () => {
+        expect(collectPreloadUrls(emptyCategories, 6)).toEqual([]);
+    });
+
+    it("walks sections in the order MenuSections renders them", () => {
+        const urls = collectPreloadUrls({
+            ...emptyCategories,
+            // Deliberately out of render order in the object; the output must not be.
+            pizzas: [groupWithPhoto("Pepperoni", "/p.webp")],
+            ramadan: [groupWithPhoto("Iftar Box", "/r.webp")],
+            bestsellers: [groupWithPhoto("Margherita", "/b.webp")],
+        }, 6);
+
+        expect(urls).toEqual(["/r.webp", "/b.webp", "/p.webp"]);
+    });
+
+    it("stops at the limit", () => {
+        const urls = collectPreloadUrls({
+            ...emptyCategories,
+            pizzas: [
+                groupWithPhoto("A", "/a.webp"),
+                groupWithPhoto("B", "/b.webp"),
+                groupWithPhoto("C", "/c.webp"),
+            ],
+        }, 2);
+
+        expect(urls).toEqual(["/a.webp", "/b.webp"]);
+    });
+
+    it("does not spend a slot on a photo already queued", () => {
+        // A bestseller is listed both in `bestsellers` and in its own category.
+        const shared = groupWithPhoto("Margherita", "/m.webp");
+
+        const urls = collectPreloadUrls({ ...emptyCategories, bestsellers: [shared], pizzas: [shared] }, 6);
+
+        expect(urls).toEqual(["/m.webp"]);
+    });
+
+    it("skips items with no photo", () => {
+        const urls = collectPreloadUrls({
+            ...emptyCategories,
+            pizzas: [groupWithPhoto("A", ""), groupWithPhoto("B", "/b.webp")],
+        }, 6);
+
+        expect(urls).toEqual(["/b.webp"]);
     });
 });

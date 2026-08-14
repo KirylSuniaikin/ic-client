@@ -1,0 +1,19 @@
+{
+    "phone": {
+        "title": "Enter your phone number",
+        "subtitle": "We'll use this to send updates about your order",
+        "placeholder": "Phone number",
+        "submit": "Place order"
+    },
+    "errors": {
+        "generic": "Something went wrong. Please try again.",
+        "branchClosed": "This branch is currently closed."
+    },
+    "counter": {
+        "title": "Order placed",
+        "subtitle": "Please pay at the counter",
+        "orderNumberLabel": "Order number",
+        "countdown": "Returning to the menu in {{count}}s",
+        "done": "Done"
+    }
+}

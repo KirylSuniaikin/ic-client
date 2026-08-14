@@ -320,6 +320,24 @@ describe("customerAuthFetch", () => {
         expect(headers.has("Authorization")).toBe(false);
     });
 
+    it("sets X-Client-Platform: web", async () => {
+        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+
+        const { result } = renderCustomerAuth();
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        savedFetch = global.fetch;
+        mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+        global.fetch = mockFetch as typeof fetch;
+
+        await customerAuthFetch("https://example.com/api/public", { method: "GET" });
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init.headers);
+        expect(headers.get("X-Client-Platform")).toBe("web");
+    });
+
     it("on a 401, refreshes exactly once and retries with the new token", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
 
