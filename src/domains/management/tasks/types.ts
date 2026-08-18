@@ -55,7 +55,7 @@ export const TASK_CARD_PRIORITY_COLORS: Record<TaskCardPriority, string> = {
 export const TASK_TITLE_MAX_LENGTH = 255;
 export const TASK_DESCRIPTION_MAX_LENGTH = 4000;
 
-// Mirrors backend BoardOwnerTO exactly — role is always MANAGER or SUPER_MANAGER.
+// Mirrors backend BoardOwnerTO exactly — role is always MANAGER, SUPER_MANAGER, or OWNER.
 export type BoardOwner = {
     id: number;
     username: string;

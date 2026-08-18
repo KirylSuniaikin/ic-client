@@ -30,5 +30,10 @@ export enum StaffRoles {
     SUPERVISOR = "SUPERVISOR",
     MANAGER = "MANAGER",
     SUPER_MANAGER = "SUPER_MANAGER",
+    OWNER = "OWNER",
     REVIEWER = "REVIEWER"
+}
+
+export function hasCityAccess(role: StaffRoles | null): boolean {
+    return role === StaffRoles.SUPER_MANAGER || role === StaffRoles.OWNER;
 }

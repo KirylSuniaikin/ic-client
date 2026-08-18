@@ -11,12 +11,12 @@ export interface TaskBoardScreenProps {
     role: StaffRoles | null;
 }
 
-// Composes the SUPER_MANAGER-only sidebar with the existing TaskBoardPanel (ST4). Does not
+// Composes the OWNER-only sidebar with the existing TaskBoardPanel (ST4). Does not
 // touch TaskBoardPanel/TaskColumn/TaskCardItem/etc — those are ST5's territory next.
 export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Element {
-    const isSuperManager = role === StaffRoles.SUPER_MANAGER;
+    const isOwner = role === StaffRoles.OWNER;
     // Called unconditionally (Rules of Hooks) and no-ops internally when disabled.
-    const { owners, loading, error } = useBoardOwners(isSuperManager);
+    const { owners, loading, error } = useBoardOwners(isOwner);
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -58,7 +58,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
         if (error) setErrorMessage(error);
     }, [error]);
 
-    if (!isSuperManager) {
+    if (!isOwner) {
         return <TaskBoardPanel />;
     }
 

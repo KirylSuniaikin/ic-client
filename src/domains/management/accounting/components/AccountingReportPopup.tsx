@@ -163,7 +163,7 @@ export function AccountingReportPopup({
                                           onSaved,
                                       }: Props): JSX.Element {
     const { role, username } = useAuth();
-    const isSuperManager = role === StaffRoles.SUPER_MANAGER;
+    const isOwner = role === StaffRoles.OWNER;
 
     const [rows, setRows] = useState<EntryRow[]>([]);
     const [baseBalance, setBaseBalance] = useState<number | null>(null);
@@ -175,8 +175,8 @@ export function AccountingReportPopup({
     const [error, setError] = useState<string | null>(null);
 
     const computedRows = useMemo(
-        () => (isSuperManager ? recomputeBalances(rows, baseBalance) : rows),
-        [rows, baseBalance, isSuperManager]
+        () => (isOwner ? recomputeBalances(rows, baseBalance) : rows),
+        [rows, baseBalance, isOwner]
     );
 
     useEffect(() => {
@@ -198,7 +198,7 @@ export function AccountingReportPopup({
                     if (!alive) return;
                     setTitle(report.title);
                     setVersion(report.version);
-                    const base = isSuperManager ? deriveBaseBalance(report) : null;
+                    const base = isOwner ? deriveBaseBalance(report) : null;
                     setBaseBalance(base);
                     setRows(
                         [...(report.entries ?? [])]
@@ -234,7 +234,7 @@ export function AccountingReportPopup({
         return () => {
             alive = false;
         };
-    }, [open, mode, reportId, branch.id, isSuperManager]);
+    }, [open, mode, reportId, branch.id, isOwner]);
 
     function updateRow(key: string, patch: Partial<EntryRow>): void {
         setRows((prev) =>
@@ -499,7 +499,7 @@ export function AccountingReportPopup({
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
                                     <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
-                                    {isSuperManager && (
+                                    {isOwner && (
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
                                     )}
                                     {/* Header for the delete-button column: unlabelled visually,
@@ -709,8 +709,8 @@ export function AccountingReportPopup({
                                                 </Typography>
                                             </TableCell>
 
-                                            {/* Running balance (SUPER_MANAGER only) */}
-                                            {isSuperManager && (
+                                            {/* Running balance (OWNER only) */}
+                                            {isOwner && (
                                                 <TableCell sx={{ minWidth: 100 }}>
                                                     <Box sx={{
                                                         backgroundColor: "#e2e874",
@@ -750,7 +750,7 @@ export function AccountingReportPopup({
                                 {computedRows.length === 0 && (
                                     <TableRow>
                                         <TableCell
-                                            colSpan={isSuperManager ? 10 : 9}
+                                            colSpan={isOwner ? 10 : 9}
                                             align="center"
                                             sx={{ py: 3, color: "text.secondary" }}
                                         >

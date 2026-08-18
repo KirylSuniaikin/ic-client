@@ -93,4 +93,48 @@ describe("ScheduleView", () => {
 
         expect(screen.getByText("15:00 - 00:00")).toBeTruthy();
     });
+
+    // City-level roles (SUPER_MANAGER, OWNER) get a branch picker driven by useBranchSelection
+    // instead of the selectedBranch prop; MANAGER never sees it (covered above implicitly, since
+    // useBranchSelection's smBranch is undefined there and the picker's guard requires it non-null).
+    describe("role-based branch picker", () => {
+        const CITY_BRANCH = { id: "branch-2", externalId: "ext-2", branchNo: 2, branchName: "City Branch", locale: "cty" };
+
+        // MUI's outlined Select doesn't wire an htmlFor/aria-labelledby that
+        // testing-library's label-association algorithm can follow, so target the
+        // InputLabel element itself rather than getByLabelText.
+        const branchSelectorLabel = () => screen.queryByText("Branch", { selector: "label" });
+
+        it.each([
+            [StaffRoles.SUPER_MANAGER],
+            [StaffRoles.OWNER],
+        ])("shows the branch picker and schedules against the picked branch for %s", (role) => {
+            mockUseBranchSelection.mockReturnValue({
+                branches: [CITY_BRANCH],
+                selectedBranch: CITY_BRANCH,
+                onBranchChange: jest.fn(),
+            });
+            mockUseSchedule.mockReturnValue(scheduleResult());
+
+            render(<ScheduleView selectedBranch={{ id: "branch-1" }} role={role} />);
+
+            expect(branchSelectorLabel()).toBeTruthy();
+            expect(mockUseSchedule).toHaveBeenCalledWith("branch-2");
+        });
+
+        it("hides the branch picker for MANAGER even when useBranchSelection returns a branch", () => {
+            mockUseBranchSelection.mockReturnValue({
+                branches: [CITY_BRANCH],
+                selectedBranch: CITY_BRANCH,
+                onBranchChange: jest.fn(),
+            });
+            mockUseSchedule.mockReturnValue(scheduleResult());
+
+            render(<ScheduleView selectedBranch={{ id: "branch-1" }} role={StaffRoles.MANAGER} />);
+
+            expect(branchSelectorLabel()).toBeNull();
+            // MANAGER schedules against the prop-supplied branch, not the city-wide selection.
+            expect(mockUseSchedule).toHaveBeenCalledWith("branch-1");
+        });
+    });
 });
