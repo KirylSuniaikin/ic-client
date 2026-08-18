@@ -43,8 +43,8 @@ const mockUseBoardOwners = jest.mocked(useBoardOwners);
 function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
     return {
         id: 12,
-        username: "avery.super",
-        role: StaffRoles.SUPER_MANAGER,
+        username: "avery.owner",
+        role: StaffRoles.OWNER,
         openCardCount: 0,
         ...overrides,
     };
@@ -95,7 +95,7 @@ describe("TaskBoardScreen", () => {
     it("starts the sidebar collapsed on a phone, where expanded would leave the board half a screen", () => {
         stubViewportAsMobile(true);
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("false");
     });
@@ -103,7 +103,7 @@ describe("TaskBoardScreen", () => {
     it("starts the sidebar expanded on desktop", () => {
         stubViewportAsMobile(false);
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("true");
     });
@@ -122,7 +122,7 @@ describe("TaskBoardScreen", () => {
                 ],
             }));
 
-            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
             await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
             expect(badgeFor(4).getByText("2")).toBeTruthy();
@@ -133,7 +133,7 @@ describe("TaskBoardScreen", () => {
                 owners: [makeOwner({ id: 12, openCardCount: 7 })],
             }));
 
-            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
             await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
 
             fireEvent.click(screen.getByTestId("panel-reports-4-open-cards"));
@@ -150,7 +150,7 @@ describe("TaskBoardScreen", () => {
                 ],
             }));
 
-            render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
             await waitFor(() => expect(badgeFor(12).getByText("7")).toBeTruthy());
 
             fireEvent.click(screen.getByTestId("panel-reports-4-open-cards"));
@@ -181,27 +181,43 @@ describe("TaskBoardScreen", () => {
         expect(mockUseBoardOwners).toHaveBeenCalledWith(false);
     });
 
-    it("role=SUPER_MANAGER: sidebar present, useBoardOwners called with enabled=true", () => {
+    // SUPER_MANAGER now drops to "own board only", identical to MANAGER — the multi-owner
+    // sidebar (and its underlying board_owners fetch) is OWNER-exclusive.
+    it("role=SUPER_MANAGER: sidebar absent, TaskBoardPanel rendered with no ownerId", () => {
+        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+
+        expect(screen.queryByTestId("staff-board-sidebar")).toBeNull();
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(getOwnerId()).toBe("");
+    });
+
+    it("role=SUPER_MANAGER: does not call the owners fetch (useBoardOwners called with enabled=false)", () => {
+        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+
+        expect(mockUseBoardOwners).toHaveBeenCalledWith(false);
+    });
+
+    it("role=OWNER: sidebar present, useBoardOwners called with enabled=true", () => {
         mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners: [makeOwner()] }));
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         expect(screen.getByTestId("staff-board-sidebar")).toBeTruthy();
         expect(mockUseBoardOwners).toHaveBeenCalledWith(true);
     });
 
-    it("role=SUPER_MANAGER: TaskBoardPanel initially receives ownerId equal to the first owner's id", async () => {
+    it("role=OWNER: TaskBoardPanel initially receives ownerId equal to the first owner's id", async () => {
         const owners = [makeOwner({ id: 12 }), makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER })];
         mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         await waitFor(() => {
             expect(getOwnerId()).toBe("12");
         });
     });
 
-    it("role=SUPER_MANAGER: clicking a non-first sidebar entry updates TaskBoardPanel's ownerId", async () => {
+    it("role=OWNER: clicking a non-first sidebar entry updates TaskBoardPanel's ownerId", async () => {
         const owners = [
             makeOwner({ id: 12 }),
             makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER }),
@@ -209,7 +225,7 @@ describe("TaskBoardScreen", () => {
         ];
         mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         await waitFor(() => {
             expect(getOwnerId()).toBe("12");
@@ -222,11 +238,11 @@ describe("TaskBoardScreen", () => {
         });
     });
 
-    it("role=SUPER_MANAGER: toggling the sidebar closed then open does not change the selected ownerId", async () => {
+    it("role=OWNER: toggling the sidebar closed then open does not change the selected ownerId", async () => {
         const owners = [makeOwner({ id: 12 }), makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER })];
         mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         await waitFor(() => {
             expect(getOwnerId()).toBe("12");
@@ -241,10 +257,10 @@ describe("TaskBoardScreen", () => {
         expect(getOwnerId()).toBe("12");
     });
 
-    it("role=SUPER_MANAGER: a useBoardOwners error surfaces via ErrorSnackbar and TaskBoardPanel still renders with the fallback (self) ownerId", () => {
+    it("role=OWNER: a useBoardOwners error surfaces via ErrorSnackbar and TaskBoardPanel still renders with the fallback (self) ownerId", () => {
         mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners: [], error: "HTTP 500" }));
 
-        render(<TaskBoardScreen role={StaffRoles.SUPER_MANAGER} />);
+        render(<TaskBoardScreen role={StaffRoles.OWNER} />);
 
         expect(screen.getByText("HTTP 500")).toBeTruthy();
         expect(getOwnerId()).toBe("");

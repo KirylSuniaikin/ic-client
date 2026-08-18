@@ -84,4 +84,31 @@ describe("ScheduleView", () => {
 
         expect(screen.getByText("15:00 - 00:00")).toBeTruthy();
     });
+
+    // ScheduleView no longer owns a branch picker. It used to run its own useBranchSelection,
+    // which meant the Config screen had two independent selections that could disagree and
+    // neither started from the branch chosen on the homepage. The picker now lives once in
+    // ConfigComponent's ManagementTopBar slot and serves both tabs -- its visibility and role
+    // gating are covered by ConfigComponent.branchSelector.test.tsx. What remains ScheduleView's
+    // responsibility is simply scheduling against whatever branch it is handed.
+    describe("branch scoping", () => {
+        it("schedules against the branch it is given", () => {
+            mockUseSchedule.mockReturnValue(scheduleResult());
+
+            render(<ScheduleView branchId="branch-2" />);
+
+            expect(mockUseSchedule).toHaveBeenCalledWith("branch-2");
+        });
+
+        it("does not render a branch picker of its own", () => {
+            mockUseSchedule.mockReturnValue(scheduleResult());
+
+            render(<ScheduleView branchId="branch-1" />);
+
+            // MUI's outlined Select doesn't wire an htmlFor/aria-labelledby that
+            // testing-library's label-association algorithm can follow, so target the
+            // InputLabel element itself rather than getByLabelText.
+            expect(screen.queryByText("Branch", { selector: "label" })).toBeNull();
+        });
+    });
 });

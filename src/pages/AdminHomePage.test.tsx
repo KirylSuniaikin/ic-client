@@ -42,7 +42,7 @@ function mockPizzaLoader(): JSX.Element {
 // per the spec, that allowlist check lives inside AdminSurfaceTabs -- so this stub
 // must replicate it, or the role-gating tests below would exercise nothing real.
 function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board") => void }): JSX.Element | null {
-    if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER) return null;
+    if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER && role !== StaffRoles.OWNER) return null;
 
     return (
         <div data-testid="admin-surface-tabs" data-active-tab={activeTab}>
@@ -55,13 +55,14 @@ function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles 
 // Stub TaskBoardScreen (ST6) so tab-switching tests can assert AdminHomePage's own wiring
 // (which component renders for which tab, and what `role` prop TaskBoardScreen receives)
 // without depending on TaskBoardScreen's internals (sidebar fetch/selection state), which
-// already have their own dedicated TaskBoardScreen.test.tsx. Echoes `role` into a nested
-// sidebar-stub element so the SUPER_MANAGER-only-sidebar-visibility rule can be asserted
-// at this composition level too.
+// already have their own dedicated TaskBoardScreen.test.tsx. This stub only proves
+// AdminHomePage passes `role` through to TaskBoardScreen unmodified for every
+// board-eligible role (MANAGER/SUPER_MANAGER/OWNER) — the actual OWNER-only sidebar
+// gating rule lives inside TaskBoardScreen and is covered by TaskBoardScreen.test.tsx.
 function mockTaskBoardScreen({ role }: { role: StaffRoles | null }): JSX.Element {
     return (
         <div data-testid="task-board-panel">
-            {role === StaffRoles.SUPER_MANAGER && <div data-testid="staff-board-sidebar-stub" />}
+            {role === StaffRoles.OWNER && <div data-testid="staff-board-sidebar-stub" />}
         </div>
     );
 }
@@ -318,6 +319,14 @@ describe("AdminHomePage board tab gating", () => {
         expect(screen.queryByTestId("task-board-panel")).toBeNull();
     });
 
+    it("renders AdminSurfaceTabs and the order-desk grid by default for role OWNER", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
+
+        expect(screen.getByTestId("admin-surface-tabs")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeTruthy();
+        expect(screen.queryByTestId("task-board-panel")).toBeNull();
+    });
+
     it("switching to the board tab hides the order-desk grid and shows TaskBoardScreen, for role MANAGER", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
@@ -344,8 +353,17 @@ describe("AdminHomePage board tab gating", () => {
         expect(screen.queryByTestId("staff-board-sidebar-stub")).toBeNull();
     });
 
-    it("switching to the board tab renders TaskBoardScreen with the sidebar stub present, for role SUPER_MANAGER", () => {
+    it("switching to the board tab renders TaskBoardScreen with the sidebar stub absent, for role SUPER_MANAGER", () => {
         renderAdminHomePage(StaffRoles.SUPER_MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-board"));
+
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByTestId("staff-board-sidebar-stub")).toBeNull();
+    });
+
+    it("switching to the board tab renders TaskBoardScreen with role passed through, for role OWNER", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
 
         fireEvent.click(screen.getByTestId("admin-tab-board"));
 

@@ -5,7 +5,7 @@ import {ConsumptionStatistics} from "../../consumption/components/ConsumptionSta
 import {DoughUsageTable} from "./DoughUsageTable";
 import {ProductsTable} from "./ProductsTable";
 import {VatReportCard} from "./VatReportCard";
-import {StaffRoles} from "../../../auth/types";
+import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
 import {PerformanceTab} from "./tabs/PerformanceTab";
@@ -57,7 +57,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
 
     // Performance and Shifts share the same audience: a branch manager sees their own branch's
     // figures, a city-level role sees whichever branches they select.
-    const canSeePerformance = role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+    const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
 
@@ -129,7 +129,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
                         <ToggleButton value="Reports">Reports</ToggleButton>
-                        {(role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER) && (
+                        {(role === StaffRoles.MANAGER || hasCityAccess(role)) && (
                             <ToggleButton value="Shifts">Shifts</ToggleButton>
                         )}
                     </ToggleButtonGroup>

@@ -40,6 +40,7 @@ import type {
 // jest.fn() is at module level here — no jest.mock() factory restrictions apply.
 
 export const fetchAllBranches = jest.fn<Promise<IBranch[]>, []>();
+export const getBranchInfo = jest.fn<Promise<IBranch>, [string]>();
 
 export const getAllBannedCstmrs = jest.fn<Promise<BlackListCstmr[]>, []>();
 
