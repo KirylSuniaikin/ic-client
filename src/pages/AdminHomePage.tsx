@@ -9,6 +9,7 @@ import { useDough } from "../domains/management/dough/hooks/useDough";
 import { useDeleteOrder } from "../domains/management/orders/hooks/useDeleteOrder";
 import { useOrderActions } from "../domains/management/orders/hooks/useOrderActions";
 import { useAdminBranchInit } from "../domains/management/_shared/hooks/useBranchSelection";
+import { ManagementBranchScopeProvider } from "../domains/management/_shared/context/ManagementBranchScope";
 import { useWakeLock } from "../domains/management/_shared/hooks/useWakeLock";
 import { useAlertAudio } from "../domains/management/_shared/hooks/useAlertAudio";
 import { useAdminUIState } from "../domains/management/_shared/hooks/useAdminUIState";
@@ -64,6 +65,7 @@ function AdminHomePage(): JSX.Element {
     const handlePaymentSuccess = (orderId: string): void => setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: true } : o));
     return (
         <LtrBoundary>
+        <ManagementBranchScopeProvider branches={availableBranches ?? []} homeBranch={selectedBranch}>
         <div className="p-4 max-w-4xl mx-auto">
             {ui.cashWarning && (
                 <Box sx={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 2000, width: '90%', maxWidth: 480 }}>
@@ -128,6 +130,7 @@ function AdminHomePage(): JSX.Element {
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />
             <ErrorSnackbar open={doughAlertOpen} message={doughAlertMessage} severity="error" handleClose={clearDoughAlert} />
         </div>
+        </ManagementBranchScopeProvider>
         </LtrBoundary>
     );
 }

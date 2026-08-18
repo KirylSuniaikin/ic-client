@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import type { Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
+import type { IBranch } from "../../inventory/types";
 
 // lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
 // provide (no canvas backend installed) -- stub the whole package so PizzaLoader's
@@ -115,11 +116,22 @@ class FakeIntersectionObserver implements IntersectionObserver {
     takeRecords: () => IntersectionObserverEntry[] = () => [];
 }
 
+// No ManagementBranchScopeProvider is mounted here, so useBranchScope falls back to this
+// prop unchanged (see MULTIBRANCH_SPEC.md Part 1) -- a full IBranch is needed since the
+// component's prop type widened from a loose {id} shape to IBranch.
+const testBranch: IBranch = {
+    id: "branch-1",
+    externalId: "ext-1",
+    branchNo: 1,
+    branchName: "Main",
+    locale: "en",
+};
+
 // OrderCard calls useNavigate() unconditionally — wrap every render in a router.
 function renderHistory(): ReturnType<typeof render> {
     return render(
         <MemoryRouter>
-            <HistoryComponent onClose={onClose} selectedBranch={{ id: "branch-1" }} />
+            <HistoryComponent onClose={onClose} selectedBranch={testBranch} />
         </MemoryRouter>
     );
 }

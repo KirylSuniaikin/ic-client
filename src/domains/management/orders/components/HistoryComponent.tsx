@@ -11,6 +11,9 @@ import type { Order } from '../../../order/types';
 import {useDeleteOrder} from "../hooks/useDeleteOrder";
 import {useOrderHistory} from "../hooks/useOrderHistory";
 import {DeleteOrderDialog} from "./DeleteOrderDialog";
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
+import type {IBranch} from "../../inventory/types";
 
 // The search field has no mode switch -- what you type IS the filter, picked purely by shape.
 // Mirrors classifySearchInput() in useOrderHistory.ts; keep the two in sync.
@@ -35,17 +38,13 @@ const searchLegend = (
     </Box>
 );
 
-interface SelectedBranch {
-    id: string;
-    [key: string]: unknown;
-}
-
 interface HistoryComponentProps {
     onClose: () => void;
-    selectedBranch: SelectedBranch;
+    selectedBranch: IBranch;
 }
 
 function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX.Element {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(selectedBranch);
     const {
         orders,
         setOrders,
@@ -54,7 +53,7 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
         searchInput,
         setSearchInput,
         loadMore,
-    } = useOrderHistory(selectedBranch.id);
+    } = useOrderHistory(scopedBranch.id);
 
     const [searchOpen, setSearchOpen] = useState(false);
 
@@ -119,6 +118,13 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                 <ManagementTopBar
                     title="Order History"
                     onBack={onClose}
+                    branchSelector={canSwitch ? (
+                        <BranchSelectorComponent
+                            branches={branches}
+                            selectedBranch={scopedBranch}
+                            onBranchChange={setScopedBranch}
+                        />
+                    ) : undefined}
                     actions={
                         <IconButton edge="end" onClick={handleToggleSearch} aria-label="search" size="small">
                             {searchOpen ? <CloseIcon/> : <SearchIcon/>}
