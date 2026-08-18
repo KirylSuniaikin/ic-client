@@ -7,6 +7,8 @@ import {Alert, Box, Button, CircularProgress, Container, Dialog, Stack, Typograp
 import {ShiftCard} from "./ShiftCard";
 import {ShiftTablePopup} from "./ShiftTablePopup";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 
 type Props = {
     open: boolean;
@@ -15,6 +17,7 @@ type Props = {
 }
 
 export function ShiftHomePage({ open, onClose, branch }: Props) {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(branch);
     const [shiftReports, setShiftReports] = useState<BaseShiftResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
             setError(null);
             try{
                 const [baseShiftResponse] = await Promise.all([
-                    getReports({ branchId: branch.id.toString(), reportType: 'SHIFT_REPORT' }),
+                    getReports({ branchId: scopedBranch.id.toString(), reportType: 'SHIFT_REPORT' }),
                 ]);
                 if (alive) {
                     setShiftReports(baseShiftResponse);
@@ -58,7 +61,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
             }
         })();
         return () => {alive = false;};
-    }, [branch]);
+    }, [scopedBranch]);
 
     function handleCreateShiftReportClick() {
         setShiftTableOpen({open: true, mode: "new"});
@@ -94,6 +97,13 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
                 <ManagementTopBar
                     title="Shifts"
                     onBack={onClose}
+                    branchSelector={canSwitch ? (
+                        <BranchSelectorComponent
+                            branches={branches}
+                            selectedBranch={scopedBranch}
+                            onBranchChange={setScopedBranch}
+                        />
+                    ) : undefined}
                     actions={
                         <Button
                             variant="contained"
@@ -144,7 +154,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
                     open={shiftTableOpen.open}
                     mode={shiftTableOpen.mode}
                     shiftReportId={shiftTableOpen?.shiftReportId}
-                    branch={branch}
+                    branch={scopedBranch}
                     onClose={() => setShiftTableOpen({mode: "new", open: false})}
                     onSaved={(report) => {
                         setShiftReports(prev => upsertReport(prev, report))}

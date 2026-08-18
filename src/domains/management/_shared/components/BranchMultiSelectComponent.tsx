@@ -29,23 +29,35 @@ export function BranchMultiSelectComponent({ branches, selected, onSelectedChang
     };
 
     return (
-        <FormControl size="small" sx={{ minWidth: 100, borderColor: colorRed }}>
-            <InputLabel>Branch</InputLabel>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel sx={{ "&.Mui-focused": { color: colorRed } }}>Branch</InputLabel>
             <Select<string[]>
                 multiple
                 value={selected.map(b => b.id)}
                 onChange={handleChange}
                 label="Branch"
                 renderValue={() => renderSelectedLabel(selected, branches.length)}
+                MenuProps={{ PaperProps: { sx: { borderRadius: 3, mt: 0.5 } } }}
                 sx={{
                     borderRadius: "9999px",
-                    fontWeight: 500,
+                    fontWeight: 600,
+                    backgroundColor: "#fff",
+                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "#e0e0e0" },
+                    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: colorRed },
+                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: colorRed, borderWidth: 1 },
                 }}
             >
                 {branches.map((b) => (
-                    <MenuItem key={b.id} value={b.id}>
-                        <Checkbox checked={selected.some(s => s.id === b.id)} />
-                        <ListItemText primary={b.branchName} />
+                    <MenuItem key={b.id} value={b.id} sx={{ py: 0.25 }}>
+                        <Checkbox
+                            size="small"
+                            checked={selected.some(s => s.id === b.id)}
+                            sx={{ color: "#bdbdbd", "&.Mui-checked": { color: colorRed } }}
+                        />
+                        <ListItemText
+                            primary={b.branchName}
+                            primaryTypographyProps={{ fontSize: "0.9rem", fontWeight: 500 }}
+                        />
                     </MenuItem>
                 ))}
             </Select>

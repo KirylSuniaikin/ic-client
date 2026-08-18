@@ -265,7 +265,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
             <ManagementTopBar
                 title="Config"
                 onBack={onClose}
-                branchSelector={activeTab === "Menu" && canSwitch ? (
+                branchSelector={canSwitch ? (
                     <BranchSelectorComponent
                         branches={branches}
                         selectedBranch={scopedBranch}

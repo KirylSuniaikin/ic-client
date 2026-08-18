@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
-import type { AdminBaseInfo, BaseAppInfoResponse, Order, CreateOrderRequest, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
+import type { AdminBaseInfo, AvailabilityChange, BaseAppInfoResponse, Order, CreateOrderRequest, GetHistoryParams, GetHistoryResponse } from "../../../domains/order/types";
+import type { DoughInventoryAmounts } from "../../../domains/management/dough/types";
 import type { OrderStatusData } from "../../../domains/order-status/types";
 import type { StatsResponse } from "../../../domains/management/statistics/types";
 
@@ -24,3 +25,5 @@ export const getAllActiveOrders = jest.fn<Promise<Order[]>, [string]>();
 export const getHistory = jest.fn<Promise<GetHistoryResponse>, [GetHistoryParams]>();
 
 export const fetchStatistics = jest.fn<Promise<StatsResponse>, [string, string, string, string]>();
+
+export const updateAvailability = jest.fn<Promise<string>, [AvailabilityChange[], string, DoughInventoryAmounts?]>();

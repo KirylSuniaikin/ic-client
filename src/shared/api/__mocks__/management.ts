@@ -17,6 +17,7 @@ import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains
 import type { VatStatePayload } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
+import type { DoughStatus } from '../../../domains/management/dough/types';
 import type {
     BoardOwner,
     ChangeTaskCardPriorityPayload,
@@ -104,3 +105,6 @@ export const getVatStats = jest.fn<Promise<VatStatsResponse>, [VatStatePayload]>
 
 // Monthly shift report (Statistics -> Shifts tab).
 export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [string, string]>();
+
+// Dough inventory (Config -> Menu tab).
+export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();

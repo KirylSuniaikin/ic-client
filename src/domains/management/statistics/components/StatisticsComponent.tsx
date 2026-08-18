@@ -15,7 +15,10 @@ import {formatStatDate} from "./performance/statsFormat";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {BranchMultiSelectComponent} from "../../_shared/components/BranchMultiSelectComponent";
 import {useBranchScope, useMultiBranchScope} from "../../_shared/hooks/useBranchScope";
+import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import type {IBranch} from "../../inventory/types";
+
+const BRAND = "#E44B4C";
 
 interface StatisticsComponentProps {
     onClose: () => void;
@@ -52,7 +55,10 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         refresh,
     } = useStatistics(multiScope.selected.map(b => b.id));
 
-    const [mode, setMode] = useState<StatsMode>(role === StaffRoles.SUPER_MANAGER ? "Performance" : "Consumption");
+    // Performance and Shifts share the same audience: a branch manager sees their own branch's
+    // figures, a city-level role sees whichever branches they select.
+    const canSeePerformance = role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+    const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
@@ -117,7 +123,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             },
                         }}
                     >
-                        {role === StaffRoles.SUPER_MANAGER && (
+                        {canSeePerformance && (
                             <ToggleButton value="Performance">Performance</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
@@ -158,8 +164,19 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                 <Button
                                     variant="outlined"
                                     size="small"
+                                    startIcon={<CalendarTodayRoundedIcon sx={{fontSize: 16}}/>}
                                     onClick={(e) => setDateRangeAnchorEl(e.currentTarget)}
-                                    sx={{borderRadius: "9999px", textTransform: "none"}}
+                                    sx={{
+                                        borderRadius: "9999px",
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        px: 1.75,
+                                        height: 40,
+                                        color: "text.primary",
+                                        backgroundColor: "#fff",
+                                        borderColor: "#e0e0e0",
+                                        "&:hover": {borderColor: BRAND, backgroundColor: "#fff"},
+                                    }}
                                 >
                                     {formatStatDate(dateRange[0].startDate)} — {formatStatDate(dateRange[0].endDate)}
                                 </Button>
