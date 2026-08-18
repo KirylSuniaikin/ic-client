@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Typography, CircularProgress, IconButton } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { StaffRoles } from "../../../auth/types";
+import { StaffRoles, hasCityAccess } from "../../../auth/types";
 import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
 import { useBranchSelection } from "../../_shared/hooks/useBranchSelection";
 import { useSchedule } from "../hooks/useSchedule";
@@ -35,13 +35,13 @@ function formatShift(start: string, end: string): string {
 
 export default function ScheduleView({ selectedBranch, role }: ScheduleViewProps): JSX.Element {
     // useBranchSelection is always called (hooks must not be conditional).
-    // The result is only used when role === SUPER_MANAGER.
+    // The result is only used when the caller has city-wide access.
     const { branches, selectedBranch: smBranch, onBranchChange } = useBranchSelection();
     const [editOpen, setEditOpen] = useState(false);
 
-    // SUPER_MANAGER gets a branch picker; MANAGER uses the branch prop directly.
+    // City-level roles get a branch picker; MANAGER uses the branch prop directly.
     const activeBranchId =
-        role === StaffRoles.SUPER_MANAGER && smBranch != null
+        hasCityAccess(role) && smBranch != null
             ? String(smBranch.id)
             : selectedBranch.id;
 
@@ -50,7 +50,7 @@ export default function ScheduleView({ selectedBranch, role }: ScheduleViewProps
 
     return (
         <Box>
-            {role === StaffRoles.SUPER_MANAGER && branches.length > 0 && smBranch != null && (
+            {hasCityAccess(role) && branches.length > 0 && smBranch != null && (
                 <Box sx={{ mb: 2 }}>
                     <BranchSelectorComponent
                         branches={branches}

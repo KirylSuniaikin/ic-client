@@ -5,7 +5,7 @@ import {ConsumptionStatistics} from "../../consumption/components/ConsumptionSta
 import {DoughUsageTable} from "./DoughUsageTable";
 import {ProductsTable} from "./ProductsTable";
 import {VatReportCard} from "./VatReportCard";
-import {StaffRoles} from "../../../auth/types";
+import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
 import {PerformanceTab} from "./tabs/PerformanceTab";
@@ -32,7 +32,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         refresh,
     } = useStatistics(branchId);
 
-    const [mode, setMode] = useState(role === StaffRoles.SUPER_MANAGER ? "Performance" : "Consumption");
+    const [mode, setMode] = useState(hasCityAccess(role) ? "Performance" : "Consumption");
 
     return (
         <Box sx={{display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden'}}>
@@ -89,13 +89,13 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             },
                         }}
                     >
-                        {role === StaffRoles.SUPER_MANAGER && (
+                        {hasCityAccess(role) && (
                             <ToggleButton value="Performance">Performance</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
                         <ToggleButton value="Reports">Reports</ToggleButton>
-                        {(role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER) && (
+                        {(role === StaffRoles.MANAGER || hasCityAccess(role)) && (
                             <ToggleButton value="Shifts">Shifts</ToggleButton>
                         )}
                     </ToggleButtonGroup>

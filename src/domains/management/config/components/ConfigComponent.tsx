@@ -13,7 +13,7 @@ import type {DoughInventory, DoughType} from "../../dough/types";
 import {getDoughInventory} from "../../../../shared/api/management";
 import DoughSection from "../../dough/components/DoughSection";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
-import {StaffRoles} from "../../../auth/types";
+import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import ScheduleView from "./ScheduleView";
 
 interface SelectedBranch {
@@ -55,9 +55,9 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     const [inventoryBuffer, setInventoryBuffer] = useState<DoughInventory>({S: 0, M: 0, L: 0, Brick: 0});
     const [inventoryDirty, setInventoryDirty] = useState(false);
     const isSaveDisabled = changes.length === 0 && !inventoryDirty;
-    // "Schedule" tab is only available to MANAGER and SUPER_MANAGER.
+    // "Schedule" tab is only available to MANAGER and city-level roles.
     const showScheduleToggle =
-        role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+        role === StaffRoles.MANAGER || hasCityAccess(role);
     const [activeTab, setActiveTab] = useState<"Menu" | "Schedule">("Menu");
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
@@ -244,7 +244,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
 
             <ManagementTopBar title="Config" onBack={onClose} />
 
-            {/* Toggle between Menu and Schedule tabs — only visible to MANAGER/SUPER_MANAGER */}
+            {/* Toggle between Menu and Schedule tabs — only visible to MANAGER/city-level roles */}
             {showScheduleToggle && (
                 <Box sx={{
                     px: 1, pt: 2, pb: 1,

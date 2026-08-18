@@ -97,6 +97,31 @@ describe("AdminTopbar — role-based branch controls", () => {
     });
 });
 
+describe("AdminTopbar — role-based branch selector", () => {
+    // MUI's outlined Select doesn't wire an htmlFor/aria-labelledby that
+    // testing-library's label-association algorithm can follow, so target the
+    // InputLabel element itself rather than getByLabelText.
+    const branchSelectorLabel = () => screen.queryByText("Branch", { selector: "label" });
+
+    it("hides the branch selector for role MANAGER", () => {
+        renderTopbar(StaffRoles.MANAGER);
+
+        expect(branchSelectorLabel()).toBeNull();
+    });
+
+    it("shows the branch selector for role SUPER_MANAGER (city-wide access)", () => {
+        renderTopbar(StaffRoles.SUPER_MANAGER);
+
+        expect(branchSelectorLabel()).toBeTruthy();
+    });
+
+    it("shows the branch selector for role OWNER (city-wide access parity with SUPER_MANAGER)", () => {
+        renderTopbar(StaffRoles.OWNER);
+
+        expect(branchSelectorLabel()).toBeTruthy();
+    });
+});
+
 describe("AdminTopbar — role-based menu items", () => {
     it("renders exactly Order History and Logout for role REVIEWER", () => {
         renderTopbar(StaffRoles.REVIEWER);
@@ -122,6 +147,15 @@ describe("AdminTopbar — role-based menu items", () => {
 
     it("renders the existing manager item list for role SUPER_MANAGER (regression)", () => {
         renderTopbar(StaffRoles.SUPER_MANAGER);
+        openMenu();
+
+        [...SHARED_LABELS, ...MANAGER_ONLY_LABELS].forEach(label => {
+            expect(screen.getByText(label)).toBeTruthy();
+        });
+    });
+
+    it("renders the existing manager item list for role OWNER", () => {
+        renderTopbar(StaffRoles.OWNER);
         openMenu();
 
         [...SHARED_LABELS, ...MANAGER_ONLY_LABELS].forEach(label => {

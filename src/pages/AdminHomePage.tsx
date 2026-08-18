@@ -3,7 +3,7 @@ import { Alert, Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import { useAuth } from "../domains/auth/context/AuthProvider";
-import { StaffRoles } from "../domains/auth/types";
+import { StaffRoles, hasCityAccess } from "../domains/auth/types";
 import { useAdminOrders } from "../domains/management/orders/hooks/useAdminOrders";
 import { useDough } from "../domains/management/dough/hooks/useDough";
 import { useDeleteOrder } from "../domains/management/orders/hooks/useDeleteOrder";
@@ -42,7 +42,7 @@ function AdminHomePage(): JSX.Element {
     const audioStopRef = useRef<() => void>(() => {});
     const stopSoundProxy = (): void => audioStopRef.current();
     const isReviewer = role === StaffRoles.REVIEWER;
-    const isBoardEligible = role === StaffRoles.MANAGER || role === StaffRoles.SUPER_MANAGER;
+    const isBoardEligible = role === StaffRoles.MANAGER || hasCityAccess(role);
     const showBoardPanel = isBoardEligible && ui.activeAdminTab === 'board';
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
         cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
