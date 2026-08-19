@@ -11,13 +11,6 @@ import type { IBranch } from "../../inventory/types";
 import type { BaseAppInfoResponse } from "../../../order/types";
 import type { DoughStatus } from "../../dough/types";
 
-// jsdom has no canvas backend, so PizzaLoader's unconditional Lottie import crashes the
-// environment on load. Same stub the other management tests use.
-jest.mock("lottie-react", () => ({
-    __esModule: true,
-    default: (): null => null,
-}));
-
 jest.mock("../../../../shared/api/public");
 jest.mock("../../../../shared/api/management");
 

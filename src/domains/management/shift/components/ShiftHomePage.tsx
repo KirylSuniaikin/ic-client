@@ -3,7 +3,8 @@ import React, {useEffect, useState} from "react";
 import {IBranch} from "../../inventory/types";
 import {BaseShiftResponse} from "../types";
 import {getReports} from "../../../../shared/api/management";
-import {Alert, Box, Button, CircularProgress, Container, Dialog, Stack, Typography} from "@mui/material";
+import {Alert, Box, Button, Container, Dialog, Stack, Typography} from "@mui/material";
+import {LoadingIndicator} from "../../../../shared/components/LoadingIndicator";
 import {ShiftCard} from "./ShiftCard";
 import {ShiftTablePopup} from "./ShiftTablePopup";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
@@ -73,18 +74,6 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
 
     return (
         <>
-            {loading &&
-                <Box sx={{ display: "grid", placeItems: "center", minHeight: 240}}>
-                    <CircularProgress />
-                </Box>
-            }
-
-            {error &&
-            <Box sx={{ p: 2 }}>
-                <Alert severity="error">{error}</Alert>
-            </Box>
-            }
-
             <Dialog fullScreen
                     open={open}
                     onClose={onClose}
@@ -115,14 +104,16 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
                     }
                 />
 
-                <Container
-                    maxWidth="sm"
-                    sx={{
-                        pt: `${64 + 12}px`,
-                        pb: 3,
-                    }}
-                >
-                    {shiftReports.length === 0 ? (
+                <Container maxWidth="sm" sx={{ mt: 2, pb: 3 }}>
+                    {loading && <LoadingIndicator />}
+
+                    {error && !loading && (
+                        <Box sx={{ p: 2 }}>
+                            <Alert severity="error">{error}</Alert>
+                        </Box>
+                    )}
+
+                    {!loading && !error && (shiftReports.length === 0 ? (
                         <Box
                             sx={{
                                 mt: 2,
@@ -146,7 +137,7 @@ export function ShiftHomePage({ open, onClose, branch }: Props) {
                                 </Box>
                             ))}
                         </Stack>
-                    )}
+                    ))}
                 </Container>
             </Dialog>
             {shiftTableOpen.open===true &&

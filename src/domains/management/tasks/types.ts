@@ -13,6 +13,8 @@ export type TaskCard = {
     assigneeId: number;
     createdAt: string;
     updatedAt: string;
+    deadline: string | null; // ISO YYYY-MM-DD, date only
+    hasImage: boolean;
 };
 
 export type CreateTaskCardPayload = {
@@ -21,12 +23,14 @@ export type CreateTaskCardPayload = {
     priority?: TaskCardPriority;
     status?: TaskCardStatus; // omitted = BACKLOG, matching the backend default
     assigneeId?: number;
+    deadline: string | null;
 };
 
 export type EditTaskCardPayload = {
     title: string;
     description: string | null;
     priority: TaskCardPriority;
+    deadline: string | null;
 };
 
 export type ChangeTaskCardPriorityPayload = {
@@ -36,6 +40,13 @@ export type ChangeTaskCardPriorityPayload = {
 export type MoveTaskCardPayload = {
     targetStatus: TaskCardStatus;
     targetIndex: number; // 0-based, matches backend's PositiveOrZero contract
+};
+
+/** Metadata returned by the task-card-photo upload endpoint. The bytes are never inlined in JSON. */
+export type TaskCardImageMetaTO = {
+    taskCardId: number;
+    contentType: string;
+    sizeBytes: number;
 };
 
 export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['BACKLOG', 'DOING', 'DONE'];
@@ -51,6 +62,9 @@ export const TASK_CARD_PRIORITY_COLORS: Record<TaskCardPriority, string> = {
     YELLOW: '#E4B11B',
     RED: '#E44B4C',
 };
+
+export const TASK_CARD_OVERDUE_BG = '#FDECEC';
+export const TASK_CARD_OVERDUE_TEXT = '#C62828';
 
 export const TASK_TITLE_MAX_LENGTH = 255;
 export const TASK_DESCRIPTION_MAX_LENGTH = 4000;

@@ -24,7 +24,8 @@ import type {
     CreateTaskCardPayload,
     EditTaskCardPayload,
     MoveTaskCardPayload,
-    TaskCard
+    TaskCard,
+    TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
 import type {
     AccountingCategoryTO,
@@ -83,6 +84,11 @@ export const moveTaskCard = jest.fn<Promise<TaskCard>, [number, MoveTaskCardPayl
 
 // Board owners sidebar (ST6).
 export const fetchBoardOwners = jest.fn<Promise<BoardOwner[]>, []>();
+
+// Task card photos.
+export const uploadTaskCardImage = jest.fn<Promise<TaskCardImageMetaTO>, [number, Blob]>();
+export const fetchTaskCardImage = jest.fn<Promise<Blob | null>, [number]>();
+export const deleteTaskCardImage = jest.fn<Promise<void>, [number]>();
 
 // Accounting reports.
 export const getAccountingReports = jest.fn<Promise<AccountingReportSummary[]>, [string]>();

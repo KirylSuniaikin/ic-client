@@ -15,6 +15,7 @@ export interface TaskColumnProps {
     onAddClick?: () => void; // every column gets one; adds a card to that column
     mutatingCardId?: number | null; // disables that one card's menu while its own mutation is in flight
     getDragHandlers?: TaskCardItemProps["getDragHandlers"];
+    today: string; // ISO Bahrain date (YYYY-MM-DD), threaded down to each TaskCardItem for overdue paint
 }
 
 export default function TaskColumn({
@@ -26,6 +27,7 @@ export default function TaskColumn({
     onAddClick,
     mutatingCardId,
     getDragHandlers,
+    today,
 }: TaskColumnProps): JSX.Element {
     return (
         <Box
@@ -98,6 +100,7 @@ export default function TaskColumn({
                     onRequestDelete={onRequestDelete}
                     disabled={mutatingCardId === card.id}
                     getDragHandlers={getDragHandlers}
+                    today={today}
                 />
             ))}
         </Box>

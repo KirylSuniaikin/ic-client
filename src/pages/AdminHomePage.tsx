@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import { Alert, Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
+import { LoadingIndicator } from "../shared/components/LoadingIndicator";
 import { useAuth } from "../domains/auth/context/AuthProvider";
-import { StaffRoles, hasCityAccess } from "../domains/auth/types";
+import {StaffRoles, isManagerRole} from "../domains/auth/types";
 import { useAdminOrders } from "../domains/management/orders/hooks/useAdminOrders";
 import { useDough } from "../domains/management/dough/hooks/useDough";
 import { useDeleteOrder } from "../domains/management/orders/hooks/useDeleteOrder";
@@ -43,11 +43,16 @@ function AdminHomePage(): JSX.Element {
     const audioStopRef = useRef<() => void>(() => {});
     const stopSoundProxy = (): void => audioStopRef.current();
     const isReviewer = role === StaffRoles.REVIEWER;
-    const isBoardEligible = role === StaffRoles.MANAGER || hasCityAccess(role);
+    const isBoardEligible = isManagerRole(role);
     const showBoardPanel = isBoardEligible && ui.activeAdminTab === 'board';
+    // The order desk's STOMP subscriptions live only while the order desk is on screen. Flipping
+    // this tears the subscriptions down (`enabled` is in useAdminOrders' effect deps) and flipping
+    // it back re-subscribes AND refetches, which matters because STOMP topics are not durable —
+    // every frame published while the board was open is gone for good.
+    const ordersLive = !isReviewer && !showBoardPanel;
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
         cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
-    } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, !isReviewer);
+    } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, ordersLive);
     const { stopSound } = useAlertAudio(alertOrder, editedOrder);
     audioStopRef.current = stopSound;
     const { deleteDialogOpen, orderToDelete, handleDeleteClick, confirmDelete, cancelDelete } = useDeleteOrder(id => setOrders(prev => prev.filter(o => o.id !== id)));
@@ -58,7 +63,19 @@ function AdminHomePage(): JSX.Element {
     useWakeLock();
     useClosingAlarm(true);
     useEffect(() => { void (async (): Promise<void> => { await BluetoothPrinterService.init(); await BluetoothPrinterService.connect(); BluetoothPrinterService.startConnectionMonitor(); })(); }, []);
-    if (loading) return <PizzaLoader />;
+    // Opening the board silences the order desk. Tearing down the subscriptions (ordersLive) stops
+    // NEW alerts arriving, but an alert raised in the moment before the switch would otherwise keep
+    // ringing and leave its popup sitting over the board — so the pending ones are cleared here.
+    useEffect(() => {
+        if (!showBoardPanel) return;
+        audioStopRef.current();
+        setAlertOrder(null);
+        setEditedOrder(null);
+    }, [showBoardPanel, setAlertOrder, setEditedOrder]);
+    // Only blank the page for the very first load. Every switch back to the order desk re-enables
+    // useAdminOrders and so re-raises `loading`; without the orders check that would flash a
+    // full-screen spinner — tabs and all — on each tab change.
+    if (loading && orders.length === 0) return <LoadingIndicator minHeight="100dvh" />;
     if (branchError) return <div>Error: {branchError}</div>;
     const sortedOrders = [...orders].sort((a, b) => new Date(a.order_created).getTime() - new Date(b.order_created).getTime());
     const branchForComponents = selectedBranch ? { ...selectedBranch, id: String(selectedBranch.id) } : null; // id: string for History/Config
@@ -128,7 +145,9 @@ function AdminHomePage(): JSX.Element {
             <ExternalOrderAlert alertOrder={alertOrder} onDismiss={() => { stopSound(); setAlertOrder(null); }} onStopSound={stopSound} {...orderActions} />
             <EditedOrderAlert editedOrder={editedOrder} onClose={() => { stopSound(); setEditedOrder(null); }} />
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />
-            <ErrorSnackbar open={doughAlertOpen} message={doughAlertMessage} severity="error" handleClose={clearDoughAlert} />
+            {/* Suppressed rather than cleared while the board is open: a dough shortage is still
+                true when the manager comes back, so the warning is hidden, not thrown away. */}
+            <ErrorSnackbar open={doughAlertOpen && !showBoardPanel} message={doughAlertMessage} severity="error" handleClose={clearDoughAlert} />
         </div>
         </ManagementBranchScopeProvider>
         </LtrBoundary>

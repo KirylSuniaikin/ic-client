@@ -15,14 +15,18 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
         assigneeId: 7,
         createdAt: "2026-08-12T10:00:00",
         updatedAt: "2026-08-12T10:00:00",
+        deadline: null,
+        hasImage: false,
         ...overrides,
     };
 }
 
+const TODAY = "2026-08-19";
+
 describe("TaskColumn", () => {
     it("renders only the cards passed to it", () => {
         const cards = [makeCard({ id: 1, title: "Card One" }), makeCard({ id: 2, title: "Card Two" })];
-        render(<TaskColumn status="BACKLOG" cards={cards} onCardClick={jest.fn()} onChangePriority={jest.fn()} />);
+        render(<TaskColumn status="BACKLOG" cards={cards} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
 
         expect(screen.getByText("Card One")).toBeTruthy();
         expect(screen.getByText("Card Two")).toBeTruthy();
@@ -31,18 +35,25 @@ describe("TaskColumn", () => {
 
     it("renders the Add button only when onAddClick is provided", () => {
         const { rerender } = render(
-            <TaskColumn status="BACKLOG" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} onAddClick={jest.fn()} />
+            <TaskColumn
+                status="BACKLOG"
+                cards={[]}
+                onCardClick={jest.fn()}
+                onChangePriority={jest.fn()}
+                onAddClick={jest.fn()}
+                today={TODAY}
+            />
         );
         expect(screen.getByTestId("task-board-add-button-BACKLOG")).toBeTruthy();
 
-        rerender(<TaskColumn status="DOING" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} />);
+        rerender(<TaskColumn status="DOING" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
         expect(screen.queryByTestId("task-board-add-button-BACKLOG")).toBeNull();
     });
 
     it("clicking a card forwards to onCardClick", () => {
         const onCardClick = jest.fn();
         const card = makeCard();
-        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} />);
+        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} />);
 
         fireEvent.click(screen.getByText("Restock mozzarella"));
 
@@ -52,7 +63,7 @@ describe("TaskColumn", () => {
     it("with no getDragHandlers prop supplied, rendering and click behavior stay identical to ST4", () => {
         const onCardClick = jest.fn();
         const card = makeCard();
-        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} />);
+        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} />);
 
         fireEvent.click(screen.getByTestId("task-card-1"));
 
@@ -78,6 +89,7 @@ describe("TaskColumn", () => {
                 onCardClick={jest.fn()}
                 onChangePriority={jest.fn()}
                 getDragHandlers={getDragHandlers}
+                today={TODAY}
             />
         );
 

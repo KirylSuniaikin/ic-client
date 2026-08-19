@@ -6,14 +6,6 @@ import type { Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
 import type { IBranch } from "../../inventory/types";
 
-// lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
-// provide (no canvas backend installed) -- stub the whole package so PizzaLoader's
-// unconditional Lottie import does not crash the test environment.
-jest.mock("lottie-react", () => ({
-    __esModule: true,
-    default: (): null => null,
-}));
-
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../shared/api/public");
 // The hook owns all fetch/pagination/search logic; the component test controls it directly.
@@ -224,8 +216,9 @@ describe("HistoryComponent", () => {
 
             renderHistory();
 
-            // On the first commit `loading` is true (as in the real hook), so the
-            // component renders <PizzaLoader/> and the sentinel isn't in the DOM yet.
+            // On the first commit `loading` is true (as in the real hook). The sentinel is
+            // mounted — only the list is swapped for the spinner — but the observer effect
+            // early-returns while loading, so nothing is observed yet.
             expect(observeSpy).not.toHaveBeenCalled();
 
             // Simulate the initial page-0 fetch resolving: `loading` flips to false,

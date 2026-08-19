@@ -100,13 +100,9 @@ export function useAdminOrders(
 
     const stopSoundRef = useRef(stopSound);
     stopSoundRef.current = stopSound;
-    // Read inside the cancelled handler, which is created once per socket connect and would
-    // otherwise close over a stale alertOrder.
     const alertOrderRef = useRef<Order | null>(null);
     alertOrderRef.current = alertOrder;
 
-    // The initial [branchId] effect above does the first load; the connect callback
-    // below only re-hydrates on RECONNECTs. Re-armed on every branch change.
     const isFirstConnectRef = useRef(true);
 
     useEffect(() => {

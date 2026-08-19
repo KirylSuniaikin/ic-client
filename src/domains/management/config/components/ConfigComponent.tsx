@@ -2,7 +2,7 @@ import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
 import {Box, Typography, Switch, Button, ToggleButton, ToggleButtonGroup, Dialog, DialogTitle, DialogContent, DialogActions, Divider} from "@mui/material";
 import {StompSubscription} from "@stomp/stompjs";
-import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import {fetchBaseAppInfo, updateAvailability} from "../../../../shared/api/public";
 import {connectSocket, socket} from "../../../../shared/api/socket";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
@@ -257,22 +257,37 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
 
     const handleCancelBranchSwitch = (): void => setPendingBranch(null);
 
-    if (isLoading) return <PizzaLoader/>;
+    // Held in a variable rather than duplicated into both branches below: the bar must survive the
+    // loading state, because switching branch refetches, and replacing the whole screen would take
+    // the back button and the branch selector away mid-switch — leaving no way to tell what the
+    // page is doing, or to leave it.
+    const topBar = (
+        <ManagementTopBar
+            title="Config"
+            onBack={onClose}
+            branchSelector={canSwitch ? (
+                <BranchSelectorComponent
+                    branches={branches}
+                    selectedBranch={scopedBranch}
+                    onBranchChange={handleBranchSelectorChange}
+                />
+            ) : undefined}
+        />
+    );
+
+    if (isLoading) {
+        return (
+            <Box sx={{height: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
+                {topBar}
+                <LoadingIndicator minHeight="100%" />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{height: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
 
-            <ManagementTopBar
-                title="Config"
-                onBack={onClose}
-                branchSelector={canSwitch ? (
-                    <BranchSelectorComponent
-                        branches={branches}
-                        selectedBranch={scopedBranch}
-                        onBranchChange={handleBranchSelectorChange}
-                    />
-                ) : undefined}
-            />
+            {topBar}
 
             {/* Toggle between Menu and Schedule tabs — only visible to MANAGER/city-level roles */}
             {showScheduleToggle && (
