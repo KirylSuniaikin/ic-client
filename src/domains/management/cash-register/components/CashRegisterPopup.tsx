@@ -9,6 +9,8 @@ import CashInputDrawer from "./CashInputDrawer";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import TransactionDetailsTable from "./TransactionDetailsTable";
 import {IBranch} from "../../inventory/types";
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 
 type Props = {
     branch: IBranch;
@@ -21,6 +23,7 @@ const buttonBg = "#F0F0F0";
 const brandBlack = "#000000";
 
 export default function CashRegisterPopup({branch, open, handleClose}: Props) {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(branch);
     const [balance, setBalance] = useState<number>(0);
     const [loading, setLoading] = useState<boolean>(true);
     const [errorSnackbarOpen, setErrorSnackbarOpen] = useState(false);
@@ -42,7 +45,7 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
 
         const fetchBalance = async () => {
             try {
-                const response = await getBranchBalance(branch.id.toString());
+                const response = await getBranchBalance(scopedBranch.id.toString());
                 if (isMounted) {
                     setBalance(response.branchBalance || 0);
                 }
@@ -58,7 +61,7 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
         return () => {
             isMounted = false;
         };
-    }, [branch, open]);
+    }, [scopedBranch, open]);
 
     const formattedBalance = new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
@@ -71,7 +74,7 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
 
     const handleSubmit = async (amount: number, type: CashUpdateType, note: string) => {
         setLoading(true);
-        const resp = await cashUpdate({amount: amount, branchId: branch.id.toString(), cashUpdateType: type, note: note});
+        const resp = await cashUpdate({amount: amount, branchId: scopedBranch.id.toString(), cashUpdateType: type, note: note});
         const data = await resp.json();
         if (resp.ok) {
             setBalance(data.branchBalance)
@@ -97,7 +100,17 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
                     }
                 }}
             >
-                <ManagementTopBar title="Cash Register" onBack={handleClose} />
+                <ManagementTopBar
+                    title="Cash Register"
+                    onBack={handleClose}
+                    branchSelector={canSwitch ? (
+                        <BranchSelectorComponent
+                            branches={branches}
+                            selectedBranch={scopedBranch}
+                            onBranchChange={setScopedBranch}
+                        />
+                    ) : undefined}
+                />
 
                 <Box sx={{p: 2, mt: 1}}>
                     <Card
@@ -112,7 +125,7 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
                         <CardContent>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
-                                    Cash Balance ({branch.branchName})
+                                    Cash Balance ({scopedBranch.branchName})
                                 </Typography>
 
                                 <Button
@@ -194,13 +207,14 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
                 </Box>
             </Dialog>
 
-            <CashInputDrawer type={cashInputDrawerOpen.type} open={cashInputDrawerOpen.open} onSubmit={handleSubmit}
+            <CashInputDrawer type={cashInputDrawerOpen.type} open={cashInputDrawerOpen.open}
+                             branchName={scopedBranch.branchName} onSubmit={handleSubmit}
                              onClose={() => setCashInputDrawerOpen({open: false, type: cashInputDrawerOpen.type})}/>
 
             <ErrorSnackbar open={errorSnackbarOpen} message={errorMessage} severity="error"
                            handleClose={() => setErrorSnackbarOpen(false)}/>
 
-            <TransactionDetailsTable branchId={branch.id.toString()} open={historyOpen} onClose={() => setHistoryOpen(false)}
+            <TransactionDetailsTable branchId={scopedBranch.id.toString()} open={historyOpen} onClose={() => setHistoryOpen(false)}
             />
         </>
     );

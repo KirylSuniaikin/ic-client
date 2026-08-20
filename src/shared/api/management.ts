@@ -47,7 +47,8 @@ import type {
     CreateTaskCardPayload,
     EditTaskCardPayload,
     MoveTaskCardPayload,
-    TaskCard
+    TaskCard,
+    TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
@@ -575,6 +576,36 @@ export async function fetchBoardOwners(): Promise<BoardOwner[]> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+export async function uploadTaskCardImage(id: number, file: Blob): Promise<TaskCardImageMetaTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/tasks/${id}/image`, {
+        method: "POST",
+        // No Content-Type header: the browser must generate the multipart/form-data boundary
+        // itself from the FormData body. Setting a fixed value here strips that boundary and the
+        // backend fails with an opaque 500.
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchTaskCardImage(id: number): Promise<Blob | null> {
+    const res = await authFetch(BASE_URL + `/tasks/${id}/image`, {
+        method: "GET",
+    });
+    if (res.status === 404) return null; // no photo yet — not an exception
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
+}
+
+export async function deleteTaskCardImage(id: number): Promise<void> {
+    const res = await authFetch(BASE_URL + `/tasks/${id}/image`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
 }
 
 // ── Working Hours ─────────────────────────────────────────────────────────────

@@ -3,19 +3,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import type { CreateTaskCardPayload, EditTaskCardPayload, TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
 import type { UseTaskBoardResult } from "../hooks/useTaskBoard";
-
-// PizzaLoader imports lottie-react, which touches a real 2D canvas context at import time,
-// unavailable in jsdom — see HistoryComponent.test.tsx / AdminHomePage.test.tsx for the
-// same precedent. Stub components are prefixed `mock` per babel-plugin-jest-hoist's
-// out-of-scope-variable rule for jest.mock() factories.
-function mockPizzaLoader(): JSX.Element {
-    return <div data-testid="pizza-loader" />;
-}
-
-jest.mock("../../../order-status/components/animations/PizzaLoader", () => ({
-    __esModule: true,
-    default: mockPizzaLoader,
-}));
+import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
 
 // Factoryless jest.mock() on the hook itself — isolates TaskBoardPanel's own composition
 // logic (which columns render, drawer/dialog orchestration) from useTaskBoard's internals,
@@ -47,6 +35,8 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
         assigneeId: 7,
         createdAt: "2026-08-12T10:00:00",
         updatedAt: "2026-08-12T10:00:00",
+        deadline: null,
+        hasImage: false,
         ...overrides,
     };
 }
@@ -59,8 +49,8 @@ function taskBoardValue(overrides: Partial<UseTaskBoardResult> = {}): UseTaskBoa
         error: null,
         mutating: false,
         refetch: jest.fn(async () => undefined),
-        createCard: jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(true),
-        editCard: jest.fn<Promise<boolean>, [number, EditTaskCardPayload]>().mockResolvedValue(true),
+        createCard: jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true),
+        editCard: jest.fn<Promise<boolean>, [number, EditTaskCardPayload, PhotoPatch?]>().mockResolvedValue(true),
         changePriority: jest.fn<Promise<boolean>, [number, TaskCardPriority]>().mockResolvedValue(true),
         deleteCard: jest.fn<Promise<boolean>, [number]>().mockResolvedValue(true),
         moveCard: jest.fn<Promise<boolean>, [number, TaskCardStatus, number]>().mockResolvedValue(true),
@@ -108,12 +98,12 @@ describe("TaskBoardPanel", () => {
         expect(screen.getByTestId("task-card-3")).toBeTruthy();
     });
 
-    it("shows PizzaLoader while loading and no cards yet", () => {
+    it("shows the loading indicator while loading and no cards yet", () => {
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ loading: true }));
 
         render(<TaskBoardPanel />);
 
-        expect(screen.getByTestId("pizza-loader")).toBeTruthy();
+        expect(screen.getByTestId("loading-indicator")).toBeTruthy();
         expect(screen.queryByTestId("task-column-BACKLOG")).toBeNull();
     });
 
@@ -146,7 +136,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("every column has its own Add button, and each creates in that column", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -160,7 +150,7 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }));
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }), null);
         });
     });
 
@@ -177,7 +167,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("a failed createCard leaves the drawer open and shows ErrorSnackbar", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(false);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(false);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard, error: "HTTP 400" }));
 
         render(<TaskBoardPanel />);
@@ -303,7 +293,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("passing ownerId results in createCard being called with matching assigneeId", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel ownerId={7} />);
@@ -313,12 +303,12 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: 7 }));
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: 7 }), null);
         });
     });
 
     it("omitting ownerId results in createCard being called with assigneeId undefined", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -328,7 +318,7 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: undefined }));
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: undefined }), null);
         });
     });
 

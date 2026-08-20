@@ -46,6 +46,7 @@ export function ConsumptionStatistics({branchId}: Props) {
 
 
     useEffect(() => {
+        setLoading(true);
         (async () => {
             try {
                 const r = await fetchLatestConsumptionReport(branchId.toString());
@@ -56,7 +57,7 @@ export function ConsumptionStatistics({branchId}: Props) {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [branchId]);
 
     const meta = useMemo(() => {
         if (!report) return null;
@@ -117,6 +118,11 @@ export function ConsumptionStatistics({branchId}: Props) {
                     {report && (
                         <Typography variant="h6" sx={{ mb: 1 }}>
                             <b>{report.title}</b>
+                        </Typography>
+                    )}
+                    {report?.missingBranches && report.missingBranches.length > 0 && (
+                        <Typography variant="caption" color="error" sx={{ display: "block", mb: 1 }}>
+                            No report for this month from: {report.missingBranches.join(", ")} — totals below are partial.
                         </Typography>
                     )}
                     <TextField

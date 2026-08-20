@@ -13,14 +13,19 @@ import type {
     VendorTO
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest } from '../management';
+import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
+import type { VatStatePayload } from '../../../domains/management/statistics/types';
+import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
+import type { DoughStatus } from '../../../domains/management/dough/types';
 import type {
     BoardOwner,
     ChangeTaskCardPriorityPayload,
     CreateTaskCardPayload,
     EditTaskCardPayload,
     MoveTaskCardPayload,
-    TaskCard
+    TaskCard,
+    TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
 import type {
     AccountingCategoryTO,
@@ -80,6 +85,11 @@ export const moveTaskCard = jest.fn<Promise<TaskCard>, [number, MoveTaskCardPayl
 // Board owners sidebar (ST6).
 export const fetchBoardOwners = jest.fn<Promise<BoardOwner[]>, []>();
 
+// Task card photos.
+export const uploadTaskCardImage = jest.fn<Promise<TaskCardImageMetaTO>, [number, Blob]>();
+export const fetchTaskCardImage = jest.fn<Promise<Blob | null>, [number]>();
+export const deleteTaskCardImage = jest.fn<Promise<void>, [number]>();
+
 // Accounting reports.
 export const getAccountingReports = jest.fn<Promise<AccountingReportSummary[]>, [string]>();
 export const getAccountingReport = jest.fn<Promise<AccountingReportTO>, [number]>();
@@ -91,3 +101,17 @@ export const getAccountingCategories = jest.fn<Promise<AccountingCategoryTO[]>, 
 export const uploadAccountingEntryImage = jest.fn<Promise<EntryImageMetaTO>, [number, Blob]>();
 export const fetchAccountingEntryImage = jest.fn<Promise<Blob | null>, [number]>();
 export const deleteAccountingEntryImage = jest.fn<Promise<void>, [number]>();
+
+// Prep plan (Statistics -> Consumption tab; MULTIBRANCH_SPEC.md Part 4).
+export const fetchCurrentPrepPlan = jest.fn<Promise<PrepPlanResponse | null>, [string]>();
+export const generatePrepPlan = jest.fn<Promise<PrepPlanResponse>, [GeneratePrepPlanRequest]>();
+
+// VAT report (Statistics -> Reports tab).
+type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
+export const getVatStats = jest.fn<Promise<VatStatsResponse>, [VatStatePayload]>();
+
+// Monthly shift report (Statistics -> Shifts tab).
+export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [string, string]>();
+
+// Dough inventory (Config -> Menu tab).
+export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();

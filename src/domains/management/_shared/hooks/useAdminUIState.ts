@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Order } from '../../../order/types';
+import {useAuth} from "../../../auth/context/AuthProvider";
+import {isManagerRole} from "../../../auth/types";
 
 export type AdminTabKey = 'orders' | 'board';
 
@@ -22,6 +24,7 @@ export type AdminUIState = {
 };
 
 export function useAdminUIState(): AdminUIState {
+    const { role } = useAuth();
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
@@ -36,7 +39,7 @@ export function useAdminUIState(): AdminUIState {
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
-    const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>('orders');
+    const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>(() => (isManagerRole(role) ? 'board' : 'orders'));
 
     return {
         isHistoryOpen, setIsHistoryOpen,

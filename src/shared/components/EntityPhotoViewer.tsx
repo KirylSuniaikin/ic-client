@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Box, Button, CircularProgress, Drawer, Typography } from "@mui/material";
-import { logger } from "../utils/logger";
+import { useAuthImageUrl } from "../hooks/useAuthImageUrl";
 
 type Props = {
     open: boolean;
@@ -25,51 +25,7 @@ type Props = {
  * 401. Bytes are fetched, turned into an object URL, and revoked on cleanup.
  */
 export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, title, testIdPrefix }: Props) {
-    const [url, setUrl] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!open) return;
-
-        let alive = true;
-        let objectUrl: string | null = null;
-        setError(null);
-
-        (async () => {
-            try {
-                let source = blob;
-                if (!source) {
-                    if (serverId == null) return;
-                    setLoading(true);
-                    source = await fetchImage(serverId);
-                }
-                if (!alive) return;
-                if (!source) {
-                    setError("No photo stored here.");
-                    return;
-                }
-                objectUrl = URL.createObjectURL(source);
-                setUrl(objectUrl);
-            } catch (e: unknown) {
-                const msg = e instanceof Error ? e.message : "Failed to load the photo";
-                if (alive) setError(msg);
-                logger.error(msg);
-            } finally {
-                if (alive) setLoading(false);
-            }
-        })();
-
-        return () => {
-            alive = false;
-            // Object URLs are heap that never frees itself; on an all-day tablet shift these add up.
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            setUrl(null);
-        };
-        // fetchImage is intentionally omitted: callers pass a module-level function, and including
-        // an inline arrow in the deps would re-fetch the blob on every parent render.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, blob, serverId]);
+    const { url, loading, error } = useAuthImageUrl(open, blob, serverId, fetchImage);
 
     return (
         <Drawer

@@ -1,8 +1,8 @@
 import { logger } from "../../../../shared/utils/logger";
 import React, {useEffect, useState} from "react";
-import {Box, Typography, Switch, Button, ToggleButton, ToggleButtonGroup} from "@mui/material";
+import {Box, Typography, Switch, Button, ToggleButton, ToggleButtonGroup, Dialog, DialogTitle, DialogContent, DialogActions, Divider} from "@mui/material";
 import {StompSubscription} from "@stomp/stompjs";
-import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import {fetchBaseAppInfo, updateAvailability} from "../../../../shared/api/public";
 import {connectSocket, socket} from "../../../../shared/api/socket";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
@@ -15,17 +15,14 @@ import DoughSection from "../../dough/components/DoughSection";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import ScheduleView from "./ScheduleView";
-
-interface SelectedBranch {
-    id: string;
-    name?: string;
-    [key: string]: unknown;
-}
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
+import type {IBranch} from "../../inventory/types";
 
 interface ConfigComponentProps {
     isOpen: boolean;
     onClose: () => void;
-    selectedBranch: SelectedBranch;
+    selectedBranch: IBranch;
     role: StaffRoles | null;
 }
 
@@ -47,6 +44,8 @@ type MenuGroup = {
 type DoughAvailability = Record<string, boolean>;
 
 function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponentProps): JSX.Element {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(selectedBranch);
+    const [pendingBranch, setPendingBranch] = useState<IBranch | null>(null);
     const [isLoading, setIsLoading] = useState(false)
     const [groups, setGroups] = useState<MenuGroup[]>([]);
     const [originalGroups, setOriginalGroups] = useState<MenuGroup[]>([]);
@@ -55,6 +54,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     const [inventoryBuffer, setInventoryBuffer] = useState<DoughInventory>({S: 0, M: 0, L: 0, Brick: 0});
     const [inventoryDirty, setInventoryDirty] = useState(false);
     const isSaveDisabled = changes.length === 0 && !inventoryDirty;
+    const hasUnsavedChanges = changes.length > 0 || inventoryDirty;
     // "Schedule" tab is only available to MANAGER and city-level roles.
     const showScheduleToggle =
         role === StaffRoles.MANAGER || hasCityAccess(role);
@@ -73,8 +73,8 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                 // Read availability for the SAME branch we write to, so the switch states
                 // reflect what saving will actually change.
                 const [baseInfo, inventory] = await Promise.all([
-                    fetchBaseAppInfo(null, selectedBranch.id),
-                    getDoughInventory(selectedBranch.id),
+                    fetchBaseAppInfo(null, scopedBranch.id),
+                    getDoughInventory(scopedBranch.id),
                 ]);
 
                 function groupItemsByName(data: MenuItem[]): MenuGroup[] {
@@ -149,7 +149,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         }
 
         void load();
-    }, [selectedBranch.id]);
+    }, [scopedBranch.id]);
 
     // useEffect(() => {
     //     const branchId = selectedBranch.id;
@@ -226,7 +226,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         // The types differ because the API was designed before this change tracking was introduced
         updateAvailability(
             changes as unknown as AvailabilityChange[],
-            selectedBranch.id,
+            scopedBranch.id,
             inventoryDirty ? inventoryBuffer : undefined
         ).then(() => {
             setOriginalGroups(groups);
@@ -237,12 +237,57 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         });
     };
 
-    if (isLoading) return <PizzaLoader/>;
+    // Discard-and-switch guard: pending menu/dough edits must never silently carry across
+    // a branch switch or be saved against the wrong branch (MULTIBRANCH_SPEC.md Part 3).
+    const handleBranchSelectorChange = (newBranch: IBranch): void => {
+        if (hasUnsavedChanges) {
+            setPendingBranch(newBranch);
+            return;
+        }
+        setScopedBranch(newBranch);
+    };
+
+    const handleDiscardAndSwitchBranch = (): void => {
+        if (pendingBranch === null) return;
+        setScopedBranch(pendingBranch);
+        setChanges([]);
+        setInventoryDirty(false);
+        setPendingBranch(null);
+    };
+
+    const handleCancelBranchSwitch = (): void => setPendingBranch(null);
+
+    // Held in a variable rather than duplicated into both branches below: the bar must survive the
+    // loading state, because switching branch refetches, and replacing the whole screen would take
+    // the back button and the branch selector away mid-switch — leaving no way to tell what the
+    // page is doing, or to leave it.
+    const topBar = (
+        <ManagementTopBar
+            title="Config"
+            onBack={onClose}
+            branchSelector={canSwitch ? (
+                <BranchSelectorComponent
+                    branches={branches}
+                    selectedBranch={scopedBranch}
+                    onBranchChange={handleBranchSelectorChange}
+                />
+            ) : undefined}
+        />
+    );
+
+    if (isLoading) {
+        return (
+            <Box sx={{height: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
+                {topBar}
+                <LoadingIndicator minHeight="100%" />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{height: "100dvh", display: "flex", flexDirection: "column", backgroundColor: "#fbfaf6" }}>
 
-            <ManagementTopBar title="Config" onBack={onClose} />
+            {topBar}
 
             {/* Toggle between Menu and Schedule tabs — only visible to MANAGER/city-level roles */}
             {showScheduleToggle && (
@@ -299,7 +344,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         "&::-webkit-scrollbar": { display: "none" }
                     }}
                 >
-                    <ScheduleView selectedBranch={selectedBranch} role={role} />
+                    <ScheduleView branchId={scopedBranch.id} />
                 </Box>
             ) : (
                 <>
@@ -313,7 +358,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         }}
                     >
                         <DoughSection
-                            branchId={selectedBranch.id}
+                            branchId={scopedBranch.id}
                             inventory={inventoryBuffer}
                             availability={doughAvailability}
                             onInventoryChange={handleInventoryChange}
@@ -360,6 +405,64 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                     </Box>
                 </>
             )}
+
+            <Dialog
+                open={pendingBranch !== null}
+                onClose={handleCancelBranchSwitch}
+                PaperProps={{
+                    sx: {
+                        borderRadius: "14px",
+                        width: 270,
+                        m: 2,
+                    },
+                }}
+            >
+                <DialogTitle sx={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textAlign: "center",
+                    pb: 0.5,
+                    pt: 2.5,
+                }}>
+                    Discard changes?
+                </DialogTitle>
+                <DialogContent sx={{ textAlign: "center", pb: 1.5 }}>
+                    <Typography fontSize="13px" color="text.secondary">
+                        Switching branches will discard your unsaved menu and dough changes. Continue?
+                    </Typography>
+                </DialogContent>
+                <Divider />
+                <DialogActions sx={{ p: 0 }}>
+                    <Button
+                        fullWidth
+                        onClick={handleCancelBranchSwitch}
+                        sx={{
+                            borderRadius: 0,
+                            py: 1.4,
+                            fontSize: "13px",
+                            color: "text.secondary",
+                            fontWeight: 400,
+                            borderRight: "0.5px solid",
+                            borderColor: "divider",
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        fullWidth
+                        onClick={handleDiscardAndSwitchBranch}
+                        sx={{
+                            borderRadius: 0,
+                            py: 1.4,
+                            fontSize: "13px",
+                            color: "#E44B4C",
+                            fontWeight: 600,
+                        }}
+                    >
+                        Discard & Switch
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

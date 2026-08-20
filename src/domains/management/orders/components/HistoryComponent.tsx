@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import OrderCard from "./OrderCard";
 import {Box, IconButton, InputBase, Tooltip, Typography} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
@@ -11,6 +11,9 @@ import type { Order } from '../../../order/types';
 import {useDeleteOrder} from "../hooks/useDeleteOrder";
 import {useOrderHistory} from "../hooks/useOrderHistory";
 import {DeleteOrderDialog} from "./DeleteOrderDialog";
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
+import type {IBranch} from "../../inventory/types";
 
 // The search field has no mode switch -- what you type IS the filter, picked purely by shape.
 // Mirrors classifySearchInput() in useOrderHistory.ts; keep the two in sync.
@@ -35,17 +38,13 @@ const searchLegend = (
     </Box>
 );
 
-interface SelectedBranch {
-    id: string;
-    [key: string]: unknown;
-}
-
 interface HistoryComponentProps {
     onClose: () => void;
-    selectedBranch: SelectedBranch;
+    selectedBranch: IBranch;
 }
 
 function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX.Element {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(selectedBranch);
     const {
         orders,
         setOrders,
@@ -54,7 +53,7 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
         searchInput,
         setSearchInput,
         loadMore,
-    } = useOrderHistory(selectedBranch.id);
+    } = useOrderHistory(scopedBranch.id);
 
     const [searchOpen, setSearchOpen] = useState(false);
 
@@ -65,10 +64,11 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
 
     // Watches an invisible sentinel rendered after the last card; when it scrolls
     // into view, request the next page (spec §6.6).
-    // `loading` is included in the deps: while loading is true the component below
-    // early-returns <PizzaLoader/> and the sentinel node isn't mounted, so this effect
-    // must re-run after each loader->list transition to (re)observe the node that is
-    // actually in the DOM (mount, and again after every debounced search re-fetch).
+    // `loading` is included in the deps so the observer is attached only once a list is actually
+    // on screen. The sentinel node now stays mounted through the loading state (only the list
+    // itself is swapped for the spinner), but attaching while a fetch is in flight would let an
+    // already-visible sentinel fire loadMore against stale results — hence the guard below, and
+    // the re-run after every loader->list transition (mount, and each debounced search re-fetch).
     useEffect(() => {
         if (loading) return;
 
@@ -93,9 +93,6 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
         });
     };
 
-    if (loading) {
-        return <PizzaLoader/>;
-    }
     if (error) return <div>Error: {error}</div>;
 
     const sortedOrders = [...orders].sort(
@@ -119,6 +116,13 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                 <ManagementTopBar
                     title="Order History"
                     onBack={onClose}
+                    branchSelector={canSwitch ? (
+                        <BranchSelectorComponent
+                            branches={branches}
+                            selectedBranch={scopedBranch}
+                            onBranchChange={setScopedBranch}
+                        />
+                    ) : undefined}
                     actions={
                         <IconButton edge="end" onClick={handleToggleSearch} aria-label="search" size="small">
                             {searchOpen ? <CloseIcon/> : <SearchIcon/>}
@@ -166,7 +170,13 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                 overscrollBehaviorY: 'contain',
                 width: '100%'
             }}>
-            {sortedOrders.length === 0 ? (
+            {/* Only the list is swapped for the spinner: a debounced search re-fetches on every
+                keystroke pause, so blanking the whole screen would take away the search box the
+                user is still typing into. The sentinel below stays mounted for the same reason —
+                its observer effect already skips attaching while `loading` is true. */}
+            {loading ? (
+                <LoadingIndicator minHeight={240} />
+            ) : sortedOrders.length === 0 ? (
                 <Typography sx={{p: 2, color: "text.secondary"}}>No orders found.</Typography>
             ) : (
                 <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>

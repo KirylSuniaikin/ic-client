@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Box } from "@mui/material";
-import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import TaskColumn from "./TaskColumn";
 import TaskCardDrawer from "./TaskCardDrawer";
@@ -10,6 +10,11 @@ import { useTaskBoard } from "../hooks/useTaskBoard";
 import { useCardDrag } from "../hooks/useCardDrag";
 import { TASK_CARD_STATUSES } from "../types";
 import type { TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
+import { todayIsoBahrain } from "../../../../shared/utils/timeUtils";
+
+// A board left open on a tablet across midnight must repaint overdue cards without waiting for
+// the next mutation-triggered refetch.
+const TODAY_REFRESH_INTERVAL_MS = 60_000;
 
 export interface TaskBoardPanelProps {
     ownerId?: number | null; // seam for ST6; omitted/null = caller's own board
@@ -40,6 +45,12 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
     const [createStatus, setCreateStatus] = useState<TaskCardStatus>("BACKLOG");
     const [priorityMutatingId, setPriorityMutatingId] = useState<number | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [today, setToday] = useState<string>(() => todayIsoBahrain());
+
+    useEffect(() => {
+        const interval = setInterval(() => setToday(todayIsoBahrain()), TODAY_REFRESH_INTERVAL_MS);
+        return (): void => clearInterval(interval);
+    }, []);
 
     // Mirror the hook's error into local snackbar state — the hook only clears `error` at the
     // start of the NEXT mutation, so the snackbar's own dismiss must be tracked separately.
@@ -57,7 +68,7 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
         },
     });
 
-    if (board.loading) return <PizzaLoader />;
+    if (board.loading) return <LoadingIndicator />;
 
     const handleCardClick = (card: TaskCard): void => {
         setActiveCard(card);
@@ -98,7 +109,8 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
             priority: values.priority,
             status: createStatus,
             assigneeId: ownerId ?? undefined,
-        });
+            deadline: values.deadline,
+        }, values.pendingImage);
         if (ok) {
             setDrawerOpen(false);
             setActiveCard(null);
@@ -111,7 +123,10 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
             title: values.title,
             description: trimmedDescription.length > 0 ? trimmedDescription : null,
             priority: values.priority,
-        });
+            // EditTaskCardRequest is a full replace on the backend — a null deadline in the
+            // request clears the stored one, so the current value must always be echoed back.
+            deadline: values.deadline,
+        }, { pendingImage: values.pendingImage, removeImage: values.removeImage });
         if (ok) {
             setDrawerOpen(false);
             setActiveCard(null);
@@ -177,6 +192,7 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
                     onAddClick={(): void => handleAddClick(status)}
                     mutatingCardId={priorityMutatingId}
                     getDragHandlers={getDragHandlers}
+                    today={today}
                 />
             ))}
             <TaskCardDrawer

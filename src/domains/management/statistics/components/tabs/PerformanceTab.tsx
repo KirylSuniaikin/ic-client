@@ -5,7 +5,7 @@ import {DateRangeStatsCard} from "../performance/DateRangeStatsCard";
 import {RetentionCheckCard} from "../performance/RetentionCheckCard";
 import {GlobalStatsCard} from "../performance/GlobalStatsCard";
 import {countPercentage} from "../performance/statsFormat";
-import type {DateRangeState, SellsByHourStat, StatsResponse} from "../../types";
+import type {SellsByHourStat, StatsResponse} from "../../types";
 
 // Decodes the raw customer counts into the labeled two-column shape the card renders.
 function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
@@ -36,9 +36,7 @@ type Props = {
     globalStats: StatsResponse | null;
     retentionStats: StatsResponse | null;
     sellStats: SellsByHourStat[];
-    dateRange: DateRangeState[];
     selectedDate: Date;
-    onRangeChange: (range: DateRangeState[]) => void;
     onSelectedDateChange: (date: Date) => void;
     onRefresh: () => void;
 };
@@ -48,9 +46,7 @@ export function PerformanceTab({
                                    globalStats,
                                    retentionStats,
                                    sellStats,
-                                   dateRange,
                                    selectedDate,
-                                   onRangeChange,
                                    onSelectedDateChange,
                                    onRefresh,
                                }: Props): JSX.Element {
@@ -63,10 +59,7 @@ export function PerformanceTab({
 
             <DateRangeStatsCard
                 stats={rangeStats}
-                dateRange={dateRange}
                 sellStats={sellStats}
-                onRangeChange={onRangeChange}
-                onRefresh={onRefresh}
             />
 
             <Grid container spacing={2} sx={{mb: 2}}>

@@ -37,3 +37,7 @@ export enum StaffRoles {
 export function hasCityAccess(role: StaffRoles | null): boolean {
     return role === StaffRoles.SUPER_MANAGER || role === StaffRoles.OWNER;
 }
+
+export function isManagerRole(role: StaffRoles | null): boolean {
+    return role === StaffRoles.SUPER_MANAGER || role === StaffRoles.OWNER || role === StaffRoles.MANAGER;
+}
