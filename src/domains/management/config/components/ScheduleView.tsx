@@ -1,22 +1,12 @@
 import React, { useState } from "react";
 import { Box, Typography, CircularProgress, IconButton } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { StaffRoles } from "../../../auth/types";
-import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
-import { useBranchSelection } from "../../_shared/hooks/useBranchSelection";
 import { useSchedule } from "../hooks/useSchedule";
 import EditScheduleDialog from "./EditScheduleDialog";
 import { toDisplayClosing } from "../../../schedule/utils/getClosingTime";
 
-interface SelectedBranch {
-    id: string;
-    name?: string;
-    [key: string]: unknown;
-}
-
 interface ScheduleViewProps {
-    selectedBranch: SelectedBranch;
-    role: StaffRoles | null;
+    branchId: string;
 }
 
 const DAYS = [
@@ -33,33 +23,16 @@ function formatShift(start: string, end: string): string {
     return `${start} - ${toDisplayClosing(end)}`;
 }
 
-export default function ScheduleView({ selectedBranch, role }: ScheduleViewProps): JSX.Element {
-    // useBranchSelection is always called (hooks must not be conditional).
-    // The result is only used when role === SUPER_MANAGER.
-    const { branches, selectedBranch: smBranch, onBranchChange } = useBranchSelection();
+export default function ScheduleView({ branchId }: ScheduleViewProps): JSX.Element {
+    // The branch selector lives on the Menu tab (ConfigComponent's ManagementTopBar slot);
+    // this view just reads whatever branch is currently scoped there so both tabs agree.
     const [editOpen, setEditOpen] = useState(false);
 
-    // SUPER_MANAGER gets a branch picker; MANAGER uses the branch prop directly.
-    const activeBranchId =
-        role === StaffRoles.SUPER_MANAGER && smBranch != null
-            ? String(smBranch.id)
-            : selectedBranch.id;
-
-    const scheduleHook = useSchedule(activeBranchId);
+    const scheduleHook = useSchedule(branchId);
     const { schedule, loading, error } = scheduleHook;
 
     return (
         <Box>
-            {role === StaffRoles.SUPER_MANAGER && branches.length > 0 && smBranch != null && (
-                <Box sx={{ mb: 2 }}>
-                    <BranchSelectorComponent
-                        branches={branches}
-                        selectedBranch={smBranch}
-                        onBranchChange={onBranchChange}
-                    />
-                </Box>
-            )}
-
             <Box
                 sx={{
                     backgroundColor: "#fff",

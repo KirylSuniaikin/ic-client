@@ -14,6 +14,8 @@ import InventoryPopup from "./InventoryPopup";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import {useIncrementalList} from "../../../../shared/hooks/useIncrementalList";
 import {InfiniteScrollSentinel} from "../../../../shared/components/InfiniteScrollSentinel";
+import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
+import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 
 type Props = {
     isOpen: boolean;
@@ -23,6 +25,7 @@ type Props = {
 };
 
 export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
+    const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(branch);
     const [reports, setReports] = useState<IManagementResponse[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
@@ -36,7 +39,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
 
     // The endpoint already returns newest first, so the first page IS the latest reports.
     const {visible: visibleReports, hasMore, sentinelRef} = useIncrementalList(reports, {
-        resetKey: branch.id.toString(),
+        resetKey: scopedBranch.id.toString(),
     });
 
     function handleCreateReportClick() {
@@ -67,7 +70,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
             setError(null);
             try {
                 const [baseManagementResponse] = await Promise.all([
-                    getReports({ branchId: branch.id.toString(), reportType: 'INVENTORY' }),
+                    getReports({ branchId: scopedBranch.id.toString(), reportType: 'INVENTORY' }),
                 ]);
                 if (alive) {
                     setReports(baseManagementResponse);
@@ -82,7 +85,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
         return () => {
             alive = false;
         };
-    }, [branch]);
+    }, [scopedBranch]);
 
 
     return (
@@ -98,6 +101,13 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
                 <ManagementTopBar
                     title="Inventory"
                     onBack={onClose}
+                    branchSelector={canSwitch ? (
+                        <BranchSelectorComponent
+                            branches={branches}
+                            selectedBranch={scopedBranch}
+                            onBranchChange={setScopedBranch}
+                        />
+                    ) : undefined}
                     actions={
                         <Button
                             variant="contained"
@@ -147,7 +157,7 @@ export default function ManagementPage({isOpen, onClose, branch, user}: Props) {
                     open={inventoryPopup.open}
                     mode={inventoryPopup.mode}
                     reportId={inventoryPopup.reportId}
-                    branch={branch}
+                    branch={scopedBranch}
                     author={user}
                     onClose={handleCloseInventoryPopup}
                     onSaved={(report) => {

@@ -51,6 +51,8 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
         assigneeId: 7,
         createdAt: "2026-08-12T10:00:00",
         updatedAt: "2026-08-12T10:00:00",
+        deadline: null,
+        hasImage: false,
         ...overrides,
     };
 }

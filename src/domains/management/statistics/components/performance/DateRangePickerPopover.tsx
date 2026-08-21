@@ -7,6 +7,8 @@ import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import type {DateRangeState} from "../../types";
 
+const BRAND = "#E44B4C";
+
 type CommonProps = {
     id?: string;
     open: boolean;
@@ -40,6 +42,7 @@ export function DateRangePickerPopover(props: Props): JSX.Element {
             anchorEl={anchorEl}
             onClose={onClose}
             anchorOrigin={{vertical: "bottom", horizontal: "left"}}
+            slotProps={{paper: {sx: {borderRadius: 3, mt: 0.5, boxShadow: 6}}}}
         >
             <Box sx={{p: 2}}>
                 {props.mode === "range" ? (
@@ -50,6 +53,9 @@ export function DateRangePickerPopover(props: Props): JSX.Element {
                         moveRangeOnFirstSelection={false}
                         ranges={props.range}
                         locale={enUS}
+                        // The library ships a blue selection; brand red keeps the calendar in the
+                        // same visual system as the rest of the management surface.
+                        rangeColors={[BRAND]}
                     />
                 ) : (
                     <input
@@ -59,7 +65,21 @@ export function DateRangePickerPopover(props: Props): JSX.Element {
                         style={{padding: "8px", fontSize: "16px", width: "100%"}}
                     />
                 )}
-                <Button variant="contained" fullWidth onClick={onApply} sx={{mt: 2}}>
+                <Button
+                    variant="contained"
+                    fullWidth
+                    disableElevation
+                    onClick={onApply}
+                    sx={{
+                        mt: 2,
+                        borderRadius: "9999px",
+                        textTransform: "none",
+                        fontWeight: 700,
+                        py: 1.1,
+                        backgroundColor: BRAND,
+                        "&:hover": {backgroundColor: "#c73c3d"},
+                    }}
+                >
                     {applyLabel}
                 </Button>
             </Box>

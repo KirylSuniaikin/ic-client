@@ -1,57 +1,26 @@
-import React, {useState} from "react";
-import {Box, Button, Card, CardContent, Grid, Typography} from "@mui/material";
+import React from "react";
+import {Box, Card, CardContent, Grid, Typography} from "@mui/material";
 import {PlatformsStatisticsGrid} from "./PlatformsStatisticsGrid";
 import {TopProductsTable} from "../TopProductsTable";
 import {RevenueByHourTable} from "../RevenueByHourTable";
-import {DateRangePickerPopover} from "./DateRangePickerPopover";
 import {StatEmptyState, StatSkeleton} from "./statPlaceholders";
-import {formatStatDate, formatStatRange} from "./statsFormat";
-import {useStatsLayout} from "../../hooks/useStatsLayout";
-import type {DateRangeState, SellsByHourStat, StatsResponse} from "../../types";
+import {formatStatRange} from "./statsFormat";
+import type {SellsByHourStat, StatsResponse} from "../../types";
 
 type Props = {
     stats: StatsResponse | null;
-    dateRange: DateRangeState[];
     sellStats: SellsByHourStat[];
-    onRangeChange: (range: DateRangeState[]) => void;
-    onRefresh: () => void;
 };
 
-export function DateRangeStatsCard({stats, dateRange, sellStats, onRangeChange, onRefresh}: Props): JSX.Element {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-    const layout = useStatsLayout();
-    const isMobile = layout === "mobile";
-    const open = Boolean(anchorEl);
-
+// The date-range picker button + popover moved up into StatisticsComponent's sticky
+// filter row (MULTIBRANCH_SPEC.md Part 4) -- this card keeps only its stats rendering.
+export function DateRangeStatsCard({stats, sellStats}: Props): JSX.Element {
     return (
         <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
             <CardContent>
                 <Box sx={{mb: 2, flexWrap: "wrap", gap: 1}}>
                     <Typography variant="h6">📆 <b>Stats by Date Range</b></Typography>
-                    <Box sx={{mt: 1}}/>
-                    <Button
-                        variant="outlined"
-                        fullWidth={isMobile}
-                        onClick={(e) => setAnchorEl(e.currentTarget)}
-                    >
-                        {formatStatDate(dateRange[0].startDate)} — {formatStatDate(dateRange[0].endDate)}
-                    </Button>
                 </Box>
-
-                <DateRangePickerPopover
-                    mode="range"
-                    id="date-range-popover"
-                    open={open}
-                    anchorEl={anchorEl}
-                    onClose={() => setAnchorEl(null)}
-                    range={dateRange}
-                    onRangeChange={onRangeChange}
-                    applyLabel="🔁 Refresh"
-                    onApply={() => {
-                        onRefresh();
-                        setAnchorEl(null);
-                    }}
-                />
 
                 {stats == null ? (
                     <StatSkeleton lines={4}/>

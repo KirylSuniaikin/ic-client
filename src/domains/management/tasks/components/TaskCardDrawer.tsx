@@ -1,11 +1,24 @@
+// Assumed: neither the "Photo" caption above TaskCardImageField nor the exact placement of the
+// read-only deadline line / photo thumbnail in view mode is pixel-specified in task-spec.md §7 —
+// the caption mirrors the existing "Priority" caption, and the view-mode block is placed directly
+// under the title header, ahead of the description, matching the create/edit field order.
 import React, { useEffect, useState } from "react";
 import { Box, Button, Dialog, Drawer, IconButton, TextField, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs from "dayjs";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import type { TaskCard, TaskCardPriority } from "../types";
 import { TASK_CARD_PRIORITY_COLORS, TASK_DESCRIPTION_MAX_LENGTH, TASK_TITLE_MAX_LENGTH } from "../types";
+import { TaskCardImageField } from "./TaskCardImageField";
+import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
+import { EntityPhotoViewer } from "../../../../shared/components/EntityPhotoViewer";
+import { useAuthImageUrl } from "../../../../shared/hooks/useAuthImageUrl";
+import { fetchTaskCardImage } from "../../../../shared/api/management";
 
 export type TaskCardDrawerMode = "view" | "create" | "edit";
 
@@ -13,6 +26,9 @@ export interface TaskCardFormValues {
     title: string;
     description: string;
     priority: TaskCardPriority;
+    deadline: string | null; // ISO YYYY-MM-DD
+    pendingImage: Blob | null;
+    removeImage: boolean;
 }
 
 export interface TaskCardDrawerProps {
@@ -27,7 +43,14 @@ export interface TaskCardDrawerProps {
     onEdit: (cardId: number, values: TaskCardFormValues) => void;
 }
 
-const EMPTY_FORM_VALUES: TaskCardFormValues = { title: "", description: "", priority: "GREEN" };
+const EMPTY_FORM_VALUES: TaskCardFormValues = {
+    title: "",
+    description: "",
+    priority: "GREEN",
+    deadline: null,
+    pendingImage: null,
+    removeImage: false,
+};
 
 const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
     { value: "GREEN", label: "Green" },
@@ -38,10 +61,18 @@ const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
 const ACCENT = "#E44B4C";
 
 const ROUNDED_FIELD = {
-    "& .MuiOutlinedInput-root": {
+    // Two root selectors, not one: from v7 the pickers render their own accessible field DOM, so a
+    // DatePicker's shell is .MuiPickersOutlinedInput-root and a TextField's is
+    // .MuiOutlinedInput-root. Styling only the latter leaves the deadline field square and
+    // transparent next to the rounded cream ones — silently, since neither selector errors when it
+    // matches nothing. Both outlines are still <fieldset> elements, so the nested rules are shared.
+    "& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root": {
         borderRadius: "12px",
         backgroundColor: "#fbfaf6",
-        "& fieldset": { borderColor: "rgba(15,23,42,0.12)" },
+        // The corner is drawn by the outline <fieldset>, which only inherits the root's radius.
+        // The picker's own root rule sets 4px, so state it on the fieldset too rather than let the
+        // rounding hang on which of two competing declarations wins the cascade.
+        "& fieldset": { borderRadius: "12px", borderColor: "rgba(15,23,42,0.12)" },
         "&:hover fieldset": { borderColor: "rgba(15,23,42,0.24)" },
         "&.Mui-focused fieldset": { borderColor: ACCENT, borderWidth: 1 },
     },
@@ -50,7 +81,49 @@ const ROUNDED_FIELD = {
 
 function seedValues(mode: TaskCardDrawerMode, card: TaskCard | null): TaskCardFormValues {
     if (mode === "create" || !card) return EMPTY_FORM_VALUES;
-    return { title: card.title, description: card.description ?? "", priority: card.priority };
+    return {
+        title: card.title,
+        description: card.description ?? "",
+        priority: card.priority,
+        deadline: card.deadline,
+        // Always reset on (re)open — a brand-new blob/removal flag never survives a re-seed.
+        pendingImage: null,
+        removeImage: false,
+    };
+}
+
+/**
+ * Read-only photo shown in view mode. Fetches once (via the shared authenticated-image hook) and
+ * opens the existing full-size viewer on click — no capture/remove affordance here, those only
+ * exist in the create/edit form via TaskCardImageField.
+ */
+function ViewModePhoto({ taskCardId }: { taskCardId: number }): JSX.Element | null {
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const { url } = useAuthImageUrl(true, null, taskCardId, fetchTaskCardImage);
+
+    if (!url) return null;
+
+    return (
+        <>
+            <Box
+                component="img"
+                src={url}
+                alt="Task photo"
+                data-testid={`task-image-view-${taskCardId}`}
+                onClick={(): void => setViewerOpen(true)}
+                sx={{ width: "100%", height: 160, objectFit: "cover", borderRadius: "12px", mb: 2, cursor: "pointer" }}
+            />
+            <EntityPhotoViewer
+                open={viewerOpen}
+                onClose={(): void => setViewerOpen(false)}
+                blob={null}
+                serverId={taskCardId}
+                fetchImage={fetchTaskCardImage}
+                title="Task photo"
+                testIdPrefix="task-image"
+            />
+        </>
+    );
 }
 
 export default function TaskCardDrawer({
@@ -87,6 +160,9 @@ export default function TaskCardDrawer({
             title: trimmedTitle,
             description: values.description.trim(),
             priority: values.priority,
+            deadline: values.deadline,
+            pendingImage: values.pendingImage,
+            removeImage: values.removeImage,
         };
         if (mode === "create") {
             onCreate(submitValues);
@@ -139,6 +215,15 @@ export default function TaskCardDrawer({
                             <CloseIcon fontSize="small" />
                         </IconButton>
                     </Box>
+
+                    {card.deadline && (
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1.5, color: "text.secondary" }}>
+                            <AccessTimeIcon fontSize="small" />
+                            <Typography variant="body2">{dayjs(card.deadline).format("DD.MM.YYYY")}</Typography>
+                        </Box>
+                    )}
+
+                    {card.hasImage && <ViewModePhoto taskCardId={card.id} />}
 
                     <Box
                         sx={{
@@ -229,6 +314,39 @@ export default function TaskCardDrawer({
                         inputProps={{ maxLength: TASK_DESCRIPTION_MAX_LENGTH }}
                         sx={{ mb: 2.5, ...ROUNDED_FIELD }}
                     />
+                    {/* No global LocalizationProvider exists in app/providers.tsx — the field wraps
+                        its own, copying purchases/components/PurchaseInvoiceGroup.tsx:160-173. */}
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                            reduceAnimations
+                            format="DD.MM.YYYY"
+                            value={values.deadline ? dayjs(values.deadline) : null}
+                            onChange={(val): void => setValues(prev => ({
+                                ...prev,
+                                deadline: val ? val.startOf("day").format("YYYY-MM-DD") : null,
+                            }))}
+                            slotProps={{
+                                textField: { label: "Deadline", fullWidth: true, sx: { mb: 2, ...ROUNDED_FIELD } },
+                                field: { clearable: true },
+                            }}
+                        />
+                    </LocalizationProvider>
+                    <Typography
+                        variant="caption"
+                        sx={{ display: "block", mb: 1, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}
+                    >
+                        Photo
+                    </Typography>
+                    <Box sx={{ mb: 2.5 }}>
+                        <TaskCardImageField
+                            rowKey={card ? String(card.id) : "new"}
+                            serverId={card?.id ?? null}
+                            hasImage={card?.hasImage ?? false}
+                            pendingImage={values.pendingImage}
+                            removeImage={values.removeImage}
+                            onChange={(patch: PhotoPatch): void => setValues(prev => ({ ...prev, ...patch }))}
+                        />
+                    </Box>
                     <Typography
                         variant="caption"
                         sx={{ display: "block", mb: 1, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}

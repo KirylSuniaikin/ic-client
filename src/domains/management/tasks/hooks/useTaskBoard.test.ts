@@ -7,6 +7,8 @@ import {
     changeTaskCardPriority,
     deleteTaskCard,
     moveTaskCard,
+    uploadTaskCardImage,
+    deleteTaskCardImage,
 } from "../../../../shared/api/management";
 import type { TaskCard } from "../types";
 import { useTaskBoard } from "./useTaskBoard";
@@ -20,6 +22,8 @@ const mockEditTaskCard = jest.mocked(editTaskCard);
 const mockChangeTaskCardPriority = jest.mocked(changeTaskCardPriority);
 const mockDeleteTaskCard = jest.mocked(deleteTaskCard);
 const mockMoveTaskCard = jest.mocked(moveTaskCard);
+const mockUploadTaskCardImage = jest.mocked(uploadTaskCardImage);
+const mockDeleteTaskCardImage = jest.mocked(deleteTaskCardImage);
 
 function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
     return {
@@ -32,6 +36,8 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
         assigneeId: 7,
         createdAt: "2026-08-12T10:00:00",
         updatedAt: "2026-08-12T10:00:00",
+        deadline: null,
+        hasImage: false,
         ...overrides,
     };
 }
@@ -120,10 +126,10 @@ describe("useTaskBoard", () => {
 
         let created = false;
         await act(async () => {
-            created = await result.current.createCard({ title: "New task", description: null });
+            created = await result.current.createCard({ title: "New task", description: null, deadline: null });
         });
 
-        expect(mockCreateTaskCard).toHaveBeenCalledWith({ title: "New task", description: null });
+        expect(mockCreateTaskCard).toHaveBeenCalledWith({ title: "New task", description: null, deadline: null });
         expect(created).toBe(true);
         expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
     });
@@ -142,7 +148,7 @@ describe("useTaskBoard", () => {
 
         let created = true;
         await act(async () => {
-            created = await result.current.createCard({ title: "New task", description: null });
+            created = await result.current.createCard({ title: "New task", description: null, deadline: null });
         });
 
         expect(created).toBe(false);
@@ -162,7 +168,7 @@ describe("useTaskBoard", () => {
 
         mockFetchTaskBoard.mockClear();
 
-        const payload = { title: "Edited", description: "d", priority: "RED" as const };
+        const payload = { title: "Edited", description: "d", priority: "RED" as const, deadline: null };
         let ok = false;
         await act(async () => {
             ok = await result.current.editCard(5, payload);
@@ -187,12 +193,136 @@ describe("useTaskBoard", () => {
 
         let ok = true;
         await act(async () => {
-            ok = await result.current.editCard(5, { title: "x", description: null, priority: "GREEN" });
+            ok = await result.current.editCard(5, { title: "x", description: null, priority: "GREEN", deadline: null });
         });
 
         expect(ok).toBe(false);
         expect(result.current.error).toBe("HTTP 404");
         expect(mockFetchTaskBoard).not.toHaveBeenCalled();
+    });
+
+    describe("photo sync", () => {
+        it("createCard uploads the pending photo against the id the create response returned", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+            mockUploadTaskCardImage.mockResolvedValue({ taskCardId: 42, contentType: "image/jpeg", sizeBytes: 10 });
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const blob = new Blob(["x"], { type: "image/jpeg" });
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard({ title: "New task", description: null, deadline: null }, blob);
+            });
+
+            expect(mockUploadTaskCardImage).toHaveBeenCalledWith(42, blob);
+            expect(ok).toBe(true);
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
+
+        it("a rejected photo upload after createCard does not turn a successful save into a failure", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+            mockUploadTaskCardImage.mockRejectedValue(new Error("HTTP 500"));
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const blob = new Blob(["x"], { type: "image/jpeg" });
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard({ title: "New task", description: null, deadline: null }, blob);
+            });
+
+            expect(ok).toBe(true);
+            expect(result.current.error).toBe("Task saved, but the photo could not be uploaded.");
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
+
+        it("editCard uploads a new pending photo", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockEditTaskCard.mockResolvedValue(makeCard({ id: 5 }));
+            mockUploadTaskCardImage.mockResolvedValue({ taskCardId: 5, contentType: "image/jpeg", sizeBytes: 10 });
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const blob = new Blob(["x"], { type: "image/jpeg" });
+            const payload = { title: "Edited", description: "d", priority: "RED" as const, deadline: null };
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.editCard(5, payload, { pendingImage: blob, removeImage: false });
+            });
+
+            expect(mockUploadTaskCardImage).toHaveBeenCalledWith(5, blob);
+            expect(mockDeleteTaskCardImage).not.toHaveBeenCalled();
+            expect(ok).toBe(true);
+        });
+
+        it("editCard deletes the stored photo when removeImage is set and the card currently has one", async () => {
+            const cards = [makeCard({ id: 5, hasImage: true })];
+            mockFetchTaskBoard.mockResolvedValue(cards);
+            mockEditTaskCard.mockResolvedValue(makeCard({ id: 5 }));
+            mockDeleteTaskCardImage.mockResolvedValue(undefined);
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const payload = { title: "Edited", description: "d", priority: "RED" as const, deadline: null };
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.editCard(5, payload, { pendingImage: null, removeImage: true });
+            });
+
+            expect(mockDeleteTaskCardImage).toHaveBeenCalledWith(5);
+            expect(mockUploadTaskCardImage).not.toHaveBeenCalled();
+            expect(ok).toBe(true);
+        });
+
+        it("editCard does not call deleteTaskCardImage when removeImage is set but the card has no stored photo", async () => {
+            const cards = [makeCard({ id: 5, hasImage: false })];
+            mockFetchTaskBoard.mockResolvedValue(cards);
+            mockEditTaskCard.mockResolvedValue(makeCard({ id: 5 }));
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const payload = { title: "Edited", description: "d", priority: "RED" as const, deadline: null };
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.editCard(5, payload, { pendingImage: null, removeImage: true });
+            });
+
+            expect(mockDeleteTaskCardImage).not.toHaveBeenCalled();
+            expect(ok).toBe(true);
+        });
+
+        it("a rejected photo delete during editCard does not turn a successful save into a failure", async () => {
+            const cards = [makeCard({ id: 5, hasImage: true })];
+            mockFetchTaskBoard.mockResolvedValue(cards);
+            mockEditTaskCard.mockResolvedValue(makeCard({ id: 5 }));
+            mockDeleteTaskCardImage.mockRejectedValue(new Error("HTTP 500"));
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const payload = { title: "Edited", description: "d", priority: "RED" as const, deadline: null };
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.editCard(5, payload, { pendingImage: null, removeImage: true });
+            });
+
+            expect(ok).toBe(true);
+            expect(result.current.error).toBe("Task saved, but the photo could not be updated.");
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
     });
 
     it("changePriority calls changeTaskCardPriority with the right args and refetches on success", async () => {

@@ -32,7 +32,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import TwoWheelerOutlinedIcon from '@mui/icons-material/TwoWheelerOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
-import {StaffRoles} from "../../../auth/types";
+import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import type { StaffRoles as StaffRolesType } from '../../../auth/types';
 import type { WorkloadLevel } from '../../../order/types';
@@ -254,7 +254,7 @@ export default function AdminTopbar({
 
             <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
 
-                {role === StaffRoles.SUPER_MANAGER && (
+                {hasCityAccess(role) && (
                     <BranchSelectorComponent
                         branches={branches}
                         onBranchChange={onBranchChange}

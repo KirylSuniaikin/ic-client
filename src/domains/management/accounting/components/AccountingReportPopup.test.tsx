@@ -135,7 +135,7 @@ const findTable = () => waitFor(() => expect(table()).toBeTruthy(), { timeout: 1
 
 beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAuth.mockReturnValue({ role: StaffRoles.SUPER_MANAGER, username: "amal" });
+    mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, username: "amal" });
     mockGetCategories.mockResolvedValue(CATEGORIES);
     mockGetReport.mockResolvedValue(report());
 });
@@ -194,7 +194,7 @@ describe("AccountingReportPopup", () => {
     });
 
     describe("role-based columns", () => {
-        it("shows the running-balance column for SUPER_MANAGER", async () => {
+        it("shows the running-balance column for OWNER", async () => {
             renderPopup();
             await findTable();
 
@@ -211,13 +211,22 @@ describe("AccountingReportPopup", () => {
 
             expect(screen.queryByText("Balance")).toBeNull();
         });
+
+        it("hides the running-balance column for SUPER_MANAGER", async () => {
+            mockUseAuth.mockReturnValue({ role: StaffRoles.SUPER_MANAGER, username: "amal" });
+            renderPopup();
+            await findTable();
+
+            expect(screen.queryByText("Balance")).toBeNull();
+        });
     });
 
     // The delete-button column has no visible heading, so it is easy to add body
     // cells without a matching header and skew every column below it.
     describe("column alignment", () => {
         it.each([
-            [StaffRoles.SUPER_MANAGER, 10],
+            [StaffRoles.OWNER, 10],
+            [StaffRoles.SUPER_MANAGER, 9],
             [StaffRoles.MANAGER, 9],
         ])("head and body agree for %s", async (role, expected) => {
             mockUseAuth.mockReturnValue({ role, username: "amal" });

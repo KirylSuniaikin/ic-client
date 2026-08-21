@@ -37,8 +37,6 @@ const baseStats: StatsResponse = {
     averagePrepTimeSeconds: 300,
 };
 
-const dateRange = [{startDate: new Date(2026, 6, 10), endDate: new Date(2026, 6, 10), key: "selection"}];
-
 describe("DateRangeStatsCard", () => {
     it("renders a single date in the trend caption when the previous period is one day", () => {
         const stats: StatsResponse = {
@@ -60,10 +58,7 @@ describe("DateRangeStatsCard", () => {
         render(
             <DateRangeStatsCard
                 stats={stats}
-                dateRange={dateRange}
                 sellStats={[]}
-                onRangeChange={jest.fn()}
-                onRefresh={jest.fn()}
             />
         );
 
@@ -90,10 +85,7 @@ describe("DateRangeStatsCard", () => {
         render(
             <DateRangeStatsCard
                 stats={stats}
-                dateRange={dateRange}
                 sellStats={[]}
-                onRangeChange={jest.fn()}
-                onRefresh={jest.fn()}
             />
         );
 

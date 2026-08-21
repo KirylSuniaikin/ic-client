@@ -122,7 +122,7 @@ export function AuthPage() {
                             color="#1A1A24"
                             sx={{ mb: 1, fontSize: { xs: '2rem', md: '2.5rem' } }}
                         >
-                            Hello,<br/>Welcome back
+                            Blyat’, <br/>Zdarovo Nahui
                         </Typography>
 
                         <Typography variant="body1" color="textSecondary" sx={{ mb: 4 }}>

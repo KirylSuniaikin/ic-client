@@ -1,26 +1,12 @@
 import * as React from "react";
 import { AppBar, Box, IconButton, Toolbar, Typography } from "@mui/material";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
-import { BranchSelectorComponent } from "./BranchSelectorComponent";
-import { useBranchSelection } from "../hooks/useBranchSelection";
 
 interface ManagementTopBarProps {
     title: string;
     onBack?: () => void;
     actions?: React.ReactNode;
-    branchSelector?: boolean;
-}
-
-function BranchSelectorConnected(): React.JSX.Element | null {
-    const { branches, selectedBranch, onBranchChange } = useBranchSelection();
-    if (!selectedBranch) return null;
-    return (
-        <BranchSelectorComponent
-            branches={branches}
-            selectedBranch={selectedBranch}
-            onBranchChange={onBranchChange}
-        />
-    );
+    branchSelector?: React.ReactNode;
 }
 
 export function ManagementTopBar({ title, onBack, actions, branchSelector }: ManagementTopBarProps): React.JSX.Element {
@@ -44,7 +30,7 @@ export function ManagementTopBar({ title, onBack, actions, branchSelector }: Man
 
                 <Box flex={1} />
 
-                {branchSelector && <BranchSelectorConnected />}
+                {branchSelector}
                 {actions}
             </Toolbar>
         </AppBar>

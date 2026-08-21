@@ -30,10 +30,6 @@ function mockHistoryComponent(): JSX.Element {
     return <div data-testid="history-component" />;
 }
 
-function mockPizzaLoader(): JSX.Element {
-    return <div data-testid="pizza-loader" />;
-}
-
 // Stub AdminSurfaceTabs so tab switching can be driven without depending on
 // ToggleButtonGroup internals (the real component already has its own dedicated
 // AdminSurfaceTabs.test.tsx). Echoes activeTab into the DOM for assertions and
@@ -42,7 +38,7 @@ function mockPizzaLoader(): JSX.Element {
 // per the spec, that allowlist check lives inside AdminSurfaceTabs -- so this stub
 // must replicate it, or the role-gating tests below would exercise nothing real.
 function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board") => void }): JSX.Element | null {
-    if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER) return null;
+    if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER && role !== StaffRoles.OWNER) return null;
 
     return (
         <div data-testid="admin-surface-tabs" data-active-tab={activeTab}>
@@ -55,13 +51,14 @@ function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles 
 // Stub TaskBoardScreen (ST6) so tab-switching tests can assert AdminHomePage's own wiring
 // (which component renders for which tab, and what `role` prop TaskBoardScreen receives)
 // without depending on TaskBoardScreen's internals (sidebar fetch/selection state), which
-// already have their own dedicated TaskBoardScreen.test.tsx. Echoes `role` into a nested
-// sidebar-stub element so the SUPER_MANAGER-only-sidebar-visibility rule can be asserted
-// at this composition level too.
+// already have their own dedicated TaskBoardScreen.test.tsx. This stub only proves
+// AdminHomePage passes `role` through to TaskBoardScreen unmodified for every
+// board-eligible role (MANAGER/SUPER_MANAGER/OWNER) — the actual OWNER-only sidebar
+// gating rule lives inside TaskBoardScreen and is covered by TaskBoardScreen.test.tsx.
 function mockTaskBoardScreen({ role }: { role: StaffRoles | null }): JSX.Element {
     return (
         <div data-testid="task-board-panel">
-            {role === StaffRoles.SUPER_MANAGER && <div data-testid="staff-board-sidebar-stub" />}
+            {role === StaffRoles.OWNER && <div data-testid="staff-board-sidebar-stub" />}
         </div>
     );
 }
@@ -81,12 +78,6 @@ jest.mock("../domains/management/orders/hooks/useOrderActions");
 jest.mock("../domains/management/_shared/hooks/useBranchSelection");
 // Factoryless jest.mock() -- resolves to src/services/__mocks__/BluetoothPrinterService.ts
 jest.mock("../services/BluetoothPrinterService");
-// Defensive: PizzaLoader imports lottie-react, which touches a real 2D canvas context at
-// import time, unavailable in jsdom -- see HistoryComponent.test.tsx for the precedent.
-jest.mock("../domains/order-status/components/animations/PizzaLoader", () => ({
-    __esModule: true,
-    default: mockPizzaLoader,
-}));
 jest.mock("../domains/management/orders/components/AdminTopbar", () => ({
     __esModule: true,
     default: mockAdminTopbar,
@@ -265,11 +256,28 @@ describe("AdminHomePage REVIEWER role", () => {
         expect(mockUseAdminOrders).toHaveBeenCalledWith("branch-1", expect.any(Function), false);
     });
 
-    it("calls useAdminOrders with enabled=true when role is MANAGER, a regression guard", () => {
+    // A MANAGER now lands on the board, so the order desk's subscriptions start torn down and are
+    // established on the way to the orders tab. Both directions are asserted: leaving the socket
+    // permanently off would silently stop the order board updating.
+    it("keeps useAdminOrders disabled while a MANAGER is on the board tab", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
-        expect(mockUseAdminOrders).toHaveBeenCalledWith("branch-1", expect.any(Function), true);
+        expect(mockUseAdminOrders).toHaveBeenCalledWith("branch-1", expect.any(Function), false);
         expect(screen.queryByTestId("history-component")).toBeNull();
+    });
+
+    it("enables useAdminOrders once a MANAGER switches to the orders tab", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-orders"));
+
+        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
+    });
+
+    it("keeps useAdminOrders enabled for a non-manager, who has no board to switch to", () => {
+        renderAdminHomePage(StaffRoles.COOK);
+
+        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
     });
 });
 
@@ -302,34 +310,52 @@ describe("AdminHomePage board tab gating", () => {
         expect(screen.queryByTestId("admin-surface-tabs")).toBeNull();
     });
 
-    it("renders AdminSurfaceTabs and the order-desk grid by default for role MANAGER", () => {
+    it("opens on the task board, not the order desk, for role MANAGER", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
         expect(screen.getByTestId("admin-surface-tabs")).toBeTruthy();
-        expect(screen.queryByText("S Dough")).toBeTruthy();
-        expect(screen.queryByTestId("task-board-panel")).toBeNull();
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeNull();
     });
 
-    it("renders AdminSurfaceTabs and the order-desk grid by default for role SUPER_MANAGER", () => {
+    it("opens on the task board, not the order desk, for role SUPER_MANAGER", () => {
         renderAdminHomePage(StaffRoles.SUPER_MANAGER);
 
         expect(screen.getByTestId("admin-surface-tabs")).toBeTruthy();
-        expect(screen.queryByText("S Dough")).toBeTruthy();
-        expect(screen.queryByTestId("task-board-panel")).toBeNull();
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeNull();
     });
 
-    it("switching to the board tab hides the order-desk grid and shows TaskBoardScreen, for role MANAGER", () => {
+    it("opens on the task board, not the order desk, for role OWNER", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
+
+        expect(screen.getByTestId("admin-surface-tabs")).toBeTruthy();
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeNull();
+    });
+
+    it("switches both ways between the board and the order desk, for role MANAGER", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
+
+        // Manager-and-above land on the board; the order desk is one tap away.
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeNull();
+
+        fireEvent.click(screen.getByTestId("admin-tab-orders"));
 
         expect(screen.queryByText("S Dough")).toBeTruthy();
         expect(screen.queryByTestId("task-board-panel")).toBeNull();
 
         fireEvent.click(screen.getByTestId("admin-tab-board"));
 
-        expect(screen.queryByText("S Dough")).toBeNull();
         expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByText("S Dough")).toBeNull();
+    });
 
-        fireEvent.click(screen.getByTestId("admin-tab-orders"));
+    // The other half of the isManagerRole branch: a role with no board access must still land on
+    // the order desk, not on a board it has no tab to leave.
+    it("opens on the order desk for a non-manager role", () => {
+        renderAdminHomePage(StaffRoles.COOK);
 
         expect(screen.queryByText("S Dough")).toBeTruthy();
         expect(screen.queryByTestId("task-board-panel")).toBeNull();
@@ -344,8 +370,17 @@ describe("AdminHomePage board tab gating", () => {
         expect(screen.queryByTestId("staff-board-sidebar-stub")).toBeNull();
     });
 
-    it("switching to the board tab renders TaskBoardScreen with the sidebar stub present, for role SUPER_MANAGER", () => {
+    it("switching to the board tab renders TaskBoardScreen with the sidebar stub absent, for role SUPER_MANAGER", () => {
         renderAdminHomePage(StaffRoles.SUPER_MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-board"));
+
+        expect(screen.getByTestId("task-board-panel")).toBeTruthy();
+        expect(screen.queryByTestId("staff-board-sidebar-stub")).toBeNull();
+    });
+
+    it("switching to the board tab renders TaskBoardScreen with role passed through, for role OWNER", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
 
         fireEvent.click(screen.getByTestId("admin-tab-board"));
 

@@ -2,6 +2,7 @@ import { logger } from "../../../../shared/utils/logger";
 import { useState, useEffect } from "react";
 import { fetchAllBranches, getBranchInfo } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
+import { StaffRoles, hasCityAccess } from "../../../auth/types";
 
 type BranchSelectionResult = {
     branches: IBranch[];
@@ -34,7 +35,7 @@ export type AdminBranchInitResult = {
 
 export function useAdminBranchInit(
     branchId: string | null,
-    role: string | null,
+    role: StaffRoles | null,
 ): AdminBranchInitResult {
     const [availableBranches, setAvailableBranches] = useState<IBranch[] | null>(null);
     const [selectedBranch, setSelectedBranch] = useState<IBranch | null>(null);
@@ -43,7 +44,7 @@ export function useAdminBranchInit(
     useEffect(() => {
         async function initBranches(): Promise<void> {
             try {
-                if (branchId !== 'NONE' && role !== 'SUPER_MANAGER') {
+                if (branchId !== 'NONE' && !hasCityAccess(role)) {
                     const info = await getBranchInfo(branchId ?? '');
                     setAvailableBranches([info]);
                     setSelectedBranch(info);

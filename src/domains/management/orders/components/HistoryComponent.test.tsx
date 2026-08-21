@@ -4,14 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import type { Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
-
-// lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
-// provide (no canvas backend installed) -- stub the whole package so PizzaLoader's
-// unconditional Lottie import does not crash the test environment.
-jest.mock("lottie-react", () => ({
-    __esModule: true,
-    default: (): null => null,
-}));
+import type { IBranch } from "../../inventory/types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../shared/api/public");
@@ -115,11 +108,22 @@ class FakeIntersectionObserver implements IntersectionObserver {
     takeRecords: () => IntersectionObserverEntry[] = () => [];
 }
 
+// No ManagementBranchScopeProvider is mounted here, so useBranchScope falls back to this
+// prop unchanged (see MULTIBRANCH_SPEC.md Part 1) -- a full IBranch is needed since the
+// component's prop type widened from a loose {id} shape to IBranch.
+const testBranch: IBranch = {
+    id: "branch-1",
+    externalId: "ext-1",
+    branchNo: 1,
+    branchName: "Main",
+    locale: "en",
+};
+
 // OrderCard calls useNavigate() unconditionally — wrap every render in a router.
 function renderHistory(): ReturnType<typeof render> {
     return render(
         <MemoryRouter>
-            <HistoryComponent onClose={onClose} selectedBranch={{ id: "branch-1" }} />
+            <HistoryComponent onClose={onClose} selectedBranch={testBranch} />
         </MemoryRouter>
     );
 }
@@ -212,8 +216,9 @@ describe("HistoryComponent", () => {
 
             renderHistory();
 
-            // On the first commit `loading` is true (as in the real hook), so the
-            // component renders <PizzaLoader/> and the sentinel isn't in the DOM yet.
+            // On the first commit `loading` is true (as in the real hook). The sentinel is
+            // mounted — only the list is swapped for the spinner — but the observer effect
+            // early-returns while loading, so nothing is observed yet.
             expect(observeSpy).not.toHaveBeenCalled();
 
             // Simulate the initial page-0 fetch resolving: `loading` flips to false,

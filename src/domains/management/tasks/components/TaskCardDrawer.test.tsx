@@ -1,8 +1,29 @@
-import { jest, describe, it, expect, afterEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TaskCardDrawer from "./TaskCardDrawer";
 import type { TaskCard } from "../types";
+import { fetchTaskCardImage } from "../../../../shared/api/management";
+
+// Only ViewModePhoto (view mode, hasImage: true) reaches this module at all — create/edit mode
+// mounts TaskCardImageField, which does not fetch until its viewer is opened.
+jest.mock("../../../../shared/api/management");
+const mockFetchTaskCardImage = jest.mocked(fetchTaskCardImage);
+
+// jsdom implements neither of these — same stub TaskCardImageField.test.tsx installs, needed here
+// because ViewModePhoto (view mode, hasImage: true) turns the fetched blob into an object URL.
+const originalCreateObjectUrl = (globalThis.URL as any).createObjectURL;
+const originalRevokeObjectUrl = (globalThis.URL as any).revokeObjectURL;
+
+beforeAll(() => {
+    (globalThis.URL as any).createObjectURL = (_blob: Blob): string => "blob:test-1";
+    (globalThis.URL as any).revokeObjectURL = (): void => {};
+});
+
+afterAll(() => {
+    (globalThis.URL as any).createObjectURL = originalCreateObjectUrl;
+    (globalThis.URL as any).revokeObjectURL = originalRevokeObjectUrl;
+});
 
 // jsdom implements no `matchMedia` at all, so MUI's `useMediaQuery` falls back to its
 // `defaultMatches` (false) — i.e. every other test in this file renders the desktop dialog.
@@ -35,6 +56,8 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
         assigneeId: 7,
         createdAt: "2026-08-12T10:00:00",
         updatedAt: "2026-08-12T10:00:00",
+        deadline: null,
+        hasImage: false,
         ...overrides,
     };
 }
@@ -216,7 +239,14 @@ describe("TaskCardDrawer", () => {
         fireEvent.click(screen.getByTestId("task-card-priority-RED"));
         fireEvent.click(screen.getByText("Save"));
 
-        expect(onCreate).toHaveBeenCalledWith({ title: "New task", description: "details", priority: "RED" });
+        expect(onCreate).toHaveBeenCalledWith({
+            title: "New task",
+            description: "details",
+            priority: "RED",
+            deadline: null,
+            pendingImage: null,
+            removeImage: false,
+        });
     });
 
     it("submitting in 'edit' mode calls onEdit(card.id, values)", () => {
@@ -243,6 +273,9 @@ describe("TaskCardDrawer", () => {
             title: "Updated title",
             description: card.description,
             priority: card.priority,
+            deadline: card.deadline,
+            pendingImage: null,
+            removeImage: false,
         });
     });
 
@@ -286,5 +319,227 @@ describe("TaskCardDrawer", () => {
         fireEvent.click(screen.getByText("Delete"));
 
         expect(onRequestDelete).toHaveBeenCalledTimes(1);
+    });
+
+    // MUI X v7's DatePicker field renders a sectioned role="group" widget, not a plain labelled
+    // <input> — the formatted value lives on a hidden aria-hidden <input> that mirrors the
+    // sections, mirroring the pattern PurchaseTablePopup.test.tsx already uses for its DatePickers.
+    function deadlineInputValue(): string {
+        const input = document.querySelector('input[aria-hidden="true"]') as HTMLInputElement | null;
+        return input?.value ?? "";
+    }
+
+    describe("deadline", () => {
+        afterEach(() => {
+            jest.clearAllMocks();
+        });
+
+        // Regression: ROUNDED_FIELD once styled only `.MuiOutlinedInput-root`, but from v7 the
+        // pickers render their own field DOM, so the deadline sat square and transparent beside the
+        // rounded cream Title/Description. A CSS selector that matches nothing throws nothing, so
+        // only asserting the class the styles are actually keyed to can catch a silent regression.
+        it("renders the deadline field with the picker shell ROUNDED_FIELD targets", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            const pickerShell = document.querySelector(".MuiPickersOutlinedInput-root");
+
+            expect(pickerShell).not.toBeNull();
+            expect(pickerShell?.querySelector("fieldset")).not.toBeNull();
+        });
+
+        it("seeds the DatePicker from the card in edit mode and echoes it back on save", () => {
+            const onEdit = jest.fn();
+            const card = makeCard({ deadline: "2026-08-25" });
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="edit"
+                    card={card}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={onEdit}
+                />
+            );
+
+            expect(deadlineInputValue()).toBe("25.08.2026");
+
+            fireEvent.click(screen.getByText("Save"));
+
+            expect(onEdit).toHaveBeenCalledWith(card.id, expect.objectContaining({ deadline: "2026-08-25" }));
+        });
+
+        it("clears the deadline to null via the field's clear control", () => {
+            const onEdit = jest.fn();
+            const card = makeCard({ deadline: "2026-08-25" });
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="edit"
+                    card={card}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={onEdit}
+                />
+            );
+
+            // MUI X's field clear button carries a `title`, not an `aria-label`.
+            fireEvent.click(screen.getByTitle("Clear"));
+            fireEvent.click(screen.getByText("Save"));
+
+            expect(onEdit).toHaveBeenCalledWith(card.id, expect.objectContaining({ deadline: null }));
+        });
+
+        it("seeds an empty DatePicker on create", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(deadlineInputValue()).toBe("");
+        });
+
+        it("shows a read-only deadline line in view mode when the card has one", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard({ deadline: "2026-08-25" })}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(screen.getByText("25.08.2026")).toBeTruthy();
+        });
+
+        it("shows no deadline line in view mode when the card has none", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard({ deadline: null })}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(screen.queryByText(/^\d{2}\.\d{2}\.\d{4}$/)).toBeNull();
+        });
+    });
+
+    describe("photo", () => {
+        afterEach(() => {
+            jest.clearAllMocks();
+        });
+
+        it("shows the photo field in create mode", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(screen.getByLabelText("upload task photo")).toBeTruthy();
+        });
+
+        it("shows the photo field in edit mode, offering a view control when the card already has a photo", () => {
+            mockFetchTaskCardImage.mockResolvedValue(null);
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="edit"
+                    card={makeCard({ hasImage: true })}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(screen.getByLabelText("view task photo")).toBeTruthy();
+        });
+
+        it("view mode fetches and renders a clickable thumbnail when the card has a photo", async () => {
+            mockFetchTaskCardImage.mockResolvedValue(new Blob(["x"], { type: "image/jpeg" }));
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard({ hasImage: true })}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(await screen.findByTestId("task-image-view-1")).toBeTruthy();
+        });
+
+        it("view mode renders no photo when the card has none", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard({ hasImage: false })}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(mockFetchTaskCardImage).not.toHaveBeenCalled();
+            expect(screen.queryByTestId("task-image-view-1")).toBeNull();
+        });
     });
 });

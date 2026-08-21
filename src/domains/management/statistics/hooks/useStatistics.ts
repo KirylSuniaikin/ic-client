@@ -21,7 +21,7 @@ type UseStatistics = {
     refresh: () => Promise<void>;
 };
 
-export function useStatistics(branchId: string): UseStatistics {
+export function useStatistics(branchIds: string[]): UseStatistics {
     const [dateRange, setDateRange] = useState<DateRangeState[]>([
         {startDate: startOfDay(new Date()), endDate: endOfDay(new Date()), key: "selection"},
     ]);
@@ -33,6 +33,10 @@ export function useStatistics(branchId: string): UseStatistics {
     const [sellStats, setSellStats] = useState<SellsByHourStat[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Joined into the SINGLE existing branchId query param -- the backend param is
+    // List<UUID> and Spring binds a comma-joined value (MULTIBRANCH_SPEC.md Part 4).
+    const joinedBranchIds = branchIds.join(",");
+
     // Reads the live date/range/branch from the closure — callers just invoke refresh()
     // with no args (the old loadStats took manual args because its deps were []).
     const refresh = useCallback(async (): Promise<void> => {
@@ -41,7 +45,7 @@ export function useStatistics(branchId: string): UseStatistics {
             const start = format(dateRange[0].startDate, "yyyy-MM-dd");
             const end = format(dateRange[0].endDate, "yyyy-MM-dd");
             const retentionDate = formatInTimeZone(selectedDate, BAHRAIN_TZ, "yyyy-MM-dd");
-            const response = await fetchStatistics(start, end, retentionDate, branchId.toString());
+            const response = await fetchStatistics(start, end, retentionDate, joinedBranchIds);
             setGlobalStats(response);
             setRangeStats(response);
             setRetentionStats(response);
@@ -52,14 +56,16 @@ export function useStatistics(branchId: string): UseStatistics {
         } finally {
             setLoading(false);
         }
-    }, [dateRange, selectedDate, branchId]);
+    }, [dateRange, selectedDate, joinedBranchIds]);
 
-    // Fetch once on mount and whenever the branch changes; subsequent reloads are
-    // user-driven via the Refresh/Upload buttons (POS staff expect explicit reloads).
+    // Fetch once on mount and whenever the branch selection changes; subsequent reloads
+    // are user-driven via the Refresh/Upload buttons (POS staff expect explicit reloads).
+    // Keyed on the joined string, not the raw array, so an equal-content selection
+    // doesn't trigger a spurious refetch on every render.
     useEffect(() => {
         refresh();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [branchId]);
+    }, [joinedBranchIds]);
 
     return {
         loading,

@@ -13,8 +13,8 @@ const mockFetchBoardOwners = jest.mocked(fetchBoardOwners);
 function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
     return {
         id: 12,
-        username: "avery.super",
-        role: StaffRoles.SUPER_MANAGER,
+        username: "avery.owner",
+        role: StaffRoles.OWNER,
         openCardCount: 0,
         ...overrides,
     };
@@ -49,6 +49,28 @@ describe("useBoardOwners", () => {
         expect(mockFetchBoardOwners).toHaveBeenCalledTimes(1);
         expect(result.current.owners).toEqual(owners);
         expect(result.current.error).toBeNull();
+    });
+
+    // Whether `enabled` is true is decided by the caller (TaskBoardScreen's `isOwner` check,
+    // covered in TaskBoardScreen.test.tsx) — the hook itself is role-agnostic. Passing that
+    // gate now means the caller is an OWNER, and the roster it fetches can include a second
+    // OWNER/SUPER_MANAGER account alongside plain MANAGERs.
+    it("returns a roster that may mix OWNER, SUPER_MANAGER and MANAGER entries unfiltered", async () => {
+        const owners = [
+            makeOwner({ id: 12, username: "avery.owner", role: StaffRoles.OWNER }),
+            makeOwner({ id: 3, username: "morgan.owner2", role: StaffRoles.OWNER }),
+            makeOwner({ id: 8, username: "riley.super", role: StaffRoles.SUPER_MANAGER }),
+            makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER }),
+        ];
+        mockFetchBoardOwners.mockResolvedValue(owners);
+
+        const { result } = renderHook(() => useBoardOwners(true));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.owners).toEqual(owners);
     });
 
     it("sets error and leaves owners as [] when fetchBoardOwners rejects", async () => {

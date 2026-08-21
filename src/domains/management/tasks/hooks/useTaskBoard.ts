@@ -8,10 +8,13 @@ import {
     changeTaskCardPriority,
     createTaskCard,
     deleteTaskCard,
+    deleteTaskCardImage,
     editTaskCard,
     fetchTaskBoard,
     moveTaskCard,
+    uploadTaskCardImage,
 } from "../../../../shared/api/management";
+import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
 import { computeReorder } from "../dragOrdering";
 import type {
     ChangeTaskCardPriorityPayload,
@@ -23,6 +26,14 @@ import type {
     TaskCardStatus,
 } from "../types";
 
+// A card's photo is a second request: a brand-new card has no id until POST /tasks returns, and
+// EditTaskCardRequest carries no image field at all. Both photo steps below are wrapped in their
+// own try/catch — the same rule PurchaseTablePopup.syncInvoiceImages and
+// AccountingReportPopup.syncEntryImages follow: a failed photo must never present itself as a
+// failed save, so it is logged and surfaced through the existing `error` snackbar channel without
+// flipping the returned success flag to false.
+const NO_PHOTO_PATCH: PhotoPatch = { pendingImage: null, removeImage: false };
+
 export interface UseTaskBoardResult {
     cards: TaskCard[];
     cardsByStatus: Record<TaskCardStatus, TaskCard[]>;
@@ -30,8 +41,8 @@ export interface UseTaskBoardResult {
     error: string | null;
     mutating: boolean;
     refetch: () => Promise<void>;
-    createCard: (input: CreateTaskCardPayload) => Promise<boolean>;
-    editCard: (id: number, input: EditTaskCardPayload) => Promise<boolean>;
+    createCard: (input: CreateTaskCardPayload, pendingImage?: Blob | null) => Promise<boolean>;
+    editCard: (id: number, input: EditTaskCardPayload, photo?: PhotoPatch) => Promise<boolean>;
     changePriority: (id: number, priority: TaskCardPriority) => Promise<boolean>;
     deleteCard: (id: number) => Promise<boolean>;
     moveCard: (cardId: number, targetStatus: TaskCardStatus, targetIndex: number) => Promise<boolean>;
@@ -92,11 +103,19 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
         }
     };
 
-    const createCard = async (input: CreateTaskCardPayload): Promise<boolean> => {
+    const createCard = async (input: CreateTaskCardPayload, pendingImage: Blob | null = null): Promise<boolean> => {
         setMutating(true);
         setError(null);
         try {
-            await createTaskCard(input);
+            const created = await createTaskCard(input);
+            if (pendingImage) {
+                try {
+                    await uploadTaskCardImage(created.id, pendingImage);
+                } catch (err) {
+                    logger.error("Failed to upload task card photo:", err);
+                    setError("Task saved, but the photo could not be uploaded.");
+                }
+            }
             await refetch();
             return true;
         } catch (err) {
@@ -108,11 +127,24 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
         }
     };
 
-    const editCard = async (id: number, input: EditTaskCardPayload): Promise<boolean> => {
+    const editCard = async (id: number, input: EditTaskCardPayload, photo: PhotoPatch = NO_PHOTO_PATCH): Promise<boolean> => {
         setMutating(true);
         setError(null);
         try {
             await editTaskCard(id, input);
+            try {
+                if (photo.pendingImage) {
+                    await uploadTaskCardImage(id, photo.pendingImage);
+                } else if (photo.removeImage) {
+                    const existing = cards.find(c => c.id === id);
+                    if (existing?.hasImage) {
+                        await deleteTaskCardImage(id);
+                    }
+                }
+            } catch (err) {
+                logger.error("Failed to sync task card photo:", err);
+                setError("Task saved, but the photo could not be updated.");
+            }
             await refetch();
             return true;
         } catch (err) {

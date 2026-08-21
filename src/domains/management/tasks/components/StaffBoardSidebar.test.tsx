@@ -88,6 +88,18 @@ describe("StaffBoardSidebar", () => {
         });
     });
 
+    // StaffBoardSidebar is purely presentational (no role-based gating of its own — that lives
+    // in TaskBoardScreen, which is now OWNER-only), but it renders whatever `role` a non-caller
+    // owner carries as its caption. OWNER parity: the new role value must render like any other.
+    it("shows the role label for a non-caller OWNER row", () => {
+        render(<StaffBoardSidebar {...baseProps({ owners: [
+            makeOwner({ id: 9, username: "riley.super", role: StaffRoles.SUPER_MANAGER }),
+            makeOwner({ id: 2, username: "morgan.owner", role: StaffRoles.OWNER }),
+        ] })} />);
+
+        expect(screen.getByText("owner")).toBeTruthy();
+    });
+
     it("renders one row per owner, in the exact input order", () => {
         render(<StaffBoardSidebar {...baseProps()} />);
 

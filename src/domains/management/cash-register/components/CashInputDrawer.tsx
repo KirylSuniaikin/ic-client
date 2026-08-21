@@ -5,11 +5,12 @@ import {useState} from "react";
 type Props = {
     type: CashUpdateType,
     open: boolean,
+    branchName: string,
     onSubmit: (amount: number, type: CashUpdateType, note: string) => void,
     onClose: () => void,
 }
 
-export default function CashInputDrawer({type, open, onSubmit, onClose}: Props) {
+export default function CashInputDrawer({type, open, branchName, onSubmit, onClose}: Props) {
     const [amountStr, setAmountStr] = useState<string>("");
     const [note, setNote] = useState<string>("");
 
@@ -54,7 +55,7 @@ export default function CashInputDrawer({type, open, onSubmit, onClose}: Props) 
                 <Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2, mx: 'auto', mb: 2 }} />
 
                 <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: 'center' }}>
-                    {type===CashUpdateType.CASH_IN ? "Add Cash": "Cash Out"}
+                    {type===CashUpdateType.CASH_IN ? "Add Cash": "Cash Out"} ({branchName})
                 </Typography>
 
                 <TextField

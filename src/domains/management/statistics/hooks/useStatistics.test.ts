@@ -47,7 +47,7 @@ describe("useStatistics", () => {
     });
 
     it("sends start === finish for a single-day range on mount (default Bahrain-local timezone)", async () => {
-        const {result} = renderHook(() => useStatistics("branch-1"));
+        const {result} = renderHook(() => useStatistics(["branch-1"]));
 
         await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -59,7 +59,7 @@ describe("useStatistics", () => {
     it("sends start === finish for a single-day range even in a negative-offset browser timezone", async () => {
         process.env.TZ = "America/Los_Angeles";
 
-        const {result} = renderHook(() => useStatistics("branch-1"));
+        const {result} = renderHook(() => useStatistics(["branch-1"]));
 
         await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -78,7 +78,7 @@ describe("useStatistics", () => {
     });
 
     it("sends the exact picked calendar days for a multi-day range", async () => {
-        const {result} = renderHook(() => useStatistics("branch-1"));
+        const {result} = renderHook(() => useStatistics(["branch-1"]));
 
         await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -95,5 +95,31 @@ describe("useStatistics", () => {
         });
 
         expect(mockFetchStatistics).toHaveBeenCalledWith("2026-07-04", "2026-07-10", expect.any(String), "branch-1");
+    });
+
+    it("joins multiple selected branch ids into ONE branchId query param", async () => {
+        const {result} = renderHook(() => useStatistics(["branch-1", "branch-2"]));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(mockFetchStatistics).toHaveBeenCalledTimes(1);
+        const [, , , branchId] = mockFetchStatistics.mock.calls[0];
+        expect(branchId).toBe("branch-1,branch-2");
+    });
+
+    it("refetches when the branch id selection changes", async () => {
+        const {result, rerender} = renderHook(
+            ({branchIds}: {branchIds: string[]}) => useStatistics(branchIds),
+            {initialProps: {branchIds: ["branch-1"]}}
+        );
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(mockFetchStatistics).toHaveBeenCalledTimes(1);
+
+        rerender({branchIds: ["branch-1", "branch-2"]});
+
+        await waitFor(() => expect(mockFetchStatistics).toHaveBeenCalledTimes(2));
+        const [, , , branchId] = mockFetchStatistics.mock.calls[1];
+        expect(branchId).toBe("branch-1,branch-2");
     });
 });

@@ -19,25 +19,25 @@ import {
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import AddIcon from "@mui/icons-material/Add";
 import { format } from "date-fns";
-import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
-import { fetchAllBranches, fetchCurrentPrepPlan, generatePrepPlan } from "../../../../shared/api/management";
+import { fetchCurrentPrepPlan, generatePrepPlan } from "../../../../shared/api/management";
 import { formatUnit } from "../../../../shared/utils/unitFormat";
-import type { IBranch } from "../../inventory/types";
 import type { PrepPlanResponse } from "../../prep-plan/types";
 
-type PrepPlanTableProps = { branchId: string };
+type PrepPlanTableProps = { branchIds: string[] };
 
-export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Element {
-    const [branches, setBranches] = useState<IBranch[]>([]);
-    const [selectedBranch, setSelectedBranch] = useState<IBranch | null>(null);
+// Branch selection now lives in StatisticsComponent's shared multi-select scope
+// (MULTIBRANCH_SPEC.md Part 4) — this table just renders whatever ids it's given.
+export default function PrepPlanTable({ branchIds }: PrepPlanTableProps): JSX.Element {
     const [plan, setPlan] = useState<PrepPlanResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
 
-    // Used to discard stale in-flight results when the branch changes
+    // Used to discard stale in-flight results when the branch selection changes
     const currentBranchRef = useRef<string | null>(null);
+
+    const joinedBranchIds = branchIds.join(",");
 
     const roundNum = (num: number) => {
         if(num>=1000) return Math.round(num / 50) * 50;
@@ -45,65 +45,54 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
         return num.toFixed(0);
     }
 
-    const loadPlan = useCallback(async (branch: IBranch): Promise<void> => {
-        const branchId = branch.id;
-        currentBranchRef.current = branchId;
+    // Backend merges rows server-side when more than one branch is joined — never
+    // merge client-side here.
+    const loadPlan = useCallback(async (joinedIds: string): Promise<void> => {
+        currentBranchRef.current = joinedIds;
 
         setLoading(true);
         setError(null);
         try {
-            const result = await fetchCurrentPrepPlan(branchId);
-            // Discard if branch changed while request was in flight
-            if (currentBranchRef.current !== branchId) return;
+            const result = await fetchCurrentPrepPlan(joinedIds);
+            // Discard if the selection changed while the request was in flight
+            if (currentBranchRef.current !== joinedIds) return;
             setPlan(result);
         } catch (err) {
-            if (currentBranchRef.current !== branchId) return;
+            if (currentBranchRef.current !== joinedIds) return;
             setPlan(null);
             setError(err instanceof Error ? err.message : String(err));
         } finally {
-            if (currentBranchRef.current === branchId) {
+            if (currentBranchRef.current === joinedIds) {
                 setLoading(false);
             }
         }
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
+        if (joinedBranchIds === "") return;
+        void loadPlan(joinedBranchIds);
+    }, [joinedBranchIds, loadPlan]);
 
-        async function init(): Promise<void> {
-            try {
-                const allBranches = await fetchAllBranches();
-                if (cancelled) return;
-                setBranches(allBranches);
-                if (allBranches.length === 0) return;
-
-                const matched = allBranches.find((b) => b.id.toString() === branchId) ?? allBranches[0];
-                setSelectedBranch(matched);
-                await loadPlan(matched);
-            } catch (err) {
-                if (cancelled) return;
-                setError(err instanceof Error ? err.message : String(err));
-            }
-        }
-
-        void init();
-        return () => {
-            cancelled = true;
-        };
-    }, [branchId, loadPlan]);
-
-    const handleBranchChange = (newBranch: IBranch): void => {
-        setSelectedBranch(newBranch);
-        void loadPlan(newBranch);
-    };
-
+    // Fans out the existing single-branch generate endpoint once per selected branch
+    // (no new endpoint) with allSettled, so one branch's failure doesn't hide the others'
+    // success — same posture as PurchaseTablePopup's invoice-photo sync.
     const handleGenerate = async (): Promise<void> => {
-        if (!selectedBranch) return;
+        if (branchIds.length === 0) return;
         setGenerating(true);
-        setError(null);
         try {
-            await generatePrepPlan({ branchId: selectedBranch.id });
-            await loadPlan(selectedBranch);
+            const results = await Promise.allSettled(
+                branchIds.map((id) => generatePrepPlan({ branchId: id }))
+            );
+            const failedBranchIds = results
+                .map((result, idx) => (result.status === "rejected" ? branchIds[idx] : null))
+                .filter((id): id is string => id !== null);
+
+            await loadPlan(joinedBranchIds);
+
+            if (failedBranchIds.length > 0) {
+                const label = failedBranchIds.length > 1 ? "branches" : "branch";
+                setError(`Failed to generate plan for ${label}: ${failedBranchIds.join(", ")}`);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -132,13 +121,6 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
                 <Typography variant="subtitle1" fontWeight="bold">
                     Prep Plan
                 </Typography>
-                {branches.length > 0 && selectedBranch !== null && (
-                    <BranchSelectorComponent
-                        branches={branches}
-                        selectedBranch={selectedBranch}
-                        onBranchChange={handleBranchChange}
-                    />
-                )}
             </Box>
 
             {/* Error */}
@@ -156,7 +138,7 @@ export default function PrepPlanTable({ branchId }: PrepPlanTableProps): JSX.Ele
             )}
 
             {/* Empty state — no plan generated */}
-            {!loading && plan === null && error === null && branches.length > 0 && (
+            {!loading && plan === null && error === null && branchIds.length > 0 && (
                 <Box sx={{ textAlign: "center", py: 3 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         No plan generated yet

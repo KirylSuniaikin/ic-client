@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { StaffRoles } from '../../../auth/types';
+import { StaffRoles, hasCityAccess } from '../../../auth/types';
 import type { AdminTabKey } from '../hooks/useAdminUIState';
 
 export interface AdminSurfaceTabsProps {
@@ -10,7 +10,7 @@ export interface AdminSurfaceTabsProps {
 }
 
 export default function AdminSurfaceTabs({ role, activeTab, onChange }: AdminSurfaceTabsProps): JSX.Element | null {
-    if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER) return null;
+    if (role !== StaffRoles.MANAGER && !hasCityAccess(role)) return null;
 
     return (
         // Without an explicit background this strip renders white against the admin's cream page

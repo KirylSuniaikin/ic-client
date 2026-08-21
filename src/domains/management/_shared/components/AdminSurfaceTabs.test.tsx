@@ -46,6 +46,13 @@ describe("AdminSurfaceTabs", () => {
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
         });
+
+        it("renders both tab options for role OWNER", () => {
+            render(<AdminSurfaceTabs role={StaffRoles.OWNER} activeTab="orders" onChange={jest.fn()} />);
+
+            expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
+            expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
+        });
     });
 
     describe("onChange", () => {
