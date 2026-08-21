@@ -99,7 +99,7 @@ export function AssignCourierDialog({
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Chip size="small" label={courier.status} />
                                         <Typography variant="caption" sx={{ color: '#666' }}>
-                                            {courier.currentBranchName ?? 'no branch'}
+                                            {courier.nearestBranchName ?? 'location unknown'}
                                         </Typography>
                                     </Box>
                                 </Box>

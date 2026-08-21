@@ -21,7 +21,7 @@ const mockAssign = jest.mocked(manualAssign);
 
 const COURIER: CourierStats = {
     courierId: "c1", name: "ali", status: "FREE",
-    currentBranchId: "b1", currentBranchName: "Manama",
+    nearestBranchId: "b1", nearestBranchName: "Manama",
     accepted: 5, declined: 2, missed: 1, delivered: 4,
 };
 

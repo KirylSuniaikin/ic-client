@@ -5,8 +5,11 @@ export type CourierStats = {
     courierId: string;
     name: string | null;
     status: string;
-    currentBranchId: string | null;
-    currentBranchName: string | null;
+    // Where the rider is, not what they are assigned to: couriers stopped belonging to a branch
+    // on 2026-08-20, so the server derives the nearest kitchen from their last GPS fix. Null when
+    // that fix is missing or too stale to trust — which is a real state, not a loading gap.
+    nearestBranchId: string | null;
+    nearestBranchName: string | null;
     accepted: number;
     // Actively refused, as opposed to `missed` (never answered). Counted apart because a rider
     // who declines is making a choice and one who goes silent may have a dead phone.

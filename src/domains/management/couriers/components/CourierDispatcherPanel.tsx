@@ -169,7 +169,9 @@ export function CourierDispatcherPanel(): JSX.Element {
                             <TableRow>
                                 <TableCell>Courier</TableCell>
                                 <TableCell>Status</TableCell>
-                                <TableCell>Branch</TableCell>
+                                {/* "Nearest", not "Branch": riders are not assigned to one, this
+                                    is the kitchen closest to their last known position. */}
+                                <TableCell>Nearest</TableCell>
                                 <TableCell align="right">Accepted</TableCell>
                                 {/* Declined and missed are separate columns on purpose — see types.ts. */}
                                 <TableCell align="right">Declined</TableCell>
@@ -187,7 +189,7 @@ export function CourierDispatcherPanel(): JSX.Element {
                                 >
                                     <TableCell>{courier.name ?? courier.courierId}</TableCell>
                                     <TableCell><Chip size="small" label={courier.status} /></TableCell>
-                                    <TableCell>{courier.currentBranchName ?? '—'}</TableCell>
+                                    <TableCell>{courier.nearestBranchName ?? '—'}</TableCell>
                                     <TableCell align="right">{courier.accepted}</TableCell>
                                     <TableCell align="right">{courier.declined}</TableCell>
                                     <TableCell align="right">{courier.missed}</TableCell>
