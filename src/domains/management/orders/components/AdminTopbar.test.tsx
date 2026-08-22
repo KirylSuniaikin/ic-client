@@ -57,9 +57,9 @@ function renderTopbar(role: StaffRoles | null): void {
 }
 
 function openMenu(): void {
-    const icon = screen.getByTestId("MoreHorizIcon");
+    const icon = screen.getByTestId("MenuIcon");
     const button = icon.closest("button");
-    if (!button) throw new Error("MoreHorizIcon is not inside a button");
+    if (!button) throw new Error("MenuIcon is not inside a button");
     fireEvent.click(button);
 }
 
@@ -214,5 +214,23 @@ describe("AdminTopbar — role-based menu items", () => {
         openMenu();
 
         expect(screen.queryByText("Cash Register")).toBeNull();
+    });
+
+    // Regression for the bug Task 5 fixes: the old Popover's overflow:hidden clamped a
+    // MANAGER's ~14-row menu on small screens, so Logout (the last row) was unreachable.
+    // The nav drawer scrolls instead of clipping, so Logout must always be present in the DOM.
+    it("renders Logout, reachable, for a MANAGER's full-length menu (regression: was clipped by the old Popover)", () => {
+        renderTopbar(StaffRoles.MANAGER);
+        openMenu();
+
+        expect(screen.getByText("Logout")).toBeTruthy();
+    });
+
+    it("opens a Drawer, not a Popover, when the … button is clicked (regression: Popover removed)", () => {
+        renderTopbar(StaffRoles.MANAGER);
+        openMenu();
+
+        expect(document.querySelector(".MuiPopover-root")).toBeNull();
+        expect(document.querySelector(".MuiDrawer-root")).not.toBeNull();
     });
 });
