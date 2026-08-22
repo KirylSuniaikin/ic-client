@@ -15,11 +15,13 @@ jest.mock("../../../../services/BluetoothPrinterService");
 import { connectSocket, socket } from "../../../../shared/api/socket";
 import { getBaseAdminInfo, getAllActiveOrders } from "../../../../shared/api/public";
 import { useAdminOrders } from "./useAdminOrders";
+import BluetoothPrinterService from "../../../../services/BluetoothPrinterService";
 
 const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
 const mockGetBaseAdminInfo = jest.mocked(getBaseAdminInfo);
 const mockGetAllActiveOrders = jest.mocked(getAllActiveOrders);
+const mockPrintOrder = jest.mocked(BluetoothPrinterService.printOrder);
 
 // Builds a minimal StompSubscription whose unsubscribe method can be spied on.
 function makeSub(id: string): StompSubscription {
@@ -314,5 +316,81 @@ describe("useAdminOrders — order removal does not silence an unrelated alarm",
         act(() => sendCancelled(8));
 
         expect(stopSound).not.toHaveBeenCalled();
+    });
+});
+
+describe("useAdminOrders — Keeta orders must not auto-print", () => {
+    const stopSound = jest.fn<void, []>();
+    const NEW_ORDER_TOPIC = "/topic/branch-1/orders";
+    const ORDER_UPDATES_TOPIC = "/topic/branch-1/order-updates";
+    let handlers: Record<string, (msg: IMessage) => void>;
+
+    // Minimal Order shape; only id/order_type are read by the auto-print guard.
+    const orderWith = (id: number, orderType: string): Order =>
+        ({ id, order_type: orderType } as unknown as Order);
+
+    const sendFrame = (topic: string, order: Order): void => {
+        handlers[topic]({ body: JSON.stringify(order) } as unknown as IMessage);
+    };
+
+    beforeEach(() => {
+        handlers = {};
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockImplementation((destination: string, cb: (msg: IMessage) => void) => {
+            handlers[destination] = cb;
+            return makeSub(destination);
+        });
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+        mockGetAllActiveOrders.mockResolvedValue([]);
+        // react-scripts' jest config sets resetMocks: true, which wipes the __mocks__
+        // file's default mockResolvedValue before every test — restore it here.
+        mockPrintOrder.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("does not print a Keeta order on the new-order topic", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendFrame(NEW_ORDER_TOPIC, orderWith(1, "Keeta")));
+
+        expect(mockPrintOrder).not.toHaveBeenCalled();
+    });
+
+    it("prints a non-Keeta order on the new-order topic", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendFrame(NEW_ORDER_TOPIC, orderWith(1, "Pick Up")));
+
+        expect(mockPrintOrder).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not print a Keeta order on the order-updates topic", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendFrame(ORDER_UPDATES_TOPIC, orderWith(2, "Keeta")));
+
+        expect(mockPrintOrder).not.toHaveBeenCalled();
+    });
+
+    it("prints a non-Keeta order on the order-updates topic", async () => {
+        await act(async () => {
+            renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+
+        act(() => sendFrame(ORDER_UPDATES_TOPIC, orderWith(2, "Pick Up")));
+
+        expect(mockPrintOrder).toHaveBeenCalledTimes(1);
     });
 });
