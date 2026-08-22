@@ -73,6 +73,7 @@ export const TASK_DESCRIPTION_MAX_LENGTH = 4000;
 export type BoardOwner = {
     id: number;
     username: string;
+    fullName: string | null;
     role: StaffRoles;
     /**
      * Cards not yet in DONE. Excludes finished work on purpose: nothing archives DONE cards, so a

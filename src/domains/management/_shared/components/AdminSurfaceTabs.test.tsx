@@ -33,25 +33,34 @@ describe("AdminSurfaceTabs", () => {
             expect(screen.queryByTestId("admin-surface-tabs")).toBeNull();
         });
 
-        it("renders both tab options for role MANAGER", () => {
+        it("renders all three tab options for role MANAGER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.MANAGER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
+            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
         });
 
-        it("renders both tab options for role SUPER_MANAGER", () => {
+        it("renders all three tab options for role SUPER_MANAGER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.SUPER_MANAGER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
+            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
         });
 
-        it("renders both tab options for role OWNER", () => {
+        it("renders all three tab options for role OWNER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.OWNER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
+            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
+        });
+
+        it("does not render the staff tab for role COOK", () => {
+            render(<AdminSurfaceTabs role={StaffRoles.COOK} activeTab="orders" onChange={jest.fn()} />);
+
+            expect(screen.queryByTestId("admin-tab-staff")).toBeNull();
         });
     });
 

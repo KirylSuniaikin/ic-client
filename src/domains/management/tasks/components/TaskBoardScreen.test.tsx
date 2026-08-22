@@ -9,12 +9,17 @@ import type { UseBoardOwnersResult } from "../hooks/useBoardOwners";
 // through) can be asserted without depending on TaskBoardPanel's internals -- that
 // component already has its own dedicated TaskBoardPanel.test.tsx. Echoes ownerId
 // into a data attribute so tests can assert its value across re-renders.
-function mockTaskBoardPanel({ ownerId, onOpenCardCountChange }: {
+function mockTaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel }: {
     ownerId?: number | null;
     onOpenCardCountChange?: (ownerId: number | null, openCardCount: number) => void;
+    ownerLabel?: string;
 }): JSX.Element {
     return (
-        <div data-testid="task-board-panel" data-owner-id={ownerId === undefined || ownerId === null ? "" : String(ownerId)}>
+        <div
+            data-testid="task-board-panel"
+            data-owner-id={ownerId === undefined || ownerId === null ? "" : String(ownerId)}
+            data-owner-label={ownerLabel ?? ""}
+        >
             {/* Stands in for the real panel's effect: a card was added/moved/deleted and the board
                 now holds this many unfinished cards. */}
             <button
@@ -44,6 +49,7 @@ function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
     return {
         id: 12,
         username: "avery.owner",
+        fullName: null,
         role: StaffRoles.OWNER,
         openCardCount: 0,
         ...overrides,
@@ -61,6 +67,10 @@ function boardOwnersValue(overrides: Partial<UseBoardOwnersResult> = {}): UseBoa
 
 function getOwnerId(): string | null {
     return screen.getByTestId("task-board-panel").getAttribute("data-owner-id");
+}
+
+function getOwnerLabel(): string | null {
+    return screen.getByTestId("task-board-panel").getAttribute("data-owner-label");
 }
 
 // jsdom implements no `matchMedia`, so MUI's `useMediaQuery` falls back to false (desktop) for
@@ -255,6 +265,34 @@ describe("TaskBoardScreen", () => {
         fireEvent.click(screen.getByTestId("staff-board-sidebar-toggle"));
         expect(screen.getByTestId("staff-board-sidebar").getAttribute("data-open")).toBe("true");
         expect(getOwnerId()).toBe("12");
+    });
+
+    // ownerLabel is the "Board of …" header source; TaskBoardPanel itself decides whether to
+    // render it, but TaskBoardScreen is what resolves fullName ?? username for the selection.
+    describe("ownerLabel", () => {
+        it("passes the selected owner's fullName when present", async () => {
+            const owners = [makeOwner({ id: 12, fullName: "Avery Owner" })];
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
+
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
+
+            await waitFor(() => expect(getOwnerLabel()).toBe("Avery Owner"));
+        });
+
+        it("falls back to username when the selected owner's fullName is null", async () => {
+            const owners = [makeOwner({ id: 12, fullName: null })];
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
+
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
+
+            await waitFor(() => expect(getOwnerLabel()).toBe("avery.owner"));
+        });
+
+        it("role=MANAGER: the non-owner early-return path passes no ownerLabel", () => {
+            render(<TaskBoardScreen role={StaffRoles.MANAGER} />);
+
+            expect(getOwnerLabel()).toBe("");
+        });
     });
 
     it("role=OWNER: a useBoardOwners error surfaces via ErrorSnackbar and TaskBoardPanel still renders with the fallback (self) ownerId", () => {

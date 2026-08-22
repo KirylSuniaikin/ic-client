@@ -50,6 +50,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../domains/management/staff/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -367,6 +368,27 @@ export async function getStaffByBranch(branchId: string): Promise<StaffOption[]>
     const res = await authFetch(BASE_URL + `/staff_by_branch?branchId=${branchId}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// Staff hiring (Task 2c). See domains/management/staff/types.ts for the request/response shapes.
+export async function hireStaff(request: HireStaffRequest): Promise<HiredStaffTO> {
+    const res = await authFetch(BASE_URL + `/staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getStaffAdminList(branchId?: string): Promise<StaffAdminTO[]> {
+    const query = branchId !== undefined ? `?branchId=${branchId}` : '';
+    const res = await authFetch(BASE_URL + `/staff${query}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();

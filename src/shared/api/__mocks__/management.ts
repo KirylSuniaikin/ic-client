@@ -27,6 +27,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../../domains/management/staff/types';
 import type {
     AccountingCategoryTO,
     AccountingReportSummary,
@@ -115,3 +116,7 @@ export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [strin
 
 // Dough inventory (Config -> Menu tab).
 export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();
+
+// Staff hiring (Task 2c).
+export const hireStaff = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>();
+export const getStaffAdminList = jest.fn<Promise<StaffAdminTO[]>, [string?]>();

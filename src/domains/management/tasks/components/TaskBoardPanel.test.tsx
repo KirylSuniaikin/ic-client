@@ -322,6 +322,18 @@ describe("TaskBoardPanel", () => {
         });
     });
 
+    it("renders no 'Board of …' header when ownerLabel is not provided", () => {
+        render(<TaskBoardPanel />);
+
+        expect(screen.queryByTestId("task-board-owner-header")).toBeNull();
+    });
+
+    it("renders a 'Board of …' header when ownerLabel is provided", () => {
+        render(<TaskBoardPanel ownerLabel="Riley Super" />);
+
+        expect(screen.getByTestId("task-board-owner-header").textContent).toContain("Riley Super");
+    });
+
     it("invoking useCardDrag's captured onDrop calls board.moveCard with matching arguments", async () => {
         const moveCard = jest.fn<Promise<boolean>, [number, TaskCardStatus, number]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ moveCard }));

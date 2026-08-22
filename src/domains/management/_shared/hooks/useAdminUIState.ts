@@ -3,7 +3,7 @@ import type { Order } from '../../../order/types';
 import {useAuth} from "../../../auth/context/AuthProvider";
 import {isManagerRole} from "../../../auth/types";
 
-export type AdminTabKey = 'orders' | 'board';
+export type AdminTabKey = 'orders' | 'board' | 'staff';
 
 export type AdminUIState = {
     isHistoryOpen: boolean; setIsHistoryOpen: (v: boolean) => void;

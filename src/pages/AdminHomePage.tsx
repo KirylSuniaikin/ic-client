@@ -29,6 +29,7 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
 import AdminSurfaceTabs from "../domains/management/_shared/components/AdminSurfaceTabs";
 import TaskBoardScreen from "../domains/management/tasks/components/TaskBoardScreen";
+import StaffRegisterScreen from "../domains/management/staff/components/StaffRegisterScreen";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
@@ -49,7 +50,7 @@ function AdminHomePage(): JSX.Element {
     // this tears the subscriptions down (`enabled` is in useAdminOrders' effect deps) and flipping
     // it back re-subscribes AND refetches, which matters because STOMP topics are not durable —
     // every frame published while the board was open is gone for good.
-    const ordersLive = !isReviewer && !showBoardPanel;
+    const ordersLive = !isReviewer && ui.activeAdminTab === 'orders';
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
         cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
     } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, ordersLive);
@@ -113,7 +114,7 @@ function AdminHomePage(): JSX.Element {
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && (
                 <AdminSurfaceTabs role={role} activeTab={ui.activeAdminTab} onChange={ui.setActiveAdminTab} />
             )}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && (
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && ui.activeAdminTab !== 'staff' && (
                 <Box sx={{ p: 1, boxSizing: 'border-box', backgroundColor: "#fbfaf6", minHeight: '100vh', width: '100%',
                     display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
                     gap: 1, gridAutoRows: 'max-content' }}>
@@ -131,6 +132,9 @@ function AdminHomePage(): JSX.Element {
             )}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
                 <TaskBoardScreen role={role} />
+            )}
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && ui.activeAdminTab === 'staff' && (
+                <StaffRegisterScreen role={role} />
             )}
             {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}

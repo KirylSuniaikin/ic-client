@@ -37,15 +37,24 @@ function mockHistoryComponent(): JSX.Element {
 // AdminHomePage itself does not gate the <AdminSurfaceTabs/> render call on role --
 // per the spec, that allowlist check lives inside AdminSurfaceTabs -- so this stub
 // must replicate it, or the role-gating tests below would exercise nothing real.
-function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board") => void }): JSX.Element | null {
+function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board" | "staff") => void }): JSX.Element | null {
     if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER && role !== StaffRoles.OWNER) return null;
 
     return (
         <div data-testid="admin-surface-tabs" data-active-tab={activeTab}>
             <button data-testid="admin-tab-orders" onClick={() => onChange("orders")}>Order Desk</button>
             <button data-testid="admin-tab-board" onClick={() => onChange("board")}>Task Board</button>
+            <button data-testid="admin-tab-staff" onClick={() => onChange("staff")}>Staff</button>
         </div>
     );
+}
+
+// Stub StaffRegisterScreen (Task 2c) so tab-switching tests can assert AdminHomePage's own
+// wiring (which component renders for the 'staff' tab, and what `role` prop it receives)
+// without depending on StaffRegisterScreen's internals, which have their own dedicated
+// StaffRegisterScreen.test.tsx.
+function mockStaffRegisterScreen({ role }: { role: StaffRoles | null }): JSX.Element {
+    return <div data-testid="staff-register-screen-stub" data-role={role ?? ""} />;
 }
 
 // Stub TaskBoardScreen (ST6) so tab-switching tests can assert AdminHomePage's own wiring
@@ -129,6 +138,10 @@ jest.mock("../domains/management/_shared/components/AdminSurfaceTabs", () => ({
 jest.mock("../domains/management/tasks/components/TaskBoardScreen", () => ({
     __esModule: true,
     default: mockTaskBoardScreen,
+}));
+jest.mock("../domains/management/staff/components/StaffRegisterScreen", () => ({
+    __esModule: true,
+    default: mockStaffRegisterScreen,
 }));
 
 import { useAuth } from "../domains/auth/context/AuthProvider";
@@ -386,5 +399,53 @@ describe("AdminHomePage board tab gating", () => {
 
         expect(screen.getByTestId("task-board-panel")).toBeTruthy();
         expect(screen.getByTestId("staff-board-sidebar-stub")).toBeTruthy();
+    });
+});
+
+// Task 2c: the Staff tab. AdminHomePage.tsx line 52's `ordersLive` was rewritten from
+// `!isReviewer && !showBoardPanel` to `!isReviewer && ui.activeAdminTab === 'orders'` so that
+// the order desk's STOMP subscriptions also tear down under the new third tab -- the pre-existing
+// two-tab expression would have left them (incorrectly) live while on the Staff tab.
+describe("AdminHomePage staff tab (Task 2c)", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("renders StaffRegisterScreen with role passed through when switching to the staff tab, for role MANAGER", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+
+        const stub = screen.getByTestId("staff-register-screen-stub");
+        expect(stub).toBeTruthy();
+        expect(stub.getAttribute("data-role")).toBe(StaffRoles.MANAGER);
+        expect(screen.queryByTestId("task-board-panel")).toBeNull();
+        expect(screen.queryByText("S Dough")).toBeNull();
+    });
+
+    it("disables useAdminOrders (ordersLive=false) once a MANAGER switches to the staff tab", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+
+        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), false);
+    });
+
+    it("re-enables useAdminOrders after switching from the staff tab back to orders", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+        fireEvent.click(screen.getByTestId("admin-tab-orders"));
+
+        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
+    });
+
+    it("renders StaffRegisterScreen for role OWNER on the staff tab", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
+
+        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+
+        const stub = screen.getByTestId("staff-register-screen-stub");
+        expect(stub.getAttribute("data-role")).toBe(StaffRoles.OWNER);
     });
 });
