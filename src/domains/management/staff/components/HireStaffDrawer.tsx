@@ -21,7 +21,7 @@ import { useManagementBranchScope } from "../../_shared/context/ManagementBranch
 import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
 import type { IBranch } from "../../inventory/types";
 import { generatePassword } from "../utils/generatePassword";
-import { copyToClipboard } from "../utils/copyToClipboard";
+import CredentialsRevealPanel from "./CredentialsRevealPanel";
 import { getHireableRoles } from "../types";
 import type { HireStaffRequest, HiredStaffTO } from "../types";
 
@@ -48,8 +48,6 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
-    const [copied, setCopied] = useState(false);
-    const [copyError, setCopyError] = useState<string | null>(null);
 
     // Default the branch picker to the first branch a city-level caller sees, same as
     // useBranchSelection.ts does for its own selectedBranch seed.
@@ -70,8 +68,6 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         setSelectedBranch(null);
         setFormError(null);
         setCredentials(null);
-        setCopied(false);
-        setCopyError(null);
         setSubmitting(false);
     }, [open]);
 
@@ -128,19 +124,6 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         }
     };
 
-    const handleCopy = async (): Promise<void> => {
-        if (!credentials) return;
-        try {
-            await copyToClipboard(`${credentials.username} / ${credentials.password}`);
-            setCopyError(null);
-            setCopied(true);
-        } catch (err) {
-            logger.error("Failed to copy credentials to clipboard:", err);
-            setCopied(false);
-            setCopyError(err instanceof Error ? err.message : "Failed to copy to clipboard");
-        }
-    };
-
     return (
         <Drawer
             anchor="bottom"
@@ -162,47 +145,13 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
                 <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
 
                 {credentials ? (
-                    <Box data-testid="hire-staff-credentials">
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: "center" }}>
-                            Staff hired
-                        </Typography>
-                        <TextField
-                            label="Login"
-                            fullWidth
-                            value={credentials.username}
-                            InputProps={{ readOnly: true }}
-                            sx={{ mb: 2 }}
-                            data-testid="hire-staff-credentials-username"
-                        />
-                        <TextField
-                            label="Password"
-                            fullWidth
-                            value={credentials.password}
-                            InputProps={{ readOnly: true }}
-                            sx={{ mb: 2 }}
-                            data-testid="hire-staff-credentials-password"
-                        />
-                        <Alert severity="warning" sx={{ mb: 2 }}>
-                            This password will not be shown again.
-                        </Alert>
-                        {copyError && (
-                            <Alert severity="error" sx={{ mb: 2 }} data-testid="hire-staff-copy-error">
-                                {copyError}
-                            </Alert>
-                        )}
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={handleCopy}
-                            sx={{ borderRadius: 3, py: 1.5, bgcolor: colorRed, mb: 1, "&:hover": { bgcolor: "#c73c3d" } }}
-                            data-testid="hire-staff-copy-button"
-                        >
-                            {copied ? "Copied!" : "Copy login + password"}
-                        </Button>
-                        <Button fullWidth variant="outlined" onClick={onClose}>
-                            Done
-                        </Button>
-                    </Box>
+                    <CredentialsRevealPanel
+                        title="Staff hired"
+                        username={credentials.username}
+                        password={credentials.password}
+                        onDone={onClose}
+                        testIdPrefix="hire-staff"
+                    />
                 ) : (
                     <Box>
                         <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: "center" }}>
