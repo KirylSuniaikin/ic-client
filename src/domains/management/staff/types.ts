@@ -28,6 +28,9 @@ export type StaffAdminTO = {
     role: StaffRoles;
     branchId: string;
     pricePerHour: number | null;
+    // Never redacted, unlike pricePerHour: the roster cannot render a deactivated row, hide it
+    // behind the filter, or offer reactivation without it.
+    enabled: boolean;
 };
 
 // Frontend-only presentation filter mirroring the backend's hiring hierarchy (task-spec.md Task
@@ -56,4 +59,31 @@ export const HIRING_HIERARCHY: Record<StaffRoles, StaffRoles[]> = {
 export function getHireableRoles(role: StaffRoles | null): StaffRoles[] {
     if (role === null) return [];
     return HIRING_HIERARCHY[role] ?? [];
+}
+
+// PUT /api/staff/{id}/password. The plaintext is generated here and travels once, to be hashed;
+// the endpoint answers 204, so nothing comes back.
+export type ResetStaffPasswordRequest = {
+    password: string;
+};
+
+// PATCH /api/staff/{id}/enabled. One request shape for both directions -- see the endpoint's
+// comment for why deactivate and reactivate are not separate calls.
+export type SetStaffEnabledRequest = {
+    enabled: boolean;
+};
+
+// Presentation-only mirror of StaffService.resolveAdministrableTarget, exactly as
+// HIRING_HIERARCHY mirrors the backend's hiring rules -- the backend stays the enforcement
+// boundary and this only decides whether to render an action at all.
+//
+// The branch rule is deliberately absent: the roster this renders is already branch-scoped
+// server-side, so every visible row is in scope by construction.
+export function canAdministerStaff(
+    callerRole: StaffRoles | null,
+    callerId: number | null,
+    target: StaffAdminTO,
+): boolean {
+    if (callerId !== null && target.id === callerId) return false;
+    return getHireableRoles(callerRole).includes(target.role);
 }

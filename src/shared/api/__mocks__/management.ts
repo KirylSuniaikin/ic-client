@@ -120,3 +120,5 @@ export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();
 // Staff hiring (Task 2c).
 export const hireStaff = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>();
 export const getStaffAdminList = jest.fn<Promise<StaffAdminTO[]>, [string?]>();
+export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
+export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();

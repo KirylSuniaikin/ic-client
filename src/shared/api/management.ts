@@ -394,6 +394,29 @@ export async function getStaffAdminList(branchId?: string): Promise<StaffAdminTO
     return res.json();
 }
 
+// Sends the plaintext once, to be hashed, and gets nothing back -- the endpoint answers 204, so
+// there is no body the password could come back in. The caller generated it and already holds it.
+export async function resetStaffPassword(id: number, password: string): Promise<void> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+}
+
+// Returns the updated row so the roster can reconcile in place; refetching would fight the
+// screen's branch and filter state.
+export async function setStaffEnabled(id: number, enabled: boolean): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/enabled`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
 export async function initiateAuth(authRequest: AuthRequest): Promise<Response> {
     return await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",

@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStaffAdminList, hireStaff } from "../../../../shared/api/management";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffEnabled } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
 import { useStaffRegister } from "./useStaffRegister";
@@ -10,6 +10,8 @@ jest.mock("../../../../shared/api/management");
 
 const mockGetStaffAdminList = jest.mocked(getStaffAdminList);
 const mockHireStaff = jest.mocked(hireStaff);
+const mockResetStaffPassword = jest.mocked(resetStaffPassword);
+const mockSetStaffEnabled = jest.mocked(setStaffEnabled);
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {
@@ -19,6 +21,7 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         role: StaffRoles.COOK,
         branchId: "branch-1",
         pricePerHour: null,
+        enabled: true,
         ...overrides,
     };
 }
@@ -98,7 +101,7 @@ describe("useStaffRegister", () => {
         expect(mockHireStaff).toHaveBeenCalledWith(request);
         expect(result.current.staff).toEqual([
             makeStaff(),
-            { id: 2, username: "new.cook", fullName: "New Cook", role: StaffRoles.COOK, branchId: "branch-1", pricePerHour: 3 },
+            { id: 2, username: "new.cook", fullName: "New Cook", role: StaffRoles.COOK, branchId: "branch-1", pricePerHour: 3, enabled: true },
         ]);
     });
 
@@ -125,5 +128,64 @@ describe("useStaffRegister", () => {
         act(() => result.current.refresh());
 
         await waitFor(() => expect(mockGetStaffAdminList).toHaveBeenCalledTimes(2));
+    });
+
+    it("resetPassword() calls the endpoint and leaves the roster untouched", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
+        mockResetStaffPassword.mockResolvedValue(undefined);
+
+        const { result } = renderHook(() => useStaffRegister());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await act(async () => {
+            await result.current.resetPassword(1, "N3wPassw0rd");
+        });
+
+        expect(mockResetStaffPassword).toHaveBeenCalledWith(1, "N3wPassw0rd");
+        expect(result.current.staff).toEqual([makeStaff()]);
+    });
+
+    it("resetPassword() propagates the rejection so the drawer can show it", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
+        mockResetStaffPassword.mockRejectedValue(new Error("Response: 403"));
+
+        const { result } = renderHook(() => useStaffRegister());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await expect(act(async () => {
+            await result.current.resetPassword(1, "N3wPassw0rd");
+        })).rejects.toThrow("Response: 403");
+    });
+
+    it("setEnabled() replaces the row with the one the server returned", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff(), makeStaff({ id: 2, username: "sam" })]);
+        mockSetStaffEnabled.mockResolvedValue(makeStaff({ enabled: false }));
+
+        const { result } = renderHook(() => useStaffRegister());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await act(async () => {
+            await result.current.setEnabled(1, false);
+        });
+
+        expect(mockSetStaffEnabled).toHaveBeenCalledWith(1, false);
+        expect(result.current.staff).toEqual([
+            makeStaff({ enabled: false }),
+            makeStaff({ id: 2, username: "sam" }),
+        ]);
+    });
+
+    it("setEnabled() leaves the row untouched when the request is rejected", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
+        mockSetStaffEnabled.mockRejectedValue(new Error("Response: 403"));
+
+        const { result } = renderHook(() => useStaffRegister());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await expect(act(async () => {
+            await result.current.setEnabled(1, false);
+        })).rejects.toThrow("Response: 403");
+
+        expect(result.current.staff).toEqual([makeStaff()]);
     });
 });

@@ -40,6 +40,7 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         role: StaffRoles.COOK,
         branchId: "branch-1",
         pricePerHour: null,
+        enabled: true,
         ...overrides,
     };
 }
@@ -50,6 +51,8 @@ function staffRegisterValue(overrides: Partial<UseStaffRegisterResult> = {}): Us
         loading: false,
         error: null,
         create: jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>(),
+        resetPassword: jest.fn<Promise<void>, [number, string]>(),
+        setEnabled: jest.fn<Promise<StaffAdminTO>, [number, boolean]>(),
         refresh: jest.fn<void, []>(),
         ...overrides,
     };
