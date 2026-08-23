@@ -58,6 +58,14 @@ jest.mock("./DeactivateStaffDialog", () => ({
     default: mockDeactivateStaffDialog,
 }));
 
+function mockChangeBranchDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null; onClose: () => void; changeBranch: unknown }): JSX.Element {
+    return <div data-testid="change-branch-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
+}
+jest.mock("./ChangeBranchDrawer", () => ({
+    __esModule: true,
+    default: mockChangeBranchDrawer,
+}));
+
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
 import AccountManagerScreen from "./AccountManagerScreen";
 
@@ -84,6 +92,7 @@ function staffAccountsValue(overrides: Partial<UseStaffAccountsResult> = {}): Us
         create: jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>(),
         resetPassword: jest.fn<Promise<void>, [number, string]>(),
         setEnabled: jest.fn<Promise<StaffAdminTO>, [number, boolean]>(),
+        changeBranch: jest.fn<Promise<StaffAdminTO>, [number, string]>(),
         refresh: jest.fn<void, []>(),
         ...overrides,
     };
@@ -243,6 +252,30 @@ describe("AccountManagerScreen", () => {
         fireEvent.click(screen.getByTestId("deactivate-dialog-confirm"));
 
         await waitFor(() => expect(setEnabled).toHaveBeenCalledWith(5, false));
+    });
+
+    it("opens the change-branch drawer for the chosen row", () => {
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 8 })] }));
+
+        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+
+        expect(screen.getByTestId("change-branch-drawer-stub").getAttribute("data-open")).toBe("false");
+
+        fireEvent.click(screen.getByTestId("staff-change-branch-8"));
+
+        const stub = screen.getByTestId("change-branch-drawer-stub");
+        expect(stub.getAttribute("data-open")).toBe("true");
+        expect(stub.getAttribute("data-target")).toBe("8");
+    });
+
+    it("offers no change-branch action on a row the caller may not administer", () => {
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+            staff: [makeStaff({ id: 9, role: StaffRoles.MANAGER })],
+        }));
+
+        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+
+        expect(screen.queryByTestId("staff-change-branch-9")).toBeNull();
     });
 
     // Reactivation is not destructive, so it must NOT go through the dialog.

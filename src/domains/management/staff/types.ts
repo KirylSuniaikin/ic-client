@@ -87,3 +87,18 @@ export function canAdministerStaff(
     if (callerId !== null && target.id === callerId) return false;
     return getHireableRoles(callerRole).includes(target.role);
 }
+
+// PATCH /api/staff/{id}/branch. Required, never null: every staff member belongs to a branch.
+export type SetStaffBranchRequest = {
+    branchId: string;
+};
+
+// GET /api/staff/me -- the caller's own identity, read from the database rather than decoded
+// from their JWT, whose branchId claim is frozen at the moment they logged in.
+export type CurrentStaffTO = {
+    id: number;
+    username: string;
+    fullName: string | null;
+    role: StaffRoles;
+    branchId: string | null;
+};

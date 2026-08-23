@@ -27,7 +27,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../../domains/management/staff/types';
+import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../../domains/management/staff/types';
 import type {
     AccountingCategoryTO,
     AccountingReportSummary,
@@ -122,3 +122,5 @@ export const hireStaff = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>();
 export const getStaffAdminList = jest.fn<Promise<StaffAdminTO[]>, [string?]>();
 export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
 export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();
+export const setStaffBranch = jest.fn<Promise<StaffAdminTO>, [number, string]>();
+export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();

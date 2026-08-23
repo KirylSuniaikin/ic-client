@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import LockResetIcon from "@mui/icons-material/LockReset";
 import BlockIcon from "@mui/icons-material/Block";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import { logger } from "../../../../shared/utils/logger";
@@ -33,6 +34,7 @@ import type { StaffAdminTO } from "../types";
 import HireStaffDrawer from "./HireStaffDrawer";
 import ResetPasswordDrawer from "./ResetPasswordDrawer";
 import DeactivateStaffDialog from "./DeactivateStaffDialog";
+import ChangeBranchDrawer from "./ChangeBranchDrawer";
 
 const colorRed = "#E44B4C";
 
@@ -47,10 +49,11 @@ export default function AccountManagerScreen({ role, branch }: AccountManagerScr
     // non-city role a one-element array, so this is the role gate for free. Same shape as
     // InventoryPage / CashRegisterPopup / HistoryComponent.
     const { branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch } = useBranchScope(branch);
-    const { staff, loading, error, create, resetPassword, setEnabled } = useStaffAccounts(scopedBranch.id);
+    const { staff, loading, error, create, resetPassword, setEnabled, changeBranch } = useStaffAccounts(scopedBranch.id);
 
     const [hireOpen, setHireOpen] = useState(false);
     const [resetTarget, setResetTarget] = useState<StaffAdminTO | null>(null);
+    const [branchTarget, setBranchTarget] = useState<StaffAdminTO | null>(null);
     const [deactivateTarget, setDeactivateTarget] = useState<StaffAdminTO | null>(null);
     const [togglingId, setTogglingId] = useState<number | null>(null);
     const [showDeactivated, setShowDeactivated] = useState(false);
@@ -172,6 +175,16 @@ export default function AccountManagerScreen({ role, branch }: AccountManagerScr
                                     <TableCell sx={{ whiteSpace: "nowrap" }}>
                                         {administrable && (
                                             <Stack direction="row" spacing={0.25}>
+                                                <Tooltip title="Change branch">
+                                                    <IconButton
+                                                        size="small"
+                                                        aria-label="Change branch"
+                                                        onClick={() => setBranchTarget(s)}
+                                                        data-testid={`staff-change-branch-${s.id}`}
+                                                    >
+                                                        <SwapHorizIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
                                                 <Tooltip title="Reset password">
                                                     <IconButton
                                                         size="small"
@@ -229,6 +242,13 @@ export default function AccountManagerScreen({ role, branch }: AccountManagerScr
                 target={resetTarget}
                 onClose={() => setResetTarget(null)}
                 resetPassword={resetPassword}
+            />
+
+            <ChangeBranchDrawer
+                open={branchTarget !== null}
+                target={branchTarget}
+                onClose={() => setBranchTarget(null)}
+                changeBranch={async (id, targetBranchId) => { await changeBranch(id, targetBranchId); }}
             />
 
             <DeactivateStaffDialog

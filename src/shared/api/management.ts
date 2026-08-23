@@ -50,7 +50,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../domains/management/staff/types';
+import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../domains/management/staff/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -412,6 +412,28 @@ export async function setStaffEnabled(id: number, enabled: boolean): Promise<Sta
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function setStaffBranch(id: number, branchId: string): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/branch`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// The caller's own identity. The JWT carries a branchId claim, but it is frozen at login and a
+// staff member can now be moved between branches -- so the claim is only a starting value and
+// this is the truth.
+export async function getCurrentStaff(): Promise<CurrentStaffTO> {
+    const res = await authFetch(BASE_URL + `/staff/me`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();

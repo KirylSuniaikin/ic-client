@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffEnabled } from "../../../../shared/api/management";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
 import { useStaffAccounts } from "./useStaffAccounts";
@@ -12,6 +12,7 @@ const mockGetStaffAdminList = jest.mocked(getStaffAdminList);
 const mockHireStaff = jest.mocked(hireStaff);
 const mockResetStaffPassword = jest.mocked(resetStaffPassword);
 const mockSetStaffEnabled = jest.mocked(setStaffEnabled);
+const mockSetStaffBranch = jest.mocked(setStaffBranch);
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {
@@ -173,6 +174,51 @@ describe("useStaffAccounts", () => {
             makeStaff({ enabled: false }),
             makeStaff({ id: 2, username: "sam" }),
         ]);
+    });
+
+    // A roster is one branch's staff, so somebody moved away must leave it -- a lingering row
+    // would still offer actions the backend would then refuse.
+    it("changeBranch() drops the row when the person leaves the branch in scope", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff({ id: 1 }), makeStaff({ id: 2, username: "sam" })]);
+        mockSetStaffBranch.mockResolvedValue(makeStaff({ id: 1, branchId: "branch-9" }));
+
+        const { result } = renderHook(() => useStaffAccounts("branch-1"));
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await act(async () => {
+            await result.current.changeBranch(1, "branch-9");
+        });
+
+        expect(mockSetStaffBranch).toHaveBeenCalledWith(1, "branch-9");
+        expect(result.current.staff).toEqual([makeStaff({ id: 2, username: "sam" })]);
+    });
+
+    it("changeBranch() keeps the row when the branch did not actually change", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff({ id: 1 })]);
+        mockSetStaffBranch.mockResolvedValue(makeStaff({ id: 1, fullName: "Renamed" }));
+
+        const { result } = renderHook(() => useStaffAccounts("branch-1"));
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await act(async () => {
+            await result.current.changeBranch(1, "branch-1");
+        });
+
+        expect(result.current.staff).toEqual([makeStaff({ id: 1, fullName: "Renamed" })]);
+    });
+
+    it("changeBranch() propagates the rejection and leaves the roster untouched", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff({ id: 1 })]);
+        mockSetStaffBranch.mockRejectedValue(new Error("Response: 403"));
+
+        const { result } = renderHook(() => useStaffAccounts("branch-1"));
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await expect(act(async () => {
+            await result.current.changeBranch(1, "branch-9");
+        })).rejects.toThrow("Response: 403");
+
+        expect(result.current.staff).toEqual([makeStaff({ id: 1 })]);
     });
 
     it("setEnabled() leaves the row untouched when the request is rejected", async () => {

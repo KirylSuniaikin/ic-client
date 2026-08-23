@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { logger } from "../../../../shared/utils/logger";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffEnabled } from "../../../../shared/api/management";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled } from "../../../../shared/api/management";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
 
 export interface UseStaffAccountsResult {
@@ -10,6 +10,7 @@ export interface UseStaffAccountsResult {
     create: (request: HireStaffRequest) => Promise<HiredStaffTO>;
     resetPassword: (id: number, password: string) => Promise<void>;
     setEnabled: (id: number, enabled: boolean) => Promise<StaffAdminTO>;
+    changeBranch: (id: number, branchId: string) => Promise<StaffAdminTO>;
     refresh: () => void;
 }
 
@@ -76,7 +77,20 @@ export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
         return updated;
     }, []);
 
+    // Moving someone OUT of the branch in scope removes them from this roster rather than
+    // updating the row: the list is one branch's staff, and a row for somebody who is no longer
+    // there would be a lie the caller could still click actions on.
+    const changeBranch = useCallback(async (id: number, targetBranchId: string): Promise<StaffAdminTO> => {
+        const updated = await setStaffBranch(id, targetBranchId);
+        setStaff(prev => (
+            branchId !== undefined && updated.branchId !== branchId
+                ? prev.filter(s => s.id !== updated.id)
+                : prev.map(s => (s.id === updated.id ? updated : s))
+        ));
+        return updated;
+    }, [branchId]);
+
     const refresh = useCallback((): void => setRefreshToken(prev => prev + 1), []);
 
-    return { staff, loading, error, create, resetPassword, setEnabled, refresh };
+    return { staff, loading, error, create, resetPassword, setEnabled, changeBranch, refresh };
 }
