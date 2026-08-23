@@ -41,6 +41,13 @@ describe("AdminSurfaceTabs", () => {
             expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
         });
 
+        // The tab key stays "staff" -- only what a manager reads changed.
+        it("labels the staff tab Account Manager", () => {
+            render(<AdminSurfaceTabs role={StaffRoles.MANAGER} activeTab="orders" onChange={jest.fn()} />);
+
+            expect(screen.getByTestId("admin-tab-staff").textContent).toBe("Account Manager");
+        });
+
         it("renders all three tab options for role SUPER_MANAGER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.SUPER_MANAGER} activeTab="orders" onChange={jest.fn()} />);
 

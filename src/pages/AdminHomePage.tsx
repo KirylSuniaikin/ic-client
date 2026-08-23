@@ -29,7 +29,7 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
 import AdminSurfaceTabs from "../domains/management/_shared/components/AdminSurfaceTabs";
 import TaskBoardScreen from "../domains/management/tasks/components/TaskBoardScreen";
-import StaffRegisterScreen from "../domains/management/staff/components/StaffRegisterScreen";
+import AccountManagerScreen from "../domains/management/staff/components/AccountManagerScreen";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
@@ -133,8 +133,8 @@ function AdminHomePage(): JSX.Element {
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
                 <TaskBoardScreen role={role} />
             )}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && ui.activeAdminTab === 'staff' && (
-                <StaffRegisterScreen role={role} />
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && ui.activeAdminTab === 'staff' && branchForComponents && (
+                <AccountManagerScreen role={role} branch={branchForComponents} />
             )}
             {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}

@@ -3,7 +3,7 @@ import { logger } from "../../../../shared/utils/logger";
 import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffEnabled } from "../../../../shared/api/management";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
 
-export interface UseStaffRegisterResult {
+export interface UseStaffAccountsResult {
     staff: StaffAdminTO[];
     loading: boolean;
     error: string | null;
@@ -15,7 +15,7 @@ export interface UseStaffRegisterResult {
 
 // Fetch-on-mount + refetch-on-demand, matching the useBoardOwners.ts/useDough.ts idiom already
 // in this codebase.
-export function useStaffRegister(branchId?: string): UseStaffRegisterResult {
+export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
     const [staff, setStaff] = useState<StaffAdminTO[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

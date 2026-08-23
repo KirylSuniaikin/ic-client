@@ -49,12 +49,12 @@ function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles 
     );
 }
 
-// Stub StaffRegisterScreen (Task 2c) so tab-switching tests can assert AdminHomePage's own
+// Stub AccountManagerScreen (Task 2c) so tab-switching tests can assert AdminHomePage's own
 // wiring (which component renders for the 'staff' tab, and what `role` prop it receives)
-// without depending on StaffRegisterScreen's internals, which have their own dedicated
-// StaffRegisterScreen.test.tsx.
-function mockStaffRegisterScreen({ role }: { role: StaffRoles | null }): JSX.Element {
-    return <div data-testid="staff-register-screen-stub" data-role={role ?? ""} />;
+// without depending on AccountManagerScreen's internals, which have their own dedicated
+// AccountManagerScreen.test.tsx.
+function mockAccountManagerScreen({ role }: { role: StaffRoles | null }): JSX.Element {
+    return <div data-testid="account-manager-screen-stub" data-role={role ?? ""} />;
 }
 
 // Stub TaskBoardScreen (ST6) so tab-switching tests can assert AdminHomePage's own wiring
@@ -139,9 +139,9 @@ jest.mock("../domains/management/tasks/components/TaskBoardScreen", () => ({
     __esModule: true,
     default: mockTaskBoardScreen,
 }));
-jest.mock("../domains/management/staff/components/StaffRegisterScreen", () => ({
+jest.mock("../domains/management/staff/components/AccountManagerScreen", () => ({
     __esModule: true,
-    default: mockStaffRegisterScreen,
+    default: mockAccountManagerScreen,
 }));
 
 import { useAuth } from "../domains/auth/context/AuthProvider";
@@ -411,12 +411,12 @@ describe("AdminHomePage staff tab (Task 2c)", () => {
         jest.clearAllMocks();
     });
 
-    it("renders StaffRegisterScreen with role passed through when switching to the staff tab, for role MANAGER", () => {
+    it("renders AccountManagerScreen with role passed through when switching to the staff tab, for role MANAGER", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
         fireEvent.click(screen.getByTestId("admin-tab-staff"));
 
-        const stub = screen.getByTestId("staff-register-screen-stub");
+        const stub = screen.getByTestId("account-manager-screen-stub");
         expect(stub).toBeTruthy();
         expect(stub.getAttribute("data-role")).toBe(StaffRoles.MANAGER);
         expect(screen.queryByTestId("task-board-panel")).toBeNull();
@@ -440,12 +440,12 @@ describe("AdminHomePage staff tab (Task 2c)", () => {
         expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
     });
 
-    it("renders StaffRegisterScreen for role OWNER on the staff tab", () => {
+    it("renders AccountManagerScreen for role OWNER on the staff tab", () => {
         renderAdminHomePage(StaffRoles.OWNER);
 
         fireEvent.click(screen.getByTestId("admin-tab-staff"));
 
-        const stub = screen.getByTestId("staff-register-screen-stub");
+        const stub = screen.getByTestId("account-manager-screen-stub");
         expect(stub.getAttribute("data-role")).toBe(StaffRoles.OWNER);
     });
 });

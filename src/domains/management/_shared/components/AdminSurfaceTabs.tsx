@@ -48,7 +48,7 @@ export default function AdminSurfaceTabs({ role, activeTab, onChange }: AdminSur
             >
                 <ToggleButton value="orders" data-testid="admin-tab-orders">Order Desk</ToggleButton>
                 <ToggleButton value="board" data-testid="admin-tab-board">Task Board</ToggleButton>
-                <ToggleButton value="staff" data-testid="admin-tab-staff">Staff</ToggleButton>
+                <ToggleButton value="staff" data-testid="admin-tab-staff">Account Manager</ToggleButton>
             </ToggleButtonGroup>
         </Box>
     );

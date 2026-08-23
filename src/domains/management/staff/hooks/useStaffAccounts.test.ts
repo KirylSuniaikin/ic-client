@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffEnabled } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
-import { useStaffRegister } from "./useStaffRegister";
+import { useStaffAccounts } from "./useStaffAccounts";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../../shared/api/management");
@@ -50,7 +50,7 @@ function hiredResponse(overrides: Partial<HiredStaffTO> = {}): HiredStaffTO {
     };
 }
 
-describe("useStaffRegister", () => {
+describe("useStaffAccounts", () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
@@ -58,7 +58,7 @@ describe("useStaffRegister", () => {
     it("fetches the staff list on mount without a branchId when none is passed", async () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
 
         await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -70,7 +70,7 @@ describe("useStaffRegister", () => {
     it("passes branchId through to getStaffAdminList when provided", async () => {
         mockGetStaffAdminList.mockResolvedValue([]);
 
-        renderHook(() => useStaffRegister("branch-9"));
+        renderHook(() => useStaffAccounts("branch-9"));
 
         await waitFor(() => expect(mockGetStaffAdminList).toHaveBeenCalledWith("branch-9"));
     });
@@ -78,7 +78,7 @@ describe("useStaffRegister", () => {
     it("sets error and leaves staff as [] when getStaffAdminList rejects", async () => {
         mockGetStaffAdminList.mockRejectedValue(new Error("HTTP 500"));
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
 
         await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -90,7 +90,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
         mockHireStaff.mockResolvedValue(hiredResponse());
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         const request = hireRequest();
@@ -109,7 +109,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
         mockHireStaff.mockRejectedValue(new Error("HTTP 409"));
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         await expect(act(async () => {
@@ -122,7 +122,7 @@ describe("useStaffRegister", () => {
     it("refresh() re-fetches the list", async () => {
         mockGetStaffAdminList.mockResolvedValue([]);
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         act(() => result.current.refresh());
@@ -134,7 +134,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
         mockResetStaffPassword.mockResolvedValue(undefined);
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         await act(async () => {
@@ -149,7 +149,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
         mockResetStaffPassword.mockRejectedValue(new Error("Response: 403"));
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         await expect(act(async () => {
@@ -161,7 +161,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff(), makeStaff({ id: 2, username: "sam" })]);
         mockSetStaffEnabled.mockResolvedValue(makeStaff({ enabled: false }));
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         await act(async () => {
@@ -179,7 +179,7 @@ describe("useStaffRegister", () => {
         mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
         mockSetStaffEnabled.mockRejectedValue(new Error("Response: 403"));
 
-        const { result } = renderHook(() => useStaffRegister());
+        const { result } = renderHook(() => useStaffAccounts());
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         await expect(act(async () => {
