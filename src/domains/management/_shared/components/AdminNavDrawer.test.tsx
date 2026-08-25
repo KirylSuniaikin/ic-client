@@ -18,6 +18,7 @@ function makeHandlers(): AdminNavHandlers {
         onAccountingOpen: jest.fn(),
         onBlacklistopen: jest.fn(),
     onAccountManagerOpen: jest.fn(),
+    onSwitchSurface: jest.fn(),
         logout: jest.fn(),
     };
 }
@@ -39,6 +40,7 @@ function renderDrawer(role: StaffRoles | null, handlers: AdminNavHandlers, onClo
             getCashStage={getCashStage}
             getShiftStage={getShiftStage}
             handlers={handlers}
+            activeTab="orders"
         />
     );
     return onClose;
@@ -155,6 +157,7 @@ describe("AdminNavDrawer", () => {
                 getCashStage={getCashStage}
                 getShiftStage={getShiftStage}
                 handlers={makeHandlers()}
+                activeTab="orders"
             />
         );
 

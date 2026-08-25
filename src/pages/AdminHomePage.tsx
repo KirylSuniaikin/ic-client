@@ -27,7 +27,6 @@ import BluetoothPrinterService from "../services/BluetoothPrinterService";
 import { DeleteOrderDialog } from "../domains/management/orders/components/DeleteOrderDialog";
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
-import AdminSurfaceTabs from "../domains/management/_shared/components/AdminSurfaceTabs";
 import TaskBoardScreen from "../domains/management/tasks/components/TaskBoardScreen";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
@@ -104,6 +103,8 @@ function AdminHomePage(): JSX.Element {
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
                     onAccountingOpen={() => ui.setAccountingOpen(true)} onAccountManagerOpen={() => ui.setAccountManagerOpen(true)}
+                    activeTab={ui.activeAdminTab}
+                    onSwitchSurface={() => ui.setActiveAdminTab(ui.activeAdminTab === 'board' ? 'orders' : 'board')}
                     role={role} logout={logout} userName={fullName ?? username ?? ""}
                 />
             )}
@@ -111,9 +112,6 @@ function AdminHomePage(): JSX.Element {
                 <ShiftPopup isOpen={ui.shiftPopupOpen} onClose={() => ui.setShiftPopupOpen(false)} stage={eventStage} branchId={String(selectedBranch.id)} />
                 <CashPopup isOpen={ui.cashPopupOpen} onClose={() => ui.setCashPopupOpen(false)} stage={cashStage} branchId={String(selectedBranch.id)} onCashWarning={ui.setCashWarning} />
             </>)}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && (
-                <AdminSurfaceTabs role={role} activeTab={ui.activeAdminTab} onChange={ui.setActiveAdminTab} />
-            )}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && (
                 <Box sx={{ p: 1, boxSizing: 'border-box', backgroundColor: "#fbfaf6", minHeight: '100vh', width: '100%',
                     display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },

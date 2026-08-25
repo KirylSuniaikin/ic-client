@@ -7,6 +7,7 @@ import type { StaffRoles as StaffRolesType } from "../../../auth/types";
 import { ShiftButton } from "../../shift/components/ShiftButton";
 import { buildAdminNavSections } from "./adminNavItems";
 import type { AdminNavHandlers } from "./adminNavItems";
+import type { AdminTabKey } from "../hooks/useAdminUIState";
 
 const colorRed = "#E44B4C";
 
@@ -22,6 +23,7 @@ export type AdminNavDrawerProps = {
     getCashStage: (stage: string) => string;
     getShiftStage: (stage: string) => string;
     handlers: AdminNavHandlers;
+    activeTab: AdminTabKey;
 };
 
 export default function AdminNavDrawer({
@@ -36,9 +38,10 @@ export default function AdminNavDrawer({
                                             getCashStage,
                                             getShiftStage,
                                             handlers,
+                                            activeTab,
                                         }: AdminNavDrawerProps): JSX.Element {
     const isReviewer = role === StaffRoles.REVIEWER;
-    const sections = buildAdminNavSections(role, handlers);
+    const sections = buildAdminNavSections(role, handlers, activeTab);
 
     // Assumed: every row in the drawer — including the promoted Cash/Shift buttons — closes the
     // drawer before firing its action (per the "every row closes the drawer, then invokes its

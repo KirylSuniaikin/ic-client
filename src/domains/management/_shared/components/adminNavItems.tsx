@@ -10,8 +10,11 @@ import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
-import { StaffRoles } from "../../../auth/types";
+import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import { StaffRoles, isManagerRole } from "../../../auth/types";
 import type { StaffRoles as StaffRolesType } from "../../../auth/types";
+import type { AdminTabKey } from "../hooks/useAdminUIState";
 
 export type AdminNavItem = {
     label: string;
@@ -37,6 +40,8 @@ export type AdminNavHandlers = {
     onAccountingOpen: () => void;
     onBlacklistopen: () => void;
     onAccountManagerOpen: () => void;
+    /** Flips between the order desk and the task board. */
+    onSwitchSurface: () => void;
     logout: () => void;
 };
 
@@ -49,7 +54,8 @@ export type AdminNavHandlers = {
  */
 export function buildAdminNavSections(
     role: StaffRolesType | null,
-    handlers: AdminNavHandlers
+    handlers: AdminNavHandlers,
+    activeTab: AdminTabKey = "orders"
 ): AdminNavSection[] {
     const isReviewer = role === StaffRoles.REVIEWER;
     const isCook = role === StaffRoles.COOK;
@@ -70,6 +76,15 @@ export function buildAdminNavSections(
                     // SUPERVISOR reaching it would only be 403'd.
                     "Account Manager",
                 ]);
+
+    // One toggle, not two rows: whichever surface you are NOT on is the one worth offering. The
+    // board is manager-and-up only, which is the same gate AdminHomePage puts on rendering it --
+    // below that the row would switch to a surface that never appears.
+    const surfaceToggle: AdminNavItem[] = isManagerRole(role)
+        ? [activeTab === "board"
+            ? {label: "Order Board", icon: <DashboardOutlinedIcon fontSize="small"/>, onClick: handlers.onSwitchSurface}
+            : {label: "Task Board", icon: <ViewKanbanOutlinedIcon fontSize="small"/>, onClick: handlers.onSwitchSurface}]
+        : [];
 
     const operations: AdminNavItem[] = [
         {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: handlers.onGoToMenu},
@@ -95,7 +110,9 @@ export function buildAdminNavSections(
         items.filter(item => visibleLabels.has(item.label));
 
     return [
-        {title: "Operations", items: filterByRole(operations)},
+        // The surface toggle bypasses filterByRole: its own gate is isManagerRole, and it carries
+        // no fixed label to allowlist -- the label is what changes.
+        {title: "Operations", items: [...surfaceToggle, ...filterByRole(operations)]},
         {title: "Money", items: filterByRole(money)},
         {title: "Management", items: filterByRole(management)},
     ];

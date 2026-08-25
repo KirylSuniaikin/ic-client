@@ -25,7 +25,7 @@ const MANAGER_ONLY_LABELS = [
 
 const SHARED_LABELS = ["Order History", "Logout"];
 
-function renderTopbar(role: StaffRoles | null): void {
+function renderTopbar(role: StaffRoles | null, activeTab: "orders" | "board" = "orders"): void {
     render(
         <AdminTopbar
             onOpenHistory={jest.fn()}
@@ -50,6 +50,8 @@ function renderTopbar(role: StaffRoles | null): void {
             onCashRegisterOpen={jest.fn()}
             onAccountingOpen={jest.fn()}
             onAccountManagerOpen={jest.fn()}
+            activeTab={activeTab}
+            onSwitchSurface={jest.fn()}
             role={role}
             logout={jest.fn()}
             userName="Test User"
@@ -65,36 +67,65 @@ function openMenu(): void {
 }
 
 describe("AdminTopbar — role-based branch controls", () => {
-    it("hides the Workload selector and the Cash/Shift buttons for role REVIEWER", () => {
+    it("hides the Workload selector for role REVIEWER", () => {
         renderTopbar(StaffRoles.REVIEWER);
 
         expect(screen.queryByRole("combobox")).toBeNull();
-        expect(screen.queryByText("Open Cash")).toBeNull();
-        expect(screen.queryByText("Open Shift")).toBeNull();
     });
 
-    it("still renders the Workload selector and the Cash/Shift buttons for role MANAGER (regression)", () => {
-        renderTopbar(StaffRoles.MANAGER);
+    it.each([StaffRoles.MANAGER, StaffRoles.COOK, StaffRoles.SUPERVISOR])(
+        "still renders the Workload selector for role %s (regression)",
+        role => {
+            renderTopbar(role);
 
-        expect(screen.getByRole("combobox")).toBeTruthy();
-        expect(screen.getByText("Open Cash")).toBeTruthy();
-        expect(screen.getByText("Open Shift")).toBeTruthy();
+            expect(screen.getByRole("combobox")).toBeTruthy();
+        }
+    );
+
+    // Cash and Shift are reachable from the nav drawer, which is where they now live for every
+    // screen size. Duplicating them on the bar cost the width that the signed-in identity needs,
+    // and only ever appeared from `sm` up, so a phone already had to use the drawer.
+    describe("Cash and Shift are no longer duplicated on the bar", () => {
+        it.each([StaffRoles.MANAGER, StaffRoles.COOK, StaffRoles.SUPERVISOR, StaffRoles.OWNER])(
+            "renders no Cash/Shift button on the bar for role %s",
+            role => {
+                renderTopbar(role);
+
+                expect(screen.queryByText("Open Cash")).toBeNull();
+                expect(screen.queryByText("Open Shift")).toBeNull();
+            }
+        );
+
+        it("still offers them inside the nav drawer", () => {
+            renderTopbar(StaffRoles.MANAGER);
+            openMenu();
+
+            expect(screen.getByText("Open Cash")).toBeTruthy();
+            expect(screen.getByText("Open Shift")).toBeTruthy();
+        });
     });
 
-    it("still renders the Workload selector and the Cash/Shift buttons for role COOK (regression)", () => {
-        renderTopbar(StaffRoles.COOK);
+    // The task board has neither orders to dial a workload for nor a branch to scope.
+    describe("on the task board", () => {
+        it("hides the Workload selector", () => {
+            renderTopbar(StaffRoles.MANAGER, "board");
 
-        expect(screen.getByRole("combobox")).toBeTruthy();
-        expect(screen.getByText("Open Cash")).toBeTruthy();
-        expect(screen.getByText("Open Shift")).toBeTruthy();
-    });
+            expect(screen.queryByText("Workload", { selector: "label" })).toBeNull();
+        });
 
-    it("still renders the Workload selector and the Cash/Shift buttons for role SUPERVISOR", () => {
-        renderTopbar(StaffRoles.SUPERVISOR);
+        it("hides the branch selector from a city-level role", () => {
+            renderTopbar(StaffRoles.OWNER, "board");
 
-        expect(screen.getByRole("combobox")).toBeTruthy();
-        expect(screen.getByText("Open Cash")).toBeTruthy();
-        expect(screen.getByText("Open Shift")).toBeTruthy();
+            expect(screen.queryByText("Branch", { selector: "label" })).toBeNull();
+        });
+
+        // A city-level role on the order desk renders two comboboxes, so target the labels.
+        it("keeps showing both on the order desk", () => {
+            renderTopbar(StaffRoles.OWNER, "orders");
+
+            expect(screen.getByText("Workload", { selector: "label" })).toBeTruthy();
+            expect(screen.getByText("Branch", { selector: "label" })).toBeTruthy();
+        });
     });
 });
 

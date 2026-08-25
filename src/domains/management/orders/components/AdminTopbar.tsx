@@ -8,19 +8,18 @@ import {
     Select,
     SelectChangeEvent,
     Typography,
-    useMediaQuery, useTheme
 } from "@mui/material";
 import {useState} from "react";
 import MenuIcon from "@mui/icons-material/Menu";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import {updateWorkload} from "../../../../shared/api/public";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
-import {ShiftButton} from "../../shift/components/ShiftButton";
 import AdminNavDrawer from "../../_shared/components/AdminNavDrawer";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import type { StaffRoles as StaffRolesType } from '../../../auth/types';
 import type { WorkloadLevel } from '../../../order/types';
 import type { IBranch } from '../../inventory/types';
+import type { AdminTabKey } from '../../_shared/hooks/useAdminUIState';
 
 interface AdminTopbarProps {
     onOpenHistory: () => void;
@@ -47,6 +46,8 @@ interface AdminTopbarProps {
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
     onAccountManagerOpen: () => void;
+    activeTab: AdminTabKey;
+    onSwitchSurface: () => void;
     role: StaffRolesType | null;
     logout: () => void;
     userName: string;
@@ -75,14 +76,13 @@ export default function AdminTopbar({
                                         onCashRegisterOpen,
                                         onAccountingOpen,
                                         onAccountManagerOpen,
+                                        activeTab,
+                                        onSwitchSurface,
                                         role,
                                         logout,
                                         userName
                                     }: AdminTopbarProps): JSX.Element {
     const [navOpen, setNavOpen] = useState<boolean>(false);
-    const theme = useTheme();
-    const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'xl'));
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
     const colorRed = '#E44B4C';
 
@@ -109,6 +109,9 @@ export default function AdminTopbar({
     }
 
     const isReviewer = role === StaffRoles.REVIEWER;
+    // The board is a different surface with different controls: a branch switcher and a
+    // workload dial belong to the order desk and do nothing for a task board.
+    const onBoard = activeTab === 'board';
 
     const levels: WorkloadLevel[] = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
 
@@ -186,7 +189,7 @@ export default function AdminTopbar({
 
             <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
 
-                {hasCityAccess(role) && (
+                {hasCityAccess(role) && !onBoard && (
                     <BranchSelectorComponent
                         branches={branches}
                         onBranchChange={onBranchChange}
@@ -196,7 +199,7 @@ export default function AdminTopbar({
 
                 {/* Workload, Cash and Shift all mutate branch state, and the backend 403s a
                     REVIEWER on every one of them. Hide rather than let them fail on click. */}
-                {!isReviewer && (
+                {!isReviewer && !onBoard && (
                     <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
                         <InputLabel>Workload</InputLabel>
                         <Select
@@ -217,22 +220,6 @@ export default function AdminTopbar({
                             ))}
                         </Select>
                     </FormControl>
-                )}
-
-                {!isMobile && !isReviewer && (
-                    <>
-                        <ShiftButton
-                            onClick={onCashClick}
-                            stage={cashStage}
-                            getStage={(stage) => getCashStage(stage)}
-                        ></ShiftButton>
-
-                        <ShiftButton
-                            onClick={onShiftStageClick}
-                            stage={shiftStage}
-                            getStage={getShiftStage}
-                        ></ShiftButton>
-                    </>
                 )}
 
                 <IconButton
@@ -267,6 +254,7 @@ export default function AdminTopbar({
                     onShiftStageClick={onShiftStageClick}
                     getCashStage={getCashStage}
                     getShiftStage={getShiftStage}
+                    activeTab={activeTab}
                     handlers={{
                         onGoToMenu,
                         onShiftManagementPageOpen,
@@ -278,6 +266,7 @@ export default function AdminTopbar({
                         onCashRegisterOpen,
                         onAccountingOpen,
                         onAccountManagerOpen,
+                        onSwitchSurface,
                         onBlacklistopen,
                         logout,
                     }}

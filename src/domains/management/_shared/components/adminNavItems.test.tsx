@@ -16,6 +16,7 @@ function makeHandlers(): AdminNavHandlers {
         onAccountingOpen: jest.fn(),
         onBlacklistopen: jest.fn(),
         onAccountManagerOpen: jest.fn(),
+        onSwitchSurface: jest.fn(),
         logout: jest.fn(),
     };
 }
@@ -38,16 +39,20 @@ describe("buildAdminNavSections", () => {
             [
                 "New Order", "Shifts", "Order History", "Statistics", "Config",
                 "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist",
-                "Account Manager",
+                "Account Manager", "Task Board",
             ].sort()
         );
         expect(labelsOf(sections)).not.toContain("Logout");
     });
 
-    it("gives a null role the same set as MANAGER (regression: existing default branch)", () => {
+    // The board is the one item a null role does NOT inherit from the manager default: it is
+    // gated on isManagerRole, which is also what AdminHomePage uses to decide whether the board
+    // renders at all -- a row that switched to a surface that never appears would be a dead end.
+    it("gives a null role the same set as MANAGER, minus the board toggle", () => {
         const sections = buildAdminNavSections(null, makeHandlers());
+        const managerLabels = labelsOf(buildAdminNavSections(StaffRoles.MANAGER, makeHandlers()));
 
-        expect(labelsOf(sections).sort()).toEqual(labelsOf(buildAdminNavSections(StaffRoles.MANAGER, makeHandlers())).sort());
+        expect(labelsOf(sections).sort()).toEqual(managerLabels.filter(l => l !== "Task Board").sort());
     });
 
     it("gives a COOK only the cook base items", () => {
@@ -101,6 +106,54 @@ describe("buildAdminNavSections", () => {
             expect(labelsOf(sections)).not.toContain("Account Manager");
         }
     );
+
+    // One row, not two: whichever surface you are NOT on is the one worth offering.
+    describe("order desk / task board toggle", () => {
+        it("offers Task Board while the order desk is showing", () => {
+            const sections = buildAdminNavSections(StaffRoles.MANAGER, makeHandlers(), "orders");
+            const operations = sections.find(s => s.title === "Operations");
+
+            expect(operations?.items.map(i => i.label)).toContain("Task Board");
+            expect(labelsOf(sections)).not.toContain("Order Board");
+        });
+
+        it("offers Order Board while the task board is showing", () => {
+            const sections = buildAdminNavSections(StaffRoles.MANAGER, makeHandlers(), "board");
+            const operations = sections.find(s => s.title === "Operations");
+
+            expect(operations?.items.map(i => i.label)).toContain("Order Board");
+            expect(labelsOf(sections)).not.toContain("Task Board");
+        });
+
+        it("defaults to the order desk when no tab is given", () => {
+            expect(labelsOf(buildAdminNavSections(StaffRoles.OWNER, makeHandlers()))).toContain("Task Board");
+        });
+
+        it("wires the toggle to onSwitchSurface in both directions", () => {
+            const handlers = makeHandlers();
+
+            const fromDesk = buildAdminNavSections(StaffRoles.OWNER, handlers, "orders")
+                .flatMap(s => s.items).find(i => i.label === "Task Board");
+            fromDesk?.onClick();
+            const fromBoard = buildAdminNavSections(StaffRoles.OWNER, handlers, "board")
+                .flatMap(s => s.items).find(i => i.label === "Order Board");
+            fromBoard?.onClick();
+
+            expect(handlers.onSwitchSurface).toHaveBeenCalledTimes(2);
+        });
+
+        it.each([StaffRoles.COOK, StaffRoles.SUPERVISOR, StaffRoles.REVIEWER])(
+            "offers no board toggle to role %s, in either direction",
+            role => {
+                for (const tab of ["orders", "board"] as const) {
+                    const labels = labelsOf(buildAdminNavSections(role, makeHandlers(), tab));
+
+                    expect(labels).not.toContain("Task Board");
+                    expect(labels).not.toContain("Order Board");
+                }
+            }
+        );
+    });
 
     it("wires each item's onClick to the matching handler", () => {
         const handlers = makeHandlers();
