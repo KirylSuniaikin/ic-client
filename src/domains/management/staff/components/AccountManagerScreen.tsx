@@ -9,12 +9,14 @@ import {
     Paper,
     Skeleton,
     Stack,
+    MenuItem,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    TextField,
     ToggleButton,
     ToggleButtonGroup,
     Tooltip,
@@ -33,7 +35,6 @@ import theme from "../../../../shared/utils/theme";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import type { IBranch } from "../../inventory/types";
-import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import { useBranchScope } from "../../_shared/hooks/useBranchScope";
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
@@ -102,6 +103,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     const [deactivateTarget, setDeactivateTarget] = useState<StaffAdminTO | null>(null);
     const [togglingId, setTogglingId] = useState<number | null>(null);
     const [showDeactivated, setShowDeactivated] = useState(false);
+    const [roleFilter, setRoleFilter] = useState<string>("ALL");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const isOwnerViewer = role === StaffRoles.OWNER;
@@ -114,9 +116,12 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // Filtered here rather than server-side: the roster is one branch's staff, the caller may
     // already see every row, and toggling the filter then costs no refetch that could race the
     // branch selector.
-    const visibleStaff = showDeactivated ? staff : staff.filter(s => s.enabled);
+    const byState = showDeactivated ? staff : staff.filter(s => s.enabled);
+    const visibleStaff = roleFilter === "ALL" ? byState : byState.filter(s => s.role === roleFilter);
     const deactivatedCount = staff.filter(s => !s.enabled).length;
     const isEmpty = !loading && visibleStaff.length === 0;
+    // Only roles actually on this branch, so the filter can never select an empty roster.
+    const rolesPresent = Array.from(new Set(staff.map(s => s.role).filter((r): r is StaffRoles => r !== null))).sort();
 
     const applyEnabled = async (target: StaffAdminTO, enabled: boolean): Promise<void> => {
         setTogglingId(target.id);
@@ -280,13 +285,6 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
             <ManagementTopBar
                 title="Account Manager"
                 onBack={onClose}
-                branchSelector={canSwitch ? (
-                    <BranchSelectorComponent
-                        branches={branches}
-                        selectedBranch={scopedBranch}
-                        onBranchChange={setScopedBranch}
-                    />
-                ) : undefined}
                 actions={
                     <Button
                         variant="contained"
@@ -303,59 +301,113 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                         }}
                         data-testid="staff-hire-button"
                     >
-                        Hire
+                        Add
                     </Button>
                 }
             />
 
-            <Box sx={{ maxWidth: 1000, mx: "auto", px: { xs: 1.5, sm: 3 }, py: 2.5 }}>
+            <Box sx={{ maxWidth: 1000, mx: "auto", px: { xs: 1, sm: 3 }, py: { xs: 1.5, sm: 2.5 } }}>
+                {/* Every filter in one row: the branch used to sit up in the top bar, away from
+                    the controls it belongs with. */}
                 <Box
                     sx={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 1,
+                        gap: 1.25,
                         mb: 2,
                         flexWrap: "wrap",
                     }}
                 >
-                    <ToggleButtonGroup
-                        exclusive
-                        size="small"
-                        value={showDeactivated ? "all" : "active"}
-                        onChange={(_, v: string | null) => v && setShowDeactivated(v === "all")}
-                        sx={{
-                            columnGap: 1,
-                            "& .MuiToggleButtonGroup-grouped": {
-                                border: `1px solid ${hairline}`,
-                                borderRadius: 999,
-                                margin: 0,
-                                "&:not(:first-of-type)": { marginLeft: 0, borderLeft: `1px solid ${hairline}` },
-                            },
-                            "& .MuiToggleButton-root": {
-                                textTransform: "none",
-                                fontWeight: 600,
-                                px: 2,
-                                py: 0.6,
-                                color: "#6b7079",
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
+                        <ToggleButtonGroup
+                            exclusive
+                            size="small"
+                            value={showDeactivated ? "all" : "active"}
+                            onChange={(_, v: string | null) => v && setShowDeactivated(v === "all")}
+                            sx={{
+                                columnGap: 1,
+                                "& .MuiToggleButtonGroup-grouped": {
+                                    border: `1px solid ${hairline}`,
+                                    borderRadius: 999,
+                                    margin: 0,
+                                    "&:not(:first-of-type)": { marginLeft: 0, borderLeft: `1px solid ${hairline}` },
+                                },
+                                "& .MuiToggleButton-root": {
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    px: 2,
+                                    py: 0.6,
+                                    color: "#6b7079",
+                                    backgroundColor: "#fff",
+                                    "&:hover": { backgroundColor: "#f4f2ed" },
+                                },
+                                "& .MuiToggleButton-root.Mui-selected": {
+                                    backgroundColor: colorRed,
+                                    color: "#fff",
+                                    borderColor: colorRed,
+                                    "&:hover": { backgroundColor: "#d23c3d", borderColor: "#d23c3d" },
+                                },
+                            }}
+                        >
+                            <ToggleButton value="active" data-testid="staff-filter-active">Active</ToggleButton>
+                            <ToggleButton value="all" data-testid="staff-filter-all">All</ToggleButton>
+                        </ToggleButtonGroup>
+
+                        {canSwitch && (
+                            <TextField
+                                select
+                                size="small"
+                                label="Branch"
+                                value={scopedBranch.id}
+                                onChange={e => {
+                                    const next = branches.find(b => String(b.id) === e.target.value);
+                                    if (next) setScopedBranch(next);
+                                }}
+                                sx={{
+                            minWidth: 140,
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
                                 backgroundColor: "#fff",
-                                "&:hover": { backgroundColor: "#f4f2ed" },
-                            },
-                            "& .MuiToggleButton-root.Mui-selected": {
-                                backgroundColor: colorRed,
-                                color: "#fff",
-                                borderColor: colorRed,
-                                "&:hover": { backgroundColor: "#d23c3d", borderColor: "#d23c3d" },
+                                fontWeight: 600,
+                                fontSize: "0.875rem",
                             },
                         }}
-                    >
-                        <ToggleButton value="active" data-testid="staff-filter-active">Active</ToggleButton>
-                        <ToggleButton value="all" data-testid="staff-filter-all">All</ToggleButton>
-                    </ToggleButtonGroup>
+                                data-testid="staff-filter-branch"
+                            >
+                                {branches.map(b => (
+                                    <MenuItem key={b.id} value={String(b.id)}>{b.branchName}</MenuItem>
+                                ))}
+                            </TextField>
+                        )}
+
+                        <TextField
+                            select
+                            size="small"
+                            label="Role"
+                            value={roleFilter}
+                            onChange={e => setRoleFilter(e.target.value)}
+                            sx={{
+                            minWidth: 140,
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
+                                backgroundColor: "#fff",
+                                fontWeight: 600,
+                                fontSize: "0.875rem",
+                            },
+                        }}
+                            data-testid="staff-filter-role"
+                        >
+                            <MenuItem value="ALL">All roles</MenuItem>
+                            {rolesPresent.map(r => (
+                                <MenuItem key={r} value={r}>{prettyRole(r)}</MenuItem>
+                            ))}
+                        </TextField>
+                    </Box>
 
                     <Typography sx={{ fontSize: "0.82rem", color: "#8a8f98" }}>
                         {visibleStaff.length} {visibleStaff.length === 1 ? "person" : "people"}
-                        {!showDeactivated && deactivatedCount > 0 && ` · ${deactivatedCount} hidden`}
+                        {!showDeactivated && deactivatedCount > 0 && ` \u00b7 ${deactivatedCount} hidden`}
                     </Typography>
                 </Box>
 
@@ -401,9 +453,10 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                     elevation={0}
                                     data-testid={`staff-row-${s.id}`}
                                     sx={{
-                                        borderRadius: "14px",
+                                        borderRadius: "16px",
                                         border: `1px solid ${hairline}`,
-                                        p: 1.75,
+                                        px: 2,
+                                        py: 1.75,
                                         opacity: s.enabled ? 1 : 0.6,
                                     }}
                                 >
@@ -415,11 +468,22 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                             </Typography>
                                         )}
                                     </Box>
-                                    <Stack direction="row" spacing={0.75} sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}>
-                                        {rolePill(s)}
-                                        {!s.enabled && deactivatedPill(s)}
-                                    </Stack>
-                                    {administrable && <Box sx={{ mt: 1.5 }}>{rowActions(s)}</Box>}
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 1,
+                                            mt: 1.5,
+                                            flexWrap: "wrap",
+                                        }}
+                                    >
+                                        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
+                                            {rolePill(s)}
+                                            {!s.enabled && deactivatedPill(s)}
+                                        </Stack>
+                                        {administrable && rowActions(s)}
+                                    </Box>
                                 </Paper>
                             );
                         })}
@@ -495,7 +559,12 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 ))}
             </Box>
 
-            <HireStaffDrawer open={hireOpen} onClose={() => setHireOpen(false)} create={create} />
+            <HireStaffDrawer
+                open={hireOpen}
+                onClose={() => setHireOpen(false)}
+                create={create}
+                defaultBranchId={scopedBranch.id}
+            />
 
             <ResetPasswordDrawer
                 open={resetTarget !== null}

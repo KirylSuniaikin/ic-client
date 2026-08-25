@@ -155,8 +155,7 @@ describe("AccountManagerScreen", () => {
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-        // The selector is the only combobox this screen renders.
-        expect(screen.queryByRole("combobox")).toBeNull();
+        expect(screen.queryByTestId("staff-filter-branch")).toBeNull();
     });
 
     it("offers a branch selector when more than one branch is in scope", () => {
@@ -164,7 +163,7 @@ describe("AccountManagerScreen", () => {
 
         render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
 
-        expect(screen.getByRole("combobox")).toBeTruthy();
+        expect(screen.getByTestId("staff-filter-branch")).toBeTruthy();
     });
 
     it("opens the HireStaffDrawer when the Hire button is clicked", () => {
@@ -323,6 +322,63 @@ describe("AccountManagerScreen", () => {
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
             expect(screen.getByTestId("staff-empty-state")).toBeTruthy();
+        });
+    });
+
+    describe("role filter", () => {
+        it("offers only the roles actually present on this branch", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [
+                    makeStaff({ id: 1, role: StaffRoles.COOK }),
+                    makeStaff({ id: 2, role: StaffRoles.COOK }),
+                    makeStaff({ id: 3, role: StaffRoles.REVIEWER }),
+                ],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            fireEvent.mouseDown(within(screen.getByTestId("staff-filter-role")).getByRole("combobox"));
+
+            expect(screen.getByRole("option", { name: "Cook" })).toBeTruthy();
+            expect(screen.getByRole("option", { name: "Reviewer" })).toBeTruthy();
+            expect(screen.queryByRole("option", { name: "Manager" })).toBeNull();
+        });
+
+        it("narrows the roster to the chosen role", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [
+                    makeStaff({ id: 1, role: StaffRoles.COOK }),
+                    makeStaff({ id: 2, role: StaffRoles.REVIEWER }),
+                ],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            fireEvent.mouseDown(within(screen.getByTestId("staff-filter-role")).getByRole("combobox"));
+            fireEvent.click(screen.getByRole("option", { name: "Reviewer" }));
+
+            expect(screen.queryByTestId("staff-row-1")).toBeNull();
+            expect(screen.getByTestId("staff-row-2")).toBeTruthy();
+        });
+
+        // The two filters are independent: a deactivated cook must stay hidden under Active even
+        // when the role filter selects cooks.
+        it("combines with the active/all filter rather than replacing it", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [
+                    makeStaff({ id: 1, role: StaffRoles.COOK, enabled: true }),
+                    makeStaff({ id: 2, role: StaffRoles.COOK, enabled: false }),
+                ],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            fireEvent.mouseDown(within(screen.getByTestId("staff-filter-role")).getByRole("combobox"));
+            fireEvent.click(screen.getByRole("option", { name: "Cook" }));
+
+            expect(screen.getByTestId("staff-row-1")).toBeTruthy();
+            expect(screen.queryByTestId("staff-row-2")).toBeNull();
+
+            fireEvent.click(screen.getByTestId("staff-filter-all"));
+
+            expect(screen.getByTestId("staff-row-2")).toBeTruthy();
         });
     });
 });
