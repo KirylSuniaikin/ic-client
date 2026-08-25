@@ -18,6 +18,8 @@ export interface MyTokenPayload {
 export interface AuthContextType {
     branchId: string | null;
     username: string | null;
+    /** Human name from GET /api/staff/me. Null until it answers, and for staff who have none. */
+    fullName: string | null;
     userId: number | null;
     role: StaffRoles | null;
     logout: () => void;
