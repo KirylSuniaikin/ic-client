@@ -3,6 +3,13 @@ import { Box, Dialog, Drawer, IconButton, Typography, useMediaQuery } from "@mui
 import CloseIcon from "@mui/icons-material/Close";
 import theme from "../../../../shared/utils/theme";
 
+export const SHEET_Z_INDEX = 1350;
+
+// A Select opened inside a sheet renders its menu in its own popover, which defaults to
+// theme.zIndex.modal (1300) -- i.e. BEHIND the sheet, where it is invisible and unclickable.
+// Every Select rendered inside a ResponsiveSheet must carry these.
+export const SHEET_MENU_PROPS = { sx: { zIndex: SHEET_Z_INDEX + 10 } } as const;
+
 export interface ResponsiveSheetProps {
     open: boolean;
     onClose: () => void;
@@ -89,7 +96,7 @@ export default function ResponsiveSheet({
                 anchor="bottom"
                 open={open}
                 onClose={onClose}
-                sx={{ zIndex: 1350 }}
+                sx={{ zIndex: SHEET_Z_INDEX }}
                 PaperProps={{
                     sx: {
                         borderTopLeftRadius: 20,
@@ -111,7 +118,7 @@ export default function ResponsiveSheet({
             onClose={onClose}
             fullWidth
             maxWidth="sm"
-            sx={{ zIndex: 1350 }}
+            sx={{ zIndex: SHEET_Z_INDEX }}
             slotProps={{
                 paper: {
                     elevation: 0,

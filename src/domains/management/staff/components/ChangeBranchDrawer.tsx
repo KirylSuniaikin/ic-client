@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Alert, Box, Button, MenuItem, TextField } from "@mui/material";
-import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
+import ResponsiveSheet, { SHEET_MENU_PROPS } from "../../_shared/components/ResponsiveSheet";
 import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
@@ -93,6 +93,7 @@ export default function ChangeBranchDrawer({
                     value={selectedId}
                     onChange={e => setSelectedId(e.target.value)}
                     disabled={loading}
+                    SelectProps={{ MenuProps: SHEET_MENU_PROPS }}
                     sx={{ mb: 2 }}
                     data-testid="change-branch-select"
                 >

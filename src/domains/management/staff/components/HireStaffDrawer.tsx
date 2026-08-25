@@ -13,11 +13,10 @@ import {
     TextField,
 } from "@mui/material";
 import { logger } from "../../../../shared/utils/logger";
+import { fetchAllBranches } from "../../../../shared/api/management";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles, hasCityAccess } from "../../../auth/types";
-import { useManagementBranchScope } from "../../_shared/context/ManagementBranchScope";
-import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
-import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
+import ResponsiveSheet, { SHEET_MENU_PROPS } from "../../_shared/components/ResponsiveSheet";
 import type { IBranch } from "../../inventory/types";
 import { generatePassword } from "../utils/generatePassword";
 import CredentialsRevealPanel from "./CredentialsRevealPanel";
@@ -28,13 +27,14 @@ export interface HireStaffDrawerProps {
     open: boolean;
     onClose: () => void;
     create: (request: HireStaffRequest) => Promise<HiredStaffTO>;
+    /** Branch the roster is scoped to, pre-selected for a city-level hirer. */
+    defaultBranchId?: string;
 }
 
 const colorRed = "#E44B4C";
 
-export default function HireStaffDrawer({ open, onClose, create }: HireStaffDrawerProps): React.JSX.Element {
+export default function HireStaffDrawer({ open, onClose, create, defaultBranchId }: HireStaffDrawerProps): React.JSX.Element {
     const { role, branchId: ownBranchId } = useAuth();
-    const { branches } = useManagementBranchScope();
     const cityAccess = hasCityAccess(role);
     const hireableRoles = getHireableRoles(role);
 
@@ -43,18 +43,39 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
     const [password, setPassword] = useState("");
     const [selectedRole, setSelectedRole] = useState<StaffRoles | "">("");
     const [pricePerHourStr, setPricePerHourStr] = useState("");
-    const [selectedBranch, setSelectedBranch] = useState<IBranch | null>(null);
+    const [branches, setBranches] = useState<IBranch[]>([]);
+    const [branchesLoaded, setBranchesLoaded] = useState(false);
+    const [selectedBranchId, setSelectedBranchId] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
 
-    // Default the branch picker to the first branch a city-level caller sees, same as
-    // useBranchSelection.ts does for its own selectedBranch seed.
+    // Fetched here rather than read from ManagementBranchScope, for the same reason
+    // ChangeBranchDrawer does it: that context is seeded from the caller's own scope, so it is
+    // empty or one-element exactly when a city-level hirer needs the full list -- and an empty
+    // ambient list gives no clue that anything failed. A real failure now says so.
     useEffect(() => {
-        if (cityAccess && selectedBranch === null && branches.length > 0) {
-            setSelectedBranch(branches[0]);
-        }
-    }, [cityAccess, branches, selectedBranch]);
+        if (!open || !cityAccess) return;
+        let cancelled = false;
+        fetchAllBranches()
+            .then(all => { if (!cancelled) setBranches(all); })
+            .catch(err => {
+                if (cancelled) return;
+                logger.error("Failed to load branches to hire into:", err);
+                setFormError("Failed to load branches");
+            })
+            // Loaded, not "succeeded": a failed fetch has also stopped being in-flight, and the
+              // caller needs the empty-list warning either way.
+            .finally(() => { if (!cancelled) setBranchesLoaded(true); });
+        return () => { cancelled = true; };
+    }, [open, cityAccess]);
+
+    // Default to the branch whose roster the manager opened this from, falling back to the first.
+    useEffect(() => {
+        if (!cityAccess || selectedBranchId !== "" || branches.length === 0) return;
+        const seed = branches.find(b => String(b.id) === defaultBranchId) ?? branches[0];
+        setSelectedBranchId(String(seed.id));
+    }, [cityAccess, branches, selectedBranchId, defaultBranchId]);
 
     // One-time reveal: once the drawer is dismissed nothing here keeps the plaintext password.
     useEffect(() => {
@@ -64,7 +85,8 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         setPassword("");
         setSelectedRole("");
         setPricePerHourStr("");
-        setSelectedBranch(null);
+        setSelectedBranchId("");
+        setBranchesLoaded(false);
         setFormError(null);
         setCredentials(null);
         setSubmitting(false);
@@ -79,7 +101,7 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         pricePerHourStr.trim() !== "" &&
         !Number.isNaN(pricePerHour) &&
         pricePerHour >= 0 &&
-        (cityAccess ? selectedBranch !== null : ownBranchId !== null);
+        (cityAccess ? selectedBranchId !== "" : ownBranchId !== null);
 
     const handleGeneratePassword = (): void => setPassword(generatePassword());
 
@@ -93,8 +115,8 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         // an unresolved branchId must never fall back to "" and round-trip as a backend 400.
         let branchId: string;
         if (cityAccess) {
-            if (!selectedBranch) return;
-            branchId = selectedBranch.id;
+            if (selectedBranchId === "") return;
+            branchId = selectedBranchId;
         } else {
             if (!ownBranchId) return;
             branchId = ownBranchId;
@@ -129,7 +151,7 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
         <ResponsiveSheet
             open={open}
             onClose={onClose}
-            title={credentials ? undefined : "Hire staff"}
+            title={credentials ? undefined : "Add staff"}
             testId="hire-staff-drawer"
         >
             {credentials ? (
@@ -188,6 +210,7 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
                             value={selectedRole}
                             onChange={(e: SelectChangeEvent<StaffRoles | "">) => setSelectedRole(e.target.value)}
                             data-testid="hire-staff-role-select"
+                            MenuProps={SHEET_MENU_PROPS}
                         >
                             {hireableRoles.map(r => (
                                 <MenuItem key={r} value={r}>
@@ -211,19 +234,27 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
                     />
 
                     {cityAccess && (
-                        <Box sx={{ mb: 2 }}>
-                            {selectedBranch ? (
-                                <BranchSelectorComponent
-                                    branches={branches}
-                                    selectedBranch={selectedBranch}
-                                    onBranchChange={setSelectedBranch}
-                                />
-                            ) : (
-                                <Alert severity="warning" data-testid="hire-staff-no-branches">
-                                    No branches available to hire into.
-                                </Alert>
-                            )}
-                        </Box>
+                        !branchesLoaded || branches.length > 0 ? (
+                            <TextField
+                                select
+                                label="Branch"
+                                fullWidth
+                                value={selectedBranchId}
+                                onChange={e => setSelectedBranchId(e.target.value)}
+                                disabled={!branchesLoaded}
+                                SelectProps={{ MenuProps: SHEET_MENU_PROPS }}
+                                sx={{ mb: 2 }}
+                                data-testid="hire-staff-branch-select"
+                            >
+                                {branches.map(b => (
+                                    <MenuItem key={b.id} value={String(b.id)}>{b.branchName}</MenuItem>
+                                ))}
+                            </TextField>
+                        ) : (
+                            <Alert severity="warning" sx={{ mb: 2 }} data-testid="hire-staff-no-branches">
+                                No branches available to hire into.
+                            </Alert>
+                        )
                     )}
 
                     <Button
@@ -241,7 +272,7 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
                             "&:hover": { bgcolor: "#c73c3d" },
                         }}
                     >
-                        Hire
+                        Add
                     </Button>
                 </Box>
             )}

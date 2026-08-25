@@ -28,10 +28,12 @@ jest.mock("../../../auth/context/AuthProvider", () => ({
 }));
 
 type Branch = { id: string; externalId: string; branchNo: number; branchName: string; locale: string };
-type BranchScopeValue = { branches: Branch[]; homeBranch: unknown };
-const mockUseManagementBranchScope = jest.fn<BranchScopeValue, []>();
-jest.mock("../../_shared/context/ManagementBranchScope", () => ({
-    useManagementBranchScope: () => mockUseManagementBranchScope(),
+// The drawer fetches its own branch list now: the ambient ManagementBranchScope is seeded from
+// the caller's own scope, so it is empty or one-element exactly when a city-level hirer needs
+// every branch.
+const mockFetchAllBranches = jest.fn<Promise<Branch[]>, []>();
+jest.mock("../../../../shared/api/management", () => ({
+    fetchAllBranches: () => mockFetchAllBranches(),
 }));
 
 // No manual mock exists for this tiny util -- factoryless jest.mock() automocks it, and
@@ -70,7 +72,7 @@ describe("HireStaffDrawer", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER, branchId: "branch-1" });
-        mockUseManagementBranchScope.mockReturnValue({ branches: [], homeBranch: null });
+        mockFetchAllBranches.mockResolvedValue([]);
         mockCopyToClipboard.mockResolvedValue(undefined);
     });
 
@@ -107,7 +109,7 @@ describe("HireStaffDrawer", () => {
 
     it("renders a branch selector for a city-access caller", () => {
         mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
-        mockUseManagementBranchScope.mockReturnValue({ branches: [BRANCH_1, BRANCH_2], homeBranch: BRANCH_1 });
+        mockFetchAllBranches.mockResolvedValue([BRANCH_1, BRANCH_2]);
 
         render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
 
@@ -129,7 +131,7 @@ describe("HireStaffDrawer", () => {
         render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
 
         fillRequiredFields("COOK");
-        fireEvent.click(screen.getByText("Hire"));
+        fireEvent.click(screen.getByText("Add"));
 
         await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
         expect(createMock).toHaveBeenCalledWith({
@@ -151,7 +153,7 @@ describe("HireStaffDrawer", () => {
         render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
 
         fillRequiredFields("COOK");
-        fireEvent.click(screen.getByText("Hire"));
+        fireEvent.click(screen.getByText("Add"));
 
         await waitFor(() => expect(screen.getByTestId("hire-staff-credentials")).toBeTruthy());
 
@@ -166,7 +168,7 @@ describe("HireStaffDrawer", () => {
         render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
 
         fillRequiredFields("COOK");
-        fireEvent.click(screen.getByText("Hire"));
+        fireEvent.click(screen.getByText("Add"));
 
         await waitFor(() => expect(screen.getByTestId("hire-staff-error")).toBeTruthy());
         expect((screen.getByLabelText("Login") as HTMLInputElement).value).toBe("new.cook");
@@ -176,7 +178,7 @@ describe("HireStaffDrawer", () => {
     it("disables Hire until the required fields are filled", () => {
         render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
 
-        const hireButton = screen.getByText("Hire").closest("button") as HTMLButtonElement;
+        const hireButton = screen.getByText("Add").closest("button") as HTMLButtonElement;
         expect(hireButton.disabled).toBe(true);
     });
 
@@ -187,7 +189,7 @@ describe("HireStaffDrawer", () => {
         render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
 
         fillRequiredFields("COOK");
-        fireEvent.click(screen.getByText("Hire"));
+        fireEvent.click(screen.getByText("Add"));
 
         await waitFor(() => expect(screen.getByTestId("hire-staff-credentials")).toBeTruthy());
 
@@ -197,12 +199,41 @@ describe("HireStaffDrawer", () => {
         expect(screen.queryByText("Copied!")).toBeNull();
     });
 
-    it("shows a no-branches warning for a city-access caller with no branches in scope, instead of silently blocking Hire", () => {
+    // Awaited, not synchronous: the warning must appear only once the fetch has actually answered
+    // with nothing. Rendering it before then would flash "no branches" on every single open.
+    it("shows a no-branches warning for a city-access caller once the fetch returns none", async () => {
         mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
-        mockUseManagementBranchScope.mockReturnValue({ branches: [], homeBranch: null });
+        mockFetchAllBranches.mockResolvedValue([]);
 
         render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
 
-        expect(screen.getByTestId("hire-staff-no-branches")).toBeTruthy();
+        expect(screen.queryByTestId("hire-staff-no-branches")).toBeNull();
+        await waitFor(() => expect(screen.getByTestId("hire-staff-no-branches")).toBeTruthy());
+    });
+
+    it("surfaces a failed branch fetch instead of leaving an empty picker", async () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+        mockFetchAllBranches.mockRejectedValue(new Error("HTTP 500"));
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        await waitFor(() => expect(screen.getByTestId("hire-staff-error")).toBeTruthy());
+        expect(screen.getByTestId("hire-staff-error").textContent).toContain("Failed to load branches");
+    });
+
+    it("pre-selects the branch the roster was scoped to", async () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+        mockFetchAllBranches.mockResolvedValue([BRANCH_1, BRANCH_2]);
+
+        render(
+            <HireStaffDrawer
+                open
+                onClose={jest.fn()}
+                create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()}
+                defaultBranchId={BRANCH_2.id}
+            />
+        );
+
+        await waitFor(() => expect(screen.getByTestId("hire-staff-branch-select").textContent).toContain("Seef"));
     });
 });
