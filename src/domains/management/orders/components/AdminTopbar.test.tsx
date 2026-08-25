@@ -234,4 +234,27 @@ describe("AdminTopbar — role-based menu items", () => {
         expect(document.querySelector(".MuiPopover-root")).toBeNull();
         expect(document.querySelector(".MuiDrawer-root")).not.toBeNull();
     });
+
+    // The signed-in identity lived in the old overflow dropdown's trigger and disappeared when
+    // that became a nav drawer -- readable only after opening it. This asserts it is on the bar
+    // itself, without any interaction.
+    describe("signed-in identity", () => {
+        it("shows the user's name on the bar without opening the drawer", () => {
+            renderTopbar(StaffRoles.MANAGER);
+
+            expect(screen.getByTestId("admin-topbar-user").textContent).toBe("Test User");
+        });
+
+        it("shows the role underneath it", () => {
+            renderTopbar(StaffRoles.SUPER_MANAGER);
+
+            expect(screen.getByText("super manager")).toBeTruthy();
+        });
+
+        it("still shows the name when the role is unknown", () => {
+            renderTopbar(null);
+
+            expect(screen.getByTestId("admin-topbar-user").textContent).toBe("Test User");
+        });
+    });
 });

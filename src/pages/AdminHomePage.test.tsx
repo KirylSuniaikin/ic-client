@@ -188,6 +188,7 @@ function authValue(role: StaffRoles | null): AuthContextType {
     return {
         branchId: "branch-1",
         username: "test-user",
+        fullName: "Test User",
         userId: 1,
         role,
         logout: jest.fn(),

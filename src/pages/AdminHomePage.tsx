@@ -34,7 +34,7 @@ import { EditedOrderAlert } from "../domains/management/orders/components/Edited
 import { LtrBoundary } from "../shared/components/LtrBoundary";
 
 function AdminHomePage(): JSX.Element {
-    const { username, branchId, userId, role, logout } = useAuth();
+    const { username, fullName, branchId, userId, role, logout } = useAuth();
     const { availableBranches, selectedBranch, setSelectedBranch, branchError } = useAdminBranchInit(branchId, role);
     const navigate = useNavigate();
     const ui = useAdminUIState();
@@ -104,7 +104,7 @@ function AdminHomePage(): JSX.Element {
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
                     onAccountingOpen={() => ui.setAccountingOpen(true)} onAccountManagerOpen={() => ui.setAccountManagerOpen(true)}
-                    role={role} logout={logout} userName={username ?? ""}
+                    role={role} logout={logout} userName={fullName ?? username ?? ""}
                 />
             )}
             {selectedBranch && (<>

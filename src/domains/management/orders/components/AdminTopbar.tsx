@@ -7,10 +7,12 @@ import {
     MenuItem,
     Select,
     SelectChangeEvent,
+    Typography,
     useMediaQuery, useTheme
 } from "@mui/material";
 import {useState} from "react";
 import MenuIcon from "@mui/icons-material/Menu";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import {updateWorkload} from "../../../../shared/api/public";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {ShiftButton} from "../../shift/components/ShiftButton";
@@ -157,6 +159,29 @@ export default function AdminTopbar({
                 zIndex: 10
             }}
         >
+            {/* Who is signed in. This lived in the old overflow dropdown's trigger and was lost
+                when that became a nav drawer; the drawer still shows it, but only once opened. */}
+            <Box sx={{display: "flex", alignItems: "center", gap: 1, minWidth: 0, pl: 0.5}}>
+                <PersonOutlineIcon sx={{fontSize: "1.1rem", color: "#8a8f98"}}/>
+                <Box sx={{minWidth: 0}}>
+                    <Typography
+                        noWrap
+                        sx={{fontSize: "0.9rem", fontWeight: 600, color: "#1f2430", lineHeight: 1.2}}
+                        data-testid="admin-topbar-user"
+                    >
+                        {userName}
+                    </Typography>
+                    {role && (
+                        <Typography
+                            noWrap
+                            sx={{fontSize: "0.7rem", color: "#8a8f98", textTransform: "capitalize", lineHeight: 1.2}}
+                        >
+                            {role.replace(/_/g, " ").toLowerCase()}
+                        </Typography>
+                    )}
+                </Box>
+            </Box>
+
             <Box sx={{flexGrow: 1}}/>
 
             <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
