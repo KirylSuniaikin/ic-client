@@ -17,7 +17,7 @@ import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains
 import type { VatStatePayload } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
-import type { DoughStatus } from '../../../domains/management/dough/types';
+import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
 import type {
     BoardOwner,
     ChangeTaskCardPriorityPayload,
@@ -116,6 +116,8 @@ export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [strin
 
 // Dough inventory (Config -> Menu tab).
 export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();
+export const putDoughInventory = jest.fn<Promise<DoughStatus>, [string, DoughStatus]>();
+export const putDoughAvailability = jest.fn<Promise<DoughStatus>, [string, DoughAvailabilityFlags]>();
 
 // Staff hiring (Task 2c).
 export const hireStaff = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>();

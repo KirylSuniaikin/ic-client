@@ -75,6 +75,7 @@ export function useDough(
 
     const onDoughAvailabilityToggle = async (key: string): Promise<void> => {
         if (!branchId || !doughStatus) return;
+        const flagKey = key as keyof DoughAvailabilityFlags;
 
         const prevStatus = doughStatus;
         const prevAvailability: DoughAvailabilityFlags = doughStatus.availability ?? {
@@ -101,6 +102,19 @@ export function useDough(
             const serverResponse = await putDoughAvailability(branchId, updatedFlags);
             setDoughStatus(serverResponse);
             doughStatusRef.current = serverResponse;
+
+            // The endpoint does not echo the request back: it flips the menu items of that size,
+            // then RE-READS availability from them. A branch with no menu items of that size --
+            // seeded by hand, or simply missing that category -- has nothing to flip, so the
+            // answer is "still unavailable" and the toggle appears to snap back on its own. That
+            // used to happen in complete silence, since nothing had actually failed.
+            if (serverResponse.availability?.[flagKey] !== updatedFlags[flagKey]) {
+                logger.warn(
+                    `Dough availability for "${key}" stayed ${String(serverResponse.availability?.[flagKey])} ` +
+                    `after requesting ${String(updatedFlags[flagKey])}. The branch has no menu items of that ` +
+                    `size or category for the server to make available.`
+                );
+            }
         } catch (err) {
             setDoughStatus(prevStatus);
             doughStatusRef.current = prevStatus;
