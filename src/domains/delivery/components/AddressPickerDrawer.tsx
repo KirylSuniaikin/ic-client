@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, TextField, Button, Alert, CircularProgress } from '@mui/material';
+import { Drawer, Box, Typography, TextField, Button, CircularProgress } from '@mui/material';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import type { Coordinates, CreateCustomerAddressRequest } from '../types';
-
-const brandRed = '#E44B4C';
+import {
+    FIELD_SX, OUTLINED_BUTTON_SX, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
+    SHEET_PAPER_SX, SheetHandle, SheetNotice,
+} from './sheetStyles';
 
 /**
  * Address entry + pin capture (DELIVERY_SPEC.md §1.4).
@@ -88,57 +91,65 @@ export function AddressPickerDrawer({
     }
 
     return (
-        <Drawer anchor="bottom" open={open} onClose={onClose}
-                PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '90vh' } }}>
-            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Typography variant="h6">{t('delivery.addressTitle')}</Typography>
+        <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: SHEET_PAPER_SX }}>
+            <Box sx={{ p: 3, pb: 4, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+                <SheetHandle />
 
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField label={t('delivery.block')} value={block} onChange={(e) => setBlock(e.target.value)} fullWidth size="small" />
-                    <TextField label={t('delivery.road')} value={road} onChange={(e) => setRoad(e.target.value)} fullWidth size="small" />
+                <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 0.5 }}>
+                    {t('delivery.addressTitle')}
+                </Typography>
+
+                <Box sx={{ ...SECTION_CARD_SX, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                        <TextField label={t('delivery.block')} value={block} onChange={(e) => setBlock(e.target.value)} fullWidth size="small" sx={FIELD_SX} />
+                        <TextField label={t('delivery.road')} value={road} onChange={(e) => setRoad(e.target.value)} fullWidth size="small" sx={FIELD_SX} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                        <TextField label={t('delivery.building')} value={building} onChange={(e) => setBuilding(e.target.value)} fullWidth size="small" sx={FIELD_SX} />
+                        <TextField label={t('delivery.flat')} value={flat} onChange={(e) => setFlat(e.target.value)} fullWidth size="small" sx={FIELD_SX} />
+                    </Box>
+                    <TextField label={t('delivery.label')} value={label} onChange={(e) => setLabel(e.target.value)} fullWidth size="small" sx={FIELD_SX} />
+                    <TextField label={t('delivery.note')} value={note} onChange={(e) => setNote(e.target.value)} fullWidth size="small" multiline minRows={2} sx={FIELD_SX} />
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField label={t('delivery.building')} value={building} onChange={(e) => setBuilding(e.target.value)} fullWidth size="small" />
-                    <TextField label={t('delivery.flat')} value={flat} onChange={(e) => setFlat(e.target.value)} fullWidth size="small" />
-                </Box>
-                <TextField label={t('delivery.label')} value={label} onChange={(e) => setLabel(e.target.value)} fullWidth size="small" />
-                <TextField label={t('delivery.note')} value={note} onChange={(e) => setNote(e.target.value)} fullWidth size="small" multiline minRows={2} />
 
                 {/* The pin block. Deliberately prominent and blocking: an address with no pin
                     cannot be routed, and §1.4's copy asks the customer to place it precisely. */}
-                <Box sx={{ borderTop: '1px solid #eee', pt: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t('delivery.pinTitle')}</Typography>
-                    <Typography variant="body2" sx={{ color: '#666', mb: 1.5 }}>{t('delivery.pinHint')}</Typography>
+                <Box sx={SECTION_CARD_SX}>
+                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.pinTitle')}</Typography>
+                    <Typography variant="body2" sx={{ color: '#8a807a', mb: 1.5 }}>{t('delivery.pinHint')}</Typography>
 
                     <Button
                         variant="outlined"
-                        startIcon={locating ? <CircularProgress size={16} /> : <MyLocationIcon />}
+                        fullWidth
+                        startIcon={locating ? <CircularProgress size={16}  /> : <MyLocationIcon />}
                         onClick={requestLocation}
                         disabled={locating}
-                        sx={{ textTransform: 'none', borderColor: brandRed, color: brandRed }}
+                        sx={{ ...OUTLINED_BUTTON_SX, py: 1.25 }}
                     >
                         {pin === null ? t('delivery.useMyLocation') : t('delivery.updateLocation')}
                     </Button>
 
                     {pin !== null && (
-                        <Typography variant="body2" sx={{ mt: 1, color: '#2e7d32' }}>
-                            {t('delivery.pinSet')}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.5 }}>
+                            <CheckCircleRoundedIcon sx={{ fontSize: 18, color: '#2e7d32' }} />
+                            <Typography variant="body2" sx={{ color: '#2e7d32', fontWeight: 600 }}>
+                                {t('delivery.pinSet')}
+                            </Typography>
+                        </Box>
                     )}
                     {locationError !== null && (
-                        <Alert severity="warning" sx={{ mt: 1.5 }}>{locationError}</Alert>
+                        <Box sx={{ mt: 1.5 }}><SheetNotice tone="warning">{locationError}</SheetNotice></Box>
                     )}
                 </Box>
 
-                {error !== null && <Alert severity="error">{error}</Alert>}
+                {error !== null && <SheetNotice tone="error">{error}</SheetNotice>}
 
                 <Button
                     variant="contained"
                     onClick={handleSave}
                     // Guards the same rule the server enforces: no pin, no address.
                     disabled={pin === null || saving}
-                    sx={{ backgroundColor: brandRed, textTransform: 'none', borderRadius: 4, py: 1.5,
-                          '&:hover': { backgroundColor: brandRed } }}
+                    sx={PRIMARY_BUTTON_SX}
                 >
                     {saving ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('delivery.saveAddress')}
                 </Button>

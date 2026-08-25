@@ -1,17 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-    Box, Typography, Table, TableBody, TableCell, TableHead, TableRow,
-    Button, CircularProgress, Alert, Chip,
-} from '@mui/material';
+import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import {
     fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign,
 } from '../../../../shared/api/dispatcher';
 import { logger } from '../../../../shared/utils/logger';
 import { AssignCourierDialog } from './AssignCourierDialog';
+import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from '../types';
-
-const brandRed = '#E44B4C';
+import {
+    BRAND_RED as brandRed, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState, PANEL_CARD_SX,
+    PanelNotice, ROW_SX, SECTION_TITLE_SX,
+} from './dispatcherStyles';
 
 /**
  * The manager dispatcher panel (DELIVERY_SPEC.md §4).
@@ -65,7 +65,7 @@ export function CourierDispatcherPanel(): JSX.Element {
         );
     }, [load]);
 
-    useEffect(() => {
+    const reloadCurrentView = useCallback((): void => {
         if (view.level === 'couriers') {
             void loadCouriersView();
         } else if (view.level === 'orders') {
@@ -74,6 +74,12 @@ export function CourierDispatcherPanel(): JSX.Element {
             void load(() => fetchOrderRoute(view.order.orderId), setRoute);
         }
     }, [view, load, loadCouriersView]);
+
+    useEffect(() => { reloadCurrentView(); }, [reloadCurrentView]);
+
+    // Live, not a snapshot: an order that falls out of automatic assignment must appear here on
+    // its own. Refetches the view the manager is actually looking at, not always the roster.
+    useDeliveryBoardEvents(reloadCurrentView);
 
     /**
      * §2.3's escape hatch. The conflict cases are the point of the reload: another manager (or a
@@ -118,8 +124,8 @@ export function CourierDispatcherPanel(): JSX.Element {
                 </Button>
             )}
 
-            {error !== null && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            {loading && <CircularProgress size={22} sx={{ mb: 2 }} />}
+            {error !== null && <PanelNotice tone="error">{error}</PanelNotice>}
+            {loading && <CircularProgress size={22} sx={{ mb: 2, color: brandRed }} />}
 
             {view.level === 'couriers' && (
                 <>
@@ -128,76 +134,72 @@ export function CourierDispatcherPanel(): JSX.Element {
                         free. So this block renders only when there is something to act on. */}
                     {awaiting.length > 0 && (
                         <Box sx={{ mb: 4 }}>
-                            <Typography variant="h6" sx={{ mb: 1 }}>Waiting for a courier</Typography>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Order</TableCell>
-                                        <TableCell>Branch</TableCell>
-                                        <TableCell>Address</TableCell>
-                                        <TableCell align="right">Waiting</TableCell>
-                                        <TableCell align="right"></TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {awaiting.map((order) => (
-                                        <TableRow key={order.orderId}>
-                                            <TableCell>#{order.orderNo ?? order.orderId}</TableCell>
-                                            <TableCell>{order.branchName ?? '—'}</TableCell>
-                                            <TableCell>{order.addressLine ?? '—'}</TableCell>
-                                            <TableCell align="right">{order.waitingMinutes} min</TableCell>
-                                            <TableCell align="right">
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    onClick={() => setAssigning(order)}
-                                                    sx={{ textTransform: 'none', color: brandRed, borderColor: brandRed }}
-                                                >
-                                                    Assign
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                            <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
+                                Waiting for a courier
+                            </Typography>
+                            <Box sx={PANEL_CARD_SX}>
+                                {awaiting.map((order) => (
+                                    <Box key={order.orderId} sx={ROW_SX}>
+                                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                                #{order.orderNo ?? order.orderId}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: '#8a807a' }}>
+                                                {order.branchName ?? '—'} · {order.addressLine ?? '—'}
+                                            </Typography>
+                                        </Box>
+                                        {/* The wait is the reason this row exists, so it is the
+                                            one number that gets emphasis. */}
+                                        <Typography variant="body2" sx={{ fontWeight: 700, color: brandRed, whiteSpace: 'nowrap' }}>
+                                            {order.waitingMinutes} min
+                                        </Typography>
+                                        <Button
+                                            size="small"
+                                            variant="contained"
+                                            onClick={() => setAssigning(order)}
+                                            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 999,
+                                                  backgroundColor: brandRed, boxShadow: 'none',
+                                                  '&:hover': { backgroundColor: brandRed, boxShadow: 'none', filter: 'brightness(0.94)' } }}
+                                        >
+                                            Assign
+                                        </Button>
+                                    </Box>
+                                ))}
+                            </Box>
                         </Box>
                     )}
 
-                    <Typography variant="h6" sx={{ mb: 2 }}>Couriers</Typography>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Courier</TableCell>
-                                <TableCell>Status</TableCell>
-                                {/* "Nearest", not "Branch": riders are not assigned to one, this
-                                    is the kitchen closest to their last known position. */}
-                                <TableCell>Nearest</TableCell>
-                                <TableCell align="right">Accepted</TableCell>
-                                {/* Declined and missed are separate columns on purpose — see types.ts. */}
-                                <TableCell align="right">Declined</TableCell>
-                                <TableCell align="right">No answer</TableCell>
-                                <TableCell align="right">Delivered</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {couriers.map((courier) => (
-                                <TableRow
-                                    key={courier.courierId}
-                                    hover
-                                    sx={{ cursor: 'pointer' }}
-                                    onClick={() => setView({ level: 'orders', courier })}
-                                >
-                                    <TableCell>{courier.name ?? courier.courierId}</TableCell>
-                                    <TableCell><Chip size="small" label={courier.status} /></TableCell>
-                                    <TableCell>{courier.nearestBranchName ?? '—'}</TableCell>
-                                    <TableCell align="right">{courier.accepted}</TableCell>
-                                    <TableCell align="right">{courier.declined}</TableCell>
-                                    <TableCell align="right">{courier.missed}</TableCell>
-                                    <TableCell align="right">{courier.delivered}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Couriers</Typography>
+                    <Box sx={PANEL_CARD_SX}>
+                        {couriers.length === 0 && !loading && (
+                            <EmptyState>No couriers have signed in yet.</EmptyState>
+                        )}
+                        {couriers.map((courier) => (
+                            <Box
+                                key={courier.courierId}
+                                sx={CLICKABLE_ROW_SX}
+                                onClick={() => setView({ level: 'orders', courier })}
+                            >
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                        {courier.name ?? courier.courierId}
+                                    </Typography>
+                                    {/* "Nearest", not "Branch": riders are not assigned to one, this
+                                        is the kitchen closest to their last known position. */}
+                                    <Typography variant="body2" sx={{ color: '#8a807a' }}>
+                                        {courier.nearestBranchName ?? 'Position unknown'}
+                                    </Typography>
+                                </Box>
+                                <CourierStatusChip status={courier.status} />
+                                {/* Declined and missed stay separate — see types.ts. Delivered
+                                    leads because it is the number a dispatcher trusts. */}
+                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
+                                    {courier.delivered} done · {courier.accepted} taken ·{' '}
+                                    {courier.declined} declined · {courier.missed} missed
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Box>
                     {!loading && couriers.length === 0 && (
                         <Typography variant="body2" sx={{ color: '#666', mt: 2 }}>No couriers yet.</Typography>
                     )}
@@ -206,43 +208,40 @@ export function CourierDispatcherPanel(): JSX.Element {
 
             {view.level === 'orders' && (
                 <>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
                         {view.courier.name ?? view.courier.courierId} — orders
                     </Typography>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Order</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell align="right">Wait</TableCell>
-                                <TableCell align="right">Travel</TableCell>
-                                <TableCell>Flag</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {orders.map((order) => (
-                                <TableRow
-                                    key={order.orderId}
-                                    hover
-                                    sx={{ cursor: 'pointer' }}
-                                    onClick={() => setView({ level: 'route', courier: view.courier, order })}
-                                >
-                                    <TableCell>#{order.orderNo ?? order.orderId}</TableCell>
-                                    <TableCell>{order.status}</TableCell>
-                                    <TableCell align="right">{renderMinutes(order.waitTimeMinutes)}</TableCell>
-                                    <TableCell align="right">{renderMinutes(order.travelTimeMinutes)}</TableCell>
-                                    <TableCell>
-                                        {order.geofenceWarning === true && (
-                                            <Chip size="small" color="warning" label="Geofence" />
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    {!loading && orders.length === 0 && (
-                        <Typography variant="body2" sx={{ color: '#666', mt: 2 }}>No orders yet.</Typography>
-                    )}
+                    <Box sx={PANEL_CARD_SX}>
+                        {!loading && orders.length === 0 && <EmptyState>No orders yet.</EmptyState>}
+                        {orders.map((order) => (
+                            <Box
+                                key={order.orderId}
+                                sx={CLICKABLE_ROW_SX}
+                                onClick={() => setView({ level: 'route', courier: view.courier, order })}
+                            >
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                        #{order.orderNo ?? order.orderId}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#8a807a' }}>
+                                        {order.status}
+                                    </Typography>
+                                </Box>
+                                {/* Wait is time the rider stood at the counter, travel is time on
+                                    the road — a dispatcher reads them together or not at all. */}
+                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
+                                    wait {renderMinutes(order.waitTimeMinutes)} · travel {renderMinutes(order.travelTimeMinutes)}
+                                </Typography>
+                                {order.geofenceWarning === true && (
+                                    <Box sx={{ backgroundColor: '#fff6e6', borderRadius: 999, px: 1.25, py: 0.25 }}>
+                                        <Typography variant="caption" sx={{ color: '#8a5a00', fontWeight: 700 }}>
+                                            Geofence
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                        ))}
+                    </Box>
                 </>
             )}
 
@@ -269,39 +268,31 @@ export function CourierDispatcherPanel(): JSX.Element {
                     </Box>
 
                     {route.geofenceWarning === true && (
-                        <Alert severity="warning" sx={{ mb: 2 }}>
+                        <PanelNotice tone="info">
                             Drop-off logged {Math.round(route.geofenceDistanceM ?? 0)} m from the customer's pin.
-                        </Alert>
+                        </PanelNotice>
                     )}
 
                     {/* Mapbox goes here once the token exists (§10). Until then the trail is a
                         list — the data is identical, only the rendering waits. */}
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
                         Route ({route.points.length} points)
                     </Typography>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Recorded</TableCell>
-                                <TableCell align="right">Latitude</TableCell>
-                                <TableCell align="right">Longitude</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {route.points.map((point, index) => (
-                                <TableRow key={index}>
-                                    <TableCell>{point.recordedAt ?? '—'}</TableCell>
-                                    <TableCell align="right">{point.latitude.toFixed(5)}</TableCell>
-                                    <TableCell align="right">{point.longitude.toFixed(5)}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    {route.points.length === 0 && (
-                        <Typography variant="body2" sx={{ color: '#666', mt: 2 }}>
-                            No GPS samples recorded for this order.
-                        </Typography>
-                    )}
+                    <Box sx={{ ...PANEL_CARD_SX, maxHeight: 360, overflowY: 'auto' }}>
+                        {route.points.length === 0 && (
+                            <EmptyState>No GPS samples recorded for this order.</EmptyState>
+                        )}
+                        {route.points.map((point, index) => (
+                            <Box key={index} sx={ROW_SX}>
+                                <Typography variant="body2" sx={{ flex: 1, color: '#3b352c' }}>
+                                    {point.recordedAt ?? '—'}
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
+                                    {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Box>
                 </>
             )}
         </Box>

@@ -48,6 +48,7 @@ const ACTIVE_ORDER: CustomerActiveOrder = {
     id: 42,
     orderNumber: 7,
     status: "Kitchen Phase",
+    type: "Pick Up",
     createdAt: nowAsBahrainTimestamp(),
     estimation: 15,
     branchId: "branch-1",
@@ -285,5 +286,41 @@ describe("useActiveOrderIsland", () => {
         await waitFor(() => expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(result.current.activeOrder?.status).toBe("Ready"));
         expect(result.current.isVisible).toBe(true);
+    });
+});
+
+
+/**
+ * "Picked Up" ends a pickup order and does NOT end a delivery: there it means the courier has the
+ * food and the customer is still waiting. Marking the order collected on the admin board used to
+ * make the customer's widget disappear at exactly that moment.
+ */
+describe("useActiveOrderIsland — a delivery outlives the hand-over", () => {
+    async function renderWith(order: CustomerActiveOrder) {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(order);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+        await waitFor(() => expect(result.current.activeOrder).not.toBeNull());
+        return result;
+    }
+
+    it("keeps a delivery order on screen once the courier has collected it", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Picked Up" });
+
+        expect(result.current.isVisible).toBe(true);
+    });
+
+    it("drops a delivery order once it reaches the door", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Delivered" });
+
+        expect(result.current.isVisible).toBe(false);
+    });
+
+    it("still ends a pickup order at Picked Up", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Picked Up" });
+
+        expect(result.current.isVisible).toBe(false);
     });
 });

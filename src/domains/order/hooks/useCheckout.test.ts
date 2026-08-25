@@ -12,6 +12,9 @@ import type { CartItem, MenuItem } from "../../menu/types";
 import type { Order } from "../types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
 import { BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { writeChosenBranch } from "../../branch/utils/customerBranch";
+import type { IBranch } from "../../management/inventory/types";
 
 // Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../shared/api/public");
@@ -324,6 +327,47 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
             payment_type: DEFAULT_PAYMENT_METHOD,
             type: "Pick Up",
             notes: "",
+        }));
+    });
+
+    // ST5 (task-spec.md §11): a logged-in customer with a name on file re-enters handleCheckout
+    // against the branch actually chosen in the picker, not DEFAULT_BRANCH_ID -- otherwise the
+    // order is filed against the default branch's hours regardless of what the customer browsed.
+    it("re-enters handleCheckout with the stored chosen branch id, not DEFAULT_BRANCH_ID", async () => {
+        const CHOSEN_BRANCH: IBranch = {
+            id: "branch-chosen",
+            externalId: "ext-chosen",
+            branchNo: 2,
+            branchName: "Seef Branch",
+            locale: "en",
+            latitude: 26.23,
+            longitude: 50.53,
+        };
+        expect(CHOSEN_BRANCH.id).not.toBe(DEFAULT_BRANCH_ID);
+        writeChosenBranch(CHOSEN_BRANCH);
+
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
+        });
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            branchId: CHOSEN_BRANCH.id,
+        }));
+        expect(mockCreateOrder).not.toHaveBeenCalledWith(expect.objectContaining({
+            branchId: DEFAULT_BRANCH_ID,
         }));
     });
 

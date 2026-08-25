@@ -85,11 +85,33 @@ describe("CartPopup — payment toggle", () => {
 });
 
 describe("CartPopup — delivery-type toggle", () => {
-    it("renders Pickup and a disabled Delivery option for customers", () => {
+    // Delivery is selectable: HomePageModals' onDeliveryTypeChange runs the availability gate and
+    // falls back to Keeta, so the cart must not pre-empt that decision by disabling the option.
+    it("renders Pickup and a selectable Delivery option for customers", () => {
         renderCart();
 
         expect(screen.getByRole("button", { name: /pickup/i })).toBeTruthy();
-        expect(screen.getByRole("button", { name: /delivery/i }).hasAttribute("disabled")).toBe(true);
+        expect(screen.getByRole("button", { name: /delivery/i }).hasAttribute("disabled")).toBe(false);
+    });
+
+    it("reports a Delivery choice to the caller", () => {
+        const onDeliveryTypeChange = jest.fn<void, [string]>();
+        renderCart({ onDeliveryTypeChange });
+
+        fireEvent.click(screen.getByRole("button", { name: /delivery/i }));
+
+        expect(onDeliveryTypeChange).toHaveBeenCalledWith("Delivery");
+    });
+
+    // Delivery is paid online in DeliveryCheckoutDrawer, which asks for the method itself.
+    // A visible group here would let a customer pick Cash and then be charged by card.
+    it("hides the payment-method toggle when Delivery is selected", () => {
+        renderCart({ orderType: "Delivery" });
+
+        expect(screen.getByRole("button", { name: /delivery/i })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
     });
 
     it("hides both the delivery-type and payment-method toggles on kiosk (always Pickup + Card)", () => {

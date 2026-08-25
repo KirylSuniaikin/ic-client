@@ -1,16 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, Button, CircularProgress, Alert, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Drawer, Box, Typography, Button, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { AddressCard } from './AddressCard';
 import { AddressPickerDrawer } from './AddressPickerDrawer';
+import { OneLastCheckDrawer } from './OneLastCheckDrawer';
+import {
+    BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SEGMENTED_BUTTON_SX,
+    SEGMENTED_GROUP_SX, SHEET_PAPER_SX, SheetHandle, SheetNotice,
+} from './sheetStyles';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
 import { useDeliveryAvailability } from '../hooks/useDeliveryAvailability';
 import type {
     CreateCustomerAddressRequest, CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod,
 } from '../types';
-
-const brandRed = '#E44B4C';
+import type { CartItem } from '../../menu/types';
 
 /** What EazyPay's hosted page exposes (§1.5 block 4). */
 const PAYMENT_METHODS: ReadonlyArray<{ value: DeliveryPaymentMethod; labelKey: string }> = [
@@ -37,6 +42,8 @@ const PAYMENT_METHODS: ReadonlyArray<{ value: DeliveryPaymentMethod; labelKey: s
 export interface DeliveryCheckoutDrawerProps {
     open: boolean;
     onClose: () => void;
+    /** Listed read-only on the §1.6 confirm sheet, so a wrong cart is caught before the charge. */
+    items: CartItem[];
     /**
      * Handed the confirmed address and the chosen method once the gate has passed. The caller
      * runs payment — this screen does not create the order itself.
@@ -53,6 +60,7 @@ export interface DeliveryCheckoutDrawerProps {
 export function DeliveryCheckoutDrawer({
     open,
     onClose,
+    items,
     onConfirm,
     onUnavailable,
 }: DeliveryCheckoutDrawerProps): JSX.Element {
@@ -64,6 +72,9 @@ export function DeliveryCheckoutDrawer({
     const [method, setMethod] = useState<DeliveryPaymentMethod>('CARD');
     const [pickerOpen, setPickerOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    /** Non-null while the §1.6 confirm sheet is up, holding the gate result it was opened with. */
+    const [confirming, setConfirming] =
+        useState<{ address: CustomerAddress; availability: DeliveryAvailability } | null>(null);
 
     // Preselect the newest saved address so a returning customer can place an order without
     // touching the list (§1.4.4). Only while nothing is chosen, so it never fights the customer.
@@ -102,7 +113,14 @@ export function DeliveryCheckoutDrawer({
         }
     }
 
-    /** §1.2 step 2: the final gate, immediately before payment. State can have changed since the cart. */
+    /**
+     * §1.2 step 2: the final gate, immediately before payment. State can have changed since the
+     * cart.
+     *
+     * Passing the gate opens the §1.6 confirm sheet rather than charging straight away. The
+     * availability result is carried on that state, not re-fetched on confirm: re-running the
+     * gate would quote the customer one ETA and file the order against another.
+     */
     async function handlePlaceOrder(): Promise<void> {
         if (selected === null) return;
         const result = await check({ latitude: selected.latitude, longitude: selected.longitude });
@@ -110,7 +128,7 @@ export function DeliveryCheckoutDrawer({
             onUnavailable(result);
             return;
         }
-        onConfirm(selected, result, method);
+        setConfirming({ address: selected, availability: result });
     }
 
     const eta = availability;
@@ -118,15 +136,29 @@ export function DeliveryCheckoutDrawer({
 
     return (
         <>
-            <Drawer anchor="bottom" open={open} onClose={onClose}
-                    PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '90vh' } }}>
-                <Box sx={{ p: 3 }}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>{t('delivery.checkoutTitle')}</Typography>
+            {/* Steps, not a stack: this slides away while the address picker or the §1.6 confirm
+                sheet is up, so the customer sees one screen advance rather than sheets piling on
+                top of each other. The component stays mounted throughout, so the address and
+                payment method they already picked are still here when Edit order brings it back. */}
+            <Drawer
+                anchor="bottom"
+                open={open && !pickerOpen && confirming === null}
+                onClose={onClose}
+                PaperProps={{ sx: SHEET_PAPER_SX }}
+            >
+                <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
+                    <SheetHandle />
 
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('delivery.deliverTo')}</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 2 }}>
+                        {t('delivery.checkoutTitle')}
+                    </Typography>
+
+                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.deliverTo')}</Typography>
 
                     {loading && addresses.length === 0 ? (
-                        <CircularProgress size={20} />
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                            <CircularProgress size={20} sx={{ color: BRAND_RED }} />
+                        </Box>
                     ) : (
                         <Box role="radiogroup" aria-label={t('delivery.deliverTo')}>
                             {addresses.map((address) => (
@@ -143,45 +175,48 @@ export function DeliveryCheckoutDrawer({
                     <Button
                         startIcon={<AddIcon />}
                         onClick={() => setPickerOpen(true)}
-                        sx={{ textTransform: 'none', color: brandRed, mb: 2 }}
+                        sx={{ textTransform: 'none', fontWeight: 600, color: BRAND_RED, borderRadius: 999, mb: 2 }}
                     >
                         {t('delivery.addAddress')}
                     </Button>
 
-                    {error !== null && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                    {error !== null && <Box sx={{ mb: 2 }}><SheetNotice tone="error">{error}</SheetNotice></Box>}
 
                     {/* §1.5 block 2. The fallback string is required, not cosmetic: the estimate
                         is null whenever it cannot be computed honestly, and inventing a number
                         for an order someone is waiting on is worse than admitting we don't know. */}
-                    <Box sx={{ borderTop: '1px solid #eee', pt: 2, mb: 2 }}>
-                        <Typography variant="subtitle2">{t('delivery.etaTitle')}</Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>
-                            {checking
-                                ? t('delivery.etaLoading')
-                                : hasEta
-                                    ? t('delivery.etaRange', { min: eta.etaMinutesMin, max: eta.etaMinutesMax })
-                                    : t('delivery.etaUnavailable')}
-                        </Typography>
+                    <Box sx={{ ...SECTION_CARD_SX, display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                   width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff2f2', flexShrink: 0 }}>
+                            <AccessTimeRoundedIcon sx={{ fontSize: 20, color: BRAND_RED }} />
+                        </Box>
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#3b352c' }}>
+                                {t('delivery.etaTitle')}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#8a807a' }}>
+                                {checking
+                                    ? t('delivery.etaLoading')
+                                    : hasEta
+                                        ? t('delivery.etaRange', { min: eta.etaMinutesMin, max: eta.etaMinutesMax })
+                                        : t('delivery.etaUnavailable')}
+                            </Typography>
+                        </Box>
                     </Box>
 
                     {/* §1.5 block 4. Rendered from a constant rather than fetched: EazyPay's
                         hosted page exposes exactly these three, confirmed with the provider. */}
-                    <Box sx={{ borderTop: '1px solid #eee', pt: 2, mb: 2 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('delivery.payWith')}</Typography>
+                    <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.payWith')}</Typography>
                         <ToggleButtonGroup
                             exclusive
                             fullWidth
                             value={method}
                             onChange={(_e, value) => { if (value !== null) setMethod(value); }}
-                            sx={{ backgroundColor: '#f3f3f3', borderRadius: 3, p: '4px' }}
+                            sx={SEGMENTED_GROUP_SX}
                         >
                             {PAYMENT_METHODS.map((option) => (
-                                <ToggleButton
-                                    key={option.value}
-                                    value={option.value}
-                                    sx={{ border: 0, flex: 1, borderRadius: 3, textTransform: 'none',
-                                          '&.Mui-selected': { backgroundColor: '#fff', color: brandRed } }}
-                                >
+                                <ToggleButton key={option.value} value={option.value} sx={SEGMENTED_BUTTON_SX}>
                                     {t(option.labelKey)}
                                 </ToggleButton>
                             ))}
@@ -192,8 +227,7 @@ export function DeliveryCheckoutDrawer({
                         variant="contained"
                         onClick={() => { void handlePlaceOrder(); }}
                         disabled={selected === null || checking}
-                        sx={{ backgroundColor: brandRed, textTransform: 'none', borderRadius: 4,
-                              width: '100%', py: 1.5, '&:hover': { backgroundColor: brandRed } }}
+                        sx={PRIMARY_BUTTON_SX}
                     >
                         {checking ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('delivery.placeOrder')}
                     </Button>
@@ -206,6 +240,25 @@ export function DeliveryCheckoutDrawer({
                 onSave={handleSaveAddress}
                 saving={saving}
                 error={error}
+            />
+
+            {/* §1.6 — the last thing between the customer and a charge. Closing it (Edit order or
+                dismiss) drops back to this screen, which is where the address and the payment
+                method it lists are actually editable. */}
+            <OneLastCheckDrawer
+                open={confirming !== null}
+                address={confirming?.address ?? null}
+                items={items}
+                paymentLabel={t(
+                    PAYMENT_METHODS.find((option) => option.value === method)?.labelKey ?? 'delivery.payCard'
+                )}
+                onEdit={() => setConfirming(null)}
+                onClose={() => setConfirming(null)}
+                onConfirm={() => {
+                    if (confirming === null) return;
+                    setConfirming(null);
+                    onConfirm(confirming.address, confirming.availability, method);
+                }}
             />
         </>
     );

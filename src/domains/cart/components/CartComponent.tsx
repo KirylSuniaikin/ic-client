@@ -213,34 +213,37 @@ function CartPopup({
                                     <ToggleButton value="Pick Up" sx={toggleBtnSx}>
                                         {t("pickup")}
                                     </ToggleButton>
-                                    <ToggleButton value="Delivery" disabled sx={toggleBtnSx}>
-                                        <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-                                            <span>{t("delivery")}</span>
-                                            <Typography component="span" sx={{ fontSize: 11, color: "#999" }}>
-                                                {t("comingSoon")}
-                                            </Typography>
-                                        </Box>
+                                    <ToggleButton value="Delivery" sx={toggleBtnSx}>
+                                        {t("delivery")}
                                     </ToggleButton>
                                 </ToggleButtonGroup>
                             </Box>
                         )}
 
-                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                            {t("paymentTitle")}
-                        </Typography>
-                        <ToggleButtonGroup
-                            exclusive
-                            value={paymentMethod}
-                            onChange={(_e, val) => val && onPaymentChange(val)}
-                            sx={toggleGroupSx}
-                            fullWidth
-                        >
-                            {PAYMENT_OPTIONS.map((opt) => (
-                                <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
-                                    {t(opt.labelKey)}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
+                        {/* Delivery is paid online in DeliveryCheckoutDrawer, which asks for the
+                            method itself — leaving this group visible would let a customer pick
+                            Cash here and then be charged by card, so it is hidden rather than
+                            disabled. Mirrors mobile's CartComponent. */}
+                        {orderType !== "Delivery" && (
+                            <>
+                                <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                                    {t("paymentTitle")}
+                                </Typography>
+                                <ToggleButtonGroup
+                                    exclusive
+                                    value={paymentMethod}
+                                    onChange={(_e, val) => val && onPaymentChange(val)}
+                                    sx={toggleGroupSx}
+                                    fullWidth
+                                >
+                                    {PAYMENT_OPTIONS.map((opt) => (
+                                        <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
+                                            {t(opt.labelKey)}
+                                        </ToggleButton>
+                                    ))}
+                                </ToggleButtonGroup>
+                            </>
+                        )}
                     </Box>
                 )}
 

@@ -14,13 +14,22 @@ import { logger } from "../../../shared/utils/logger";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerActiveOrder } from "../types";
 
-// An order leaves the island once it reaches a terminal status. Pickup ends at "Picked Up";
-// delivery ends at "Delivered". Checking only the pickup string left the island pinned to a
-// finished delivery order forever (DELIVERY_SPEC.md §12.1-D).
-const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Picked Up", "Delivered"]);
+// An order leaves the island once it reaches a terminal status — and the two order types end
+// differently.
+//
+// "Picked Up" ends a PICKUP order: the customer has the food. On a DELIVERY order the same status
+// means the courier collected it and the customer is still waiting, so treating it as terminal
+// made the widget vanish at hand-over — precisely when there is most to watch. A delivery ends at
+// the door, or when it comes back undelivered.
+const DELIVERY_TYPE = "Delivery";
+const PICKUP_TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Picked Up", "Delivered"]);
+const DELIVERY_TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Delivered", "Returned Undelivered"]);
 
-function isTerminalStatus(status: string | null): boolean {
-    return status !== null && TERMINAL_STATUSES.has(status);
+function isTerminalStatus(status: string | null, orderType: string | undefined): boolean {
+    if (status === null) return false;
+    return orderType === DELIVERY_TYPE
+        ? DELIVERY_TERMINAL_STATUSES.has(status)
+        : PICKUP_TERMINAL_STATUSES.has(status);
 }
 
 export type UseActiveOrderIslandResult = {
@@ -81,7 +90,7 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     }, [activeOrderRefreshKey, token, loadActiveOrder]);
 
     const effectiveStatus = liveStatus ?? activeOrder?.status ?? null;
-    const isVisible = activeOrder !== null && !isTerminalStatus(effectiveStatus);
+    const isVisible = activeOrder !== null && !isTerminalStatus(effectiveStatus, activeOrder.type);
 
     const totalSec = (activeOrder?.estimation ?? 15) * 60;
     const createdMs = toEpochMsBahrain(activeOrder?.createdAt);

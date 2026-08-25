@@ -11,6 +11,7 @@
     "pickUpBranch": "Pick Up Branch",
     "noteLabel": "Add a note to your order (optional)",
     "checkoutTakeOut": "Checkout (Take Out)",
+    "checkoutDelivery": "Checkout (Delivery)",
     "savedAddress": "Saved address on file: {{address}}",
     "errors": {
       "onlyDigits": "Only digits are allowed",

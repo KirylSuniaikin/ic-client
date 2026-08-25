@@ -9,7 +9,7 @@ import type { IBranch } from "../../inventory/types";
 // unhandled network call happens if a test interacts with it (none of the tests below do).
 jest.mock("../../../../shared/api/public");
 
-const selectedBranch: IBranch = { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en" };
+const selectedBranch: IBranch = { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en", latitude: null, longitude: null };
 
 const MANAGER_ONLY_LABELS = [
     "New Order",

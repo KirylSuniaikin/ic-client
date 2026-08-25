@@ -5,7 +5,7 @@ import { NavigateFunction } from "react-router-dom";
 import { createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
-import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
@@ -99,6 +99,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const { token } = useCustomerAuth();
     const { openOrderDetail, refreshActiveOrder, openLogin, isLoginOpen } = useCustomerAuthUi();
     const { i18n } = useTranslation();
+    // Req. D (branch-picker-task.txt): a logged-in customer with a name on file re-enters
+    // handleCheckout against the branch the customer actually chose, not DEFAULT_BRANCH_ID --
+    // otherwise the order lands at the default branch's hours regardless of what they browsed.
+    const { chosenBranchId } = useBranchResolution();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     // Synchronous re-entry guard for order submission. checkoutLoading is React state and commits
@@ -392,7 +396,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 // the order runs through the same blacklist / known-customer path as any other
                 // checkout instead of a parallel one.
                 if (me?.name) {
-                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", DEFAULT_BRANCH_ID, true);
+                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", chosenBranchId, true);
                     return;
                 }
                 // No name on file — a legacy account, or the customer closed the popup before

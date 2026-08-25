@@ -25,10 +25,10 @@ const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockGetDoughInventory = jest.mocked(getDoughInventory);
 
 const BRANCH_A: IBranch = {
-    id: "branch-a", externalId: "A", branchNo: 1, branchName: "Al Hidd", locale: "en",
+    id: "branch-a", externalId: "A", branchNo: 1, branchName: "Al Hidd", locale: "en", latitude: null, longitude: null,
 };
 const BRANCH_B: IBranch = {
-    id: "branch-b", externalId: "B", branchNo: 2, branchName: "Riffa", locale: "en",
+    id: "branch-b", externalId: "B", branchNo: 2, branchName: "Riffa", locale: "en", latitude: null, longitude: null,
 };
 
 function renderConfig(branches: IBranch[]): void {

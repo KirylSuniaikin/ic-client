@@ -23,7 +23,14 @@ export interface IBranch {
     externalId: string;
     branchNo: number;
     branchName: string;
-    locale: string
+    locale: string;
+    // Mirrors BranchTO's nullable latitude/longitude (task-spec.md §5.2) — a branch is often
+    // genuinely unseeded with coordinates; both fields must survive null end to end.
+    latitude: number | null;
+    longitude: number | null;
+    // Mirrors BranchTO.address — shown under the branch name in the picker's details sheet.
+    // Nullable: a branch can exist before anyone fills its street address in.
+    address?: string | null;
 }
 
 export interface IUser {

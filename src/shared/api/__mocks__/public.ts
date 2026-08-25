@@ -3,6 +3,7 @@ import type { AdminBaseInfo, AvailabilityChange, BaseAppInfoResponse, Order, Cre
 import type { DoughInventoryAmounts } from "../../../domains/management/dough/types";
 import type { OrderStatusData } from "../../../domains/order-status/types";
 import type { StatsResponse } from "../../../domains/management/statistics/types";
+import type { IBranch } from "../../../domains/management/inventory/types";
 
 // Manual mock for shared/api/public.ts.
 // Exports only the functions used by hook tests.
@@ -15,6 +16,8 @@ export const getOrderStatus = jest.fn<
 >();
 
 export const fetchBaseAppInfo = jest.fn<Promise<BaseAppInfoResponse>, [string | null, string]>();
+
+export const fetchPublicBranches = jest.fn<Promise<IBranch[]>, []>();
 
 export const createOrder = jest.fn<Promise<Order>, [CreateOrderRequest]>();
 

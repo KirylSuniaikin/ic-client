@@ -39,9 +39,35 @@ jest.mock("../domains/delivery/components/DeliveryCheckoutDrawer", () => ({
 jest.mock("../domains/delivery/components/KeetaFallbackCard", () => ({
     KeetaFallbackCard: () => <div>KeetaFallbackCard</div>,
 }));
+// HomePageModals seeds the homepage island itself on the delivery path (the pickup path does it
+// from useCheckout). Mocked rather than wrapped in a real provider: this suite renders the modals
+// bare, and the provider needs the whole customer-auth stack behind it.
+const mockRefreshActiveOrder = jest.fn();
+jest.mock("../domains/customer-auth/context/CustomerAuthUiProvider", () => ({
+    useCustomerAuthUi: () => ({ refreshActiveOrder: mockRefreshActiveOrder }),
+}));
+
 jest.mock("../shared/components/ErrorSnackbar", () => ({
     __esModule: true,
     default: () => <div>ErrorSnackbar</div>,
+}));
+
+// Both have their own suites (BranchPickerDrawer.test.tsx / BranchSwitchWarningDrawer.test.tsx) —
+// probes here, same as CartPopup/DeliveryCheckoutDrawer above, so this file only exercises the
+// wiring it owns (task-spec.md §6.4: which mount serves the gate vs. the voluntary switch).
+const mockBranchPickerDrawer = jest.fn();
+jest.mock("../domains/branch/components/BranchPickerDrawer", () => ({
+    BranchPickerDrawer: (props: unknown) => {
+        mockBranchPickerDrawer(props);
+        return <div>BranchPickerDrawer</div>;
+    },
+}));
+const mockBranchSwitchWarningDrawer = jest.fn();
+jest.mock("../domains/branch/components/BranchSwitchWarningDrawer", () => ({
+    BranchSwitchWarningDrawer: (props: unknown) => {
+        mockBranchSwitchWarningDrawer(props);
+        return <div>BranchSwitchWarningDrawer</div>;
+    },
 }));
 
 import HomePageModals from "./HomePageModals";
@@ -50,6 +76,8 @@ import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } fro
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
+import type { UseBranchSwitchResult } from "../domains/branch/hooks/useBranchSwitch";
+import type { IBranch } from "../domains/management/inventory/types";
 
 const mockPay = jest.mocked(payForDelivery);
 
@@ -112,15 +140,35 @@ function createCheckout(overrides: Record<string, unknown> = {}): UseCheckoutRes
     } as unknown as UseCheckoutResult;
 }
 
+function createBranchSwitch(overrides: Record<string, unknown> = {}): UseBranchSwitchResult {
+    return {
+        pickerOpen: false,
+        openPicker: jest.fn(),
+        closePicker: jest.fn(),
+        handleBranchSelected: jest.fn(),
+        warningOpen: false,
+        warningLoading: false,
+        warningTargetBranch: null,
+        warningUnavailableNames: [],
+        warningError: null,
+        confirmSwitch: jest.fn(),
+        cancelSwitch: jest.fn(),
+        ...overrides,
+    } as unknown as UseBranchSwitchResult;
+}
+
 function renderModals(
     cartOverrides: Record<string, unknown> = {},
-    checkoutOverrides: Record<string, unknown> = {}
+    checkoutOverrides: Record<string, unknown> = {},
+    modalsOverrides: Record<string, unknown> = {}
 ): void {
     render(
         <I18nextProvider i18n={i18n}>
             <HomePageModals
                 cart={createCart(cartOverrides)}
                 checkout={createCheckout(checkoutOverrides)}
+                keetaOpen={false}
+                setKeetaOpen={jest.fn()}
                 menuData={[]}
                 toppings={[]}
                 extraIngredients={[]}
@@ -139,6 +187,10 @@ function renderModals(
                 isKiosk={false}
                 kiosk={KIOSK_IDLE}
                 adminBranchId={null}
+                customerBranchGateOpen={false}
+                onCustomerBranchSelect={jest.fn()}
+                branchSwitch={createBranchSwitch()}
+                {...modalsOverrides}
             />
         </I18nextProvider>
     );
@@ -159,6 +211,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockCartPopup.mockClear();
         mockDeliveryDrawer.mockClear();
         mockPay.mockReset();
+        mockRefreshActiveOrder.mockReset();
         mockPay.mockResolvedValue({ orderId: "101", status: "PAID", stub: false });
         mockUseCustomerAuth.mockReturnValue({ token: "tok-1" });
     });
@@ -205,6 +258,26 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         await waitFor(() => expect(setCartItems).toHaveBeenCalledWith([]));
     });
 
+    // The island is fed by the backend's active-order endpoint, so it only picks the new order up
+    // when something asks it to refetch. Without this the widget stays empty until a reload.
+    it("seeds the homepage island once the delivery order is paid for", async () => {
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() => expect(mockRefreshActiveOrder).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not seed the island when the payment fails", async () => {
+        mockPay.mockRejectedValue(new Error("Card declined"));
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(1));
+        expect(mockRefreshActiveOrder).not.toHaveBeenCalled();
+    });
+
     /** A stubbed order must never read as a real charge. */
     it("says so when the payment was stubbed", async () => {
         mockPay.mockResolvedValue({ orderId: "101", status: "PAID", stub: true });
@@ -224,6 +297,113 @@ describe("HomePageModals — delivery checkout hand-off", () => {
 
         expect(await screenFindText(/Card declined/)).toBeTruthy();
         expect(setCartItems).not.toHaveBeenCalled();
+    });
+});
+
+// task-spec.md §6.2/§6.4 — one BranchPickerDrawer mount serves both the mandatory entry gate and
+// the voluntary re-entry switch (ST6 re-edits the mount ST4 added). BranchPickerDrawer itself has
+// its own suite, so it is a probe here — only the wiring is asserted.
+describe("HomePageModals — BranchPickerDrawer mount (gate vs. voluntary switch)", () => {
+    const BRANCHES: IBranch[] = [
+        { id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Downtown", locale: "en", latitude: null, longitude: null },
+    ];
+
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockDeliveryDrawer.mockClear();
+        mockBranchPickerDrawer.mockClear();
+        mockBranchSwitchWarningDrawer.mockClear();
+    });
+
+    it("does not mount the picker when neither the gate nor the switch picker is open", () => {
+        renderModals({}, {}, { customerBranchGateOpen: false, availableBranches: BRANCHES });
+
+        expect(mockBranchPickerDrawer).not.toHaveBeenCalled();
+    });
+
+    it("mounts the picker as non-dismissable when the mandatory gate is open", () => {
+        const onCustomerBranchSelect = jest.fn();
+        renderModals({}, {}, {
+            customerBranchGateOpen: true,
+            availableBranches: BRANCHES,
+            onCustomerBranchSelect,
+        });
+
+        expect(mockBranchPickerDrawer).toHaveBeenLastCalledWith(expect.objectContaining({
+            open: true,
+            branches: BRANCHES,
+            dismissable: false,
+            onClose: undefined,
+            onSelect: onCustomerBranchSelect,
+        }));
+    });
+
+    it("reports the selected branch via onCustomerBranchSelect when the gate is open", () => {
+        const onCustomerBranchSelect = jest.fn();
+        renderModals({}, {}, {
+            customerBranchGateOpen: true,
+            availableBranches: BRANCHES,
+            onCustomerBranchSelect,
+        });
+
+        const { onSelect } = mockBranchPickerDrawer.mock.calls[0][0] as { onSelect: (b: IBranch) => void };
+        onSelect(BRANCHES[0]);
+
+        expect(onCustomerBranchSelect).toHaveBeenCalledWith(BRANCHES[0]);
+    });
+
+    it("mounts the picker as dismissable, wired to the branch switch, when only the re-entry picker is open", () => {
+        const branchSwitch = createBranchSwitch({ pickerOpen: true });
+        renderModals({}, {}, { availableBranches: BRANCHES, branchSwitch });
+
+        expect(mockBranchPickerDrawer).toHaveBeenLastCalledWith(expect.objectContaining({
+            open: true,
+            branches: BRANCHES,
+            dismissable: true,
+            onClose: branchSwitch.closePicker,
+            onSelect: branchSwitch.handleBranchSelected,
+        }));
+    });
+
+    it("the mandatory gate wins non-dismissable behaviour when both happen to be open", () => {
+        const branchSwitch = createBranchSwitch({ pickerOpen: true });
+        renderModals({}, {}, { customerBranchGateOpen: true, availableBranches: BRANCHES, branchSwitch });
+
+        expect(mockBranchPickerDrawer).toHaveBeenLastCalledWith(expect.objectContaining({
+            open: true,
+            dismissable: false,
+            onClose: undefined,
+        }));
+    });
+});
+
+// task-spec.md §6.4 — the cart-loss warning drawer this file mounts off useBranchSwitch's state.
+describe("HomePageModals — branch-switch cart-loss warning", () => {
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockDeliveryDrawer.mockClear();
+        mockBranchSwitchWarningDrawer.mockClear();
+    });
+
+    it("wires BranchSwitchWarningDrawer's props straight from the branchSwitch hook result", () => {
+        const branchSwitch = createBranchSwitch({
+            warningOpen: true,
+            warningLoading: true,
+            warningTargetBranch: { id: "b-2", externalId: "ext-2", branchNo: 2, branchName: "Seef", locale: "en", latitude: null, longitude: null },
+            warningUnavailableNames: ["Pepperoni Pizza"],
+            warningError: null,
+        });
+        renderModals({}, {}, { branchSwitch });
+
+        expect(mockBranchSwitchWarningDrawer).toHaveBeenLastCalledWith(expect.objectContaining({
+            open: true,
+            loading: true,
+            targetBranch: branchSwitch.warningTargetBranch,
+            unavailableNames: ["Pepperoni Pizza"],
+            error: null,
+            onConfirm: branchSwitch.confirmSwitch,
+            onCancel: branchSwitch.cancelSwitch,
+        }));
     });
 });
 

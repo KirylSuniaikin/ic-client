@@ -1,11 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, Button, Divider } from '@mui/material';
+import { Drawer, Box, Typography, Button } from '@mui/material';
+import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
+import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import { formatAddressLine } from '../types';
 import type { CustomerAddress } from '../types';
 import type { CartItem } from '../../menu/types';
-
-const brandRed = '#E44B4C';
+import {
+    BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SHEET_PAPER_SX, SUBTLE_BUTTON_SX,
+    SheetHandle,
+} from './sheetStyles';
 
 /**
  * "One last check" (DELIVERY_SPEC.md §1.6) — the confirm sheet between Place order and payment.
@@ -38,46 +42,71 @@ export function OneLastCheckDrawer({
         .toFixed(2);
 
     return (
-        <Drawer anchor="bottom" open={open} onClose={onClose}
-                PaperProps={{ sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '85vh' } }}>
-            <Box sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>{t('delivery.lastCheckTitle')}</Typography>
+        <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: SHEET_PAPER_SX }}>
+            <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
+                <SheetHandle />
 
-                <Typography variant="subtitle2">{t('delivery.deliverTo')}</Typography>
-                <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
-                    {address === null ? t('delivery.noAddressSelected') : formatAddressLine(address)}
+                <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 2 }}>
+                    {t('delivery.lastCheckTitle')}
                 </Typography>
 
-                <Divider sx={{ mb: 2 }} />
-
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('delivery.yourOrder')}</Typography>
-                {items.map((item, index) => (
-                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="body2">{item.quantity} × {item.name}</Typography>
-                        <Typography variant="body2">{(item.amount * item.quantity).toFixed(2)}</Typography>
+                <Box sx={{ ...SECTION_CARD_SX, display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+                    <PlaceRoundedIcon sx={{ fontSize: 20, color: BRAND_RED, mt: '2px', flexShrink: 0 }} />
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#3b352c' }}>
+                            {t('delivery.deliverTo')}
+                        </Typography>
+                        {/* An address saved from "use my location" carries a pin and nothing else,
+                            so formatAddressLine has no parts to join and returns "". Printing that
+                            leaves the block blank, which reads as a broken screen rather than as a
+                            location we do know. Same fallback AddressCard already uses. */}
+                        <Typography variant="body2" sx={{ color: '#8a807a' }}>
+                            {address === null
+                                ? t('delivery.noAddressSelected')
+                                : formatAddressLine(address) || t('delivery.pinOnlyAddress')}
+                        </Typography>
                     </Box>
-                ))}
-
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, mb: 2 }}>
-                    <Typography variant="subtitle2">{t('delivery.total')}</Typography>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{total}</Typography>
                 </Box>
 
-                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ ...SECTION_CARD_SX, mb: 1.5 }}>
+                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.yourOrder')}</Typography>
+                    {items.map((item, index) => (
+                        <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 0.75 }}>
+                            <Typography variant="body2" sx={{ color: '#3b352c' }}>
+                                {item.quantity} × {item.name}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#3b352c', whiteSpace: 'nowrap' }}>
+                                {(item.amount * item.quantity).toFixed(2)}
+                            </Typography>
+                        </Box>
+                    ))}
 
-                <Typography variant="subtitle2">{t('delivery.payingWith')}</Typography>
-                <Typography variant="body2" sx={{ color: '#666', mb: 3 }}>{paymentLabel}</Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, pt: 1.5,
+                               borderTop: '1px dashed #ece3dd' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('delivery.total')}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: BRAND_RED }}>{total}</Typography>
+                    </Box>
+                </Box>
+
+                <Box sx={{ ...SECTION_CARD_SX, display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                    <CreditCardRoundedIcon sx={{ fontSize: 20, color: BRAND_RED, flexShrink: 0 }} />
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#3b352c' }}>
+                            {t('delivery.payingWith')}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#8a807a' }}>{paymentLabel}</Typography>
+                    </Box>
+                </Box>
 
                 <Button
                     variant="contained"
                     onClick={onConfirm}
                     disabled={address === null}
-                    sx={{ backgroundColor: brandRed, textTransform: 'none', borderRadius: 4,
-                          width: '100%', py: 1.5, mb: 1, '&:hover': { backgroundColor: brandRed } }}
+                    sx={{ ...PRIMARY_BUTTON_SX, mb: 1 }}
                 >
                     {t('delivery.looksGood')}
                 </Button>
-                <Button onClick={onEdit} sx={{ textTransform: 'none', color: '#666', width: '100%' }}>
+                <Button onClick={onEdit} sx={SUBTLE_BUTTON_SX}>
                     {t('delivery.editOrder')}
                 </Button>
             </Box>

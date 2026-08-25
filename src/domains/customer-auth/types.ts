@@ -99,6 +99,8 @@ export type CustomerActiveOrder = {
     estimation: number | null;
     branchId: string;
     branchName: string;
+    /** "Delivery" or the pickup type — the two have different endings, see useActiveOrderIsland. */
+    type: string;
 };
 
 // GET /customer/review-prompt — the post-order Google review ask. A 204 (nothing

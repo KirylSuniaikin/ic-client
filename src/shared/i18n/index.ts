@@ -10,6 +10,7 @@ import enCheckout from "./locales/en/checkout.json";
 import enSchedule from "./locales/en/schedule.json";
 import enCustomerAuth from "./locales/en/customerAuth.json";
 import enKiosk from "./locales/en/kiosk.json";
+import enBranch from "./locales/en/branch.json";
 
 import arCommon from "./locales/ar/common.json";
 import arHome from "./locales/ar/home.json";
@@ -19,11 +20,12 @@ import arCheckout from "./locales/ar/checkout.json";
 import arSchedule from "./locales/ar/schedule.json";
 import arCustomerAuth from "./locales/ar/customerAuth.json";
 import arKiosk from "./locales/ar/kiosk.json";
+import arBranch from "./locales/ar/branch.json";
 
 // Namespaces map to domains. Add a new domain → add `<lng>/<domain>.json` here.
 export const resources = {
-    en: {common: enCommon, home: enHome, menu: enMenu, cart: enCart, checkout: enCheckout, schedule: enSchedule, customerAuth: enCustomerAuth, kiosk: enKiosk},
-    ar: {common: arCommon, home: arHome, menu: arMenu, cart: arCart, checkout: arCheckout, schedule: arSchedule, customerAuth: arCustomerAuth, kiosk: arKiosk},
+    en: {common: enCommon, home: enHome, menu: enMenu, cart: enCart, checkout: enCheckout, schedule: enSchedule, customerAuth: enCustomerAuth, kiosk: enKiosk, branch: enBranch},
+    ar: {common: arCommon, home: arHome, menu: arMenu, cart: arCart, checkout: arCheckout, schedule: arSchedule, customerAuth: arCustomerAuth, kiosk: arKiosk, branch: arBranch},
 } as const;
 
 export const SUPPORTED_LANGUAGES = ["en", "ar"] as const;
@@ -41,7 +43,7 @@ void i18n
         fallbackLng: DEFAULT_LANGUAGE,
         supportedLngs: [...SUPPORTED_LANGUAGES],
         nonExplicitSupportedLngs: true, // treat "ar-BH" etc. as "ar"
-        ns: ["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth", "kiosk"],
+        ns: ["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth", "kiosk", "branch"],
         defaultNS: "common",
         interpolation: {escapeValue: false}, // React already escapes
         // Untranslated Arabic keys are left as "" placeholders for the team to fill;

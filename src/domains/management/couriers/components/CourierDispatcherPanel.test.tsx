@@ -1,12 +1,14 @@
 import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { CourierDispatcherPanel } from "./CourierDispatcherPanel";
 import {
     fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign,
 } from "../../../../shared/api/dispatcher";
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from "../types";
+import { connectSocket, socket } from "../../../../shared/api/socket";
 
+jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
 
 beforeAll(() => {
@@ -16,6 +18,8 @@ beforeAll(() => {
 const mockCouriers = jest.mocked(fetchCouriers);
 const mockOrders = jest.mocked(fetchCourierOrders);
 const mockRoute = jest.mocked(fetchOrderRoute);
+const mockConnectSocket = jest.mocked(connectSocket);
+const mockSubscribe = socket.subscribe as jest.Mock;
 const mockAwaiting = jest.mocked(fetchOrdersAwaitingCourier);
 const mockAssign = jest.mocked(manualAssign);
 
@@ -43,6 +47,13 @@ const ROUTE: OrderRoute = {
 };
 
 beforeEach(() => {
+    // Mirrors the real contract: connectSocket runs the listener and hands back an unregister.
+    // Without the return value the board hook's cleanup throws on unmount.
+    mockConnectSocket.mockImplementation((onConnect: () => void) => {
+        onConnect();
+        return jest.fn<void, []>();
+    });
+    mockSubscribe.mockReturnValue({ unsubscribe: jest.fn() });
     mockCouriers.mockReset();
     mockOrders.mockReset();
     mockRoute.mockReset();
@@ -62,12 +73,14 @@ describe("CourierDispatcherPanel", () => {
      * §4 counts them separately, so the panel must show them as separate columns rather than
      * summing them into one "refused" figure.
      */
+    // Declined and missed stay distinct numbers — see types.ts. The roster now reads them on one
+    // line per courier rather than as separate table columns, so the assertion is on the values.
     it("shows declined and no-answer as separate counts", async () => {
         render(<CourierDispatcherPanel />);
 
         expect(await screen.findByText("ali")).toBeTruthy();
-        expect(screen.getByText("Declined")).toBeTruthy();
-        expect(screen.getByText("No answer")).toBeTruthy();
+        expect(screen.getByText(/2 declined/)).toBeTruthy();
+        expect(screen.getByText(/1 missed/)).toBeTruthy();
     });
 
     /** §4 is a drill-down: couriers → that courier's orders → one order's route. */
@@ -125,7 +138,8 @@ describe("CourierDispatcherPanel", () => {
         render(<CourierDispatcherPanel />);
 
         expect(await screen.findByText("Waiting for a courier")).toBeTruthy();
-        expect(screen.getByText("Block 338, Road 3801")).toBeTruthy();
+        // Branch and address share one line now, so match the address within it.
+        expect(screen.getByText(/Block 338, Road 3801/)).toBeTruthy();
         expect(screen.getByText("14 min")).toBeTruthy();
     });
 
@@ -178,5 +192,31 @@ describe("CourierDispatcherPanel", () => {
 
         expect(await screen.findByLabelText("ali")).toBeTruthy();
         expect(screen.queryByLabelText("sara")).toBeNull();
+    });
+});
+/**
+ * The board used to be a snapshot from the moment it opened: an order that fell out of automatic
+ * assignment appeared only if someone thought to reload — during exactly the minutes it matters.
+ */
+describe("CourierDispatcherPanel — live updates", () => {
+    it("subscribes to the cross-branch delivery topic", async () => {
+        render(<CourierDispatcherPanel />);
+
+        await screen.findByText("ali");
+        expect(mockSubscribe).toHaveBeenCalledWith("/topic/delivery-board", expect.any(Function));
+    });
+
+    it("refetches the view when the board signals a change", async () => {
+        render(<CourierDispatcherPanel />);
+        await screen.findByText("ali");
+
+        const callsBefore = mockCouriers.mock.calls.length;
+        const handler = mockSubscribe.mock.calls.find(
+            (call) => call[0] === "/topic/delivery-board"
+        )?.[1] as (frame: unknown) => void;
+
+        await act(async () => { handler({}); });
+
+        await waitFor(() => expect(mockCouriers.mock.calls.length).toBeGreaterThan(callsBefore));
     });
 });

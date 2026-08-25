@@ -2,6 +2,7 @@ import { logger } from "../utils/logger";
 import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, reportIfServerError, reportNetworkError } from './client';
 import { applyClientPlatform } from './clientPlatform';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
+import type { IBranch } from '../../domains/management/inventory/types';
 import type {
     BaseAppInfoResponse,
     Items409Response,
@@ -75,6 +76,41 @@ export async function fetchBaseAppInfo(
     }
 
     return data;
+}
+
+// Public (unauthenticated) counterpart to management.ts's authFetch-backed fetchAllBranches.
+// The customer-facing branch picker must never gate an anonymous screen behind authFetch's
+// 401 -> /auth redirect (see domains/branch/ — this is the fetch it drives). The endpoint
+// itself is already `permitAll` on the backend.
+export async function fetchPublicBranches(): Promise<IBranch[]> {
+    const url = BASE_URL + "/branch/fetch_branches";
+
+    const headers = new Headers();
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: "GET",
+            headers,
+        });
+    } catch (error) {
+        // Fire-and-forget: telemetry must never delay the caller's error handling.
+        void reportNetworkError(error, url, "GET");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "GET");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text) as IBranch[];
 }
 
 export async function createOrder(order: CreateOrderRequest): Promise<Order> {

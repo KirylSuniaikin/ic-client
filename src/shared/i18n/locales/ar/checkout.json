@@ -11,6 +11,7 @@
     "pickUpBranch": "فرع الاستلام",
     "noteLabel": "أضف ملاحظة إلى طلبك (اختياري)",
     "checkoutTakeOut": "إتمام الطلب (استلام)",
+    "checkoutDelivery": "إتمام الطلب (توصيل)",
     "savedAddress": "العنوان المحفوظ لدينا: {{address}}",
     "errors": {
       "onlyDigits": "يُسمح بالأرقام فقط",

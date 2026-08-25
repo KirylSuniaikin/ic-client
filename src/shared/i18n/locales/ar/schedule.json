@@ -3,7 +3,8 @@
         "openNow": "مفتوح الآن",
         "opensIn": "يفتح خلال {{hours}} س {{minutes}} د",
         "opensOnDay": "يفتح يوم {{day}} الساعة {{time}}",
-        "closesAt": "نغلق الساعة {{time}}"
+        "closesAt": "نغلق الساعة {{time}}",
+        "changeBranch": "{{branchName}} — اضغط لتغيير الفرع"
     },
     "days": {
         "Sunday": "الأحد",

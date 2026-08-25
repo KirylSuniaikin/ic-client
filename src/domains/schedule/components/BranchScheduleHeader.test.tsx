@@ -16,6 +16,7 @@ import { isWithinWorkingHours } from "../utils/isWithinWorkingHours";
 import { getTimeUntilNextOpening } from "../utils/getTimeUntilNextOpening";
 import { getClosingTime } from "../utils/getClosingTime";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { writeChosenBranch } from "../../branch/utils/customerBranch";
 import BranchScheduleHeader from "./BranchScheduleHeader";
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
@@ -24,13 +25,29 @@ const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockGetTimeUntilNextOpening = jest.mocked(getTimeUntilNextOpening);
 const mockGetClosingTime = jest.mocked(getClosingTime);
 
-// IBranch.id is a UUID string; use the default branch id so resolveBranchName matches.
+// IBranch.id is a UUID string; use the default branch id so resolveBranchName matches when no
+// chosen branch is stored (useBranchResolution's last-resort fallback, req. 13).
 const MATCHING_BRANCH: IBranch = {
     id: DEFAULT_BRANCH_ID,
     externalId: "ext-1",
     branchNo: 1,
     branchName: "Manama Branch",
     locale: "en",
+    latitude: null,
+    longitude: null,
+};
+
+// A branch other than DEFAULT_BRANCH_ID, seeded via writeChosenBranch to prove the header
+// resolves the CHOSEN branch, not the one matching DEFAULT_BRANCH_ID. Null coordinates confirm a
+// coordinate-less branch still resolves and renders correctly (task-spec.md req. 12).
+const CHOSEN_BRANCH: IBranch = {
+    id: "branch-chosen",
+    externalId: "ext-chosen",
+    branchNo: 2,
+    branchName: "Seef Branch",
+    locale: "en",
+    latitude: null,
+    longitude: null,
 };
 
 const SCHEDULE: WorkingHoursSchedule = {
@@ -45,17 +62,30 @@ const SCHEDULE: WorkingHoursSchedule = {
 
 describe("BranchScheduleHeader", () => {
     beforeEach(() => {
+        localStorage.clear();
         mockIsWithinWorkingHours.mockReset();
         mockGetTimeUntilNextOpening.mockReset();
         mockGetClosingTime.mockReset();
     });
 
-    it("renders the matched default branch's name", () => {
+    it("renders the matched default branch's name when no branch is chosen", () => {
         mockIsWithinWorkingHours.mockReturnValue(true);
 
         render(<BranchScheduleHeader branches={[MATCHING_BRANCH]} workingHours={null} />);
 
         expect(screen.getByText("Manama Branch")).toBeTruthy();
+    });
+
+    // ST5 (task-spec.md §11): a chosen branch other than DEFAULT_BRANCH_ID is seeded, and its
+    // name — not the DEFAULT_BRANCH_ID-matched branch's name — renders.
+    it("renders the CHOSEN branch's name, not the DEFAULT_BRANCH_ID-matched branch's name", () => {
+        mockIsWithinWorkingHours.mockReturnValue(true);
+        writeChosenBranch(CHOSEN_BRANCH);
+
+        render(<BranchScheduleHeader branches={[MATCHING_BRANCH, CHOSEN_BRANCH]} workingHours={null} />);
+
+        expect(screen.getByText("Seef Branch")).toBeTruthy();
+        expect(screen.queryByText("Manama Branch")).toBeNull();
     });
 
     it("falls back to 'IC Pizza' when branches is empty", () => {

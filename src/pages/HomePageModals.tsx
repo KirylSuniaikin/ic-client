@@ -9,6 +9,9 @@ import { KioskBranchSelector } from "../domains/kiosk/components/KioskBranchSele
 import { KioskPhoneEntrySheet } from "../domains/kiosk/components/KioskPhoneEntrySheet";
 import { KioskOrderPlacedSheet } from "../domains/kiosk/components/KioskOrderPlacedSheet";
 import { writeKioskBranch } from "../domains/kiosk/utils/kioskBranch";
+import { BranchPickerDrawer } from "../domains/branch/components/BranchPickerDrawer";
+import { BranchSwitchWarningDrawer } from "../domains/branch/components/BranchSwitchWarningDrawer";
+import type { UseBranchSwitchResult } from "../domains/branch/hooks/useBranchSwitch";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
@@ -22,6 +25,7 @@ import GenericItemPopupContent from "../domains/menu/components/popups/GenericIt
 import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import { UnavailablePopup } from "../domains/menu/components/UnavailablePopup";
 import { KeetaFallbackCard } from "../domains/delivery/components/KeetaFallbackCard";
+import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import { useDeliveryAvailability } from "../domains/delivery/hooks/useDeliveryAvailability";
 import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
 import { payForDelivery } from "../shared/api/delivery";
@@ -56,6 +60,13 @@ interface HomePageModalsProps {
     isKiosk: boolean;
     adminBranchId: string | null;
     workingHours?: WorkingHoursSchedule | null;
+    customerBranchGateOpen: boolean;
+    onCustomerBranchSelect: (branch: IBranch) => void;
+    branchSwitch: UseBranchSwitchResult;
+    /** Owned by HomePage, not here: the fixed cart pill has to know this sheet is up, and it
+     * cannot see state that lives in this component. */
+    keetaOpen: boolean;
+    setKeetaOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 export default function HomePageModals({
@@ -63,6 +74,7 @@ export default function HomePageModals({
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
+    customerBranchGateOpen, onCustomerBranchSelect, branchSwitch, keetaOpen, setKeetaOpen,
 }: HomePageModalsProps): JSX.Element {
     const { t } = useTranslation("checkout");
 
@@ -71,7 +83,10 @@ export default function HomePageModals({
     const pendingOrder = checkout.pendingOrder;
 
     const deliveryAvailability = useDeliveryAvailability();
-    const [keetaOpen, setKeetaOpen] = useState(false);
+    // The pickup path seeds the homepage island from useCheckout the moment an order is created;
+    // delivery creates its order over here instead, so it has to do the same or the widget stays
+    // empty until the customer reloads the page.
+    const { refreshActiveOrder } = useCustomerAuthUi();
     const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
 
     /**
@@ -117,6 +132,7 @@ export default function HomePageModals({
                 // Never let a stubbed order read as a real charge.
                 setDeliveryNotice(t("delivery.stubNotice"));
             }
+            refreshActiveOrder();
             checkout.setShowOrderConfirmed(true);
         } catch (error) {
             logger.error("Delivery checkout failed:", error);
@@ -201,6 +217,31 @@ export default function HomePageModals({
                     }}
                 />
             )}
+
+            {/* One mount serves both the mandatory first-visit gate (§6.2, non-dismissable) and the
+                voluntary re-entry chip (§6.4, dismissable) — the gate always wins the non-dismissable
+                behaviour when both flags happen to be true, since it is the one that must never be
+                escaped without a choice. */}
+            {(customerBranchGateOpen || branchSwitch.pickerOpen) && (
+                <BranchPickerDrawer
+                    open={customerBranchGateOpen || branchSwitch.pickerOpen}
+                    branches={availableBranches}
+                    cartItems={cart.cartItems}
+                    dismissable={!customerBranchGateOpen}
+                    onClose={!customerBranchGateOpen ? branchSwitch.closePicker : undefined}
+                    onSelect={customerBranchGateOpen ? onCustomerBranchSelect : branchSwitch.handleBranchSelected}
+                />
+            )}
+
+            <BranchSwitchWarningDrawer
+                open={branchSwitch.warningOpen}
+                loading={branchSwitch.warningLoading}
+                targetBranch={branchSwitch.warningTargetBranch}
+                unavailableNames={branchSwitch.warningUnavailableNames}
+                error={branchSwitch.warningError}
+                onConfirm={branchSwitch.confirmSwitch}
+                onCancel={branchSwitch.cancelSwitch}
+            />
 
             {cart.pizzaComboPopupOpen && (
                 <PizzaComboPopup
@@ -314,6 +355,7 @@ export default function HomePageModals({
 
             <DeliveryCheckoutDrawer
                 open={checkout.pendingDeliveryOrder !== null}
+                items={cart.cartItems}
                 onClose={() => checkout.setPendingDeliveryOrder(null)}
                 onConfirm={(address, availability, method) => {
                     void handleDeliveryConfirm(address, availability, method);
@@ -347,6 +389,7 @@ export default function HomePageModals({
                     phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
                     customerName={checkout.customerPrefill?.name ?? username}
                     prefillAddress={checkout.customerPrefill?.address ?? undefined}
+                    orderType={checkout.orderType}
                 />
             )}
 

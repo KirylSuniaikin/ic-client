@@ -33,7 +33,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     // other adapted screens get from AdminHomePage), so the scope fallback is built here --
     // display fields are never read off it, only .id, since it's used only when no
     // ManagementBranchScopeProvider is mounted (see useBranchScope's graceful fallback).
-    const fallbackBranch: IBranch = {id: branchId, externalId: branchId, branchNo: 0, branchName: "", locale: ""};
+    const fallbackBranch: IBranch = {id: branchId, externalId: branchId, branchNo: 0, branchName: "", locale: "", latitude: null, longitude: null};
 
     // One multi-select scope shared by Performance + Consumption (both render the same
     // filter-row control and Consumption's DoughUsageTable is fed by this same useStatistics
