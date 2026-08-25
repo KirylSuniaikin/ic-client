@@ -16,7 +16,8 @@ import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles, hasCityAccess } from "../../../auth/types";
-import ResponsiveSheet, { SHEET_MENU_PROPS } from "../../_shared/components/ResponsiveSheet";
+import ResponsiveSheet, { SHEET_Z_INDEX } from "../../_shared/components/ResponsiveSheet";
+import { BRAND_BUTTON_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
 import type { IBranch } from "../../inventory/types";
 import { generatePassword } from "../utils/generatePassword";
 import CredentialsRevealPanel from "./CredentialsRevealPanel";
@@ -31,7 +32,6 @@ export interface HireStaffDrawerProps {
     defaultBranchId?: string;
 }
 
-const colorRed = "#E44B4C";
 
 export default function HireStaffDrawer({ open, onClose, create, defaultBranchId }: HireStaffDrawerProps): React.JSX.Element {
     const { role, branchId: ownBranchId } = useAuth();
@@ -156,7 +156,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
         >
             {credentials ? (
                 <CredentialsRevealPanel
-                    title="Staff hired"
+                    title="Successfully added 🎉"
                     username={credentials.username}
                     password={credentials.password}
                     onDone={onClose}
@@ -203,14 +203,14 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                         </Button>
                     </Box>
 
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                    <FormControl fullWidth sx={{ mb: 2, ...ROUNDED_FIELD_SX }}>
                         <InputLabel>Role</InputLabel>
                         <Select<StaffRoles | "">
                             label="Role"
                             value={selectedRole}
                             onChange={(e: SelectChangeEvent<StaffRoles | "">) => setSelectedRole(e.target.value)}
                             data-testid="hire-staff-role-select"
-                            MenuProps={SHEET_MENU_PROPS}
+                            MenuProps={roundedMenuProps(SHEET_Z_INDEX + 10)}
                         >
                             {hireableRoles.map(r => (
                                 <MenuItem key={r} value={r}>
@@ -242,8 +242,8 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                                 value={selectedBranchId}
                                 onChange={e => setSelectedBranchId(e.target.value)}
                                 disabled={!branchesLoaded}
-                                SelectProps={{ MenuProps: SHEET_MENU_PROPS }}
-                                sx={{ mb: 2 }}
+                                SelectProps={{ MenuProps: roundedMenuProps(SHEET_Z_INDEX + 10) }}
+                                sx={{ mb: 2, ...ROUNDED_FIELD_SX }}
                                 data-testid="hire-staff-branch-select"
                             >
                                 {branches.map(b => (
@@ -263,14 +263,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                         disableElevation
                         onClick={handleSubmit}
                         disabled={!canSubmit || submitting}
-                        sx={{
-                            borderRadius: "999px",
-                            py: 1.4,
-                            fontWeight: 700,
-                            textTransform: "none",
-                            bgcolor: colorRed,
-                            "&:hover": { bgcolor: "#c73c3d" },
-                        }}
+                        sx={BRAND_BUTTON_SX}
                     >
                         Add
                     </Button>

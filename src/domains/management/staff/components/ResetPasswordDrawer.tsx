@@ -2,12 +2,12 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { Alert, Box, Button, Stack, TextField } from "@mui/material";
 import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
+import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
 import { generatePassword } from "../utils/generatePassword";
 import type { StaffAdminTO } from "../types";
 import CredentialsRevealPanel from "./CredentialsRevealPanel";
 
-const colorRed = "#E44B4C";
 
 export interface ResetPasswordDrawerProps {
     open: boolean;
@@ -114,15 +114,7 @@ export default function ResetPasswordDrawer({
                         disableElevation
                         disabled={submitting || password.trim() === ""}
                         onClick={() => { void handleSubmit(); }}
-                        sx={{
-                            borderRadius: "999px",
-                            py: 1.4,
-                            fontWeight: 700,
-                            textTransform: "none",
-                            bgcolor: colorRed,
-                            mb: 1,
-                            "&:hover": { bgcolor: "#c73c3d" },
-                        }}
+                        sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
                         data-testid="reset-password-submit"
                     >
                         Reset password
@@ -132,7 +124,7 @@ export default function ResetPasswordDrawer({
                         variant="outlined"
                         onClick={onClose}
                         disabled={submitting}
-                        sx={{ borderRadius: "999px", py: 1.2, textTransform: "none", borderColor: "#d9d6cd", color: "#4a4f57" }}
+                        sx={NEUTRAL_BUTTON_SX}
                     >
                         Cancel
                     </Button>

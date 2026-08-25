@@ -70,4 +70,40 @@ describe("CredentialsRevealPanel", () => {
         fireEvent.click(screen.getByText("Done"));
         expect(onDone).toHaveBeenCalledTimes(1);
     });
+
+    // The copy is what the manager opened this for, and the password is shown exactly once.
+    describe("automatic copy", () => {
+        it("copies on mount, with no click at all", async () => {
+            renderPanel();
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith("casey.cook / s3cretPW"));
+            expect(await screen.findByTestId("reset-password-auto-copied")).toBeTruthy();
+            expect(screen.getByText("Copied!")).toBeTruthy();
+        });
+
+        // Some WebViews reject a clipboard write outside a user gesture, and this one runs after
+        // an await. A refusal is expected rather than exceptional, so it must not raise an error
+        // the manager did not ask for -- but it must never look like it worked either.
+        it("stays silent and claims nothing when the automatic copy is refused", async () => {
+            mockCopyToClipboard.mockRejectedValue(new Error("Clipboard unavailable"));
+            renderPanel();
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalled());
+            expect(screen.queryByTestId("reset-password-auto-copied")).toBeNull();
+            expect(screen.queryByTestId("reset-password-copy-error")).toBeNull();
+            expect(screen.queryByText("Copied!")).toBeNull();
+            expect(screen.getByText("Copy login + password")).toBeTruthy();
+        });
+
+        it("leaves the manual button working after a refused automatic copy", async () => {
+            mockCopyToClipboard.mockRejectedValueOnce(new Error("Clipboard unavailable"));
+            renderPanel();
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledTimes(1));
+
+            mockCopyToClipboard.mockResolvedValue(undefined);
+            fireEvent.click(screen.getByTestId("reset-password-copy-button"));
+
+            expect(await screen.findByText("Copied!")).toBeTruthy();
+        });
+    });
 });

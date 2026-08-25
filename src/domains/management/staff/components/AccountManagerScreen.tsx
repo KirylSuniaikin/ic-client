@@ -36,6 +36,7 @@ import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import type { IBranch } from "../../inventory/types";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
+import { ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
 import { useBranchScope } from "../../_shared/hooks/useBranchScope";
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
 import { canAdministerStaff } from "../types";
@@ -364,15 +365,8 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                     const next = branches.find(b => String(b.id) === e.target.value);
                                     if (next) setScopedBranch(next);
                                 }}
-                                sx={{
-                            minWidth: 140,
-                            "& .MuiOutlinedInput-root": {
-                                borderRadius: "999px",
-                                backgroundColor: "#fff",
-                                fontWeight: 600,
-                                fontSize: "0.875rem",
-                            },
-                        }}
+                                SelectProps={{ MenuProps: roundedMenuProps() }}
+                                sx={{ minWidth: 150, ...ROUNDED_FIELD_SX }}
                                 data-testid="staff-filter-branch"
                             >
                                 {branches.map(b => (
@@ -387,15 +381,8 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                             label="Role"
                             value={roleFilter}
                             onChange={e => setRoleFilter(e.target.value)}
-                            sx={{
-                            minWidth: 140,
-                            "& .MuiOutlinedInput-root": {
-                                borderRadius: "999px",
-                                backgroundColor: "#fff",
-                                fontWeight: 600,
-                                fontSize: "0.875rem",
-                            },
-                        }}
+                            SelectProps={{ MenuProps: roundedMenuProps() }}
+                            sx={{ minWidth: 150, ...ROUNDED_FIELD_SX }}
                             data-testid="staff-filter-role"
                         >
                             <MenuItem value="ALL">All roles</MenuItem>

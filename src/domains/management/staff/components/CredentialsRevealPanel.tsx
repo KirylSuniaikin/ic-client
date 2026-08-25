@@ -1,13 +1,14 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Box, Button, TextField, Typography } from "@mui/material";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import { logger } from "../../../../shared/utils/logger";
+import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX } from "../../_shared/components/roundedSelect";
 import { copyToClipboard } from "../utils/copyToClipboard";
 
-const colorRed = "#E44B4C";
 
 export interface CredentialsRevealPanelProps {
-    /** Heading above the credentials, e.g. "Staff hired" or "Password reset". */
+    /** Heading above the credentials, e.g. "Successfully added" or "Password reset". */
     title: string;
     username: string;
     password: string;
@@ -29,7 +30,31 @@ export default function CredentialsRevealPanel({
     testIdPrefix,
 }: CredentialsRevealPanelProps): React.JSX.Element {
     const [copied, setCopied] = useState(false);
+    const [autoCopied, setAutoCopied] = useState(false);
     const [copyError, setCopyError] = useState<string | null>(null);
+
+    // Copy the moment the credentials appear: this is the only time the password is ever shown,
+    // and the copy is what the manager is here for.
+    //
+    // A refusal is NOT surfaced as an error. Some WebViews reject a clipboard write outside a
+    // user gesture, and this one runs after an await, so refusal is expected rather than
+    // exceptional -- the button below is still there and unchanged. The only unrecoverable
+    // outcome would be claiming a copy that did not happen, which is why success is set from the
+    // resolved promise and nowhere else.
+    useEffect(() => {
+        let cancelled = false;
+        void (async (): Promise<void> => {
+            try {
+                await copyToClipboard(`${username} / ${password}`);
+                if (cancelled) return;
+                setCopied(true);
+                setAutoCopied(true);
+            } catch (err) {
+                logger.warn("Automatic clipboard copy was refused; the copy button still works:", err);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [username, password]);
 
     const handleCopy = async (): Promise<void> => {
         try {
@@ -45,7 +70,7 @@ export default function CredentialsRevealPanel({
 
     return (
         <Box data-testid={`${testIdPrefix}-credentials`}>
-            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: "center" }}>
+            <Typography sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2, textAlign: "center", color: "#1f2430" }}>
                 {title}
             </Typography>
             <TextField
@@ -64,7 +89,29 @@ export default function CredentialsRevealPanel({
                 sx={{ mb: 2 }}
                 data-testid={`${testIdPrefix}-credentials-password`}
             />
-            <Alert severity="warning" sx={{ mb: 2 }}>
+            {autoCopied && (
+                <Box
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 2,
+                        px: 1.5,
+                        py: 1.25,
+                        borderRadius: "12px",
+                        backgroundColor: "#eefaf3",
+                        color: "#1f6f4a",
+                    }}
+                    data-testid={`${testIdPrefix}-auto-copied`}
+                >
+                    <CheckCircleRoundedIcon sx={{ fontSize: "1.1rem" }} />
+                    <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                        Copied to your clipboard.
+                    </Typography>
+                </Box>
+            )}
+
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: "12px" }}>
                 This password will not be shown again.
             </Alert>
             {copyError && (
@@ -76,12 +123,13 @@ export default function CredentialsRevealPanel({
                 fullWidth
                 variant="contained"
                 onClick={handleCopy}
-                sx={{ borderRadius: 3, py: 1.5, bgcolor: colorRed, mb: 1, "&:hover": { bgcolor: "#c73c3d" } }}
+                disableElevation
+                sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
                 data-testid={`${testIdPrefix}-copy-button`}
             >
                 {copied ? "Copied!" : "Copy login + password"}
             </Button>
-            <Button fullWidth variant="outlined" onClick={onDone}>
+            <Button fullWidth variant="outlined" onClick={onDone} sx={NEUTRAL_BUTTON_SX}>
                 Done
             </Button>
         </Box>

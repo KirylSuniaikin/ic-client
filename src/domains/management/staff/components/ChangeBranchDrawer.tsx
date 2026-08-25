@@ -1,13 +1,13 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Alert, Box, Button, MenuItem, TextField } from "@mui/material";
-import ResponsiveSheet, { SHEET_MENU_PROPS } from "../../_shared/components/ResponsiveSheet";
+import ResponsiveSheet, { SHEET_Z_INDEX } from "../../_shared/components/ResponsiveSheet";
+import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
 import type { StaffAdminTO } from "../types";
 
-const colorRed = "#E44B4C";
 
 export interface ChangeBranchDrawerProps {
     open: boolean;
@@ -93,8 +93,8 @@ export default function ChangeBranchDrawer({
                     value={selectedId}
                     onChange={e => setSelectedId(e.target.value)}
                     disabled={loading}
-                    SelectProps={{ MenuProps: SHEET_MENU_PROPS }}
-                    sx={{ mb: 2 }}
+                    SelectProps={{ MenuProps: roundedMenuProps(SHEET_Z_INDEX + 10) }}
+                    sx={{ mb: 2, ...ROUNDED_FIELD_SX }}
                     data-testid="change-branch-select"
                 >
                     {destinations.map(b => (
@@ -115,15 +115,7 @@ export default function ChangeBranchDrawer({
                     disableElevation
                     disabled={submitting || selectedId === ""}
                     onClick={() => { void handleSubmit(); }}
-                    sx={{
-                        borderRadius: "999px",
-                        py: 1.4,
-                        fontWeight: 700,
-                        textTransform: "none",
-                        bgcolor: colorRed,
-                        mb: 1,
-                        "&:hover": { bgcolor: "#c73c3d" },
-                    }}
+                    sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
                     data-testid="change-branch-submit"
                 >
                     Move
@@ -133,7 +125,7 @@ export default function ChangeBranchDrawer({
                     variant="outlined"
                     onClick={onClose}
                     disabled={submitting}
-                    sx={{ borderRadius: "999px", py: 1.2, textTransform: "none", borderColor: "#d9d6cd", color: "#4a4f57" }}
+                    sx={NEUTRAL_BUTTON_SX}
                 >
                     Cancel
                 </Button>
