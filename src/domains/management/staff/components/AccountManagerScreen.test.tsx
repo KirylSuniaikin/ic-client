@@ -114,7 +114,7 @@ describe("AccountManagerScreen", () => {
             ],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(within(screen.getByTestId("staff-row-1")).getByText("Casey Cook")).toBeTruthy();
         // Row 2 has no fullName -- both the Name and Login cells fall back to the username,
@@ -125,7 +125,7 @@ describe("AccountManagerScreen", () => {
     it("omits the price/hour column for a non-OWNER viewer", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ pricePerHour: 5 })] }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByText("Price/hour")).toBeNull();
     });
@@ -135,7 +135,7 @@ describe("AccountManagerScreen", () => {
             staff: [makeStaff({ id: 1, pricePerHour: null })],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.OWNER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByText("Price/hour")).toBeTruthy();
     });
@@ -145,7 +145,7 @@ describe("AccountManagerScreen", () => {
     it("scopes the fetch to the branch in scope", () => {
         mockUseManagementBranchScope.mockReturnValue({ branches: [homeBranch], homeBranch });
 
-        render(<AccountManagerScreen role={StaffRoles.OWNER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(mockUseStaffAccounts).toHaveBeenCalledWith("branch-1");
     });
@@ -153,7 +153,7 @@ describe("AccountManagerScreen", () => {
     it("offers no branch selector when only one branch is in scope", () => {
         mockUseManagementBranchScope.mockReturnValue({ branches: [homeBranch], homeBranch });
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         // The selector is the only combobox this screen renders.
         expect(screen.queryByRole("combobox")).toBeNull();
@@ -162,13 +162,13 @@ describe("AccountManagerScreen", () => {
     it("offers a branch selector when more than one branch is in scope", () => {
         mockUseManagementBranchScope.mockReturnValue({ branches: [homeBranch, secondBranch], homeBranch });
 
-        render(<AccountManagerScreen role={StaffRoles.OWNER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByRole("combobox")).toBeTruthy();
     });
 
     it("opens the HireStaffDrawer when the Hire button is clicked", () => {
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByTestId("hire-staff-drawer-stub").getAttribute("data-open")).toBe("false");
 
@@ -180,7 +180,7 @@ describe("AccountManagerScreen", () => {
     it("surfaces a hook error via the ErrorSnackbar", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ error: "HTTP 500" }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByText("HTTP 500")).toBeTruthy();
     });
@@ -190,7 +190,7 @@ describe("AccountManagerScreen", () => {
             staff: [makeStaff({ id: 1 }), makeStaff({ id: 2, username: "gone", enabled: false })],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByTestId("staff-row-1")).toBeTruthy();
         expect(screen.queryByTestId("staff-row-2")).toBeNull();
@@ -207,7 +207,7 @@ describe("AccountManagerScreen", () => {
             staff: [makeStaff({ id: 1, role: StaffRoles.COOK })],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-reset-1")).toBeNull();
         expect(screen.queryByTestId("staff-deactivate-1")).toBeNull();
@@ -218,7 +218,7 @@ describe("AccountManagerScreen", () => {
             staff: [makeStaff({ id: 3, role: StaffRoles.MANAGER })],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-reset-3")).toBeNull();
         expect(screen.queryByTestId("staff-deactivate-3")).toBeNull();
@@ -227,7 +227,7 @@ describe("AccountManagerScreen", () => {
     it("opens the reset drawer for the chosen row", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 4 })] }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByTestId("reset-password-drawer-stub").getAttribute("data-open")).toBe("false");
 
@@ -243,7 +243,7 @@ describe("AccountManagerScreen", () => {
             .mockResolvedValue(makeStaff({ id: 5, enabled: false }));
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 5 })], setEnabled }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         fireEvent.click(screen.getByTestId("staff-deactivate-5"));
         expect(screen.getByTestId("deactivate-dialog-stub").getAttribute("data-open")).toBe("true");
@@ -257,7 +257,7 @@ describe("AccountManagerScreen", () => {
     it("opens the change-branch drawer for the chosen row", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 8 })] }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByTestId("change-branch-drawer-stub").getAttribute("data-open")).toBe("false");
 
@@ -273,7 +273,7 @@ describe("AccountManagerScreen", () => {
             staff: [makeStaff({ id: 9, role: StaffRoles.MANAGER })],
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-change-branch-9")).toBeNull();
     });
@@ -287,12 +287,42 @@ describe("AccountManagerScreen", () => {
             setEnabled,
         }));
 
-        render(<AccountManagerScreen role={StaffRoles.MANAGER} branch={homeBranch} />);
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
         fireEvent.click(screen.getByTestId("staff-filter-all"));
 
         fireEvent.click(screen.getByTestId("staff-reactivate-6"));
 
         await waitFor(() => expect(setEnabled).toHaveBeenCalledWith(6, true));
         expect(screen.getByTestId("deactivate-dialog-stub").getAttribute("data-open")).toBe("false");
+    });
+    // It stopped being a tab and became a full-screen surface opened from the nav drawer's
+    // Management section, so `open` and a way back out are now part of its contract.
+    describe("full-screen presentation", () => {
+        it("renders nothing while closed", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 1 })] }));
+
+            render(<AccountManagerScreen open={false} role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.queryByTestId("staff-row-1")).toBeNull();
+        });
+
+        it("calls onClose from the top bar's back arrow", () => {
+            const onClose = jest.fn();
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 1 })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={onClose} />);
+
+            fireEvent.click(screen.getByLabelText("back"));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it("shows an empty state instead of a bare table when the branch has nobody active", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.getByTestId("staff-empty-state")).toBeTruthy();
+        });
     });
 });

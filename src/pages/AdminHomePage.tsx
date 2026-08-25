@@ -29,7 +29,6 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import DoughSection from "../domains/management/dough/components/DoughSection";
 import AdminSurfaceTabs from "../domains/management/_shared/components/AdminSurfaceTabs";
 import TaskBoardScreen from "../domains/management/tasks/components/TaskBoardScreen";
-import AccountManagerScreen from "../domains/management/staff/components/AccountManagerScreen";
 import { ExternalOrderAlert } from "../domains/management/orders/components/ExternalOrderAlert";
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
@@ -104,7 +103,8 @@ function AdminHomePage(): JSX.Element {
                     onShiftStageClick={() => ui.setShiftPopupOpen(true)} onCashClick={() => ui.setCashPopupOpen(true)}
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
-                    onAccountingOpen={() => ui.setAccountingOpen(true)} role={role} logout={logout} userName={username ?? ""}
+                    onAccountingOpen={() => ui.setAccountingOpen(true)} onAccountManagerOpen={() => ui.setAccountManagerOpen(true)}
+                    role={role} logout={logout} userName={username ?? ""}
                 />
             )}
             {selectedBranch && (<>
@@ -114,7 +114,7 @@ function AdminHomePage(): JSX.Element {
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && (
                 <AdminSurfaceTabs role={role} activeTab={ui.activeAdminTab} onChange={ui.setActiveAdminTab} />
             )}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && ui.activeAdminTab !== 'staff' && (
+            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && !showBoardPanel && (
                 <Box sx={{ p: 1, boxSizing: 'border-box', backgroundColor: "#fbfaf6", minHeight: '100vh', width: '100%',
                     display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
                     gap: 1, gridAutoRows: 'max-content' }}>
@@ -133,9 +133,6 @@ function AdminHomePage(): JSX.Element {
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
                 <TaskBoardScreen role={role} />
             )}
-            {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && ui.activeAdminTab === 'staff' && branchForComponents && (
-                <AccountManagerScreen role={role} branch={branchForComponents} />
-            )}
             {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}
             {ui.isStatisticsOpen && selectedBranch && <StatisticsComponent onClose={() => ui.setIsStatisticsOpen(false)} branchId={String(selectedBranch.id)} role={role} />}
@@ -145,7 +142,8 @@ function AdminHomePage(): JSX.Element {
                 cashRegisterOpen={ui.cashRegisterOpen} onCashRegisterClose={() => ui.setCashRegisterOpen(false)}
                 managementPageOpen={ui.managementPageOpen} onManagementPageClose={() => ui.setManagementPageOpen(false)}
                 shiftManagementPageOpen={ui.shiftManagementPageOpen} onShiftManagementPageClose={() => ui.setShiftManagementPageOpen(false)}
-                accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)} />
+                accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)}
+                accountManagerOpen={ui.accountManagerOpen} onAccountManagerClose={() => ui.setAccountManagerOpen(false)} role={role} />
             <ExternalOrderAlert alertOrder={alertOrder} onDismiss={() => { stopSound(); setAlertOrder(null); }} onStopSound={stopSound} {...orderActions} />
             <EditedOrderAlert editedOrder={editedOrder} onClose={() => { stopSound(); setEditedOrder(null); }} />
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />

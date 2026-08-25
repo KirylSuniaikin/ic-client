@@ -9,6 +9,7 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
+import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import { StaffRoles } from "../../../auth/types";
 import type { StaffRoles as StaffRolesType } from "../../../auth/types";
 
@@ -35,6 +36,7 @@ export type AdminNavHandlers = {
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
     onBlacklistopen: () => void;
+    onAccountManagerOpen: () => void;
     logout: () => void;
 };
 
@@ -64,6 +66,9 @@ export function buildAdminNavSections(
                 : new Set([
                     "New Order", "Shifts", "Order History", "Statistics", "Config",
                     "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist",
+                    // Manager-and-up only, matching the backend gate on /api/staff/**. A COOK or
+                    // SUPERVISOR reaching it would only be 403'd.
+                    "Account Manager",
                 ]);
 
     const operations: AdminNavItem[] = [
@@ -83,6 +88,7 @@ export function buildAdminNavSections(
         {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: handlers.onOpenStatistics},
         {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: handlers.onOpenConfig},
         {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: handlers.onBlacklistopen},
+        {label: "Account Manager", icon: <ManageAccountsOutlinedIcon fontSize="small"/>, onClick: handlers.onAccountManagerOpen},
     ];
 
     const filterByRole = (items: AdminNavItem[]): AdminNavItem[] =>

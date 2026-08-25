@@ -44,6 +44,7 @@ interface AdminTopbarProps {
     onBlacklistopen: () => void;
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
+    onAccountManagerOpen: () => void;
     role: StaffRolesType | null;
     logout: () => void;
     userName: string;
@@ -71,6 +72,7 @@ export default function AdminTopbar({
                                         onBlacklistopen,
                                         onCashRegisterOpen,
                                         onAccountingOpen,
+                                        onAccountManagerOpen,
                                         role,
                                         logout,
                                         userName
@@ -250,6 +252,7 @@ export default function AdminTopbar({
                         onPurchaseOpen,
                         onCashRegisterOpen,
                         onAccountingOpen,
+                        onAccountManagerOpen,
                         onBlacklistopen,
                         logout,
                     }}

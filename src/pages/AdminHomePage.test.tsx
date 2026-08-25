@@ -22,8 +22,14 @@ import type { AuthContextType } from "../domains/auth/types";
 // prefixed with mock -- see HistoryComponent.test.tsx for the same constraint applied
 // to components this test does not need to assert on.
 
-function mockAdminTopbar(): JSX.Element {
-    return <div data-testid="admin-topbar" />;
+function mockAdminTopbar({ onAccountManagerOpen }: { onAccountManagerOpen: () => void }): JSX.Element {
+    // Stands in for the nav drawer's Management > Account Manager row, which is the only way
+    // into the roster now that it is not a tab.
+    return (
+        <div data-testid="admin-topbar">
+            <button data-testid="topbar-open-account-manager" onClick={onAccountManagerOpen}>Account Manager</button>
+        </div>
+    );
 }
 
 function mockHistoryComponent(): JSX.Element {
@@ -37,24 +43,34 @@ function mockHistoryComponent(): JSX.Element {
 // AdminHomePage itself does not gate the <AdminSurfaceTabs/> render call on role --
 // per the spec, that allowlist check lives inside AdminSurfaceTabs -- so this stub
 // must replicate it, or the role-gating tests below would exercise nothing real.
-function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board" | "staff") => void }): JSX.Element | null {
+function mockAdminSurfaceTabs({ role, activeTab, onChange }: { role: StaffRoles | null; activeTab: string; onChange: (v: "orders" | "board") => void }): JSX.Element | null {
     if (role !== StaffRoles.MANAGER && role !== StaffRoles.SUPER_MANAGER && role !== StaffRoles.OWNER) return null;
 
     return (
         <div data-testid="admin-surface-tabs" data-active-tab={activeTab}>
             <button data-testid="admin-tab-orders" onClick={() => onChange("orders")}>Order Desk</button>
             <button data-testid="admin-tab-board" onClick={() => onChange("board")}>Task Board</button>
-            <button data-testid="admin-tab-staff" onClick={() => onChange("staff")}>Staff</button>
         </div>
     );
 }
 
-// Stub AccountManagerScreen (Task 2c) so tab-switching tests can assert AdminHomePage's own
-// wiring (which component renders for the 'staff' tab, and what `role` prop it receives)
-// without depending on AccountManagerScreen's internals, which have their own dedicated
-// AccountManagerScreen.test.tsx.
-function mockAccountManagerScreen({ role }: { role: StaffRoles | null }): JSX.Element {
-    return <div data-testid="account-manager-screen-stub" data-role={role ?? ""} />;
+// Stub AdminPageModals so this file can assert AdminHomePage's own wiring -- whether the
+// Account Manager surface is open, and what role reaches it -- without rendering any of the
+// full-screen management surfaces it hosts. Each of those has its own test file.
+function mockAdminPageModals({ accountManagerOpen, onAccountManagerClose, role }: {
+    accountManagerOpen: boolean;
+    onAccountManagerClose: () => void;
+    role: StaffRoles | null;
+}): JSX.Element {
+    return (
+        <div
+            data-testid="admin-page-modals"
+            data-account-manager-open={String(accountManagerOpen)}
+            data-role={role ?? ""}
+        >
+            <button data-testid="close-account-manager" onClick={onAccountManagerClose}>close</button>
+        </div>
+    );
 }
 
 // Stub TaskBoardScreen (ST6) so tab-switching tests can assert AdminHomePage's own wiring
@@ -116,7 +132,7 @@ jest.mock("../domains/management/orders/components/PaymentPopup", () => ({
     default: (): null => null,
 }));
 jest.mock("../domains/management/orders/components/AdminPageModals", () => ({
-    AdminPageModals: (): null => null,
+    AdminPageModals: mockAdminPageModals,
 }));
 jest.mock("../domains/management/orders/components/DeleteOrderDialog", () => ({
     DeleteOrderDialog: (): null => null,
@@ -138,10 +154,6 @@ jest.mock("../domains/management/_shared/components/AdminSurfaceTabs", () => ({
 jest.mock("../domains/management/tasks/components/TaskBoardScreen", () => ({
     __esModule: true,
     default: mockTaskBoardScreen,
-}));
-jest.mock("../domains/management/staff/components/AccountManagerScreen", () => ({
-    __esModule: true,
-    default: mockAccountManagerScreen,
 }));
 
 import { useAuth } from "../domains/auth/context/AuthProvider";
@@ -402,50 +414,61 @@ describe("AdminHomePage board tab gating", () => {
     });
 });
 
-// Task 2c: the Staff tab. AdminHomePage.tsx line 52's `ordersLive` was rewritten from
-// `!isReviewer && !showBoardPanel` to `!isReviewer && ui.activeAdminTab === 'orders'` so that
-// the order desk's STOMP subscriptions also tear down under the new third tab -- the pre-existing
-// two-tab expression would have left them (incorrectly) live while on the Staff tab.
-describe("AdminHomePage staff tab (Task 2c)", () => {
+// Account Manager left the tab strip for the nav drawer's Management section, where it opens as
+// a full-screen surface alongside Inventory and Accounting. AdminHomePage's own job shrank to
+// holding the open flag and handing it, with the caller's role, to AdminPageModals -- which is
+// all these assert. The screen's behaviour lives in AccountManagerScreen.test.tsx.
+//
+// One deliberate consequence: `ordersLive` no longer drops while the roster is on screen. It
+// tracks the tab strip, and Account Manager is no longer a tab -- so the order desk keeps its
+// STOMP subscriptions underneath, exactly as it does under every other management surface. That
+// is a fix, not a regression: those topics are not durable, and the old teardown lost frames.
+describe("AdminHomePage Account Manager surface", () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    it("renders AccountManagerScreen with role passed through when switching to the staff tab, for role MANAGER", () => {
+    it("keeps Account Manager closed until something opens it", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
-        fireEvent.click(screen.getByTestId("admin-tab-staff"));
-
-        const stub = screen.getByTestId("account-manager-screen-stub");
-        expect(stub).toBeTruthy();
-        expect(stub.getAttribute("data-role")).toBe(StaffRoles.MANAGER);
-        expect(screen.queryByTestId("task-board-panel")).toBeNull();
-        expect(screen.queryByText("S Dough")).toBeNull();
+        expect(screen.getByTestId("admin-page-modals").getAttribute("data-account-manager-open")).toBe("false");
     });
 
-    it("disables useAdminOrders (ordersLive=false) once a MANAGER switches to the staff tab", () => {
-        renderAdminHomePage(StaffRoles.MANAGER);
+    it("opens it from the nav action and passes the caller's role through", () => {
+        renderAdminHomePage(StaffRoles.OWNER);
 
-        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+        fireEvent.click(screen.getByTestId("topbar-open-account-manager"));
 
-        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), false);
+        const modals = screen.getByTestId("admin-page-modals");
+        expect(modals.getAttribute("data-account-manager-open")).toBe("true");
+        expect(modals.getAttribute("data-role")).toBe(StaffRoles.OWNER);
     });
 
-    it("re-enables useAdminOrders after switching from the staff tab back to orders", () => {
+    it("closes it again from onAccountManagerClose", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
-        fireEvent.click(screen.getByTestId("admin-tab-staff"));
+        fireEvent.click(screen.getByTestId("topbar-open-account-manager"));
+        fireEvent.click(screen.getByTestId("close-account-manager"));
+
+        expect(screen.getByTestId("admin-page-modals").getAttribute("data-account-manager-open")).toBe("false");
+    });
+
+    // As a tab, the roster used to tear the order desk's STOMP subscriptions down -- and those
+    // topics are not durable, so every frame published meanwhile was lost. As a surface layered
+    // over the desk it must not: opening it from the order-desk tab has to leave ordersLive true.
+    it("leaves the order desk subscribed while the roster is open", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
         fireEvent.click(screen.getByTestId("admin-tab-orders"));
+        expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
+
+        fireEvent.click(screen.getByTestId("topbar-open-account-manager"));
 
         expect(mockUseAdminOrders).toHaveBeenLastCalledWith("branch-1", expect.any(Function), true);
     });
 
-    it("renders AccountManagerScreen for role OWNER on the staff tab", () => {
-        renderAdminHomePage(StaffRoles.OWNER);
+    it("no longer offers a staff tab in the strip", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
 
-        fireEvent.click(screen.getByTestId("admin-tab-staff"));
-
-        const stub = screen.getByTestId("account-manager-screen-stub");
-        expect(stub.getAttribute("data-role")).toBe(StaffRoles.OWNER);
+        expect(screen.queryByTestId("admin-tab-staff")).toBeNull();
     });
 });

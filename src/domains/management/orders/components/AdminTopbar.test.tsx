@@ -49,6 +49,7 @@ function renderTopbar(role: StaffRoles | null): void {
             onBlacklistopen={jest.fn()}
             onCashRegisterOpen={jest.fn()}
             onAccountingOpen={jest.fn()}
+            onAccountManagerOpen={jest.fn()}
             role={role}
             logout={jest.fn()}
             userName="Test User"

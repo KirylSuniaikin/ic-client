@@ -17,6 +17,7 @@ function makeHandlers(): AdminNavHandlers {
         onCashRegisterOpen: jest.fn(),
         onAccountingOpen: jest.fn(),
         onBlacklistopen: jest.fn(),
+    onAccountManagerOpen: jest.fn(),
         logout: jest.fn(),
     };
 }

@@ -6,6 +6,8 @@ import CashRegisterPopup from '../../cash-register/components/CashRegisterPopup'
 import ManagementPage from '../../inventory/components/InventoryPage';
 import { ShiftHomePage } from '../../shift/components/ShiftHomePage';
 import { AccountingHomePage } from '../../accounting/components/AccountingHomePage';
+import AccountManagerScreen from '../../staff/components/AccountManagerScreen';
+import type { StaffRoles } from '../../../auth/types';
 
 type Props = {
     selectedBranch: IBranch | null;
@@ -23,6 +25,9 @@ type Props = {
     onShiftManagementPageClose: () => void;
     accountingOpen: boolean;
     onAccountingClose: () => void;
+    accountManagerOpen: boolean;
+    onAccountManagerClose: () => void;
+    role: StaffRoles | null;
 };
 
 export function AdminPageModals({
@@ -41,6 +46,9 @@ export function AdminPageModals({
     onShiftManagementPageClose,
     accountingOpen,
     onAccountingClose,
+    accountManagerOpen,
+    onAccountManagerClose,
+    role,
 }: Props): JSX.Element {
     const currentUser = { userName: username, id: userId };
 
@@ -64,6 +72,9 @@ export function AdminPageModals({
             )}
             {accountingOpen && selectedBranch && (
                 <AccountingHomePage open={accountingOpen} onClose={onAccountingClose} branch={selectedBranch} />
+            )}
+            {accountManagerOpen && selectedBranch && (
+                <AccountManagerScreen open={accountManagerOpen} onClose={onAccountManagerClose} role={role} branch={selectedBranch} />
             )}
         </>
     );

@@ -33,41 +33,35 @@ describe("AdminSurfaceTabs", () => {
             expect(screen.queryByTestId("admin-surface-tabs")).toBeNull();
         });
 
-        it("renders all three tab options for role MANAGER", () => {
+        it("renders both tab options for role MANAGER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.MANAGER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
-            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
         });
 
-        // The tab key stays "staff" -- only what a manager reads changed.
-        it("labels the staff tab Account Manager", () => {
+        // Account Manager left this strip for the nav drawer's Management section, where it sits
+        // with the other full-screen management surfaces. This strip switches panels in place;
+        // Account Manager covers the page, so it never belonged among them.
+        it("no longer offers Account Manager as a tab", () => {
             render(<AdminSurfaceTabs role={StaffRoles.MANAGER} activeTab="orders" onChange={jest.fn()} />);
 
-            expect(screen.getByTestId("admin-tab-staff").textContent).toBe("Account Manager");
+            expect(screen.queryByTestId("admin-tab-staff")).toBeNull();
+            expect(screen.queryByText("Account Manager")).toBeNull();
         });
 
-        it("renders all three tab options for role SUPER_MANAGER", () => {
+        it("renders both tab options for role SUPER_MANAGER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.SUPER_MANAGER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
-            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
         });
 
-        it("renders all three tab options for role OWNER", () => {
+        it("renders both tab options for role OWNER", () => {
             render(<AdminSurfaceTabs role={StaffRoles.OWNER} activeTab="orders" onChange={jest.fn()} />);
 
             expect(screen.getByTestId("admin-tab-orders")).toBeTruthy();
             expect(screen.getByTestId("admin-tab-board")).toBeTruthy();
-            expect(screen.getByTestId("admin-tab-staff")).toBeTruthy();
-        });
-
-        it("does not render the staff tab for role COOK", () => {
-            render(<AdminSurfaceTabs role={StaffRoles.COOK} activeTab="orders" onChange={jest.fn()} />);
-
-            expect(screen.queryByTestId("admin-tab-staff")).toBeNull();
         });
     });
 
