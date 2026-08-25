@@ -35,7 +35,9 @@ describe("ActiveOrderIslandPill", () => {
         expect(screen.getByText("5 min")).toBeTruthy();
     });
 
-    it("shows 'Ready!' instead of an ETA when the order is ready", () => {
+    // Asserts the current customerAuth `island.ready` copy. It was rewritten from "Ready!" to a
+    // call to action, and this assertion was left behind -- the component was never wrong.
+    it("shows the pick-up call to action instead of an ETA when the order is ready", () => {
         render(
             <ActiveOrderIslandPill
                 branchName="Downtown"
@@ -46,7 +48,9 @@ describe("ActiveOrderIslandPill", () => {
             />
         );
 
-        expect(screen.getByText("Ready!")).toBeTruthy();
+        expect(screen.getByText("Come In And Pick Up Your Order!")).toBeTruthy();
+        // The "Estimated Ready in" caption and the branch name both give way to it.
+        expect(screen.queryByText("Estimated Ready in")).toBeNull();
     });
 
     it("calls onClick when clicked", () => {
