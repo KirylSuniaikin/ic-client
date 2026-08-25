@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { Alert, Box, Button, Drawer, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Stack, TextField } from "@mui/material";
+import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import { logger } from "../../../../shared/utils/logger";
 import { generatePassword } from "../utils/generatePassword";
 import type { StaffAdminTO } from "../types";
@@ -58,90 +59,85 @@ export default function ResetPasswordDrawer({
     };
 
     return (
-        <Drawer
-            anchor="bottom"
+        <ResponsiveSheet
             open={open}
             onClose={onClose}
-            sx={{ zIndex: 1350 }}
-            PaperProps={{
-                sx: {
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    maxWidth: { sm: 500 },
-                    mx: { sm: "auto" },
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                },
-            }}
+            title={revealed ? undefined : "Reset password"}
+            subtitle={revealed ? undefined : `${target?.fullName ?? target?.username} (${target?.username})`}
+            testId="reset-password-drawer"
         >
-            <Box sx={{ p: 3, pb: 4 }} data-testid="reset-password-drawer">
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
-
-                {revealed && target ? (
-                    <CredentialsRevealPanel
-                        title="Password reset"
-                        username={target.username}
-                        password={password}
-                        onDone={onClose}
-                        testIdPrefix="reset-password"
-                    />
-                ) : (
-                    <Box>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5, textAlign: "center" }}>
-                            Reset password
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: "center" }}>
-                            {target?.fullName ?? target?.username} ({target?.username})
-                        </Typography>
-
-                        {formError && (
-                            <Alert severity="error" sx={{ mb: 2 }} data-testid="reset-password-error">
-                                {formError}
-                            </Alert>
-                        )}
-
-                        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                            <TextField
-                                label="New password"
-                                fullWidth
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                data-testid="reset-password-field"
-                            />
-                            <Button
-                                variant="outlined"
-                                onClick={() => setPassword(generatePassword())}
-                                sx={{ whiteSpace: "nowrap" }}
-                                data-testid="reset-password-generate"
-                            >
-                                Generate
-                            </Button>
-                        </Stack>
-
-                        {/* Says the true thing: there is no passwordChangedAt and no revocation
-                            list, so a token issued before this reset keeps working until it
-                            expires. Deactivation is the action that cuts access immediately. */}
-                        <Alert severity="info" sx={{ mb: 2 }}>
-                            Resetting does not sign this person out. To end their current session,
-                            deactivate the account.
+            {revealed && target ? (
+                <CredentialsRevealPanel
+                    title="Password reset"
+                    username={target.username}
+                    password={password}
+                    onDone={onClose}
+                    testIdPrefix="reset-password"
+                />
+            ) : (
+                <Box>
+                    {formError && (
+                        <Alert severity="error" sx={{ mb: 2 }} data-testid="reset-password-error">
+                            {formError}
                         </Alert>
+                    )}
 
-                        <Button
+                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <TextField
+                            label="New password"
                             fullWidth
-                            variant="contained"
-                            disabled={submitting || password.trim() === ""}
-                            onClick={() => { void handleSubmit(); }}
-                            sx={{ borderRadius: 3, py: 1.5, bgcolor: colorRed, mb: 1, "&:hover": { bgcolor: "#c73c3d" } }}
-                            data-testid="reset-password-submit"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            data-testid="reset-password-field"
+                        />
+                        <Button
+                            variant="outlined"
+                            onClick={() => setPassword(generatePassword())}
+                            sx={{ whiteSpace: "nowrap", borderRadius: "12px", borderColor: "#d9d6cd", color: "#4a4f57" }}
+                            data-testid="reset-password-generate"
                         >
-                            Reset password
+                            Generate
                         </Button>
-                        <Button fullWidth variant="outlined" onClick={onClose} disabled={submitting}>
-                            Cancel
-                        </Button>
-                    </Box>
-                )}
-            </Box>
-        </Drawer>
+                    </Stack>
+
+                    {/* Says the true thing: there is no passwordChangedAt and no revocation
+                        list, so a token issued before this reset keeps working until it
+                        expires. Deactivation is the action that cuts access immediately. */}
+                    <Alert severity="info" sx={{ mb: 2.5 }}>
+                        Resetting does not sign this person out. To end their current session,
+                        deactivate the account.
+                    </Alert>
+
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        disableElevation
+                        disabled={submitting || password.trim() === ""}
+                        onClick={() => { void handleSubmit(); }}
+                        sx={{
+                            borderRadius: "999px",
+                            py: 1.4,
+                            fontWeight: 700,
+                            textTransform: "none",
+                            bgcolor: colorRed,
+                            mb: 1,
+                            "&:hover": { bgcolor: "#c73c3d" },
+                        }}
+                        data-testid="reset-password-submit"
+                    >
+                        Reset password
+                    </Button>
+                    <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={onClose}
+                        disabled={submitting}
+                        sx={{ borderRadius: "999px", py: 1.2, textTransform: "none", borderColor: "#d9d6cd", color: "#4a4f57" }}
+                    >
+                        Cancel
+                    </Button>
+                </Box>
+            )}
+        </ResponsiveSheet>
     );
 }

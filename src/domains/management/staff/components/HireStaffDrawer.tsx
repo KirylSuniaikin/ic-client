@@ -4,7 +4,6 @@ import {
     Alert,
     Box,
     Button,
-    Drawer,
     FormControl,
     InputAdornment,
     InputLabel,
@@ -12,13 +11,13 @@ import {
     Select,
     SelectChangeEvent,
     TextField,
-    Typography,
 } from "@mui/material";
 import { logger } from "../../../../shared/utils/logger";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles, hasCityAccess } from "../../../auth/types";
 import { useManagementBranchScope } from "../../_shared/context/ManagementBranchScope";
 import { BranchSelectorComponent } from "../../_shared/components/BranchSelectorComponent";
+import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import type { IBranch } from "../../inventory/types";
 import { generatePassword } from "../utils/generatePassword";
 import CredentialsRevealPanel from "./CredentialsRevealPanel";
@@ -125,130 +124,127 @@ export default function HireStaffDrawer({ open, onClose, create }: HireStaffDraw
     };
 
     return (
-        <Drawer
-            anchor="bottom"
+        // The reveal panel carries its own heading, so the shell's is dropped for that step
+        // rather than stacking two titles.
+        <ResponsiveSheet
             open={open}
             onClose={onClose}
-            sx={{ zIndex: 1350 }}
-            PaperProps={{
-                sx: {
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    maxWidth: { sm: 500 },
-                    mx: { sm: "auto" },
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                },
-            }}
+            title={credentials ? undefined : "Hire staff"}
+            testId="hire-staff-drawer"
         >
-            <Box sx={{ p: 3, pb: 4 }} data-testid="hire-staff-drawer">
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
+            {credentials ? (
+                <CredentialsRevealPanel
+                    title="Staff hired"
+                    username={credentials.username}
+                    password={credentials.password}
+                    onDone={onClose}
+                    testIdPrefix="hire-staff"
+                />
+            ) : (
+                <Box>
+                    {formError && (
+                        <Alert severity="error" sx={{ mb: 2 }} data-testid="hire-staff-error">
+                            {formError}
+                        </Alert>
+                    )}
 
-                {credentials ? (
-                    <CredentialsRevealPanel
-                        title="Staff hired"
-                        username={credentials.username}
-                        password={credentials.password}
-                        onDone={onClose}
-                        testIdPrefix="hire-staff"
+                    <TextField
+                        label="Full name"
+                        fullWidth
+                        value={fullName}
+                        onChange={e => setFullName(e.target.value)}
+                        sx={{ mb: 2 }}
                     />
-                ) : (
-                    <Box>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, textAlign: "center" }}>
-                            Hire staff
-                        </Typography>
 
-                        {formError && (
-                            <Alert severity="error" sx={{ mb: 2 }} data-testid="hire-staff-error">
-                                {formError}
-                            </Alert>
-                        )}
+                    <TextField
+                        label="Login"
+                        fullWidth
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        sx={{ mb: 2 }}
+                    />
 
+                    <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
                         <TextField
-                            label="Full name"
+                            label="Password"
                             fullWidth
-                            value={fullName}
-                            onChange={e => setFullName(e.target.value)}
-                            sx={{ mb: 2 }}
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
                         />
-
-                        <TextField
-                            label="Login"
-                            fullWidth
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
-                            sx={{ mb: 2 }}
-                        />
-
-                        <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-                            <TextField
-                                label="Password"
-                                fullWidth
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                            />
-                            <Button variant="outlined" onClick={handleGeneratePassword} data-testid="hire-staff-generate-password">
-                                Generate
-                            </Button>
-                        </Box>
-
-                        <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel>Role</InputLabel>
-                            <Select<StaffRoles | "">
-                                label="Role"
-                                value={selectedRole}
-                                onChange={(e: SelectChangeEvent<StaffRoles | "">) => setSelectedRole(e.target.value)}
-                                data-testid="hire-staff-role-select"
-                            >
-                                {hireableRoles.map(r => (
-                                    <MenuItem key={r} value={r}>
-                                        {r}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <TextField
-                            label="Price/hour"
-                            fullWidth
-                            value={pricePerHourStr}
-                            onChange={e => {
-                                const val = e.target.value;
-                                if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) setPricePerHourStr(val);
-                            }}
-                            inputProps={{ inputMode: "decimal" }}
-                            InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
-                            sx={{ mb: 2 }}
-                        />
-
-                        {cityAccess && (
-                            <Box sx={{ mb: 2 }}>
-                                {selectedBranch ? (
-                                    <BranchSelectorComponent
-                                        branches={branches}
-                                        selectedBranch={selectedBranch}
-                                        onBranchChange={setSelectedBranch}
-                                    />
-                                ) : (
-                                    <Alert severity="warning" data-testid="hire-staff-no-branches">
-                                        No branches available to hire into.
-                                    </Alert>
-                                )}
-                            </Box>
-                        )}
-
                         <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={handleSubmit}
-                            disabled={!canSubmit || submitting}
-                            sx={{ borderRadius: 3, py: 1.5, bgcolor: colorRed, "&:hover": { bgcolor: "#c73c3d" } }}
+                            variant="outlined"
+                            onClick={handleGeneratePassword}
+                            data-testid="hire-staff-generate-password"
+                            sx={{ borderRadius: "12px", whiteSpace: "nowrap", borderColor: "#d9d6cd", color: "#4a4f57" }}
                         >
-                            Hire
+                            Generate
                         </Button>
                     </Box>
-                )}
-            </Box>
-        </Drawer>
+
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                        <InputLabel>Role</InputLabel>
+                        <Select<StaffRoles | "">
+                            label="Role"
+                            value={selectedRole}
+                            onChange={(e: SelectChangeEvent<StaffRoles | "">) => setSelectedRole(e.target.value)}
+                            data-testid="hire-staff-role-select"
+                        >
+                            {hireableRoles.map(r => (
+                                <MenuItem key={r} value={r}>
+                                    {r}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    <TextField
+                        label="Price/hour"
+                        fullWidth
+                        value={pricePerHourStr}
+                        onChange={e => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) setPricePerHourStr(val);
+                        }}
+                        inputProps={{ inputMode: "decimal" }}
+                        InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
+                        sx={{ mb: 2 }}
+                    />
+
+                    {cityAccess && (
+                        <Box sx={{ mb: 2 }}>
+                            {selectedBranch ? (
+                                <BranchSelectorComponent
+                                    branches={branches}
+                                    selectedBranch={selectedBranch}
+                                    onBranchChange={setSelectedBranch}
+                                />
+                            ) : (
+                                <Alert severity="warning" data-testid="hire-staff-no-branches">
+                                    No branches available to hire into.
+                                </Alert>
+                            )}
+                        </Box>
+                    )}
+
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        disableElevation
+                        onClick={handleSubmit}
+                        disabled={!canSubmit || submitting}
+                        sx={{
+                            borderRadius: "999px",
+                            py: 1.4,
+                            fontWeight: 700,
+                            textTransform: "none",
+                            bgcolor: colorRed,
+                            "&:hover": { bgcolor: "#c73c3d" },
+                        }}
+                    >
+                        Hire
+                    </Button>
+                </Box>
+            )}
+        </ResponsiveSheet>
     );
 }

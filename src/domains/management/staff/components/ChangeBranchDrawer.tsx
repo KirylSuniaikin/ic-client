@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { Alert, Box, Button, Drawer, MenuItem, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, MenuItem, TextField } from "@mui/material";
+import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
@@ -71,32 +72,14 @@ export default function ChangeBranchDrawer({
     };
 
     return (
-        <Drawer
-            anchor="bottom"
+        <ResponsiveSheet
             open={open}
             onClose={onClose}
-            sx={{ zIndex: 1350 }}
-            PaperProps={{
-                sx: {
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    maxWidth: { sm: 500 },
-                    mx: { sm: "auto" },
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                },
-            }}
+            title="Change branch"
+            subtitle={`${target?.fullName ?? target?.username} (${target?.username})`}
+            testId="change-branch-drawer"
         >
-            <Box sx={{ p: 3, pb: 4 }} data-testid="change-branch-drawer">
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
-
-                <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5, textAlign: "center" }}>
-                    Change branch
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: "center" }}>
-                    {target?.fullName ?? target?.username} ({target?.username})
-                </Typography>
-
+            <Box>
                 {formError && (
                     <Alert severity="error" sx={{ mb: 2 }} data-testid="change-branch-error">
                         {formError}
@@ -120,7 +103,7 @@ export default function ChangeBranchDrawer({
 
                 {/* A manager can send their own staff away but cannot reach into another branch
                     to bring them back -- worth saying before they do it, not after. */}
-                <Alert severity="info" sx={{ mb: 2 }}>
+                <Alert severity="info" sx={{ mb: 2.5 }}>
                     Once moved, this person appears on the new branch's roster. The new branch's
                     manager administers them from then on.
                 </Alert>
@@ -128,17 +111,32 @@ export default function ChangeBranchDrawer({
                 <Button
                     fullWidth
                     variant="contained"
+                    disableElevation
                     disabled={submitting || selectedId === ""}
                     onClick={() => { void handleSubmit(); }}
-                    sx={{ borderRadius: 3, py: 1.5, bgcolor: colorRed, mb: 1, "&:hover": { bgcolor: "#c73c3d" } }}
+                    sx={{
+                        borderRadius: "999px",
+                        py: 1.4,
+                        fontWeight: 700,
+                        textTransform: "none",
+                        bgcolor: colorRed,
+                        mb: 1,
+                        "&:hover": { bgcolor: "#c73c3d" },
+                    }}
                     data-testid="change-branch-submit"
                 >
                     Move
                 </Button>
-                <Button fullWidth variant="outlined" onClick={onClose} disabled={submitting}>
+                <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={onClose}
+                    disabled={submitting}
+                    sx={{ borderRadius: "999px", py: 1.2, textTransform: "none", borderColor: "#d9d6cd", color: "#4a4f57" }}
+                >
                     Cancel
                 </Button>
             </Box>
-        </Drawer>
+        </ResponsiveSheet>
     );
 }
