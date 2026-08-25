@@ -1,13 +1,22 @@
 html, body, #root {
     margin: 0;
     padding: 0;
-    height: 100%;
     overflow-x: hidden;
     color-scheme: only light;
 }
 
 html, body {
+    height: 100%;
     background-color: #fff;
+}
+
+/* Deliberately min-height, NOT height. Per the CSS overflow spec, `overflow-x: hidden` promotes
+   `overflow-y` from `visible` to `auto`, so a fixed-height #root becomes the page's scroll
+   container -- while MUI's modal scroll lock only ever touches document.body, which is then
+   viewport-height and has nothing to lock. That is why the page scrolled underneath every open
+   drawer and dialog. Growing #root past the viewport instead keeps body the scroller. */
+#root {
+    min-height: 100%;
 }
 
 ::-webkit-scrollbar {

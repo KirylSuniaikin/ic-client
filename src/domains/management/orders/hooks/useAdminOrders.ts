@@ -55,6 +55,12 @@ function normalizeId(x: unknown): string {
     return String(x);
 }
 
+// Keeta orders must not auto-print — Keeta's own app already produces a ticket.
+// An explicit staff tap on OrderCard's print button is unaffected by this guard.
+function shouldAutoPrint(order: Order): boolean {
+    return 'Keeta' !== order.order_type;
+}
+
 function getStringId(o: unknown): string {
     const obj = o as { id?: unknown; orderId?: unknown; order_no?: unknown } | null;
     return String(obj?.id ?? obj?.orderId ?? obj?.order_no ?? o ?? '');
@@ -146,7 +152,7 @@ export function useAdminOrders(
                         suppressedIdsRef.current = new Set();
                     }
 
-                    if ('Keeta' !== newOrder.order_type) {
+                    if (shouldAutoPrint(newOrder)) {
                         BluetoothPrinterService.printOrder(newOrder)
                             .then(() => logger.debug('🖨️ Auto print success'))
                             .catch(e => logger.warn('⚠️ Auto print error:', e));
@@ -184,9 +190,11 @@ export function useAdminOrders(
                         body: JSON.stringify({ orderId: updatedOrder.id }),
                     });
 
-                    BluetoothPrinterService.printOrder(updatedOrder)
-                        .then(() => logger.debug('🖨️ Auto print success'))
-                        .catch(e => logger.warn('⚠️ Auto print error:', e));
+                    if (shouldAutoPrint(updatedOrder)) {
+                        BluetoothPrinterService.printOrder(updatedOrder)
+                            .then(() => logger.debug('🖨️ Auto print success'))
+                            .catch(e => logger.warn('⚠️ Auto print error:', e));
+                    }
 
                     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 

@@ -1,41 +1,25 @@
 import { logger } from "../../../../shared/utils/logger";
-import React from "react";
 import {
     Box,
     FormControl,
     IconButton,
     InputLabel,
     MenuItem,
-    Popover,
     Select,
     SelectChangeEvent,
-    Typography, useMediaQuery, useTheme
+    Typography,
 } from "@mui/material";
 import {useState} from "react";
-import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
-import AddIcon from "@mui/icons-material/Add";
-import HistoryIcon from "@mui/icons-material/History";
-import SettingsIcon from "@mui/icons-material/Settings";
-import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
+import MenuIcon from "@mui/icons-material/Menu";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import {updateWorkload} from "../../../../shared/api/public";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
-import ScheduleIcon from '@mui/icons-material/Schedule';
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
-import {ShiftButton} from "../../shift/components/ShiftButton";
-import {
-    PointOfSale as PointOfSaleIcon,
-    AccessTime as AccessTimeIcon
-} from '@mui/icons-material';
-import PersonOffIcon from '@mui/icons-material/PersonOff';
-import LogoutIcon from '@mui/icons-material/Logout';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import AdminNavDrawer from "../../_shared/components/AdminNavDrawer";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import type { StaffRoles as StaffRolesType } from '../../../auth/types';
 import type { WorkloadLevel } from '../../../order/types';
 import type { IBranch } from '../../inventory/types';
+import type { AdminTabKey } from '../../_shared/hooks/useAdminUIState';
 
 interface AdminTopbarProps {
     onOpenHistory: () => void;
@@ -61,6 +45,9 @@ interface AdminTopbarProps {
     onBlacklistopen: () => void;
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
+    onAccountManagerOpen: () => void;
+    activeTab: AdminTabKey;
+    onSwitchSurface: () => void;
     role: StaffRolesType | null;
     logout: () => void;
     userName: string;
@@ -88,17 +75,14 @@ export default function AdminTopbar({
                                         onBlacklistopen,
                                         onCashRegisterOpen,
                                         onAccountingOpen,
+                                        onAccountManagerOpen,
+                                        activeTab,
+                                        onSwitchSurface,
                                         role,
                                         logout,
                                         userName
                                     }: AdminTopbarProps): JSX.Element {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-    const open = Boolean(anchorEl);
-    const theme = useTheme();
-    const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'xl'));
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
-    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
-    const handleMenuClose = () => setAnchorEl(null);
+    const [navOpen, setNavOpen] = useState<boolean>(false);
 
     const colorRed = '#E44B4C';
 
@@ -124,51 +108,10 @@ export default function AdminTopbar({
         }
     }
 
-    // Shared entries so Cash Register / Logout are never duplicated as separate literals
-    // across the cook / supervisor / manager menu variants.
-    const cashRegisterItem = {label: "Cash Register", icon: <ReceiptLongIcon fontSize="small"/>, onClick: onCashRegisterOpen};
-    const logoutItem = {label: "Logout", icon: <LogoutIcon fontSize="small"/>, onClick: logout};
-
-    const cookBaseItems = [
-        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
-        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
-        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
-        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
-    ]
-
-    const managerItems = [
-        {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: onGoToMenu},
-        {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: onShiftManagementPageOpen},
-        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
-        {label: "Statistics", icon: <StackedLineChartIcon fontSize="small"/>, onClick: onOpenStatistics},
-        {label: "Config", icon: <SettingsIcon fontSize="small"/>, onClick: onOpenConfig},
-        {label: "Inventory", icon: <Inventory2OutlinedIcon fontSize="small"/>, onClick: onManagementPageOpen},
-        {label: "Purchase", icon: <ShoppingCartOutlinedIcon fontSize="small"/>, onClick: onPurchaseOpen},
-        cashRegisterItem,
-        {label: "Accounting", icon: <AccountBalanceWalletOutlinedIcon fontSize="small"/>, onClick: onAccountingOpen},
-        {label: "Blacklist", icon: <PersonOffIcon fontSize="small"/>, onClick: onBlacklistopen},
-        logoutItem
-    ]
-
-    const cookItems = [...cookBaseItems, logoutItem]
-
-    const supervisorItems = [...cookBaseItems, cashRegisterItem, logoutItem]
-
-    const reviewerItems = [
-        {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: onOpenHistory},
-        logoutItem
-    ]
-
     const isReviewer = role === StaffRoles.REVIEWER;
-
-    const items = isReviewer
-        ? reviewerItems
-        : role === StaffRoles.COOK
-            ? cookItems
-            : role === StaffRoles.SUPERVISOR
-                ? supervisorItems
-                : managerItems;
+    // The board is a different surface with different controls: a branch switcher and a
+    // workload dial belong to the order desk and do nothing for a task board.
+    const onBoard = activeTab === 'board';
 
     const levels: WorkloadLevel[] = ["IDLE", "BUSY", "CROWDED", "RUSH", "HEAVY_RUSH", "SLAMMED", "OVERLOADED"];
 
@@ -219,37 +162,34 @@ export default function AdminTopbar({
                 zIndex: 10
             }}
         >
-            <Box
-                sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "9999px",
-                    padding: "6px 16px",
-                    width: "fit-content",
-                    height: "40px"
-                }}
-            >
-                <PersonOutlineIcon sx={{ fontSize: "1.2rem", color: "#555" }} />
-                <Typography
-                    sx={{
-                        textTransform: "capitalize",
-                        fontSize: "1rem",
-                        fontWeight: 500,
-                        color: "#333",
-                        lineHeight: 1
-                    }}
-                >
-                    {userName}
-                </Typography>
+            {/* Who is signed in. This lived in the old overflow dropdown's trigger and was lost
+                when that became a nav drawer; the drawer still shows it, but only once opened. */}
+            <Box sx={{display: "flex", alignItems: "center", gap: 1, minWidth: 0, pl: 0.5}}>
+                <PersonOutlineIcon sx={{fontSize: "1.1rem", color: "#8a8f98"}}/>
+                <Box sx={{minWidth: 0}}>
+                    <Typography
+                        noWrap
+                        sx={{fontSize: "0.9rem", fontWeight: 600, color: "#1f2430", lineHeight: 1.2}}
+                        data-testid="admin-topbar-user"
+                    >
+                        {userName}
+                    </Typography>
+                    {role && (
+                        <Typography
+                            noWrap
+                            sx={{fontSize: "0.7rem", color: "#8a8f98", textTransform: "capitalize", lineHeight: 1.2}}
+                        >
+                            {role.replace(/_/g, " ").toLowerCase()}
+                        </Typography>
+                    )}
+                </Box>
             </Box>
 
             <Box sx={{flexGrow: 1}}/>
 
             <Box sx={{display: "flex", gap: 1, alignItems: "center"}}>
 
-                {hasCityAccess(role) && (
+                {hasCityAccess(role) && !onBoard && (
                     <BranchSelectorComponent
                         branches={branches}
                         onBranchChange={onBranchChange}
@@ -259,7 +199,7 @@ export default function AdminTopbar({
 
                 {/* Workload, Cash and Shift all mutate branch state, and the backend 403s a
                     REVIEWER on every one of them. Hide rather than let them fail on click. */}
-                {!isReviewer && (
+                {!isReviewer && !onBoard && (
                     <FormControl size="small" sx={{minWidth: 80, borderColor: colorRed}}>
                         <InputLabel>Workload</InputLabel>
                         <Select
@@ -282,24 +222,8 @@ export default function AdminTopbar({
                     </FormControl>
                 )}
 
-                {!isMobile && !isReviewer && (
-                    <>
-                        <ShiftButton
-                            onClick={onCashClick}
-                            stage={cashStage}
-                            getStage={(stage) => getCashStage(stage)}
-                        ></ShiftButton>
-
-                        <ShiftButton
-                            onClick={onShiftStageClick}
-                            stage={shiftStage}
-                            getStage={getShiftStage}
-                        ></ShiftButton>
-                    </>
-                )}
-
                 <IconButton
-                    onClick={handleMenuOpen}
+                    onClick={() => setNavOpen(true)}
                     size="small"
                     sx={{
                         border: "1px solid #E44B4C",
@@ -316,123 +240,37 @@ export default function AdminTopbar({
                         }
                     }}
                 >
-                    <MoreHorizIcon sx={{fontSize: "16px"}}/>
+                    <MenuIcon sx={{fontSize: "16px"}}/>
                 </IconButton>
 
-                <Popover
-                    open={open}
-                    anchorEl={anchorEl}
-                    onClose={handleMenuClose}
-                    anchorOrigin={{
-                        vertical: 'bottom',
-                        horizontal: 'right',
+                <AdminNavDrawer
+                    open={navOpen}
+                    onClose={() => setNavOpen(false)}
+                    role={role}
+                    userName={userName}
+                    cashStage={cashStage}
+                    shiftStage={shiftStage}
+                    onCashClick={onCashClick}
+                    onShiftStageClick={onShiftStageClick}
+                    getCashStage={getCashStage}
+                    getShiftStage={getShiftStage}
+                    activeTab={activeTab}
+                    handlers={{
+                        onGoToMenu,
+                        onShiftManagementPageOpen,
+                        onOpenHistory,
+                        onOpenConfig,
+                        onOpenStatistics,
+                        onManagementPageOpen,
+                        onPurchaseOpen,
+                        onCashRegisterOpen,
+                        onAccountingOpen,
+                        onAccountManagerOpen,
+                        onSwitchSurface,
+                        onBlacklistopen,
+                        logout,
                     }}
-                    transformOrigin={{
-                        vertical: 'top',
-                        horizontal: 'right',
-                    }}
-                    PaperProps={{
-                        sx: {
-                            borderRadius: "12px",
-                            overflow: "hidden",
-                            minWidth: 160,
-                            p: 0.5,
-                        },
-                    }}
-                >
-                    {isMobile && !isReviewer && (
-                        <>
-                            <Box
-                                onClick={() => {
-                                    handleMenuClose();
-                                    onCashClick(cashStage);
-                                }}
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    px: 0.6,
-                                    py: 1.2,
-                                    fontSize: "0.9rem",
-                                    fontWeight: 500,
-                                    fontFamily: "Baloo Bhaijaan 2",
-                                    color: "#333",
-                                    borderBottom: "1px solid #f0f0f0",
-                                    cursor: "pointer",
-                                    "&:hover": {
-                                        backgroundColor: "#fff5f5",
-                                    }
-                                }}
-                            >
-                                <Typography sx={{fontSize: "0.9rem"}}>
-                                    {getCashStage(cashStage)}
-                                </Typography>
-                                <Box sx={{display: "flex", alignItems: "center"}}>
-                                    <PointOfSaleIcon fontSize="small"/>
-                                </Box>
-                            </Box>
-
-                            <Box
-                                onClick={() => {
-                                    handleMenuClose();
-                                    onShiftStageClick(shiftStage);
-                                }}
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    px: 0.6,
-                                    py: 1.2,
-                                    fontSize: "0.9rem",
-                                    fontWeight: 500,
-                                    fontFamily: "Baloo Bhaijaan 2",
-                                    color: "#333",
-                                    borderBottom: "1px solid #f0f0f0",
-                                    cursor: "pointer",
-                                    "&:hover": {
-                                        backgroundColor: "#fff5f5",
-                                    }
-                                }}
-                            >
-                                <Typography sx={{fontSize: "0.9rem"}}>
-                                    {getShiftStage(shiftStage)}
-                                </Typography>
-                                <Box sx={{display: "flex", alignItems: "center"}}>
-                                    <AccessTimeIcon fontSize="small"/>
-                                </Box>
-                            </Box>
-                        </>
-                    )}
-
-                    {items.map((item, i) => (
-                        <Box
-                            key={item.label}
-                            onClick={() => {
-                                handleMenuClose();
-                                item.onClick();
-                            }}
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                px: 0.6,
-                                py: 1.2,
-                                fontSize: "0.9rem",
-                                fontWeight: 500,
-                                fontFamily: "Baloo Bhaijaan 2",
-                                color: "#333",
-                                borderBottom: i < items.length - 1 ? "1px solid #f0f0f0" : "none",
-                                cursor: "pointer",
-                                "&:hover": {
-                                    backgroundColor: "#fff5f5",
-                                }
-                            }}
-                        >
-                            <Typography sx={{fontSize: "0.9rem"}}>{item.label}</Typography>
-                            <Box sx={{display: "flex", alignItems: "center"}}>{item.icon}</Box>
-                        </Box>
-                    ))}
-                </Popover>
+                />
             </Box>
         </Box>
     );

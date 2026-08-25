@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import TaskColumn from "./TaskColumn";
@@ -24,9 +24,14 @@ export interface TaskBoardPanelProps {
      * in hand — it costs no request, and it cannot disagree with what is on screen.
      */
     onOpenCardCountChange?: (ownerId: number | null, openCardCount: number) => void;
+    /**
+     * Display name for the board being viewed. Only present on the OWNER-sidebar flow, where the
+     * viewer may be looking at someone else's board — a MANAGER's own board stays headerless.
+     */
+    ownerLabel?: string;
 }
 
-export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskBoardPanelProps = {}): JSX.Element {
+export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel }: TaskBoardPanelProps = {}): JSX.Element {
     const board = useTaskBoard(ownerId);
 
     const openCardCount = board.cards.filter(card => card.status !== "DONE").length;
@@ -154,77 +159,88 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange }: TaskB
     };
 
     return (
-        <Box
-            data-board-scroller
-            data-testid="task-board-scroller"
-            sx={{
-                display: "flex",
-                gap: 1.5,
-                p: { xs: 1.5, sm: 2 },
-                width: "100%",
-                boxSizing: "border-box",
-                alignItems: "flex-start",
-                // Matches the order desk's page treatment so switching tabs doesn't change the canvas.
-                backgroundColor: "#fbfaf6",
-                minHeight: "100vh",
-                // Three columns cannot fit a phone, so the board scrolls sideways and snaps one
-                // column at a time. Vertical scrolling is left to the page — nesting a second
-                // scroll axis here is what made the board feel stuck on touch.
-                overflowX: "auto",
-                overflowY: "visible",
-                scrollSnapType: { xs: "x proximity", sm: "none" },
-                WebkitOverflowScrolling: "touch",
-                scrollbarWidth: "thin",
-                "&::-webkit-scrollbar": { height: 8 },
-                "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(15,23,42,0.18)", borderRadius: 4 },
-            }}
-        >
-            {TASK_CARD_STATUSES.map(status => (
-                <TaskColumn
-                    key={status}
-                    status={status}
-                    cards={board.cardsByStatus[status]}
-                    onCardClick={handleCardClick}
-                    onChangePriority={(cardId, priority): void => {
-                        void handleChangePriority(cardId, priority);
+        <>
+            {ownerLabel !== undefined && (
+                <Typography
+                    data-testid="task-board-owner-header"
+                    variant="subtitle1"
+                    sx={{ fontWeight: 700, px: { xs: 1.5, sm: 2 }, pt: { xs: 1.5, sm: 2 }, backgroundColor: "#fbfaf6" }}
+                >
+                    Board of {ownerLabel}
+                </Typography>
+            )}
+            <Box
+                data-board-scroller
+                data-testid="task-board-scroller"
+                sx={{
+                    display: "flex",
+                    gap: 1.5,
+                    p: { xs: 1.5, sm: 2 },
+                    width: "100%",
+                    boxSizing: "border-box",
+                    alignItems: "flex-start",
+                    // Matches the order desk's page treatment so switching tabs doesn't change the canvas.
+                    backgroundColor: "#fbfaf6",
+                    minHeight: "100vh",
+                    // Three columns cannot fit a phone, so the board scrolls sideways and snaps one
+                    // column at a time. Vertical scrolling is left to the page — nesting a second
+                    // scroll axis here is what made the board feel stuck on touch.
+                    overflowX: "auto",
+                    overflowY: "visible",
+                    scrollSnapType: { xs: "x proximity", sm: "none" },
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "thin",
+                    "&::-webkit-scrollbar": { height: 8 },
+                    "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(15,23,42,0.18)", borderRadius: 4 },
+                }}
+            >
+                {TASK_CARD_STATUSES.map(status => (
+                    <TaskColumn
+                        key={status}
+                        status={status}
+                        cards={board.cardsByStatus[status]}
+                        onCardClick={handleCardClick}
+                        onChangePriority={(cardId, priority): void => {
+                            void handleChangePriority(cardId, priority);
+                        }}
+                        onRequestDelete={handleRequestDeleteFromCard}
+                        onAddClick={(): void => handleAddClick(status)}
+                        mutatingCardId={priorityMutatingId}
+                        getDragHandlers={getDragHandlers}
+                        today={today}
+                    />
+                ))}
+                <TaskCardDrawer
+                    open={drawerOpen}
+                    mode={drawerMode}
+                    card={activeCard}
+                    submitting={board.mutating}
+                    onClose={handleDrawerClose}
+                    onRequestEdit={handleRequestEdit}
+                    onRequestDelete={handleRequestDelete}
+                    onCreate={(values): void => {
+                        void handleCreate(values);
                     }}
-                    onRequestDelete={handleRequestDeleteFromCard}
-                    onAddClick={(): void => handleAddClick(status)}
-                    mutatingCardId={priorityMutatingId}
-                    getDragHandlers={getDragHandlers}
-                    today={today}
+                    onEdit={(cardId, values): void => {
+                        void handleEdit(cardId, values);
+                    }}
                 />
-            ))}
-            <TaskCardDrawer
-                open={drawerOpen}
-                mode={drawerMode}
-                card={activeCard}
-                submitting={board.mutating}
-                onClose={handleDrawerClose}
-                onRequestEdit={handleRequestEdit}
-                onRequestDelete={handleRequestDelete}
-                onCreate={(values): void => {
-                    void handleCreate(values);
-                }}
-                onEdit={(cardId, values): void => {
-                    void handleEdit(cardId, values);
-                }}
-            />
-            <DeleteTaskCardDialog
-                open={deleteDialogOpen}
-                card={activeCard}
-                submitting={board.mutating}
-                onConfirm={(): void => {
-                    void handleConfirmDelete();
-                }}
-                onCancel={handleCancelDelete}
-            />
-            <ErrorSnackbar
-                open={errorMessage !== null}
-                message={errorMessage ?? ""}
-                severity="error"
-                handleClose={(): void => setErrorMessage(null)}
-            />
-        </Box>
+                <DeleteTaskCardDialog
+                    open={deleteDialogOpen}
+                    card={activeCard}
+                    submitting={board.mutating}
+                    onConfirm={(): void => {
+                        void handleConfirmDelete();
+                    }}
+                    onCancel={handleCancelDelete}
+                />
+                <ErrorSnackbar
+                    open={errorMessage !== null}
+                    message={errorMessage ?? ""}
+                    severity="error"
+                    handleClose={(): void => setErrorMessage(null)}
+                />
+            </Box>
+        </>
     );
 }

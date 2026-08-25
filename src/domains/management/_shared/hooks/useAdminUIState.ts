@@ -20,6 +20,7 @@ export type AdminUIState = {
     blacklistOpen: boolean; setBlacklistOpen: (v: boolean) => void;
     cashRegisterOpen: boolean; setCashRegisterOpen: (v: boolean) => void;
     accountingOpen: boolean; setAccountingOpen: (v: boolean) => void;
+    accountManagerOpen: boolean; setAccountManagerOpen: (v: boolean) => void;
     activeAdminTab: AdminTabKey; setActiveAdminTab: (v: AdminTabKey) => void;
 };
 
@@ -39,6 +40,7 @@ export function useAdminUIState(): AdminUIState {
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
+    const [accountManagerOpen, setAccountManagerOpen] = useState(false);
     const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>(() => (isManagerRole(role) ? 'board' : 'orders'));
 
     return {
@@ -56,6 +58,7 @@ export function useAdminUIState(): AdminUIState {
         blacklistOpen, setBlacklistOpen,
         cashRegisterOpen, setCashRegisterOpen,
         accountingOpen, setAccountingOpen,
+        accountManagerOpen, setAccountManagerOpen,
         activeAdminTab, setActiveAdminTab,
     };
 }

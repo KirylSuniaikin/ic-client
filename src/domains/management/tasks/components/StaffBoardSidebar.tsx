@@ -15,8 +15,8 @@ export interface StaffBoardSidebarProps {
 
 const ACCENT = "#E44B4C";
 
-function initials(username: string): string {
-    const parts = username.trim().split(/[\s._-]+/).filter(Boolean);
+function initials(displayName: string): string {
+    const parts = displayName.trim().split(/[\s._-]+/).filter(Boolean);
     if (parts.length === 0) return "?";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -96,7 +96,7 @@ export default function StaffBoardSidebar({
                             backgroundColor: selected ? ACCENT : "rgba(15,23,42,0.08)",
                         }}
                     >
-                        {initials(owner.username)}
+                        {initials(owner.fullName ?? owner.username)}
                     </Avatar>
                 </Badge>
                 {open && (
@@ -110,7 +110,7 @@ export default function StaffBoardSidebar({
                                 textOverflow: "ellipsis",
                             }}
                         >
-                            {owner.username}
+                            {owner.fullName ?? owner.username}
                         </Typography>
                         <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "capitalize" }}>
                             {isOwn ? "My board" : roleLabel(owner.role)}
@@ -123,7 +123,7 @@ export default function StaffBoardSidebar({
         // Collapsed to the icon rail, the name is gone — the tooltip is the only way to tell the
         // avatars apart.
         return open ? row : (
-            <Tooltip key={owner.id} title={owner.username} placement="right">
+            <Tooltip key={owner.id} title={owner.fullName ?? owner.username} placement="right">
                 <Box>{row}</Box>
             </Tooltip>
         );

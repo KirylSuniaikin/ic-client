@@ -114,7 +114,10 @@ export function StaffSummaryContent({branchId}: Props): JSX.Element {
                                     >
                                         {/* Staff */}
                                         <TableCell sx={{color: "#333", fontSize: "0.9rem"}}>
-                                            {s.username}
+                                            <Box>{s.fullName ?? s.username}</Box>
+                                            <Typography variant="caption" sx={{color: "text.secondary"}}>
+                                                {s.username}
+                                            </Typography>
                                         </TableCell>
 
                                         {/* Role */}

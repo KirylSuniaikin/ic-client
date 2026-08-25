@@ -17,7 +17,7 @@ import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains
 import type { VatStatePayload } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
-import type { DoughStatus } from '../../../domains/management/dough/types';
+import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
 import type {
     BoardOwner,
     ChangeTaskCardPriorityPayload,
@@ -27,6 +27,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
+import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../../domains/management/staff/types';
 import type {
     AccountingCategoryTO,
     AccountingReportSummary,
@@ -115,3 +116,13 @@ export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [strin
 
 // Dough inventory (Config -> Menu tab).
 export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();
+export const putDoughInventory = jest.fn<Promise<DoughStatus>, [string, DoughStatus]>();
+export const putDoughAvailability = jest.fn<Promise<DoughStatus>, [string, DoughAvailabilityFlags]>();
+
+// Staff hiring (Task 2c).
+export const hireStaff = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>();
+export const getStaffAdminList = jest.fn<Promise<StaffAdminTO[]>, [string?]>();
+export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
+export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();
+export const setStaffBranch = jest.fn<Promise<StaffAdminTO>, [number, string]>();
+export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();

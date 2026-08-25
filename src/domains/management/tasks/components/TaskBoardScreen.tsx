@@ -53,6 +53,9 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
         }
     }, [owners, selectedOwnerId]);
 
+    const selectedOwnerLabel = ownersWithCounts.find(owner => owner.id === selectedOwnerId);
+    const ownerLabel = selectedOwnerLabel ? (selectedOwnerLabel.fullName ?? selectedOwnerLabel.username) : undefined;
+
     // Mirror the hook's error into local snackbar state, same pattern as TaskBoardPanel.tsx.
     useEffect(() => {
         if (error) setErrorMessage(error);
@@ -78,6 +81,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
                 <TaskBoardPanel
                     ownerId={selectedOwnerId ?? undefined}
                     onOpenCardCountChange={handleOpenCardCountChange}
+                    ownerLabel={ownerLabel}
                 />
             </Box>
             <ErrorSnackbar
