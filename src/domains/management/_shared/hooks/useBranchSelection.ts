@@ -61,7 +61,12 @@ export function useAdminBranchInit(
             }
         }
         initBranches();
-    }, [branchId]);
+        // `role` decides WHICH branch list is fetched -- one branch for a branch-level caller,
+        // all of them for a city-level one. Leaving it out of the deps meant that whenever role
+        // resolved after branchId, a SUPER_MANAGER or OWNER was left holding the single-branch
+        // result forever: no switcher on any screen, and a one-entry list wherever branches are
+        // offered. eslint's exhaustive-deps had been flagging exactly this.
+    }, [branchId, role]);
 
     return { availableBranches, selectedBranch, setSelectedBranch, branchError };
 }

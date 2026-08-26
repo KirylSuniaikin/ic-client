@@ -106,6 +106,7 @@ export default function ShiftPopup({isOpen, onClose, stage, branchId}: ShiftPopu
             anchor="bottom"
             open={isOpen}
             onClose={onClose}
+            sx={{ zIndex: 1350 }}
             PaperProps={{
                 sx: {
                     borderTopLeftRadius: 16,

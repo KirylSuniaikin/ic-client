@@ -10,6 +10,7 @@ function makeOwner(overrides: Partial<BoardOwner> = {}): BoardOwner {
     return {
         id: 1,
         username: "owner",
+        fullName: null,
         role: StaffRoles.MANAGER,
         openCardCount: 0,
         ...overrides,
@@ -98,6 +99,19 @@ describe("StaffBoardSidebar", () => {
         ] })} />);
 
         expect(screen.getByText("owner")).toBeTruthy();
+    });
+
+    // fullName is a recent backend addition; existing rows may not be backfilled yet, so the
+    // fallback to username must hold for both the primary label and the collapsed tooltip.
+    it("shows fullName when present, falling back to username when null", () => {
+        render(<StaffBoardSidebar {...baseProps({ owners: [
+            makeOwner({ id: 9, username: "riley.super", fullName: "Riley Super" }),
+            makeOwner({ id: 4, username: "zara.manager", fullName: null }),
+        ] })} />);
+
+        expect(screen.getByText("Riley Super")).toBeTruthy();
+        expect(screen.queryByText("riley.super")).toBeNull();
+        expect(screen.getByText("zara.manager")).toBeTruthy();
     });
 
     it("renders one row per owner, in the exact input order", () => {
