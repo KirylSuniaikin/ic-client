@@ -403,7 +403,10 @@ function OrderCard({
                                     READY
                                 </Button>
                             )}
-                            {order.status === "Ready" && (
+                            {/* Not on a delivery order: "Picked Up" means the CUSTOMER collected
+                                it, and a delivery is collected by the courier — that transition
+                                is driven by the courier app, not by staff on this board. */}
+                            {order.status === "Ready" && order.order_type !== "Delivery" && (
                                 <Button
                                     variant="contained"
                                     size="small"

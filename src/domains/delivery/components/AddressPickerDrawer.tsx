@@ -4,6 +4,7 @@ import { Drawer, Box, Typography, TextField, Button, CircularProgress } from '@m
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import type { Coordinates, CreateCustomerAddressRequest } from '../types';
+import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import {
     FIELD_SX, OUTLINED_BUTTON_SX, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
     SHEET_PAPER_SX, SheetHandle, SheetNotice,
@@ -48,6 +49,7 @@ export function AddressPickerDrawer({
     const [flat, setFlat] = useState('');
     const [note, setNote] = useState('');
     const [pin, setPin] = useState<Coordinates | null>(null);
+    const reverseGeocode = useReverseGeocode();
     const [locating, setLocating] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -60,11 +62,21 @@ export function AddressPickerDrawer({
         setLocationError(null);
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setPin({
+                const coordinates = {
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
-                });
+                };
+                setPin(coordinates);
                 setLocating(false);
+                // Prefill only, and only what is still empty: a pin on its own leaves the courier
+                // with "No address" on their card, but whatever the customer typed is the truth
+                // about their own door and must never be overwritten by a guess.
+                void reverseGeocode(coordinates.latitude, coordinates.longitude).then((guess) => {
+                    if (guess === null) return;
+                    setBlock((current) => (current.trim() === '' ? guess.block ?? '' : current));
+                    setRoad((current) => (current.trim() === '' ? guess.road ?? '' : current));
+                    setBuilding((current) => (current.trim() === '' ? guess.building ?? '' : current));
+                });
             },
             () => {
                 // Denied, unavailable or timed out — all read the same to the customer, and the

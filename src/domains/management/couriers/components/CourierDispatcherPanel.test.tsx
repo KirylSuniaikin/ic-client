@@ -3,7 +3,8 @@ import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { CourierDispatcherPanel } from "./CourierDispatcherPanel";
 import {
-    fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign,
+    cancelOrder, fetchBoardCouriers, fetchCouriers, fetchCourierOrders, fetchDeliveryCards,
+    fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
 } from "../../../../shared/api/dispatcher";
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
@@ -19,9 +20,17 @@ const mockCouriers = jest.mocked(fetchCouriers);
 const mockOrders = jest.mocked(fetchCourierOrders);
 const mockRoute = jest.mocked(fetchOrderRoute);
 const mockConnectSocket = jest.mocked(connectSocket);
-const mockSubscribe = socket.subscribe as jest.Mock;
+// jest.mocked, not a `jest.Mock` annotation: there is no @types/jest here, so the type
+// form compiles under Babel and fails tsc — see ic-client/.claude/CLAUDE.md.
+const mockSubscribe = jest.mocked(socket.subscribe);
 const mockAwaiting = jest.mocked(fetchOrdersAwaitingCourier);
 const mockAssign = jest.mocked(manualAssign);
+const mockRelease = jest.mocked(releaseOrder);
+const mockCancel = jest.mocked(cancelOrder);
+// The board panel this screen now embeds has its own two fetchers; they are stubbed empty here so
+// these tests keep asserting on the roster and the queue rather than on the board.
+const mockBoardCards = jest.mocked(fetchDeliveryCards);
+const mockBoardCouriers = jest.mocked(fetchBoardCouriers);
 
 const COURIER: CourierStats = {
     courierId: "c1", name: "ali", status: "FREE",
@@ -32,6 +41,13 @@ const COURIER: CourierStats = {
 const ORDER: CourierOrderSummary = {
     orderId: 42, orderNo: 7, status: "Delivered", deliveredAt: "2026-08-08T10:00:00",
     waitTimeMinutes: 3, travelTimeMinutes: 12, geofenceWarning: false, geofenceDistanceM: 20,
+};
+
+// Still in flight, so release and cancel are both legal on it — unlike ORDER, which is Delivered
+// and which the server would answer 409 for (DispatcherService.CONCLUDED_STATUSES).
+const LIVE_ORDER: CourierOrderSummary = {
+    orderId: 43, orderNo: 8, status: "Out for delivery", deliveredAt: null,
+    waitTimeMinutes: 2, travelTimeMinutes: null, geofenceWarning: null, geofenceDistanceM: null,
 };
 
 const AWAITING: UnassignedOrder = {
@@ -53,7 +69,8 @@ beforeEach(() => {
         onConnect();
         return jest.fn<void, []>();
     });
-    mockSubscribe.mockReturnValue({ unsubscribe: jest.fn() });
+    // StompSubscription also carries an id; the hook only ever calls unsubscribe.
+    mockSubscribe.mockReturnValue({ id: "sub-1", unsubscribe: jest.fn<void, []>() });
     mockCouriers.mockReset();
     mockOrders.mockReset();
     mockRoute.mockReset();
@@ -65,6 +82,14 @@ beforeEach(() => {
     // Empty is the normal state; the tests that care opt in.
     mockAwaiting.mockResolvedValue([]);
     mockAssign.mockResolvedValue(undefined);
+    mockRelease.mockReset();
+    mockCancel.mockReset();
+    mockRelease.mockResolvedValue(undefined);
+    mockCancel.mockResolvedValue(undefined);
+    mockBoardCards.mockReset();
+    mockBoardCouriers.mockReset();
+    mockBoardCards.mockResolvedValue([]);
+    mockBoardCouriers.mockResolvedValue([]);
 });
 
 describe("CourierDispatcherPanel", () => {
@@ -211,12 +236,123 @@ describe("CourierDispatcherPanel — live updates", () => {
         await screen.findByText("ali");
 
         const callsBefore = mockCouriers.mock.calls.length;
-        const handler = mockSubscribe.mock.calls.find(
-            (call) => call[0] === "/topic/delivery-board"
-        )?.[1] as (frame: unknown) => void;
+        // Two components on this screen subscribe to the topic now — this panel and the board it
+        // embeds — and a real frame reaches both, so the test fires every registered handler
+        // rather than whichever one happened to register first.
+        const handlers = mockSubscribe.mock.calls
+            .filter((call) => call[0] === "/topic/delivery-board")
+            .map((call) => call[1] as (frame: unknown) => void);
 
-        await act(async () => { handler({}); });
+        await act(async () => { handlers.forEach((handler) => handler({})); });
 
         await waitFor(() => expect(mockCouriers.mock.calls.length).toBeGreaterThan(callsBefore));
+    });
+});
+
+/**
+ * G1: the delivery design keeps saying "the manager sorts it out" — a rider goes offline mid-run,
+ * a phone dies, a bike breaks — but nothing on this screen could take an order back off a courier,
+ * so it stayed locked to them forever. Both endpoints existed on the backend and were never called.
+ */
+describe("CourierDispatcherPanel — release and cancel", () => {
+    async function openCourierOrders(): Promise<void> {
+        mockOrders.mockResolvedValue([LIVE_ORDER]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        await screen.findByText("#8");
+    }
+
+    it("does not release the order until the manager confirms", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Release" }));
+
+        expect(mockRelease).not.toHaveBeenCalled();
+    });
+
+    it("releases the order once confirmed and refetches the courier's list", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Release" }));
+        const callsBefore = mockOrders.mock.calls.length;
+        fireEvent.click(await screen.findByRole("button", { name: "Release order" }));
+
+        await waitFor(() => expect(mockRelease).toHaveBeenCalledWith(43));
+        await waitFor(() => expect(mockOrders.mock.calls.length).toBeGreaterThan(callsBefore));
+    });
+
+    /**
+     * Realistic race: the courier can deliver the order, or another manager can act on it, between
+     * this row being drawn and the button being pressed. The server answers 409 and the manager
+     * has to see that rather than believe the order moved — same handling as manualAssign.
+     */
+    it("surfaces the failure instead of pretending the release worked", async () => {
+        await openCourierOrders();
+        mockRelease.mockRejectedValue(new Error("Response: 409"));
+
+        fireEvent.click(screen.getByRole("button", { name: "Release" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Release order" }));
+
+        expect(await screen.findByText(/Response: 409/)).toBeTruthy();
+    });
+
+    it("does not cancel the order until the manager confirms", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+        expect(mockCancel).not.toHaveBeenCalled();
+    });
+
+    /**
+     * There is no refund code anywhere in this system — a manager refunds by hand in the EazyPay
+     * console (DispatcherService.cancel). A bare "Cancel this order?" would let a manager believe
+     * the customer is paid back automatically, so the dialog has to say otherwise in plain words.
+     */
+    it("warns in plain words that no money goes back to the customer", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+        expect(await screen.findByText(/No money is returned to the customer/)).toBeTruthy();
+        expect(screen.getByText(/EazyPay console/)).toBeTruthy();
+    });
+
+    it("cancels the order once confirmed", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel order" }));
+
+        await waitFor(() => expect(mockCancel).toHaveBeenCalledWith(43));
+    });
+
+    it("surfaces a failed cancel", async () => {
+        await openCourierOrders();
+        mockCancel.mockRejectedValue(new Error("Response: 409"));
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel order" }));
+
+        expect(await screen.findByText(/Response: 409/)).toBeTruthy();
+    });
+
+    /** The server refuses a concluded order, so a button that can only 409 is not offered. */
+    it("offers neither action on an order that has already concluded", async () => {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        await screen.findByText("#7");
+
+        expect(screen.queryByRole("button", { name: "Release" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    });
+
+    /** The row itself drills into the route; a destructive tap must not also navigate. */
+    it("does not drill into the route when the action button is pressed", async () => {
+        await openCourierOrders();
+
+        fireEvent.click(screen.getByRole("button", { name: "Release" }));
+
+        expect(mockRoute).not.toHaveBeenCalled();
     });
 });

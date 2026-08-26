@@ -111,8 +111,18 @@ const AVAILABLE: DeliveryAvailability = {
     available: true, reason: null, branchId: "branch-nearest", etaMinutesMin: 20, etaMinutesMax: 30,
 };
 
+// The hosted payment page is reached with a full-page `window.location.assign` — jsdom's real
+// navigation throws "not implemented", so `window.location` is replaced with a plain object
+// carrying a spy, mirroring CustomerProfilePopup.test.tsx / shared/api/client.test.ts.
+const mockLocationAssign = jest.fn<void, [string]>();
+
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
+    Object.defineProperty(window, "location", {
+        writable: true,
+        configurable: true,
+        value: { assign: mockLocationAssign },
+    });
 });
 
 // Only the fields these paths touch are set; the rest of the two hook surfaces is irrelevant here
@@ -212,7 +222,14 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockDeliveryDrawer.mockClear();
         mockPay.mockReset();
         mockRefreshActiveOrder.mockReset();
-        mockPay.mockResolvedValue({ orderId: "101", status: "PAID", stub: false });
+        mockLocationAssign.mockClear();
+        // What the server actually sends (DeliveryPaymentResultTO): the order exists, it is NOT
+        // paid — `status` is "Pending Payment" on a 201 — and the redirect is the stub's, which
+        // is the only provider wired up today.
+        mockPay.mockResolvedValue({
+            orderNo: 101, status: "Pending Payment",
+            redirectUrl: "https://stub.local/checkout/101", stub: true,
+        });
         mockUseCustomerAuth.mockReturnValue({ token: "tok-1" });
     });
 
@@ -280,12 +297,52 @@ describe("HomePageModals — delivery checkout hand-off", () => {
 
     /** A stubbed order must never read as a real charge. */
     it("says so when the payment was stubbed", async () => {
-        mockPay.mockResolvedValue({ orderId: "101", status: "PAID", stub: true });
+        mockPay.mockResolvedValue({
+            orderNo: 101, status: "Pending Payment",
+            redirectUrl: "https://stub.local/checkout/101", stub: true,
+        });
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
         await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
 
         expect(await screenFindText(/test mode/i)).toBeTruthy();
+    });
+
+    /**
+     * H2: the response carries a `redirectUrl` and a `Pending Payment` status — the order is
+     * created but nothing has been charged. The stub auto-approves, so today the confirmation is
+     * accidentally correct; the day EazyPay is switched on, confirming here would tell the
+     * customer they had paid and they would never reach the payment page at all.
+     */
+    it("sends the customer to the hosted payment page once the provider is real", async () => {
+        const setShowOrderConfirmed = jest.fn();
+        mockPay.mockResolvedValue({
+            orderNo: 101, status: "Pending Payment",
+            redirectUrl: "https://pay.example/session/abc", stub: false,
+        });
+        renderModals({}, {
+            orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setShowOrderConfirmed,
+        });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() =>
+            expect(mockLocationAssign).toHaveBeenCalledWith("https://pay.example/session/abc"));
+        expect(setShowOrderConfirmed).not.toHaveBeenCalled();
+        expect(mockRefreshActiveOrder).not.toHaveBeenCalled();
+    });
+
+    /** The stub has no page to visit, so its path is unchanged: confirm, never navigate. */
+    it("keeps the stubbed order on the confirmation screen instead of redirecting", async () => {
+        const setShowOrderConfirmed = jest.fn();
+        renderModals({}, {
+            orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setShowOrderConfirmed,
+        });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() => expect(setShowOrderConfirmed).toHaveBeenCalledWith(true));
+        expect(mockLocationAssign).not.toHaveBeenCalled();
     });
 
     it("surfaces a payment failure instead of clearing the cart", async () => {

@@ -31,6 +31,13 @@ export interface IBranch {
     // Mirrors BranchTO.address — shown under the branch name in the picker's details sheet.
     // Nullable: a branch can exist before anyone fills its street address in.
     address?: string | null;
+    // Mirrors BranchTO.deliveryEnabled — the per-branch delivery switch (gap G2). Optional
+    // rather than required: every live payload from /branch/fetch_branches carries it, but
+    // declaring it required would force the field into ~20 unrelated branch fixtures that have
+    // nothing to do with delivery. `undefined` therefore means "this object did not come from a
+    // branch fetch", and the switch says so instead of guessing a default — showing a delivery
+    // branch as disabled (or the reverse) is worse than showing nothing.
+    deliveryEnabled?: boolean;
 }
 
 export interface IUser {

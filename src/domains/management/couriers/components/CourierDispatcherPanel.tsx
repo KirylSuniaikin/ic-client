@@ -2,10 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import {
-    fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign,
+    cancelOrder, fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier,
+    manualAssign, releaseOrder,
 } from '../../../../shared/api/dispatcher';
 import { logger } from '../../../../shared/utils/logger';
 import { AssignCourierDialog } from './AssignCourierDialog';
+import { DeliveryBoardPanel } from './DeliveryBoardPanel';
+import { DispatcherOrderActionDialog } from './DispatcherOrderActionDialog';
+import type { DispatcherOrderAction } from './DispatcherOrderActionDialog';
 import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from '../types';
 import {
@@ -30,12 +34,23 @@ type View =
     | { level: 'orders'; courier: CourierStats }
     | { level: 'route'; courier: CourierStats; order: CourierOrderSummary };
 
+/**
+ * Statuses a delivery order can never leave, mirroring DispatcherService's CONCLUDED_STATUSES
+ * plus its already-Cancelled no-op. Release and cancel are hidden on these because the server
+ * answers 409 (or does nothing) — offering a button that can only fail is worse than no button.
+ */
+const CONCLUDED_ORDER_STATUSES = ['Delivered', 'Returned Undelivered', 'Cancelled'];
+
+/** The pending confirmation for a destructive action on one of a courier's orders. */
+type PendingOrderAction = { action: DispatcherOrderAction; order: CourierOrderSummary };
+
 export function CourierDispatcherPanel(): JSX.Element {
     const [view, setView] = useState<View>({ level: 'couriers' });
     const [couriers, setCouriers] = useState<CourierStats[]>([]);
     const [awaiting, setAwaiting] = useState<UnassignedOrder[]>([]);
     const [assigning, setAssigning] = useState<UnassignedOrder | null>(null);
     const [orders, setOrders] = useState<CourierOrderSummary[]>([]);
+    const [pendingAction, setPendingAction] = useState<PendingOrderAction | null>(null);
     const [route, setRoute] = useState<OrderRoute | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -104,6 +119,33 @@ export function CourierDispatcherPanel(): JSX.Element {
         );
     }
 
+    /**
+     * G1: the delivery design keeps saying "the manager sorts it out" — a rider goes dark, a
+     * phone dies, a bike breaks — and until now nothing on this screen could take an order back
+     * off a courier, so it stayed on them forever.
+     *
+     * Same one-load() shape as handleAssign, and for the same reason: the order can conclude (or
+     * another manager can act on it) between this row being drawn and the button being pressed,
+     * and the resulting 409 has to stay on screen instead of being wiped by the refetch.
+     */
+    async function handleConfirmAction(): Promise<void> {
+        const pending = pendingAction;
+        if (pending === null || view.level !== 'orders') return;
+        const courierId = view.courier.courierId;
+        setPendingAction(null);
+        await load(
+            async () => {
+                if (pending.action === 'release') {
+                    await releaseOrder(pending.order.orderId);
+                } else {
+                    await cancelOrder(pending.order.orderId);
+                }
+                return await fetchCourierOrders(courierId);
+            },
+            setOrders
+        );
+    }
+
     function renderMinutes(value: number | null): string {
         // "—" rather than "0 min": the backend returns null when a timing could not be derived,
         // and showing zero would read as an instant handover (see DispatcherService).
@@ -168,6 +210,12 @@ export function CourierDispatcherPanel(): JSX.Element {
                             </Box>
                         </Box>
                     )}
+
+                    {/* The board proper (DELIVERY_TODO.md): live deliveries linked to the
+                        engine's own courier ranking. It answers "why is this order still
+                        sitting here"; the roster below it stays the drill-down into one
+                        courier's history, which is a different question. */}
+                    <DeliveryBoardPanel />
 
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Couriers</Typography>
                     <Box sx={PANEL_CARD_SX}>
@@ -239,6 +287,34 @@ export function CourierDispatcherPanel(): JSX.Element {
                                         </Typography>
                                     </Box>
                                 )}
+                                {/* stopPropagation: the row itself drills into the route, and a
+                                    destructive action must not also navigate underneath it. */}
+                                {!CONCLUDED_ORDER_STATUSES.includes(order.status) && (
+                                    <>
+                                        <Button
+                                            size="small"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setPendingAction({ action: 'release', order });
+                                            }}
+                                            sx={{ textTransform: 'none', fontWeight: 700, color: brandRed,
+                                                  whiteSpace: 'nowrap' }}
+                                        >
+                                            Release
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setPendingAction({ action: 'cancel', order });
+                                            }}
+                                            sx={{ textTransform: 'none', fontWeight: 700, color: '#8a807a',
+                                                  whiteSpace: 'nowrap' }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </>
+                                )}
                             </Box>
                         ))}
                     </Box>
@@ -250,6 +326,16 @@ export function CourierDispatcherPanel(): JSX.Element {
                 couriers={couriers}
                 onClose={() => setAssigning(null)}
                 onAssign={(courierId) => { void handleAssign(courierId); }}
+            />
+
+            <DispatcherOrderActionDialog
+                action={pendingAction?.action ?? null}
+                order={pendingAction?.order ?? null}
+                courierName={view.level === 'orders'
+                    ? (view.courier.name ?? view.courier.courierId)
+                    : 'this courier'}
+                onClose={() => setPendingAction(null)}
+                onConfirm={() => { void handleConfirmAction(); }}
             />
 
             {view.level === 'route' && route !== null && (

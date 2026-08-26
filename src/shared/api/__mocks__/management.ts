@@ -12,7 +12,7 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from "../../../domains/management/purchases/types";
-import type { WorkingHoursResponse, WorkingHoursRequest } from '../management';
+import type { WorkingHoursResponse, WorkingHoursRequest, DeliveryEnabledResponse } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
@@ -47,6 +47,7 @@ export const getAllBannedCstmrs = jest.fn<Promise<BlackListCstmr[]>, []>();
 
 export const getWorkingHours = jest.fn<Promise<WorkingHoursResponse | null>, [string]>();
 export const putWorkingHours = jest.fn<Promise<WorkingHoursResponse>, [WorkingHoursRequest]>();
+export const putDeliveryEnabled = jest.fn<Promise<DeliveryEnabledResponse>, [string, boolean]>();
 
 // Purchase/Inventory popups (Phase 2 — decimal-placeholder component tests).
 export const fetchProducts = jest.fn<Promise<ProductTO[]>, []>();

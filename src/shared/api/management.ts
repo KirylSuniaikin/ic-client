@@ -649,3 +649,29 @@ export async function putWorkingHours(payload: WorkingHoursRequest): Promise<Wor
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
+
+export type DeliveryEnabledResponse = {
+    branchId: string;
+    deliveryEnabled: boolean;
+};
+
+/**
+ * Per-branch delivery switch (gap G2 in DELIVERY_TODO.md).
+ *
+ * Distinct from `Branch.isActive`, which closes the branch entirely: this turns delivery off for
+ * one kitchen while it keeps taking pickup orders — the availability gate reads it, so a customer
+ * pinning an address near this branch is told delivery is unavailable rather than being routed to
+ * a kitchen that cannot serve them.
+ */
+export async function putDeliveryEnabled(
+    branchId: string,
+    deliveryEnabled: boolean
+): Promise<DeliveryEnabledResponse> {
+    const res = await authFetch(BASE_URL + "/branch/update_delivery_enabled", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId, deliveryEnabled }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}

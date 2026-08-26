@@ -84,9 +84,28 @@ export function formatAddressLine(address: CustomerAddress): string {
 /** What EazyPay's hosted page exposes (§1.5 block 4). Values match the backend's enum. */
 export type DeliveryPaymentMethod = 'CARD' | 'APPLE_PAY' | 'BENEFIT';
 
+/**
+ * Mirrors the backend `DeliveryPaymentResultTO`. The order exists when this comes back, but it is
+ * NOT paid for: on a 201 `status` is always `"Pending Payment"`, and only the provider settling
+ * the hosted session moves it into the kitchen flow.
+ *
+ * This type used to claim `{ orderId, 'PAID' | 'FAILED', stub }`, which described the pre-delivery
+ * endpoint and no longer matched anything the server sends. Nothing caught it because the response
+ * is never validated — it is `res.json()` straight into this shape.
+ */
 export type DeliveryPaymentResult = {
-    orderId: string;
-    status: 'PAID' | 'FAILED';
-    /** True while the provider is stubbed — the UI says so rather than implying a real charge. */
+    /** The customer-facing order number — never `orders.id` (W4 requirement 5/6). */
+    orderNo: number;
+    /**
+     * The order's real status at the time of the response. Always `"Pending Payment"` on a 201;
+     * kept as a field rather than assumed, so a future status change is visible in the contract.
+     */
+    status: string;
+    /** Where the customer must be sent to actually pay. Ignoring it leaves the order unpaid. */
+    redirectUrl: string;
+    /**
+     * True while the provider is stubbed — the URL leads nowhere and the server auto-approves the
+     * order instead, so the UI says so rather than implying a real charge.
+     */
     stub: boolean;
 };

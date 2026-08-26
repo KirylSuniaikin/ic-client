@@ -87,3 +87,28 @@ describe("OrderCard — background colours", () => {
         expect(screen.getByText("OVEN")).toBeTruthy();
     });
 });
+
+/**
+ * F2: "Picked Up" means the CUSTOMER collected the order. On a delivery order the food is
+ * collected by the courier, and that transition is driven by the courier app — so staff must not
+ * be able to fire it from the board. Pick-up orders are untouched.
+ */
+describe("OrderCard — PICKED UP on a delivery order", () => {
+    it("hides PICKED UP on a ready delivery order", () => {
+        renderCard(makeOrder({ status: "Ready", order_type: "Delivery" }));
+
+        expect(screen.queryByText("PICKED UP")).toBeNull();
+    });
+
+    it("still offers PICKED UP on a ready pick-up order", () => {
+        renderCard(makeOrder({ status: "Ready", order_type: "Pick Up" }));
+
+        expect(screen.getByText("PICKED UP")).toBeTruthy();
+    });
+
+    it("leaves the earlier kitchen actions on a delivery order alone", () => {
+        renderCard(makeOrder({ status: "Oven", order_type: "Delivery" }));
+
+        expect(screen.getByText("READY")).toBeTruthy();
+    });
+});

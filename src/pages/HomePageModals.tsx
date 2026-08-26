@@ -128,6 +128,16 @@ export default function HomePageModals({
             checkout.setPendingDeliveryOrder(null);
             cart.setCartItems([]);
             checkout.setOrderType("Pick Up");
+
+            // A real provider hands back a hosted-checkout page, and the order it just created is
+            // still `Pending Payment`. Confirming here would tell the customer they had paid for
+            // an order nothing will ever settle — and they would never reach the payment page at
+            // all. The stub has no page to send them to, so it keeps the confirmation path.
+            if (!result.stub && result.redirectUrl) {
+                window.location.assign(result.redirectUrl);
+                return;
+            }
+
             if (result.stub) {
                 // Never let a stubbed order read as a real charge.
                 setDeliveryNotice(t("delivery.stubNotice"));

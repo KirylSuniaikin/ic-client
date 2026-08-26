@@ -15,6 +15,7 @@ import DoughSection from "../../dough/components/DoughSection";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import ScheduleView from "./ScheduleView";
+import DeliverySwitch from "./DeliverySwitch";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 import type {IBranch} from "../../inventory/types";
@@ -344,6 +345,10 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         "&::-webkit-scrollbar": { display: "none" }
                     }}
                 >
+                    <DeliverySwitch
+                        branchId={scopedBranch.id}
+                        deliveryEnabled={scopedBranch.deliveryEnabled}
+                    />
                     <ScheduleView branchId={scopedBranch.id} />
                 </Box>
             ) : (
