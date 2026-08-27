@@ -73,6 +73,7 @@
       "new": "New",
       "outForDelivery": "Out for Delivery",
       "delivered": "Delivered",
+      "returnedUndelivered": "Returned Undelivered",
       "cancelled": "Cancelled",
       "timedOut": "Timed Out"
     }

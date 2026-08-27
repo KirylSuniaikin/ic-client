@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import type { IBranch } from "../../management/inventory/types";
 
 import { BranchMapView } from "./BranchMapView";
@@ -193,6 +193,36 @@ describe("BranchMapView", () => {
 
         expect(mockCreatedMarkers.map((m) => m.animation)).toEqual([null, null]);
     });
+
+    /**
+     * Google's BOUNCE loops until it is cleared. Left running it reads as a pin that will not
+     * settle, not as "this is the one you tapped" — the owner's words were that it "just jumps".
+     * The single hop only exists because the loop is stopped, so that stop is the behaviour worth
+     * pinning: without it this test finds the marker still bouncing a second later.
+     */
+    it("stops the bounce after one hop instead of looping", () => {
+        jest.useFakeTimers();
+        try {
+            const branches = [branch()];
+
+            render(
+                <BranchMapView
+                    branches={branches}
+                    onSelectBranch={jest.fn<void, [IBranch]>()}
+                    activeBranchId="b1"
+                />
+            );
+
+            expect(mockCreatedMarkers[0].animation).toBe("BOUNCE");
+
+            act(() => { jest.advanceTimersByTime(1000); });
+
+            expect(mockCreatedMarkers[0].animation).toBeNull();
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
 
     it("shows a loading state while the script has not loaded yet", () => {
         mockLoaderState.isLoaded = false;

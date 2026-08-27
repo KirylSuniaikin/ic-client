@@ -73,6 +73,7 @@
       "new": "جديد",
       "outForDelivery": "في الطريق للتوصيل",
       "delivered": "تم التوصيل",
+      "returnedUndelivered": "تم إرجاع الطلب دون تسليم",
       "cancelled": "ملغي",
       "timedOut": "انتهت المهلة"
     }

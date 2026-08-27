@@ -44,16 +44,31 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // status frames (e.g. a backend-retried "Oven" landing after "Ready") that would move
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
-// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts. "Picked Up"
-// (pickup) and "Out for delivery" (delivery) are the two mutually-exclusive branches out
-// of "Ready", so they share rank 3.
+//
+// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts, which carries
+// the full reasoning. One map covers BOTH fulfilment ladders, because the delivery ladder
+// EXTENDS the pickup one rather than branching away from it:
+//   pickup:   Kitchen Phase → Oven → Ready → Picked Up            (ends here)
+//   delivery: Kitchen Phase → Oven → Ready → Picked Up → Out for delivery
+//             → Delivered | Returned Undelivered
+// On a delivery order "Picked Up" means the COURIER collected the food from the kitchen and
+// the order only THEN goes out (CourierDeliveryService.markPickedUp writes OrderStatus.O),
+// which is also why OrderStatus.CUSTOMER_ACTIVE_EXCLUDED_DELIVERY_LABELS deliberately omits
+// "Picked Up". So the two are NOT mutually-exclusive branches out of "Ready", as the shared
+// rank 3 here used to claim.
+//
+// "Delivered" and "Returned Undelivered" are terminal SIBLINGS — different endings, neither
+// further along than the other — so they share a rank, and the guard below refuses a
+// DIFFERENT status at an equal rank so a late "Delivered" frame cannot overwrite a card that
+// already came back undelivered.
 const STATUS_RANK: Record<string, number> = {
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
     'Picked Up': 3,
-    'Out for delivery': 3,
-    'Delivered': 4,
+    'Out for delivery': 4,
+    'Delivered': 5,
+    'Returned Undelivered': 5,
 };
 
 function normalizeId(x: unknown): string {
@@ -288,9 +303,16 @@ export function useAdminOrders(
                                 // Forward-only guard: ignore a stale/out-of-order frame that
                                 // would move the status backward (e.g. a retried "Oven" landing
                                 // after "Ready"). Unknown statuses fall through and are applied.
+                                // Recomputed from o.status every frame — nothing is remembered
+                                // across frames, so an unknown status cannot poison later ones.
                                 const currentRank = STATUS_RANK[o.status as string] ?? -1;
                                 const incomingRank = STATUS_RANK[status as string] ?? Number.MAX_SAFE_INTEGER;
                                 if (incomingRank < currentRank) return o;
+                                // Equal rank only ever happens between the terminal siblings
+                                // "Delivered" and "Returned Undelivered": a different status at
+                                // the same rank is a different ending, never forward progress.
+                                // Duplicate frames of the SAME status still pass, as before.
+                                if (incomingRank === currentRank && status !== o.status) return o;
                                 return { ...o, status: status as Order['status'] };
                             })
                         );

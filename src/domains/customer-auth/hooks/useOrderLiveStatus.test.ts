@@ -187,6 +187,143 @@ describe("useOrderLiveStatus — subscription lifecycle", () => {
         expect(result.current.resyncTick).toBe(1);
     });
 
+    // A delivery order really does pass through "Picked Up" (the courier collected the food
+    // from the kitchen) and only THEN "Out for delivery" — CourierDeliveryService.markPickedUp
+    // writes OrderStatus.O, and CUSTOMER_ACTIVE_EXCLUDED_DELIVERY_LABELS keeps the customer
+    // watching across the hand-over. The whole ladder must therefore be accepted in order.
+    it("accepts a full delivery progression in order", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        const ladder = ["Kitchen Phase", "Oven", "Ready", "Picked Up", "Out for delivery", "Delivered"];
+
+        ladder.forEach((status, index) => {
+            act(() => {
+                handler({ body: JSON.stringify({ id: 1, status }) });
+            });
+            expect(result.current.liveStatus).toBe(status);
+            expect(result.current.resyncTick).toBe(index + 1);
+        });
+    });
+
+    // "Picked Up" and "Out for delivery" used to share rank 3 on the false premise that they
+    // were mutually-exclusive branches out of "Ready". Equal ranks pass the `<` comparison, so
+    // a retried "Picked Up" walked the customer's view back to the kitchen hand-over.
+    it("drops a stale 'Picked Up' arriving after 'Out for delivery'", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Picked Up" }) });
+        });
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Out for delivery" }) });
+        });
+        expect(result.current.liveStatus).toBe("Out for delivery");
+        expect(result.current.resyncTick).toBe(2);
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Picked Up" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Out for delivery");
+        expect(result.current.resyncTick).toBe(2);
+    });
+
+    // An unranked status used to be stored as MAX_SAFE_INTEGER, which switched the guard off
+    // for the rest of the order AND dropped every later ranked frame. "Returned Undelivered"
+    // was the real-world instance (it is ranked now); any status the backend newly starts
+    // sending is the general case.
+    it("lets an unranked status through without poisoning the high-water mark", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Oven" }) });
+        });
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Cancelled" }) });
+        });
+        expect(result.current.liveStatus).toBe("Cancelled");
+        expect(result.current.resyncTick).toBe(2);
+
+        // The mark is still "Oven", so a later ranked status is applied...
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Ready" }) });
+        });
+        expect(result.current.liveStatus).toBe("Ready");
+        expect(result.current.resyncTick).toBe(3);
+
+        // ...and the guard is still armed rather than silently disabled.
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Kitchen Phase" }) });
+        });
+        expect(result.current.liveStatus).toBe("Ready");
+        expect(result.current.resyncTick).toBe(3);
+    });
+
+    // "Delivered" and "Returned Undelivered" are terminal siblings sharing rank 5: different
+    // endings, neither progress past the other, so neither may override the other whichever
+    // way round the frames arrive.
+    it("does not let 'Returned Undelivered' override 'Delivered'", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Delivered" }) });
+        });
+        expect(result.current.liveStatus).toBe("Delivered");
+        expect(result.current.resyncTick).toBe(1);
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Returned Undelivered" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Delivered");
+        expect(result.current.resyncTick).toBe(1);
+    });
+
+    it("does not let 'Delivered' override 'Returned Undelivered'", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Returned Undelivered" }) });
+        });
+        expect(result.current.liveStatus).toBe("Returned Undelivered");
+        expect(result.current.resyncTick).toBe(1);
+
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Delivered" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Returned Undelivered");
+        expect(result.current.resyncTick).toBe(1);
+    });
+
+    // The equal-rank comparison stays `<` on purpose: only a DIFFERENT status at the same rank
+    // is refused, so duplicate-frame handling is unchanged by the terminal-sibling rule.
+    it("still applies a duplicate frame of the status that set the mark", async () => {
+        const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Delivered" }) });
+        });
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1, status: "Delivered" }) });
+        });
+
+        expect(result.current.liveStatus).toBe("Delivered");
+        expect(result.current.resyncTick).toBe(2);
+    });
+
     it("a reconnect (second onConnect firing) bumps resyncTick without a frame", async () => {
         const { result } = renderHook(() => useOrderLiveStatus("branch-1", 1));
         await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));

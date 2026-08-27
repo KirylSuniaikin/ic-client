@@ -259,7 +259,74 @@ describe("useAdminOrders — forward-only status guard", () => {
         expect(view.result.current.orders[0].status).toBe("Ready");
     });
 
+    async function boardWith(status: string): Promise<RenderHookResult<UseAdminOrdersResult, unknown>> {
+        mockGetAllActiveOrders.mockResolvedValue([orderWith(7, status)]);
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+        return view;
+    }
 
+    /**
+     * The delivery ladder EXTENDS the pickup one instead of branching away from it — a courier
+     * collects the food ("Picked Up", CourierDeliveryService.markPickedUp) and the order only
+     * THEN goes "Out for delivery". The two used to share rank 3 here, on the claim that they
+     * were mutually-exclusive branches out of "Ready".
+     */
+    it("treats 'Out for delivery' as forward progress from 'Ready'", async () => {
+        const view = await boardWith("Ready");
+
+        act(() => sendStatus(7, "Out for delivery"));
+
+        expect(view.result.current.orders[0].status).toBe("Out for delivery");
+    });
+
+    it("ignores a stale 'Ready' frame that arrives after 'Out for delivery'", async () => {
+        const view = await boardWith("Out for delivery");
+
+        act(() => sendStatus(7, "Ready"));
+
+        expect(view.result.current.orders[0].status).toBe("Out for delivery");
+    });
+
+    it("applies 'Delivered' over 'Out for delivery'", async () => {
+        const view = await boardWith("Out for delivery");
+
+        act(() => sendStatus(7, "Delivered"));
+
+        expect(view.result.current.orders[0].status).toBe("Delivered");
+    });
+
+    /**
+     * "Delivered" and "Returned Undelivered" are terminal SIBLINGS: different endings, neither
+     * further along than the other. "Returned Undelivered" was unranked, so a late "Delivered"
+     * frame overwrote a card that had already come back to the branch.
+     */
+    it("does not let a late 'Delivered' frame overwrite 'Returned Undelivered'", async () => {
+        const view = await boardWith("Returned Undelivered");
+
+        act(() => sendStatus(7, "Delivered"));
+
+        expect(view.result.current.orders[0].status).toBe("Returned Undelivered");
+    });
+
+    it("does not let a late 'Returned Undelivered' frame overwrite 'Delivered'", async () => {
+        const view = await boardWith("Delivered");
+
+        act(() => sendStatus(7, "Returned Undelivered"));
+
+        expect(view.result.current.orders[0].status).toBe("Delivered");
+    });
+
+    /** Unknown statuses fall through and are applied — the guard ranks, it does not whitelist. */
+    it("applies an unranked status such as 'Cancelled'", async () => {
+        const view = await boardWith("Ready");
+
+        act(() => sendStatus(7, "Cancelled"));
+
+        expect(view.result.current.orders[0].status).toBe("Cancelled");
+    });
 });
 
 describe("useAdminOrders — order removal does not silence an unrelated alarm", () => {
