@@ -3,6 +3,7 @@ import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, reportIfServerError, reportNetw
 import { applyClientPlatform } from './clientPlatform';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type { IBranch } from '../../domains/management/inventory/types';
+import type { BpgPaymentResult, BpgRetryResult } from '../../domains/payment/types';
 import type {
     BaseAppInfoResponse,
     Items409Response,
@@ -405,4 +406,76 @@ export async function getBaseAdminInfo(branchId: string): Promise<AdminBaseInfo 
     } catch (error) {
         logger.error("Failed to get base admin info", error);
     }
+}
+
+/**
+ * Asks our own backend what became of a BENEFIT hosted-checkout payment.
+ *
+ * Unauthenticated by necessity: the customer lands on the result page straight from the gateway
+ * carrying no session of ours. The reference is the credential, which is why the backend mints it
+ * with a random component rather than as a predictable id.
+ *
+ * A 404 means the reference is unknown — a mistyped or tampered URL — and is surfaced as an error
+ * rather than as a failed payment, because those are very different things to tell a customer.
+ */
+export async function fetchBpgPaymentResult(reference: string): Promise<BpgPaymentResult> {
+    const url = `${BASE_URL}/payments/bpg/result/${encodeURIComponent(reference)}`;
+
+    const headers = new Headers();
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "GET", headers});
+    } catch (error) {
+        // Fire-and-forget: telemetry must never delay the payment path's error handling.
+        void reportNetworkError(error, url, "GET");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "GET");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text) as BpgPaymentResult;
+}
+
+/**
+ * Opens a second payment attempt on the order behind `reference`.
+ *
+ * The reference names the PREVIOUS attempt; the response carries a new one. A 409 means the order
+ * is already paid or already has a live attempt — a double-tapped "Try again" is the usual cause,
+ * and it is not an error worth alarming the customer about.
+ */
+export async function retryBpgPayment(reference: string): Promise<BpgRetryResult> {
+    const url = `${BASE_URL}/payments/bpg/retry/${encodeURIComponent(reference)}`;
+
+    const headers = new Headers();
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "POST", headers});
+    } catch (error) {
+        void reportNetworkError(error, url, "POST");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "POST");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text) as BpgRetryResult;
 }

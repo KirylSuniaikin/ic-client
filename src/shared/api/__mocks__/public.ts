@@ -4,6 +4,7 @@ import type { DoughInventoryAmounts } from "../../../domains/management/dough/ty
 import type { OrderStatusData } from "../../../domains/order-status/types";
 import type { StatsResponse } from "../../../domains/management/statistics/types";
 import type { IBranch } from "../../../domains/management/inventory/types";
+import type { BpgPaymentResult, BpgRetryResult } from '../../../domains/payment/types';
 
 // Manual mock for shared/api/public.ts.
 // Exports only the functions used by hook tests.
@@ -18,6 +19,10 @@ export const getOrderStatus = jest.fn<
 export const fetchBaseAppInfo = jest.fn<Promise<BaseAppInfoResponse>, [string | null, string]>();
 
 export const fetchPublicBranches = jest.fn<Promise<IBranch[]>, []>();
+
+export const fetchBpgPaymentResult = jest.fn<Promise<BpgPaymentResult>, [string]>();
+
+export const retryBpgPayment = jest.fn<Promise<BpgRetryResult>, [string]>();
 
 export const createOrder = jest.fn<Promise<Order>, [CreateOrderRequest]>();
 
