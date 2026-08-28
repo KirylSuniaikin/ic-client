@@ -1,6 +1,8 @@
-// Manager dispatcher endpoints (DELIVERY_SPEC.md §4). Staff-authenticated, so these go through
+// Delivery endpoints staff call: the manager dispatcher (DELIVERY_SPEC.md §4) and the kitchen's
+// own hand-over confirmation at the bottom of this file. Staff-authenticated, so these go through
 // authFetch like the rest of shared/api/management.ts rather than the customer-token helpers.
 import { BASE_URL, authFetch } from './client';
+import { DeliveryApiError } from '../../domains/delivery/types';
 import type {
     CourierBoardRow,
     CourierOrderSummary,
@@ -116,4 +118,28 @@ export async function fetchBoardCouriers(orderId: number | null = null): Promise
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
+}
+
+/**
+ * The kitchen tablet's confirmation that a delivery order was physically handed to the rider —
+ * the transition the courier app used to own, until a rider tapping by accident started taking
+ * live orders off the kitchen board. The courier's own button is disabled server-side now.
+ *
+ * Not under `BASE`: `/api/management/**` is MANAGER-and-up, and the person handing the food over
+ * is a COOK, who would get a 403. `/api/kitchen/**` is gated to non-courier staff instead, which
+ * is the whole point of the endpoint living on its own prefix.
+ *
+ * `204` on success and on a double tap (the server is idempotent), `404` for an unknown order,
+ * and `409` when no courier is assigned yet — a real, expected state rather than a fault, since a
+ * rider can be released or reassigned between the board being drawn and the button being pressed.
+ * Thrown as {@link DeliveryApiError} rather than the module's plain `Error` precisely so the
+ * caller can tell that one status apart and say so in words; the message keeps this module's
+ * `Response: ${status}` shape.
+ */
+export async function markHandedOverToCourier(orderId: number): Promise<void> {
+    const res = await authFetch(`${BASE_URL}/kitchen/delivery/orders/${orderId}/handed-over`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new DeliveryApiError(`Response: ${res.status}`, res.status);
 }

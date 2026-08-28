@@ -14,6 +14,7 @@ import { useSavedAddresses } from '../hooks/useSavedAddresses';
 import { useDeliveryAvailability } from '../hooks/useDeliveryAvailability';
 import type {
     CreateCustomerAddressRequest, CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod,
+    UpdateCustomerAddressRequest,
 } from '../types';
 import type { CartItem } from '../../menu/types';
 
@@ -65,12 +66,14 @@ export function DeliveryCheckoutDrawer({
     onUnavailable,
 }: DeliveryCheckoutDrawerProps): JSX.Element {
     const { t } = useTranslation('checkout');
-    const { addresses, loading, error, save } = useSavedAddresses();
+    const { addresses, loading, error, save, update } = useSavedAddresses();
     const { availability, checking, check } = useDeliveryAvailability();
 
     const [selected, setSelected] = useState<CustomerAddress | null>(null);
     const [method, setMethod] = useState<DeliveryPaymentMethod>('CARD');
     const [pickerOpen, setPickerOpen] = useState(false);
+    /** Non-null while the picker is being used as the pencil rather than as "add a new address". */
+    const [editing, setEditing] = useState<CustomerAddress | null>(null);
     const [saving, setSaving] = useState(false);
     /** Non-null while the §1.6 confirm sheet is up, holding the gate result it was opened with. */
     const [confirming, setConfirming] =
@@ -103,14 +106,42 @@ export function DeliveryCheckoutDrawer({
         }
     }, [selected, refreshEta]);
 
+    /**
+     * The server folds a re-save of an address the customer already has onto the existing row and
+     * returns it with a 200, so what comes back is not necessarily new. Selecting it is right
+     * either way — and it is exactly the behaviour the duplicate case wants: the customer ends up
+     * on their existing address instead of looking at an error they cannot act on.
+     */
     async function handleSaveAddress(body: CreateCustomerAddressRequest): Promise<void> {
         setSaving(true);
-        const created = await save(body);
+        const saved = await save(body);
         setSaving(false);
-        if (created !== null) {
+        if (saved !== null) {
             setPickerOpen(false);
-            setSelected(created);
+            setSelected(saved);
         }
+    }
+
+    async function handleUpdateAddress(addressId: string, body: UpdateCustomerAddressRequest): Promise<void> {
+        setSaving(true);
+        const edited = await update(addressId, body);
+        setSaving(false);
+        if (edited === null) return;
+        setPickerOpen(false);
+        setEditing(null);
+        // Re-point the selection at the edited object, or the §1.6 confirm sheet would still show
+        // the text the customer just corrected. The pin cannot have moved, so the ETA stands.
+        setSelected((current) => (current?.id === edited.id ? edited : current));
+    }
+
+    function openEditor(address: CustomerAddress): void {
+        setEditing(address);
+        setPickerOpen(true);
+    }
+
+    function closePicker(): void {
+        setPickerOpen(false);
+        setEditing(null);
     }
 
     /**
@@ -167,6 +198,7 @@ export function DeliveryCheckoutDrawer({
                                     address={address}
                                     selected={selected?.id === address.id}
                                     onSelect={setSelected}
+                                    onEdit={openEditor}
                                 />
                             ))}
                         </Box>
@@ -174,7 +206,7 @@ export function DeliveryCheckoutDrawer({
 
                     <Button
                         startIcon={<AddIcon />}
-                        onClick={() => setPickerOpen(true)}
+                        onClick={() => { setEditing(null); setPickerOpen(true); }}
                         sx={{ textTransform: 'none', fontWeight: 600, color: BRAND_RED, borderRadius: 999, mb: 2 }}
                     >
                         {t('delivery.addAddress')}
@@ -234,10 +266,15 @@ export function DeliveryCheckoutDrawer({
                 </Box>
             </Drawer>
 
+            {/* Keyed on what is being edited: the drawer seeds its fields once, on mount, so the
+                key is what makes the pencil show this address rather than the last one. */}
             <AddressPickerDrawer
+                key={editing?.id ?? 'new'}
                 open={pickerOpen}
-                onClose={() => setPickerOpen(false)}
+                onClose={closePicker}
                 onSave={handleSaveAddress}
+                editing={editing}
+                onUpdate={handleUpdateAddress}
                 saving={saving}
                 error={error}
             />

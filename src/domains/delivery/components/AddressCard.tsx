@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Typography, Radio } from '@mui/material';
+import { Box, Typography, Radio, IconButton } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { formatAddressLine } from '../types';
 import type { CustomerAddress } from '../types';
 import { BRAND_RED } from './sheetStyles';
@@ -15,9 +16,11 @@ export interface AddressCardProps {
     address: CustomerAddress;
     selected: boolean;
     onSelect: (address: CustomerAddress) => void;
+    /** The pencil. Omitted where the list is read-only (the §1.6 confirm sheet). */
+    onEdit?: (address: CustomerAddress) => void;
 }
 
-export function AddressCard({ address, selected, onSelect }: AddressCardProps): JSX.Element {
+export function AddressCard({ address, selected, onSelect, onEdit }: AddressCardProps): JSX.Element {
     const { t } = useTranslation('checkout');
     const line = formatAddressLine(address);
 
@@ -44,7 +47,7 @@ export function AddressCard({ address, selected, onSelect }: AddressCardProps): 
             }}
         >
             <Radio checked={selected} size="small" sx={{ p: 0, mt: '2px', color: '#ccc', '&.Mui-checked': { color: BRAND_RED } }} />
-            <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     {address.label ?? t('delivery.unlabelledAddress')}
                 </Typography>
@@ -57,6 +60,22 @@ export function AddressCard({ address, selected, onSelect }: AddressCardProps): 
                     <Typography variant="caption" sx={{ color: '#a49a92' }}>{address.note}</Typography>
                 )}
             </Box>
+            {onEdit !== undefined && (
+                // Stops the click from also selecting: reaching for the pencil is not a choice of
+                // where to deliver, and silently re-selecting under the customer's finger would be
+                // a surprise on a row they only meant to correct.
+                <IconButton
+                    aria-label={t('delivery.editAddress')}
+                    size="small"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(address);
+                    }}
+                    sx={{ ml: 'auto', flexShrink: 0, color: '#a49a92', '&:hover': { color: BRAND_RED } }}
+                >
+                    <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+            )}
         </Box>
     );
 }

@@ -8,6 +8,7 @@ import type {
     DeliveryAvailability,
     DeliveryPaymentMethod,
     DeliveryPaymentResult,
+    UpdateCustomerAddressRequest,
 } from '../../domains/delivery/types';
 
 function isMessageBody(data: unknown): data is { message: string } {
@@ -63,12 +64,47 @@ export async function listAddresses(accessToken: string): Promise<CustomerAddres
     return await response.json();
 }
 
+/**
+ * Saves an address. The server deduplicates: a pin within 20 m of one the customer already has,
+ * with the same flat, comes back as **200 with that existing address** rather than a 201 with a
+ * new one (and rather than a 409, which would be an error the customer could not act on).
+ *
+ * Both outcomes are a success carrying an address, so callers need no status check — they should
+ * upsert what comes back by `id`, which is what `useSavedAddresses` does.
+ */
 export async function createAddress(
     accessToken: string,
     body: CreateCustomerAddressRequest
 ): Promise<CustomerAddress> {
     const response = await fetch(`${BASE_URL}/customer/addresses`, {
         method: 'POST',
+        credentials: 'include',
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        throw new DeliveryApiError(await extractErrorMessage(response), response.status);
+    }
+    return await response.json();
+}
+
+/**
+ * Fixes the text of a saved address (the pencil). PATCH, not PUT: the pin is not part of the
+ * representation a customer may write — see `UpdateCustomerAddressRequest`.
+ *
+ * A 409 means the edit would collide with another saved address (same pin, same flat).
+ */
+export async function updateAddress(
+    accessToken: string,
+    addressId: string,
+    body: UpdateCustomerAddressRequest
+): Promise<CustomerAddress> {
+    const response = await fetch(`${BASE_URL}/customer/addresses/${encodeURIComponent(addressId)}`, {
+        method: 'PATCH',
         credentials: 'include',
         headers: {
             Authorization: `Bearer ${accessToken}`,

@@ -61,15 +61,15 @@ describe("useAdminOrders — subscription lifecycle", () => {
         capturedSubs = [];
     });
 
-    it("registers exactly 9 STOMP subscriptions when branchId is provided", async () => {
+    it("registers exactly 10 STOMP subscriptions when branchId is provided", async () => {
         await act(async () => {
             renderHook(() => useAdminOrders("branch-1", stopSound));
         });
 
-        expect(capturedSubs).toHaveLength(9);
+        expect(capturedSubs).toHaveLength(10);
     });
 
-    it("unsubscribes all 9 subscription handles on unmount — no leak", async () => {
+    it("unsubscribes all 10 subscription handles on unmount — no leak", async () => {
         let unmount!: () => void;
 
         await act(async () => {
@@ -147,12 +147,12 @@ describe("useAdminOrders — enabled flag", () => {
         expect(view.result.current.loading).toBe(false);
     });
 
-    it("still registers 9 STOMP subscriptions and starts loading when enabled defaults to true", async () => {
+    it("still registers 10 STOMP subscriptions and starts loading when enabled defaults to true", async () => {
         await act(async () => {
             renderHook(() => useAdminOrders("branch-1", stopSound));
         });
 
-        expect(capturedSubs).toHaveLength(9);
+        expect(capturedSubs).toHaveLength(10);
     });
 });
 
@@ -459,5 +459,108 @@ describe("useAdminOrders — Keeta orders must not auto-print", () => {
         act(() => sendFrame(ORDER_UPDATES_TOPIC, orderWith(2, "Pick Up")));
 
         expect(mockPrintOrder).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * The courier reaching the pass is the one delivery fact the kitchen could not previously learn.
+ * It rides the branch's existing /delivery-alert channel — the same one that already carries
+ * NO_COURIER_AVAILABLE, PICKUP_OVERDUE and GEOFENCE_WARNING — so the board has to pick its own
+ * type out of a shared union and ignore the rest.
+ */
+describe("useAdminOrders — courier at the kitchen", () => {
+    const stopSound = jest.fn<void, []>();
+    const DELIVERY_ALERT_TOPIC = "/topic/branch-1/delivery-alert";
+    let handlers: Record<string, (msg: IMessage) => void>;
+
+    // Minimal Order shape; only id/courier_at_kitchen are read by this handler.
+    const deliveryOrder = (id: number): Order =>
+        ({ id, order_type: "Delivery", courier_at_kitchen: false } as unknown as Order);
+
+    const sendAlert = (payload: unknown): void => {
+        handlers[DELIVERY_ALERT_TOPIC]({ body: JSON.stringify(payload) } as unknown as IMessage);
+    };
+
+    async function boardWith(orders: Order[]): Promise<RenderHookResult<UseAdminOrdersResult, unknown>> {
+        mockGetAllActiveOrders.mockResolvedValue(orders);
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+        return view;
+    }
+
+    beforeEach(() => {
+        handlers = {};
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockImplementation((destination: string, cb: (msg: IMessage) => void) => {
+            handlers[destination] = cb;
+            return makeSub(destination);
+        });
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    // Guards the subscription itself: delete the socket.subscribe call in the hook and this is
+    // the assertion that goes red first, before any of the behaviour below can even run.
+    it("subscribes to the branch's delivery-alert topic", async () => {
+        await boardWith([]);
+
+        expect(mockSubscribe).toHaveBeenCalledWith(DELIVERY_ALERT_TOPIC, expect.any(Function));
+    });
+
+    it("flips courier_at_kitchen on the order the rider is waiting for", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_at_kitchen).toBe(true);
+    });
+
+    it("leaves every other card on the board alone", async () => {
+        const view = await boardWith([deliveryOrder(7), deliveryOrder(8)]);
+
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+
+        expect(view.result.current.orders[1].courier_at_kitchen).toBe(false);
+    });
+
+    // The channel is shared with the dispatcher's own alerts; a board that reacted to all of them
+    // would mark a card "courier here" the moment a rider was declared UNavailable for it.
+    it("ignores the dispatcher's own alert types on the same channel", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "NO_COURIER_AVAILABLE", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_at_kitchen).toBe(false);
+    });
+
+    /**
+     * The OrderEvents ACK map is keyed by orderId ALONE, and this topic has no retry behind it —
+     * an ack published from here would cancel a genuinely pending order push for the same order.
+     */
+    it("never acks — that map is keyed by orderId and belongs to another topic", async () => {
+        await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+
+        expect(jest.mocked(socket.publish)).not.toHaveBeenCalled();
+    });
+
+    // The server only ever stamps courierAtKitchenAt and never clears it, so a duplicate or late
+    // frame must be a no-op rather than something the board has to rank-guard.
+    it("is idempotent under a repeated frame", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_at_kitchen).toBe(true);
     });
 });

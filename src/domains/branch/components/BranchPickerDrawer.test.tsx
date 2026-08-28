@@ -165,6 +165,35 @@ describe("BranchPickerDrawer", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * The details sheet is a MUI Drawer opened from inside another open MUI Drawer. MUI does NOT
+     * raise a nested modal — its ModalManager only toggles `aria-hidden` on siblings and applies
+     * the scroll lock — so without an explicit z-index both roots land on theme.zIndex.drawer
+     * (1200) and the sheet is visible only for as long as its portal happens to be the last child
+     * of `document.body`. Nothing in the app guarantees that ordering, and every other nested
+     * Drawer here (CashInputDrawer, UnpaidInvoicesDrawer, BanCstmrDrawer, ShiftPopup) declares its
+     * own z-index rather than relying on it.
+     */
+    it("layers the details sheet above the picker instead of tying with it", () => {
+        mockGeolocation(() => undefined);
+        renderDrawer();
+
+        fireEvent.click(screen.getByText("Smichov"));
+
+        const sheetRoot = screen.getByRole("button", { name: /order here/i }).closest(".MuiDrawer-root");
+        const roots = Array.from(document.querySelectorAll(".MuiDrawer-root"));
+        const pickerRoot = roots.find((root) => root !== sheetRoot);
+
+        expect(sheetRoot).toBeTruthy();
+        expect(pickerRoot).toBeTruthy();
+
+        const sheetZ = Number(window.getComputedStyle(sheetRoot as HTMLElement).zIndex);
+        const pickerZ = Number(window.getComputedStyle(pickerRoot as HTMLElement).zIndex);
+
+        expect(Number.isNaN(sheetZ)).toBe(false);
+        expect(sheetZ > pickerZ).toBe(true);
+    });
+
     it("surfaces a location error inline on denial without blocking selection", () => {
         mockGeolocation((_ok, fail) => fail());
         const { onSelect, branches } = renderDrawer();

@@ -84,11 +84,24 @@
     "anyMinute": "Short",
     "minutes": "{{value}} min",
     "orderNumber": "Order #{{number}}",
+    "arrivingIn": "Estimated Arrival in",
+    "waitingForCourier": "Ready, waiting for a courier",
+    "onTheWay": "On the way",
+    "arrivingNow": "Arriving any moment",
     "stage": {
       "preparing": "Preparing",
       "inOven": "In the oven",
-      "ready": "Ready"
+      "ready": "Ready",
+      "outForDelivery": "On the way",
+      "delivered": "Delivered"
     }
+  },
+  "orderStatus": {
+    "readyForDelivery": "Your order is ready and waiting for a courier 🛵",
+    "outForDelivery": "Your order is on the way 🛵",
+    "delivered": "Delivered — enjoy! 🍕",
+    "arrivingAround": "Arriving around {{time}}",
+    "arrivalUnknown": "We'll have an arrival time as soon as a courier picks it up."
   },
   "errors": {
     "tooManyAttempts": "Too many attempts — please wait a bit before trying again.",

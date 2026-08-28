@@ -84,11 +84,24 @@
     "anyMinute": "في أي لحظة",
     "minutes": "{{value}} دقيقة",
     "orderNumber": "طلب رقم #{{number}}",
+    "arrivingIn": "الوصول المتوقع خلال",
+    "waitingForCourier": "جاهز وبانتظار السائق",
+    "onTheWay": "في الطريق إليك",
+    "arrivingNow": "يصل في أي لحظة",
     "stage": {
       "preparing": "قيد التحضير",
       "inOven": "في الفرن",
-      "ready": "جاهز"
+      "ready": "جاهز",
+      "outForDelivery": "في الطريق",
+      "delivered": "تم التوصيل"
     }
+  },
+  "orderStatus": {
+    "readyForDelivery": "طلبك جاهز وبانتظار السائق 🛵",
+    "outForDelivery": "طلبك في الطريق إليك 🛵",
+    "delivered": "تم التوصيل — بالهناء والشفاء! 🍕",
+    "arrivingAround": "الوصول حوالي {{time}}",
+    "arrivalUnknown": "سنعرف وقت الوصول فور استلام السائق للطلب."
   },
   "errors": {
     "tooManyAttempts": "محاولات كثيرة جداً — يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.",
