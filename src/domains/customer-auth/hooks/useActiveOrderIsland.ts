@@ -10,6 +10,8 @@ import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { useOrderLiveStatus } from "./useOrderLiveStatus";
 import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
 import { toEpochMsBahrain } from "../../../shared/utils/timeUtils";
+import { computeRideProgress } from "../../../shared/utils/orderStages";
+import type { RideProgress } from "../../../shared/utils/orderStages";
 import { logger } from "../../../shared/utils/logger";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerActiveOrder } from "../types";
@@ -21,6 +23,11 @@ import type { CustomerActiveOrder } from "../types";
 // means the courier collected it and the customer is still waiting, so treating it as terminal
 // made the widget vanish at hand-over — precisely when there is most to watch. A delivery ends at
 // the door, or when it comes back undelivered.
+//
+// This stays the ONE place terminality is decided. ActiveOrderIslandPill now draws "Delivered"
+// as the last node of the delivery ladder, but that node is only ever a destination on the
+// track: the moment the status actually becomes Delivered, isVisible goes false here and the
+// pill unmounts. The pill must not re-test for it.
 const DELIVERY_TYPE = "Delivery";
 const PICKUP_TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Picked Up", "Delivered"]);
 const DELIVERY_TERMINAL_STATUSES: ReadonlySet<string> = new Set(["Delivered", "Returned Undelivered"]);
@@ -38,6 +45,12 @@ export type UseActiveOrderIslandResult = {
     timeLeft: number;
     totalSec: number;
     isVisible: boolean;
+    /**
+     * The ride's live fill, or null when it cannot be quantified. Derived here rather than in
+     * the pill: the pill is presentational and holds no state, and the fill has to advance on a
+     * clock. Always null for a pickup order — the backend sends it no delivery timings at all.
+     */
+    rideProgress: RideProgress | null;
     handleClick: () => void;
 };
 
@@ -98,11 +111,22 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     const msLeft = usePreciseCountdown(endTs, 250);
     const timeLeft = Math.ceil(msLeft / 1000);
 
+    // The ride's own clock, separate from the countdown to Ready above: `estimation` is minutes
+    // to Ready and says nothing about the door. Both stamps are absent on a pickup order and on
+    // a delivery order with no courier yet, and toEpochMsBahrain answers Date.now() for a missing
+    // string — which would read as "the ride started this instant" — so they are guarded to null
+    // here and the whole calculation opts out rather than inventing a start.
+    const handoverMs = activeOrder?.handoverAt ? toEpochMsBahrain(activeOrder.handoverAt) : null;
+    const arrivalMs = activeOrder?.estimatedDeliveredAt ? toEpochMsBahrain(activeOrder.estimatedDeliveredAt) : null;
+    // Ticks every second whether or not there is a ride; the hook cannot be called conditionally.
+    const msToArrival = usePreciseCountdown(arrivalMs ?? 0, 1000);
+    const rideProgress = computeRideProgress(handoverMs, arrivalMs, msToArrival);
+
     const handleClick = useCallback((): void => {
         if (activeOrder) {
             openOrderDetail(activeOrder.id);
         }
     }, [activeOrder, openOrderDetail]);
 
-    return { activeOrder, status: effectiveStatus, timeLeft, totalSec, isVisible, handleClick };
+    return { activeOrder, status: effectiveStatus, timeLeft, totalSec, isVisible, rideProgress, handleClick };
 }

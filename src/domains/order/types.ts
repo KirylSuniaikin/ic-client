@@ -20,12 +20,34 @@ export class BranchClosedError extends Error {
 
 export type BranchClosedResponse = { message: string };
 
+/**
+ * A status staff can SET from the board. Deliberately narrow: the delivery terminals are written
+ * by the courier app and the dispatcher, never by a kitchen tablet, so keeping them out of this
+ * union is what stops `updateOrderStatus` being called with one.
+ */
 export type OrderStatus =
     | 'Kitchen Phase'
     | 'Oven'
     | 'Ready'
     | 'Picked Up'
-    | 'Cancelled';
+    | 'Cancelled'
+    // Set when a manager accepts an incoming Jahez order. It lived here only as a cast at the
+    // one call site that sends it, which made the union claim something untrue about itself.
+    | 'Accepted';
+
+/**
+ * A status an order can ARRIVE with. Wider than {@link OrderStatus} because reading and writing
+ * are not the same set: since branch history became fulfilment-aware it returns delivery
+ * terminals too, and `Order.status` was typed as the write set — a type that denied values the
+ * server really sends.
+ */
+export type ObservedOrderStatus =
+    | OrderStatus
+    | 'Out for delivery'
+    | 'Delivered'
+    | 'Returned Undelivered'
+    | 'Pending Payment'
+    | 'Payment Failed';
 
 export type OrderType =
     | 'Dine In'
@@ -103,12 +125,24 @@ export type Order = {
     external_id: string | null;
     phone_number: string;
     order_created: string;
-    status: OrderStatus;
+    status: ObservedOrderStatus;
     isPaid: boolean;
     branch_id: string;
     estimation?: number;
     estimationTime?: number;
     jahezOrderId?: string | null;
+    // Delivery only, and only on the live board's ActiveOrdersTO — history and the customer-side
+    // order shapes carry neither, hence optional. They exist so the staff card can tell "ready to
+    // hand over" from "still waiting for a rider" BEFORE anyone taps: `courier_assigned` mirrors
+    // exactly the condition the hand-over endpoint answers 409 to, while `courier_at_kitchen` is
+    // the stronger, advisory signal that the rider is physically at the pass.
+    //
+    // `courier_at_kitchen` also arrives LIVE, as a COURIER_AT_KITCHEN frame on the branch's
+    // /delivery-alert topic (useAdminOrders patches this same field rather than holding a second
+    // copy of the fact). `courier_assigned` does not — it only refreshes on a REST fetch or a
+    // reconnect resync.
+    courier_assigned?: boolean;
+    courier_at_kitchen?: boolean;
 };
 
 export type BaseAppInfoResponse = {

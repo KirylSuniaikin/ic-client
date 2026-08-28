@@ -15,6 +15,12 @@ export function useOrderStatus(orderId: string): UseOrderStatusResult {
     const [branchId, setBranchId] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [remainingSeconds, setRemainingSeconds] = useState(0);
+    // Bumped by every status frame so the REST payload is re-read. A status change can carry new
+    // delivery timings with it -- "Out for delivery" is the first moment handoverAt exists at all
+    // -- and the frame itself only carries the status string, so applying the frame alone would
+    // leave the ride permanently without an arrival time. Same resync-after-a-frame shape as
+    // useActiveOrderIsland.
+    const [resyncTick, setResyncTick] = useState(0);
 
     const currentIdRef = useRef(orderId);
     useEffect(() => {
@@ -37,7 +43,7 @@ export function useOrderStatus(orderId: string): UseOrderStatusResult {
 
         fetchStatus();
         return () => { active = false; };
-    }, [orderId]);
+    }, [orderId, resyncTick]);
 
     useEffect(() => {
         if (!order?.orderCreated || !order?.estimationTime) return;
@@ -72,6 +78,7 @@ export function useOrderStatus(orderId: string): UseOrderStatusResult {
                     const currentId = Number(currentIdRef.current);
                     if (eventId === currentId) {
                         setOrder(prev => prev ? { ...prev, orderStatus: payload.status ?? '' } : prev);
+                        setResyncTick(tick => tick + 1);
                     }
                     socket.publish({
                         destination: '/app/orders/ack',

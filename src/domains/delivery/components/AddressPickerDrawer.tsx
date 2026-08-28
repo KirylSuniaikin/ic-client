@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Drawer, Box, Typography, TextField, Button, CircularProgress } from '@mui/material';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import type { Coordinates, CreateCustomerAddressRequest } from '../types';
+import type {
+    Coordinates, CreateCustomerAddressRequest, CustomerAddress, UpdateCustomerAddressRequest,
+} from '../types';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import {
     FIELD_SX, OUTLINED_BUTTON_SX, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
@@ -23,11 +25,27 @@ import {
  * API instead: free, keyless, and accurate enough to place a pin the customer then confirms.
  * When the key lands, autocomplete and the draggable map slot in above the manual fields —
  * `pin` is already the single value everything else depends on, so nothing downstream changes.
+ *
+ * ── Edit mode (the pencil) ───────────────────────────────────────────────────────────────────
+ * Passing `editing` seeds the fields from a saved address and turns the sheet into a text edit.
+ * **The pin block disappears rather than becoming editable.** Latitude and longitude drive
+ * nearest-branch routing, the radius check and the ETA, and the row may already be attached to an
+ * order a courier is running; letting the pencil move it could retarget a live delivery and could
+ * turn an address that passed the availability gate into one that no longer does. Moving a pin is
+ * "add a new address", which re-runs the gate — and the 20 m server-side dedupe folds it back onto
+ * this row if it did not really move.
  */
 export interface AddressPickerDrawerProps {
     open: boolean;
     onClose: () => void;
     onSave: (body: CreateCustomerAddressRequest) => void | Promise<void>;
+    /**
+     * Non-null puts the drawer in edit mode. The fields are seeded once, on mount, so the parent
+     * must key this component on the address being edited.
+     */
+    editing?: CustomerAddress | null;
+    /** Required in edit mode; unused otherwise. */
+    onUpdate?: (addressId: string, body: UpdateCustomerAddressRequest) => void | Promise<void>;
     saving?: boolean;
     /** Surfaced inline; the drawer stays open so the customer can retry. */
     error?: string | null;
@@ -37,17 +55,19 @@ export function AddressPickerDrawer({
     open,
     onClose,
     onSave,
+    editing = null,
+    onUpdate,
     saving = false,
     error = null,
 }: AddressPickerDrawerProps): JSX.Element {
     const { t } = useTranslation('checkout');
 
-    const [label, setLabel] = useState('');
-    const [block, setBlock] = useState('');
-    const [road, setRoad] = useState('');
-    const [building, setBuilding] = useState('');
-    const [flat, setFlat] = useState('');
-    const [note, setNote] = useState('');
+    const [label, setLabel] = useState(editing?.label ?? '');
+    const [block, setBlock] = useState(editing?.block ?? '');
+    const [road, setRoad] = useState(editing?.road ?? '');
+    const [building, setBuilding] = useState(editing?.building ?? '');
+    const [flat, setFlat] = useState(editing?.flat ?? '');
+    const [note, setNote] = useState(editing?.note ?? '');
     const [pin, setPin] = useState<Coordinates | null>(null);
     const reverseGeocode = useReverseGeocode();
     const [locating, setLocating] = useState(false);
@@ -88,18 +108,28 @@ export function AddressPickerDrawer({
         );
     }
 
+    const isEditing = editing !== null;
+
     function handleSave(): void {
-        if (pin === null) return;
-        void onSave({
+        // Empty optional fields go as null, not "", so the DB never holds a blank string — and so
+        // clearing a field on an edit actually clears the column.
+        const text: UpdateCustomerAddressRequest = {
             label: label.trim() || null,
             block: block.trim() || null,
             road: road.trim() || null,
             building: building.trim() || null,
             flat: flat.trim() || null,
             note: note.trim() || null,
-            latitude: pin.latitude,
-            longitude: pin.longitude,
-        });
+        };
+
+        if (editing !== null) {
+            if (onUpdate === undefined) return;
+            void onUpdate(editing.id, text);
+            return;
+        }
+
+        if (pin === null) return;
+        void onSave({ ...text, latitude: pin.latitude, longitude: pin.longitude });
     }
 
     return (
@@ -108,7 +138,7 @@ export function AddressPickerDrawer({
                 <SheetHandle />
 
                 <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 0.5 }}>
-                    {t('delivery.addressTitle')}
+                    {isEditing ? t('delivery.editAddressTitle') : t('delivery.addressTitle')}
                 </Typography>
 
                 <Box sx={{ ...SECTION_CARD_SX, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -125,45 +155,57 @@ export function AddressPickerDrawer({
                 </Box>
 
                 {/* The pin block. Deliberately prominent and blocking: an address with no pin
-                    cannot be routed, and §1.4's copy asks the customer to place it precisely. */}
-                <Box sx={SECTION_CARD_SX}>
-                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.pinTitle')}</Typography>
-                    <Typography variant="body2" sx={{ color: '#8a807a', mb: 1.5 }}>{t('delivery.pinHint')}</Typography>
+                    cannot be routed, and §1.4's copy asks the customer to place it precisely.
+                    In edit mode it says the pin is fixed instead of offering to move it — see the
+                    component doc for why the pencil must not move a pin. */}
+                {isEditing ? (
+                    <Box sx={SECTION_CARD_SX}>
+                        <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.pinTitle')}</Typography>
+                        <Typography variant="body2" sx={{ color: '#8a807a' }}>{t('delivery.pinLocked')}</Typography>
+                    </Box>
+                ) : (
+                    <Box sx={SECTION_CARD_SX}>
+                        <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.pinTitle')}</Typography>
+                        <Typography variant="body2" sx={{ color: '#8a807a', mb: 1.5 }}>{t('delivery.pinHint')}</Typography>
 
-                    <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={locating ? <CircularProgress size={16}  /> : <MyLocationIcon />}
-                        onClick={requestLocation}
-                        disabled={locating}
-                        sx={{ ...OUTLINED_BUTTON_SX, py: 1.25 }}
-                    >
-                        {pin === null ? t('delivery.useMyLocation') : t('delivery.updateLocation')}
-                    </Button>
+                        <Button
+                            variant="outlined"
+                            fullWidth
+                            startIcon={locating ? <CircularProgress size={16}  /> : <MyLocationIcon />}
+                            onClick={requestLocation}
+                            disabled={locating}
+                            sx={{ ...OUTLINED_BUTTON_SX, py: 1.25 }}
+                        >
+                            {pin === null ? t('delivery.useMyLocation') : t('delivery.updateLocation')}
+                        </Button>
 
-                    {pin !== null && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.5 }}>
-                            <CheckCircleRoundedIcon sx={{ fontSize: 18, color: '#2e7d32' }} />
-                            <Typography variant="body2" sx={{ color: '#2e7d32', fontWeight: 600 }}>
-                                {t('delivery.pinSet')}
-                            </Typography>
-                        </Box>
-                    )}
-                    {locationError !== null && (
-                        <Box sx={{ mt: 1.5 }}><SheetNotice tone="warning">{locationError}</SheetNotice></Box>
-                    )}
-                </Box>
+                        {pin !== null && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.5 }}>
+                                <CheckCircleRoundedIcon sx={{ fontSize: 18, color: '#2e7d32' }} />
+                                <Typography variant="body2" sx={{ color: '#2e7d32', fontWeight: 600 }}>
+                                    {t('delivery.pinSet')}
+                                </Typography>
+                            </Box>
+                        )}
+                        {locationError !== null && (
+                            <Box sx={{ mt: 1.5 }}><SheetNotice tone="warning">{locationError}</SheetNotice></Box>
+                        )}
+                    </Box>
+                )}
 
                 {error !== null && <SheetNotice tone="error">{error}</SheetNotice>}
 
                 <Button
                     variant="contained"
                     onClick={handleSave}
-                    // Guards the same rule the server enforces: no pin, no address.
-                    disabled={pin === null || saving}
+                    // Guards the same rule the server enforces: no pin, no address. An edit already
+                    // has one and cannot change it, so only the in-flight request gates it there.
+                    disabled={saving || (!isEditing && pin === null)}
                     sx={PRIMARY_BUTTON_SX}
                 >
-                    {saving ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('delivery.saveAddress')}
+                    {saving
+                        ? <CircularProgress size={20} sx={{ color: '#fff' }} />
+                        : isEditing ? t('delivery.saveChanges') : t('delivery.saveAddress')}
                 </Button>
             </Box>
         </Drawer>

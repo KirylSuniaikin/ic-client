@@ -74,6 +74,7 @@ export type StaffOption = {
 export type StaffShiftSummary = {
     staffId: number;
     username: string;
+    fullName: string | null;
     role: string;
     pricePerHour: number | null;
     regularHours: number;

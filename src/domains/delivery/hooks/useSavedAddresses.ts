@@ -1,11 +1,13 @@
 // Saved delivery addresses (DELIVERY_SPEC.md §1.4.4). Logged-in customers only — the endpoint
 // requires ROLE_CUSTOMER, and a guest has no address book until they verify.
 import { useCallback, useEffect, useState } from 'react';
-import { createAddress, listAddresses } from '../../../shared/api/delivery';
+import { createAddress, listAddresses, updateAddress } from '../../../shared/api/delivery';
 import { useCustomerAuth } from '../../customer-auth/context/CustomerAuthProvider';
 import { logger } from '../../../shared/utils/logger';
 import { DeliveryApiError } from '../types';
-import type { CreateCustomerAddressRequest, CustomerAddress } from '../types';
+import type {
+    CreateCustomerAddressRequest, CustomerAddress, UpdateCustomerAddressRequest,
+} from '../types';
 
 export type UseSavedAddressesResult = {
     addresses: CustomerAddress[];
@@ -13,9 +15,31 @@ export type UseSavedAddressesResult = {
     /** Last failure, for surfacing inline. Cleared on the next successful call. */
     error: string | null;
     reload: () => Promise<void>;
-    /** Returns the created address so a caller can select it immediately. */
+    /**
+     * Returns the saved address so a caller can select it immediately. That may be an address the
+     * customer already had: the server folds a re-save of the same doorstep onto the existing row.
+     */
     save: (body: CreateCustomerAddressRequest) => Promise<CustomerAddress | null>;
+    /** Returns the edited address, or null when the edit failed (the reason is in `error`). */
+    update: (addressId: string, body: UpdateCustomerAddressRequest) => Promise<CustomerAddress | null>;
 };
+
+/**
+ * Replaces an address in the list if it is already there, otherwise puts it at the front.
+ *
+ * Both callers need this. `save` needs it because the server dedupes — a re-save returns an
+ * address that is already in the list, and prepending it unconditionally would show the customer
+ * the duplicate row the dedupe exists to prevent. `update` needs it because an edited address must
+ * keep its place rather than jump to the top. Replacing in place also matches the server ordering,
+ * which is by `created_at` and is not disturbed by an edit.
+ */
+function upsertById(current: CustomerAddress[], saved: CustomerAddress): CustomerAddress[] {
+    const index = current.findIndex((address) => address.id === saved.id);
+    if (index === -1) return [saved, ...current];
+    const next = [...current];
+    next[index] = saved;
+    return next;
+}
 
 export function useSavedAddresses(): UseSavedAddressesResult {
     const { token } = useCustomerAuth();
@@ -59,12 +83,13 @@ export function useSavedAddresses(): UseSavedAddressesResult {
             if (!token) return null;
             setLoading(true);
             try {
-                const created = await createAddress(token, body);
-                // Prepend rather than refetch: the list is ordered newest-first server-side, so
-                // this matches what a reload would return without the extra round trip.
-                setAddresses((current) => [created, ...current]);
+                const saved = await createAddress(token, body);
+                // Upsert rather than refetch: the list is ordered newest-first server-side, so
+                // this matches what a reload would return without the extra round trip — and it
+                // is what keeps a deduplicated re-save from appearing twice.
+                setAddresses((current) => upsertById(current, saved));
                 setError(null);
-                return created;
+                return saved;
             } catch (err) {
                 logger.error('Failed to save address:', err);
                 setError(err instanceof Error ? err.message : String(err));
@@ -76,5 +101,25 @@ export function useSavedAddresses(): UseSavedAddressesResult {
         [token]
     );
 
-    return { addresses, loading, error, reload, save };
+    const update = useCallback(
+        async (addressId: string, body: UpdateCustomerAddressRequest): Promise<CustomerAddress | null> => {
+            if (!token) return null;
+            setLoading(true);
+            try {
+                const edited = await updateAddress(token, addressId, body);
+                setAddresses((current) => upsertById(current, edited));
+                setError(null);
+                return edited;
+            } catch (err) {
+                logger.error('Failed to update address:', err);
+                setError(err instanceof Error ? err.message : String(err));
+                return null;
+            } finally {
+                setLoading(false);
+            }
+        },
+        [token]
+    );
+
+    return { addresses, loading, error, reload, save, update };
 }

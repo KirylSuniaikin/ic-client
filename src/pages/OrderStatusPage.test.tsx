@@ -34,6 +34,7 @@ const ORDER: OrderStatusData = {
     orderCreated: "2026-01-01T12:00:00",
     estimationTime: 30,
     branchId: "branch-test",
+    orderType: "Pick Up",
 };
 
 beforeAll(() => {

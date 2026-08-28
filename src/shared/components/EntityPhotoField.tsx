@@ -108,7 +108,6 @@ export function EntityPhotoField({
                 ref={inputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 hidden
                 data-testid={`${testIdPrefix}-input-${rowKey}`}
                 onChange={handleFileChange}

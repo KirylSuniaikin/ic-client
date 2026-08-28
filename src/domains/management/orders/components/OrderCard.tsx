@@ -9,6 +9,10 @@ import {
     Divider, IconButton
 } from "@mui/material";
 import {updateOrderStatus} from "../../../../shared/api/public";
+import {markHandedOverToCourier} from "../../../../shared/api/dispatcher";
+import {DeliveryApiError} from "../../../delivery/types";
+import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import {HandedToCourierDialog} from "./HandedToCourierDialog";
 import {useNavigate} from "react-router-dom";
 import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
@@ -142,6 +146,53 @@ interface OrderCardProps {
     onOvenClick?: (order: Order) => void;
 }
 
+/**
+ * The 409 is a named state, not a fault — the rider can be released or reassigned between the
+ * board being drawn and the button being pressed — so it gets words a cook can act on. Everything
+ * else falls back to the API layer's own message, as the dispatcher panel does.
+ */
+function handOverErrorMessage(err: unknown): string {
+    if (err instanceof DeliveryApiError && err.status === 409) {
+        return "No courier is assigned to this order yet — hand it over once a rider has been assigned.";
+    }
+    return `Hand-over failed. ${err instanceof Error ? err.message : String(err)}`;
+}
+
+/**
+ * The hand-over button's own label carries the only rider state the kitchen can act on.
+ *
+ * `courier_assigned` is the gate (it mirrors exactly the condition the endpoint 409s on), so it
+ * becomes the label. `courier_at_kitchen` is deliberately NOT shown: it never gated the button —
+ * a rider whose app never registered "arrived" has still arrived, and the server back-fills that
+ * timestamp on hand-over — so on a card this dense, and one shared with pick-up orders, it was
+ * paying for a line of text with nothing to do.
+ */
+function handOverLabel(order: Order): string {
+    return order.courier_assigned === true ? "HANDED TO COURIER" : "NO COURIER YET";
+}
+
+/**
+ * The delivery card's one identity marker, and the only place the "rider is here" signal is
+ * spent.
+ *
+ * Two facts on one badge because they are two states of the same thing — a delivery order before
+ * and after its rider turns up — so the card never grows a second element, and a pick-up card
+ * renders no badge at all and is pixel-for-pixel what it was. It sits in the header row beside
+ * the order number, well inside the 36px the print and delete controls already set, which is why
+ * this costs no height.
+ *
+ * `courier_at_kitchen` is what the removed caption used to say in prose. As a badge it is legible
+ * from across a kitchen, which the caption was not, and it is the fact staff cannot get any other
+ * way: `courier_assigned` (which the hand-over button already carries) says a rider exists, not
+ * that anyone is standing at the pass.
+ *
+ * History never shows the arrival state — it is a live-board fact, and a finished order's rider
+ * is long gone.
+ */
+function deliveryBadgeLabel(order: Order, isHistory: boolean): string {
+    return !isHistory && order.courier_at_kitchen === true ? "COURIER HERE" : "DELIVERY";
+}
+
 function isNotKeetaDefaultNotes(notes: string) {
     return !(notes === "Need cutlery"
         || notes === "Need cutlery; Please contact me when the item is out of stock"
@@ -165,6 +216,26 @@ function OrderCard({
     const formattedTime = formatTime(order.order_created);
     const navigate = useNavigate();
     const [extraSec] = useState(0);
+    const [handOverConfirmOpen, setHandOverConfirmOpen] = useState(false);
+    const [handingOver, setHandingOver] = useState(false);
+    const [handOverError, setHandOverError] = useState<string | null>(null);
+
+    async function confirmHandOver(): Promise<void> {
+        setHandOverConfirmOpen(false);
+        setHandingOver(true);
+        try {
+            await markHandedOverToCourier(Number(order.id));
+            // Deliberately no local removal: the backend answers this transition with a
+            // `pushDeleted` frame that clears the card on every tablet. Dropping it here as well
+            // would be a second, competing mechanism — and the two would disagree exactly when it
+            // matters, with the request succeeding but the frame lost.
+        } catch (err) {
+            logger.error("Courier hand-over confirmation failed:", err);
+            setHandOverError(handOverErrorMessage(err));
+        } finally {
+            setHandingOver(false);
+        }
+    }
 
     const createdMs = useMemo(
         () => toEpochMsBahrain(order.order_created),
@@ -207,6 +278,8 @@ function OrderCard({
     }, []);
 
     const isCritical = timeLeft < 60;
+    const isDelivery = order.order_type === "Delivery";
+    const courierIsHere = !isHistory && order.courier_at_kitchen === true;
 
 
     const cardBorderColor = !isHistory
@@ -274,6 +347,31 @@ function OrderCard({
                         >
                             <DeleteIcon sx={{fontSize: 26}}/>
                         </IconButton>
+
+                        {isDelivery && (
+                            <Box
+                                sx={{
+                                    ml: 0.5,
+                                    px: 1.1,
+                                    py: 0.3,
+                                    borderRadius: 2,
+                                    border: `2px solid ${colorRed}`,
+                                    // Filled only once the rider is actually waiting: an outline
+                                    // says "delivery", a solid block says "somebody is standing
+                                    // there". Both boxes are the same size, so the arrival never
+                                    // reflows the header.
+                                    backgroundColor: courierIsHere ? colorRed : "transparent",
+                                    color: courierIsHere ? "#fff" : colorRed,
+                                    fontWeight: 900,
+                                    fontSize: "0.85rem",
+                                    lineHeight: 1.3,
+                                    letterSpacing: "0.05em",
+                                    whiteSpace: "nowrap"
+                                }}
+                            >
+                                {deliveryBadgeLabel(order, isHistory)}
+                            </Box>
+                        )}
                     </Box>
 
                     {!isHistory &&
@@ -292,6 +390,19 @@ function OrderCard({
                     {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
+                        </Typography>
+                    )}
+                    {/* A pick-up order says who is collecting; a delivery order has to say
+                        where it is going as well, or the person packing it cannot tell one
+                        delivery bag from another. Rendered only for delivery — a pick-up card
+                        gains nothing, not even an empty node. `address` is the same free-text
+                        column the aggregators use, which the delivery checkout now fills from the
+                        customer's confirmed pin (DeliveryPaymentService.attachAddress), so this
+                        costs the active-orders query nothing. Guarded because every delivery order
+                        placed before that existed still carries a null one. */}
+                    {isDelivery && Boolean(order.address) && (
+                        <Typography variant="body2">
+                            <strong>Deliver to:</strong> {order.address}
                         </Typography>
                     )}
                     {order.notes.length > 0 && isNotKeetaDefaultNotes(order.notes) && (
@@ -404,8 +515,11 @@ function OrderCard({
                                 </Button>
                             )}
                             {/* Not on a delivery order: "Picked Up" means the CUSTOMER collected
-                                it, and a delivery is collected by the courier — that transition
-                                is driven by the courier app, not by staff on this board. */}
+                                it, and a delivery is collected by the courier. That hand-over is
+                                confirmed by the kitchen through its own endpoint — see the
+                                delivery branch below — because a rider tapping their own button by
+                                accident took live orders off this board; the courier app's button
+                                is disabled server-side now. */}
                             {order.status === "Ready" && order.order_type !== "Delivery" && (
                                 <Button
                                     variant="contained"
@@ -429,6 +543,34 @@ function OrderCard({
                                     }}
                                 >
                                     PICKED UP
+                                </Button>
+                            )}
+                            {/* The delivery counterpart of PICKED UP, at the same status. One
+                                control for both rider states rather than a caption plus a
+                                sometimes-button: with no rider assigned it is the same button,
+                                disabled and relabelled, so the row keeps its height and the
+                                kitchen still sees there is nobody to hand to — which is exactly
+                                the condition the endpoint 409s on — without spending a line of
+                                caption on it. */}
+                            {order.status === "Ready" && order.order_type === "Delivery" && (
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    disabled={order.courier_assigned !== true || handingOver}
+                                    sx=
+                                        {{
+                                            borderColor: colorBeige,
+                                            color: colorRed,
+                                            backgroundColor: "white",
+                                            mr: 1,
+                                            borderRadius: 4,
+                                            // Without this the disabled state inherits the white
+                                            // background rule above and reads as an active button.
+                                            "&.Mui-disabled": {backgroundColor: "#f0ece4", color: "#9a9188"}
+                                        }}
+                                    onClick={() => setHandOverConfirmOpen(true)}
+                                >
+                                    {handOverLabel(order)}
                                 </Button>
                             )}
                             {order.order_type !== "Jahez" && order.order_type !== "Keeta" && (order.order_type as string) !== "TalabaT" && (
@@ -473,6 +615,21 @@ function OrderCard({
                     )}
                 </Box>
             </CardActions>
+
+            <HandedToCourierDialog
+                open={handOverConfirmOpen}
+                order={order}
+                onConfirm={() => { void confirmHandOver(); }}
+                onCancel={() => setHandOverConfirmOpen(false)}
+            />
+            {/* Same failure surface the rest of the admin board uses (AdminHomePage's dough
+                alert, TaskBoardPanel's failed mutations) — never a silent no-op. */}
+            <ErrorSnackbar
+                open={handOverError !== null}
+                message={handOverError ?? ""}
+                severity="error"
+                handleClose={() => setHandOverError(null)}
+            />
         </Card>
     );
 }

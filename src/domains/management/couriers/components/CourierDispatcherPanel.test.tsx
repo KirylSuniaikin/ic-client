@@ -12,6 +12,25 @@ import { connectSocket, socket } from "../../../../shared/api/socket";
 jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
 
+// The Maps key decides whether the route drill-down draws a map or falls back to the coordinate
+// list, and it is a module const read from process.env at import time — so it is exposed through
+// a getter here rather than a fixed value, which a plain object factory would freeze.
+// The `mock` name prefix is what lets the hoisted factory close over it.
+const mockMapsKey: { value: string | undefined } = { value: undefined };
+jest.mock("../../../branch/utils/mapsConfig", () => ({
+    get GOOGLE_MAPS_API_KEY(): string | undefined { return mockMapsKey.value; },
+    GOOGLE_MAPS_MAP_ID: undefined,
+    LIGHT_MAP_STYLES: [],
+}));
+
+// The map itself is covered by OrderRouteMap.test.tsx against a fake Google loader; here it is a
+// probe, so these tests keep asserting on which of the two renderings the panel chose.
+jest.mock("./OrderRouteMap", () => ({
+    OrderRouteMap: ({ route }: { route: { points: unknown[] } }) => (
+        <div data-testid="order-route-map">{route.points.length}</div>
+    ),
+}));
+
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -90,6 +109,8 @@ beforeEach(() => {
     mockBoardCouriers.mockReset();
     mockBoardCards.mockResolvedValue([]);
     mockBoardCouriers.mockResolvedValue([]);
+    // No key is the default in test and in any environment that never configured one.
+    mockMapsKey.value = undefined;
 });
 
 describe("CourierDispatcherPanel", () => {
@@ -354,5 +375,69 @@ describe("CourierDispatcherPanel — release and cancel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Release" }));
 
         expect(mockRoute).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The drill-down used to print the courier's trail as a list of raw coordinates — "no admin is
+ * going to reconstruct a route from numbers". §4's Mapbox token never arrived, so the trail is
+ * drawn on the Google loader this frontend already runs, with the list kept as the no-key
+ * fallback rather than a blank space.
+ */
+describe("CourierDispatcherPanel — route rendering", () => {
+    async function openRoute(): Promise<void> {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+        await screen.findByText(/Route \(/);
+    }
+
+    it("draws the trail on a map when a Maps key is configured", async () => {
+        mockMapsKey.value = "test-key";
+
+        await openRoute();
+
+        expect(screen.getByTestId("order-route-map")).toBeTruthy();
+        // The coordinate list is replaced by the map, not stacked underneath it.
+        expect(screen.queryByText(/26\.22000, 50\.58000/)).toBeNull();
+    });
+
+    /** No key means no map at all, so the list is the fallback — never an empty panel. */
+    it("keeps the coordinate list when no Maps key is configured", async () => {
+        await openRoute();
+
+        expect(screen.queryByTestId("order-route-map")).toBeNull();
+        expect(screen.getByText("26.22000, 50.58000")).toBeTruthy();
+    });
+
+    /**
+     * recordedAt is a UTC instant carrying a `Z`, unlike the naive Bahrain-local stamps everywhere
+     * else in delivery. formatBahrainClock parses it through toEpochMsBahrain, which detects the
+     * offset instead of appending one — so 09:55Z reads as 12:55, never 09:55 or 15:55, and never
+     * as the raw ISO string the list used to print.
+     */
+    it("renders a UTC recordedAt as Bahrain wall-clock rather than a raw ISO string", async () => {
+        mockRoute.mockResolvedValue({
+            ...ROUTE,
+            points: [{ latitude: 26.22, longitude: 50.58, recordedAt: "2026-08-08T09:55:00Z" }],
+        });
+
+        await openRoute();
+
+        expect(screen.getByText("12:55")).toBeTruthy();
+        expect(screen.queryByText("2026-08-08T09:55:00Z")).toBeNull();
+        expect(screen.queryByText("15:55")).toBeNull();
+    });
+
+    /**
+     * A courier whose phone never reported leaves no trail. That is a real failure and has to read
+     * as one; an empty panel would look like a route that simply had nothing interesting in it.
+     */
+    it("says no samples were recorded when the trail is empty", async () => {
+        mockRoute.mockResolvedValue({ ...ROUTE, points: [] });
+
+        await openRoute();
+
+        expect(screen.getByText(/No GPS samples recorded/)).toBeTruthy();
     });
 });

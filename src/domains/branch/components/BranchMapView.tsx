@@ -35,6 +35,14 @@ export interface BranchMapViewProps {
     height?: string | number;
 }
 
+/**
+ * One full up-and-down of Google's BOUNCE, in milliseconds. The animation has no "play once"
+ * mode and no completion callback, so the single hop is produced by clearing it after exactly
+ * one cycle. Google does not publish the period; ~700 ms is what one cycle measures at, and a
+ * little slack keeps the pin from being frozen mid-air on a slow frame.
+ */
+const ONE_BOUNCE_MS = 750;
+
 /** Presentational — only ever mounted by BranchPickerDrawer when GOOGLE_MAPS_API_KEY is truthy. */
 export function BranchMapView({
     branches,
@@ -166,7 +174,11 @@ export function BranchMapView({
     }, [map, branchesWithCoords]);
 
     /**
-     * Bounces the pin of the branch currently being described, and only that one.
+     * Bounces the pin of the branch currently being described, and only that one — ONCE.
+     *
+     * Google's {@code Animation.BOUNCE} loops forever until it is cleared, which reads as a pin
+     * that will not settle rather than as an answer to "which one did I just tap". A single hop
+     * says the same thing and then gets out of the way, so the map goes back to being readable.
      *
      * Runs after the marker effect above, so a freshly built marker set is already in the ref.
      * Clearing the animation on every other pin each time is deliberate: one leftover bouncing
@@ -176,6 +188,17 @@ export function BranchMapView({
         for (const [branchId, marker] of markersRef.current) {
             marker.setAnimation(branchId === activeBranchId ? google.maps.Animation.BOUNCE : null);
         }
+        if (activeBranchId === null) return;
+
+        // Stopping the loop is what makes it a single hop. The timer is cleared when the
+        // selection changes or the view unmounts, so a fast re-tap cannot leave one pin
+        // mid-bounce while another starts.
+        const timer = window.setTimeout(() => {
+            for (const [branchId, marker] of markersRef.current) {
+                if (branchId === activeBranchId) marker.setAnimation(null);
+            }
+        }, ONE_BOUNCE_MS);
+        return () => window.clearTimeout(timer);
     }, [activeBranchId, branchesWithCoords, map]);
 
     const handleLoad = useCallback((loaded: google.maps.Map) => setMap(loaded), []);

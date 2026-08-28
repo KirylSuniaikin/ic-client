@@ -7,4 +7,20 @@ export type OrderStatusData = {
     error?: boolean;
     message?: string;
     branchId: string;
+    /**
+     * "Delivery" or the pickup type. The screen cannot tell the two apart from the status alone
+     * at "Ready" — and that is exactly where the copy has to switch from "come and collect" to
+     * "waiting for a courier" — so the backend sends it explicitly.
+     */
+    orderType: string;
+    /**
+     * Delivery only, and OMITTED (not null) on a pickup order — `@JsonInclude(NON_NULL)` on the
+     * backend keeps a pickup payload byte-for-byte what it was. Absent means "not knowable yet"
+     * (no courier assigned, or a branch/address without coordinates), never "now".
+     *
+     * Naive Bahrain-local timestamps: parse with formatBahrainClock / toEpochMsBahrain, never
+     * `new Date(s)` — that reads them as UTC and lands three hours out.
+     */
+    handoverAt?: string;
+    estimatedDeliveredAt?: string;
 };

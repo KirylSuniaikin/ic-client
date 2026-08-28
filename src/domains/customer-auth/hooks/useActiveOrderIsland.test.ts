@@ -324,3 +324,76 @@ describe("useActiveOrderIsland — a delivery outlives the hand-over", () => {
         expect(result.current.isVisible).toBe(false);
     });
 });
+
+
+/**
+ * The hook owns the ride's clock, so the pill can stay presentational. `estimation` is minutes to
+ * Ready and cannot describe the ride, which is why handoverAt/estimatedDeliveredAt exist at all.
+ */
+describe("useActiveOrderIsland — the ride's live progress", () => {
+    /** A Bahrain-local stamp `minutes` from now, in the backend's LocalDateTime (ISO) shape. */
+    function bahrainStampIn(minutes: number): string {
+        const t = new Date(Date.now() + 3 * 60 * 60 * 1000 + minutes * 60_000);
+        const pad = (n: number): string => String(n).padStart(2, "0");
+        return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}:${pad(t.getUTCSeconds())}`;
+    }
+
+    async function renderWith(order: CustomerActiveOrder) {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(order);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+        await waitFor(() => expect(result.current.activeOrder).not.toBeNull());
+        return result;
+    }
+
+    it("derives a mid-ride fill from the two delivery timings", async () => {
+        // 5 minutes into a 20-minute ride -- a quarter, deliberately NOT the halfway point, so a
+        // fill that ignored elapsed time could not accidentally satisfy this.
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+            handoverAt: bahrainStampIn(-5),
+            estimatedDeliveredAt: bahrainStampIn(15),
+        });
+
+        expect(result.current.rideProgress).not.toBeNull();
+        expect(result.current.rideProgress?.fraction).toBeGreaterThan(0.18);
+        expect(result.current.rideProgress?.fraction).toBeLessThan(0.30);
+        expect(result.current.rideProgress?.minutesLeft).toBe(15);
+        expect(result.current.rideProgress?.overdue).toBe(false);
+    });
+
+    it("reports the ride as overdue once the estimate has passed", async () => {
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+            handoverAt: bahrainStampIn(-30),
+            estimatedDeliveredAt: bahrainStampIn(-5),
+        });
+
+        expect(result.current.rideProgress?.overdue).toBe(true);
+        expect(result.current.rideProgress?.minutesLeft).toBe(0);
+    });
+
+    // Absent timings must not be read as "the ride started right now" — toEpochMsBahrain answers
+    // Date.now() for a missing string, so the guard in the hook is what keeps this honest.
+    it("reports no ride progress for a delivery order with no timings yet", async () => {
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+        });
+
+        expect(result.current.rideProgress).toBeNull();
+    });
+
+    it("reports no ride progress for a pickup order", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Oven" });
+
+        expect(result.current.rideProgress).toBeNull();
+    });
+});

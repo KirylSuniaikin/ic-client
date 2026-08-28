@@ -50,6 +50,7 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
+import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../domains/management/staff/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -367,6 +368,72 @@ export async function getStaffByBranch(branchId: string): Promise<StaffOption[]>
     const res = await authFetch(BASE_URL + `/staff_by_branch?branchId=${branchId}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// Staff hiring (Task 2c). See domains/management/staff/types.ts for the request/response shapes.
+export async function hireStaff(request: HireStaffRequest): Promise<HiredStaffTO> {
+    const res = await authFetch(BASE_URL + `/staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function getStaffAdminList(branchId?: string): Promise<StaffAdminTO[]> {
+    const query = branchId !== undefined ? `?branchId=${branchId}` : '';
+    const res = await authFetch(BASE_URL + `/staff${query}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// Sends the plaintext once, to be hashed, and gets nothing back -- the endpoint answers 204, so
+// there is no body the password could come back in. The caller generated it and already holds it.
+export async function resetStaffPassword(id: number, password: string): Promise<void> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+}
+
+// Returns the updated row so the roster can reconcile in place; refetching would fight the
+// screen's branch and filter state.
+export async function setStaffEnabled(id: number, enabled: boolean): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/enabled`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function setStaffBranch(id: number, branchId: string): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/branch`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// The caller's own identity. The JWT carries a branchId claim, but it is frozen at login and a
+// staff member can now be moved between branches -- so the claim is only a starting value and
+// this is the truth.
+export async function getCurrentStaff(): Promise<CurrentStaffTO> {
+    const res = await authFetch(BASE_URL + `/staff/me`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();

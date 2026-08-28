@@ -268,7 +268,9 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     branchName={activeOrderIsland.activeOrder.branchName}
                     orderNumber={activeOrderIsland.activeOrder.orderNumber}
                     status={activeOrderIsland.status}
+                    orderType={activeOrderIsland.activeOrder.type}
                     timeLeft={activeOrderIsland.timeLeft}
+                    rideProgress={activeOrderIsland.rideProgress}
                     onClick={activeOrderIsland.handleClick}
                 />
             )}

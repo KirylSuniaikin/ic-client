@@ -4,7 +4,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { AddressPickerDrawer } from "./AddressPickerDrawer";
-import type { CreateCustomerAddressRequest } from "../types";
+import type {
+    CreateCustomerAddressRequest, CustomerAddress, UpdateCustomerAddressRequest,
+} from "../types";
 
 type GeoSuccess = (position: { coords: { latitude: number; longitude: number } }) => void;
 type GeoFailure = () => void;
@@ -94,6 +96,85 @@ describe("AddressPickerDrawer", () => {
 
         expect(await screen.findByText(/allow location access/i)).toBeTruthy();
         expect(saveButton().disabled).toBe(true);
+    });
+
+    describe("edit mode (the pencil)", () => {
+        const SAVED: CustomerAddress = {
+            id: "a1", label: "Home", block: "338", road: "3801", building: "12", flat: "4",
+            note: "gate code 1234", latitude: 26.2285, longitude: 50.586,
+        };
+
+        function renderEditor() {
+            const onUpdate = jest.fn<void, [string, UpdateCustomerAddressRequest]>();
+            render(
+                <I18nextProvider i18n={i18n}>
+                    <AddressPickerDrawer
+                        open
+                        onClose={jest.fn()}
+                        onSave={jest.fn()}
+                        editing={SAVED}
+                        onUpdate={onUpdate}
+                    />
+                </I18nextProvider>
+            );
+            return { onUpdate };
+        }
+
+        it("seeds every text field from the address being edited", () => {
+            mockGeolocation(() => undefined);
+            renderEditor();
+
+            expect((screen.getByLabelText(/block/i) as HTMLInputElement).value).toBe("338");
+            expect((screen.getByLabelText(/building/i) as HTMLInputElement).value).toBe("12");
+            expect((screen.getByLabelText(/flat/i) as HTMLInputElement).value).toBe("4");
+            expect((screen.getByLabelText(/label/i) as HTMLInputElement).value).toBe("Home");
+        });
+
+        /**
+         * Latitude and longitude drive nearest-branch routing, the radius check and the ETA, and
+         * the row may already be attached to an order a courier is running. The pencil says the
+         * pin is fixed rather than offering to move it.
+         */
+        it("replaces the pin capture with a note that the pin stays put", () => {
+            mockGeolocation(() => undefined);
+            renderEditor();
+
+            expect(screen.queryByRole("button", { name: /use my current location/i })).toBeNull();
+            expect(screen.getByText(/pin stays where it is/i)).toBeTruthy();
+        });
+
+        it("sends only text, and only to the address being edited", () => {
+            mockGeolocation(() => undefined);
+            const { onUpdate } = renderEditor();
+
+            fireEvent.change(screen.getByLabelText(/building/i), { target: { value: "14" } });
+            fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+            expect(onUpdate).toHaveBeenCalledWith("a1", {
+                label: "Home", block: "338", road: "3801", building: "14", flat: "4",
+                note: "gate code 1234",
+            });
+        });
+
+        /** An edit already has a pin, so nothing gates the button but the request in flight. */
+        it("enables save immediately, with no pin capture needed", () => {
+            mockGeolocation(() => undefined);
+            renderEditor();
+
+            const button = screen.getByRole("button", { name: /save changes/i }) as HTMLButtonElement;
+            expect(button.disabled).toBe(false);
+        });
+
+        /** Clearing a field must clear the column, not leave the old value in place. */
+        it("sends null for a field the customer emptied", () => {
+            mockGeolocation(() => undefined);
+            const { onUpdate } = renderEditor();
+
+            fireEvent.change(screen.getByLabelText(/delivery note/i), { target: { value: "  " } });
+            fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+            expect(onUpdate).toHaveBeenCalledWith("a1", expect.objectContaining({ note: null }));
+        });
     });
 
     /** Empty optional fields must go as null, not "", so the DB holds no blank strings. */

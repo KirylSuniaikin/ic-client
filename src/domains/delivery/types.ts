@@ -30,6 +30,27 @@ export type CreateCustomerAddressRequest = {
 };
 
 /**
+ * Mirrors backend `UpdateCustomerAddressTO` — the body of `PATCH /customer/addresses/{id}`.
+ *
+ * Text only, and deliberately so: `latitude`/`longitude` are absent because the pin drives
+ * nearest-branch routing, the radius check and the ETA, and a saved address is referenced by
+ * orders that may already be out for delivery. Moving it would retarget a live run and could turn
+ * an in-range address out of range after the availability gate has passed. Moving a pin is "add a
+ * new address" instead — which re-runs the gate.
+ *
+ * Every field is sent on every edit (the form has them all), so `null` clears the column rather
+ * than meaning "unchanged".
+ */
+export type UpdateCustomerAddressRequest = {
+    label: string | null;
+    block: string | null;
+    road: string | null;
+    building: string | null;
+    flat: string | null;
+    note: string | null;
+};
+
+/**
  * Why delivery is unavailable (mirrors backend `DeliveryAvailabilityTO.Reason`). The copy differs
  * per reason: `OUTSIDE_RADIUS` is a permanent "not here", `NO_COURIER` is "not right now".
  */

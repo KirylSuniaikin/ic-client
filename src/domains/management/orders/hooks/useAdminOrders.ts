@@ -44,20 +44,45 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // status frames (e.g. a backend-retried "Oven" landing after "Ready") that would move
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
-// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts. "Picked Up"
-// (pickup) and "Out for delivery" (delivery) are the two mutually-exclusive branches out
-// of "Ready", so they share rank 3.
+//
+// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts, which carries
+// the full reasoning. One map covers BOTH fulfilment ladders, because the delivery ladder
+// EXTENDS the pickup one rather than branching away from it:
+//   pickup:   Kitchen Phase → Oven → Ready → Picked Up            (ends here)
+//   delivery: Kitchen Phase → Oven → Ready → Picked Up → Out for delivery
+//             → Delivered | Returned Undelivered
+// On a delivery order "Picked Up" means the COURIER collected the food from the kitchen and
+// the order only THEN goes out (CourierDeliveryService.markPickedUp writes OrderStatus.O),
+// which is also why OrderStatus.CUSTOMER_ACTIVE_EXCLUDED_DELIVERY_LABELS deliberately omits
+// "Picked Up". So the two are NOT mutually-exclusive branches out of "Ready", as the shared
+// rank 3 here used to claim.
+//
+// "Delivered" and "Returned Undelivered" are terminal SIBLINGS — different endings, neither
+// further along than the other — so they share a rank, and the guard below refuses a
+// DIFFERENT status at an equal rank so a late "Delivered" frame cannot overwrite a card that
+// already came back undelivered.
 const STATUS_RANK: Record<string, number> = {
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
     'Picked Up': 3,
-    'Out for delivery': 3,
-    'Delivered': 4,
+    'Out for delivery': 4,
+    'Delivered': 5,
+    'Returned Undelivered': 5,
 };
+
+// The one /topic/{branchId}/delivery-alert type this board acts on: the rider is standing at
+// the pass. Published by DeliveryAlertPublisher.arrivedAtKitchen on the real transition only.
+const COURIER_AT_KITCHEN = 'COURIER_AT_KITCHEN';
 
 function normalizeId(x: unknown): string {
     return String(x);
+}
+
+// Keeta orders must not auto-print — Keeta's own app already produces a ticket.
+// An explicit staff tap on OrderCard's print button is unaffected by this guard.
+function shouldAutoPrint(order: Order): boolean {
+    return 'Keeta' !== order.order_type;
 }
 
 function getStringId(o: unknown): string {
@@ -151,7 +176,7 @@ export function useAdminOrders(
                         suppressedIdsRef.current = new Set();
                     }
 
-                    if ('Keeta' !== newOrder.order_type) {
+                    if (shouldAutoPrint(newOrder)) {
                         BluetoothPrinterService.printOrder(newOrder)
                             .then(() => logger.debug('🖨️ Auto print success'))
                             .catch(e => logger.warn('⚠️ Auto print error:', e));
@@ -189,9 +214,11 @@ export function useAdminOrders(
                         body: JSON.stringify({ orderId: updatedOrder.id }),
                     });
 
-                    BluetoothPrinterService.printOrder(updatedOrder)
-                        .then(() => logger.debug('🖨️ Auto print success'))
-                        .catch(e => logger.warn('⚠️ Auto print error:', e));
+                    if (shouldAutoPrint(updatedOrder)) {
+                        BluetoothPrinterService.printOrder(updatedOrder)
+                            .then(() => logger.debug('🖨️ Auto print success'))
+                            .catch(e => logger.warn('⚠️ Auto print error:', e));
+                    }
 
                     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
 
@@ -280,9 +307,16 @@ export function useAdminOrders(
                                 // Forward-only guard: ignore a stale/out-of-order frame that
                                 // would move the status backward (e.g. a retried "Oven" landing
                                 // after "Ready"). Unknown statuses fall through and are applied.
+                                // Recomputed from o.status every frame — nothing is remembered
+                                // across frames, so an unknown status cannot poison later ones.
                                 const currentRank = STATUS_RANK[o.status as string] ?? -1;
                                 const incomingRank = STATUS_RANK[status as string] ?? Number.MAX_SAFE_INTEGER;
                                 if (incomingRank < currentRank) return o;
+                                // Equal rank only ever happens between the terminal siblings
+                                // "Delivered" and "Returned Undelivered": a different status at
+                                // the same rank is a different ending, never forward progress.
+                                // Duplicate frames of the SAME status still pass, as before.
+                                if (incomingRank === currentRank && status !== o.status) return o;
                                 return { ...o, status: status as Order['status'] };
                             })
                         );
@@ -292,6 +326,32 @@ export function useAdminOrders(
                         destination: '/app/orders/ack',
                         body: JSON.stringify({ orderId: orderId }),
                     });
+                })
+            );
+
+            subscriptions.push(
+                socket.subscribe(`/topic/${branchId}/delivery-alert`, (frame) => {
+                    const payload = JSON.parse(frame.body) as { type?: string; orderId?: unknown };
+                    // The branch delivery channel is a discriminated union: NO_COURIER_AVAILABLE,
+                    // PICKUP_OVERDUE and GEOFENCE_WARNING land here too and are the dispatcher's
+                    // business, not the kitchen's. Anything but the one type is dropped, so the
+                    // channel can grow further without this board reacting to it.
+                    if (payload.type !== COURIER_AT_KITCHEN) return;
+                    const arrivedOrderId = getStringId(payload?.orderId ?? payload);
+
+                    // Patches the same fact ActiveOrdersTO already reports rather than adding a
+                    // second one, so a REST re-hydrate and a live frame can never disagree. It is
+                    // monotonic — the server only ever stamps courierAtKitchenAt, never clears it
+                    // — so a duplicate or late frame is idempotent and needs no rank guard.
+                    setOrders(prev =>
+                        prev.map(o =>
+                            getStringId(o) === arrivedOrderId ? { ...o, courier_at_kitchen: true } : o
+                        )
+                    );
+
+                    // Deliberately NOT acked. This topic has no OrderEvents retry behind it, and
+                    // that ACK map is keyed by orderId ALONE — an ack published from here would
+                    // cancel a genuinely pending order push for the same order.
                 })
             );
 

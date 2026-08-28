@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 import { BASE_URL } from "./client";
-import { getDeliveryAvailability, listAddresses, createAddress } from "./delivery";
+import { getDeliveryAvailability, listAddresses, createAddress, updateAddress } from "./delivery";
 import { DeliveryApiError } from "../../domains/delivery/types";
 
 beforeAll(() => {
@@ -108,5 +108,48 @@ describe("createAddress", () => {
         expect(body.block).toBe("338");
         // The owner is taken from the token server-side; sending one would be a red flag.
         expect(body.accountId).toBeUndefined();
+    });
+
+    /**
+     * The server deduplicates: a re-save of the same doorstep comes back 200 with the address the
+     * customer already had, not 201. Both are successes carrying an address, so this must not
+     * treat the 200 as anything special.
+     */
+    it("returns the existing address when the server deduplicates a re-save", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ id: "already-saved" }, 200));
+
+        await expect(createAddress("tok-1", {
+            label: null, block: null, road: null, building: null, flat: null, note: null,
+            latitude: 26.2285, longitude: 50.586,
+        })).resolves.toMatchObject({ id: "already-saved" });
+    });
+});
+
+describe("updateAddress", () => {
+    it("patches only the text of one address", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ id: "a1" }, 200));
+
+        await updateAddress("tok-1", "a1", {
+            label: "Mum's", block: "338", road: "3801", building: "14", flat: null, note: null,
+        });
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("/customer/addresses/a1");
+        expect(init.method).toBe("PATCH");
+        const body = JSON.parse(init.body as string);
+        expect(body.building).toBe("14");
+        // The pin drives routing, the radius check and the ETA, and an order may already be out
+        // against this row — the edit endpoint must not be able to move it.
+        expect(body.latitude).toBeUndefined();
+        expect(body.longitude).toBeUndefined();
+    });
+
+    /** 409 = the edit would collide with another saved address. Callers surface it inline. */
+    it("surfaces the status on a conflict", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ message: "You already have this address saved" }, 409));
+
+        await expect(updateAddress("tok-1", "a1", {
+            label: null, block: null, road: null, building: null, flat: "4", note: null,
+        })).rejects.toMatchObject({ status: 409, message: "You already have this address saved" });
     });
 });

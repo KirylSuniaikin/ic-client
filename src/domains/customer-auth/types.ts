@@ -101,6 +101,20 @@ export type CustomerActiveOrder = {
     branchName: string;
     /** "Delivery" or the pickup type — the two have different endings, see useActiveOrderIsland. */
     type: string;
+    /**
+     * Delivery only, and OMITTED (not null) on a pickup order — the backend annotates both
+     * fields `@JsonInclude(NON_NULL)` so a pickup payload is byte-for-byte what it always was.
+     *
+     * `handoverAt` is when the ride started (or is predicted to start); `estimatedDeliveredAt`
+     * is when the courier is expected at the door. Absent means "not knowable yet" — no courier
+     * assigned, or a branch/address without coordinates — never "now" and never zero. The pill
+     * degrades to motion-without-a-quantity rather than guessing (see computeRideProgress).
+     *
+     * Naive Bahrain-local timestamps, same as every other delivery timing; parse with
+     * toEpochMsBahrain / formatBahrainClock, never `new Date(s)`.
+     */
+    handoverAt?: string;
+    estimatedDeliveredAt?: string;
 };
 
 // GET /customer/review-prompt — the post-order Google review ask. A 204 (nothing

@@ -63,6 +63,7 @@ export default function CashPopup({isOpen, onClose, stage, branchId, onCashWarni
             anchor="bottom"
             open={isOpen}
             onClose={onClose}
+            sx={{ zIndex: 1350 }}
             PaperProps={{
                 sx: {
                     borderTopLeftRadius: 16,

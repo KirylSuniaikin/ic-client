@@ -10,7 +10,10 @@ import { AssignCourierDialog } from './AssignCourierDialog';
 import { DeliveryBoardPanel } from './DeliveryBoardPanel';
 import { DispatcherOrderActionDialog } from './DispatcherOrderActionDialog';
 import type { DispatcherOrderAction } from './DispatcherOrderActionDialog';
+import { OrderRouteMap } from './OrderRouteMap';
 import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
+import { GOOGLE_MAPS_API_KEY } from '../../../branch/utils/mapsConfig';
+import { formatBahrainClock } from '../../../../shared/utils/timeUtils';
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from '../types';
 import {
     BRAND_RED as brandRed, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState, PANEL_CARD_SX,
@@ -24,10 +27,12 @@ import {
  * out an all-couriers-at-once map: a live view of every rider is noise, not information.
  *
  * ── On the route map ─────────────────────────────────────────────────────────────────────────
- * §4 specifies **Mapbox** for the manager side (client side stays Google). The Mapbox token is
- * still an open external input (§10), so the GPS trail renders as an ordered point list for now.
- * The backend already serves every point plus the customer's pin as `destination`, so dropping a
- * map in over the same data is additive — nothing else on this screen changes.
+ * §4 named **Mapbox** for the manager side, and that token was never issued (§10) — so the GPS
+ * trail printed as a list of raw coordinates, which no manager reconstructs a route from. It is
+ * now drawn by {@link OrderRouteMap} on the Google loader this frontend already runs for the
+ * branch picker and reverse geocoding, so it needed no new dependency and no new external input.
+ * The coordinate list survives underneath as the no-key fallback, exactly as BranchListView does
+ * for the branch picker — the drill-down still works with no Maps key configured.
  */
 type View =
     | { level: 'couriers' }
@@ -359,26 +364,35 @@ export function CourierDispatcherPanel(): JSX.Element {
                         </PanelNotice>
                     )}
 
-                    {/* Mapbox goes here once the token exists (§10). Until then the trail is a
-                        list — the data is identical, only the rendering waits. */}
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
                         Route ({route.points.length} points)
                     </Typography>
-                    <Box sx={{ ...PANEL_CARD_SX, maxHeight: 360, overflowY: 'auto' }}>
-                        {route.points.length === 0 && (
-                            <EmptyState>No GPS samples recorded for this order.</EmptyState>
-                        )}
-                        {route.points.map((point, index) => (
-                            <Box key={index} sx={ROW_SX}>
-                                <Typography variant="body2" sx={{ flex: 1, color: '#3b352c' }}>
-                                    {point.recordedAt ?? '—'}
-                                </Typography>
-                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
-                                    {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
-                                </Typography>
-                            </Box>
-                        ))}
-                    </Box>
+                    {/* No key configured means no map at all — the list is the fallback, not a
+                        degraded mode, so the drill-down keeps working either way. */}
+                    {GOOGLE_MAPS_API_KEY ? (
+                        <OrderRouteMap route={route} />
+                    ) : (
+                        <Box sx={{ ...PANEL_CARD_SX, maxHeight: 360, overflowY: 'auto' }}>
+                            {route.points.length === 0 && (
+                                <EmptyState>No GPS samples recorded for this order.</EmptyState>
+                            )}
+                            {route.points.map((point, index) => (
+                                <Box key={index} sx={ROW_SX}>
+                                    {/* recordedAt is a UTC instant with a `Z`, unlike the naive
+                                        Bahrain-local stamps elsewhere in delivery. formatBahrainClock
+                                        parses through toEpochMsBahrain, which detects that offset
+                                        instead of appending one, so the time is not shifted by three
+                                        hours — and a wall clock beats an ISO string for a human. */}
+                                    <Typography variant="body2" sx={{ flex: 1, color: '#3b352c' }}>
+                                        {formatBahrainClock(point.recordedAt) ?? '—'}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
+                                        {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </Box>
+                    )}
                 </>
             )}
         </Box>

@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { StompSubscription, StompHeaders } from "@stomp/stompjs";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/socket.ts
@@ -24,6 +24,7 @@ const ORDER: OrderStatusData = {
     orderCreated: "2026-01-01T12:00:00",
     estimationTime: 30,
     branchId: "branch-test",
+    orderType: "Pick Up",
 };
 
 // Builds a minimal StompSubscription whose unsubscribe method can be spied on.
@@ -87,5 +88,61 @@ describe("useOrderStatus — subscription lifecycle", () => {
         unmount();
 
         expect(mockSub.unsubscribe).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+/**
+ * A status frame carries only the status string. The delivery timings arrive with the REST
+ * payload, and "Out for delivery" is the first moment handoverAt exists at all — so applying the
+ * frame without re-reading REST would leave the ride's arrival time permanently unknown.
+ */
+describe("useOrderStatus — resync after a status frame", () => {
+    beforeEach(() => {
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockReturnValue(makeSub());
+        mockGetOrderStatus.mockResolvedValue(ORDER);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("re-reads the order so a delivery status change picks up its new timings", async () => {
+        const riding: OrderStatusData = {
+            ...ORDER,
+            orderType: "Delivery",
+            orderStatus: "Out for delivery",
+            handoverAt: "2026-07-01T12:25:00",
+            estimatedDeliveredAt: "2026-07-01T12:47:00",
+        };
+        const { result } = renderHook(() => useOrderStatus("1"));
+        await waitFor(() => expect(result.current.order).not.toBeNull());
+
+        mockGetOrderStatus.mockResolvedValue(riding);
+        const [, onFrame] = mockSubscribe.mock.calls[0] as [string, (f: { body: string }) => void];
+        await act(async () => {
+            onFrame({ body: JSON.stringify({ id: 1, status: "Out for delivery" }) });
+        });
+
+        await waitFor(() => expect(result.current.order?.estimatedDeliveredAt).toBe("2026-07-01T12:47:00"));
+        expect(result.current.order?.orderStatus).toBe("Out for delivery");
+    });
+
+    it("ignores a frame for a different order", async () => {
+        const { result } = renderHook(() => useOrderStatus("1"));
+        await waitFor(() => expect(result.current.order).not.toBeNull());
+        mockGetOrderStatus.mockClear();
+
+        const [, onFrame] = mockSubscribe.mock.calls[0] as [string, (f: { body: string }) => void];
+        await act(async () => {
+            onFrame({ body: JSON.stringify({ id: 999, status: "Ready" }) });
+        });
+
+        expect(result.current.order?.orderStatus).toBe("PENDING");
+        expect(mockGetOrderStatus).not.toHaveBeenCalled();
     });
 });

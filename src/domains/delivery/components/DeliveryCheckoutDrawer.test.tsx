@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { DeliveryCheckoutDrawer } from "./DeliveryCheckoutDrawer";
-import { getDeliveryAvailability, listAddresses } from "../../../shared/api/delivery";
+import { createAddress, getDeliveryAvailability, listAddresses, updateAddress } from "../../../shared/api/delivery";
 import type { CustomerAddress } from "../types";
 import type { CartItem } from "../../menu/types";
 
@@ -19,6 +19,8 @@ beforeAll(() => {
 
 const mockList = jest.mocked(listAddresses);
 const mockGate = jest.mocked(getDeliveryAvailability);
+const mockCreate = jest.mocked(createAddress);
+const mockUpdate = jest.mocked(updateAddress);
 
 const ADDRESS: CustomerAddress = {
     id: "a1", label: "Home", block: "338", road: "3801", building: "12", flat: null,
@@ -33,6 +35,8 @@ const ITEMS = [{ name: "Pepperoni", quantity: 2, amount: 3.9 } as unknown as Car
 beforeEach(() => {
     mockList.mockReset();
     mockGate.mockReset();
+    mockCreate.mockReset();
+    mockUpdate.mockReset();
     mockList.mockResolvedValue([ADDRESS]);
     mockGate.mockResolvedValue(AVAILABLE);
 });
@@ -154,5 +158,100 @@ describe("DeliveryCheckoutDrawer", () => {
             const button = screen.getByRole("button", { name: /place order/i }) as HTMLButtonElement;
             expect(button.disabled).toBe(true);
         });
+    });
+
+    describe("editing a saved address (the pencil)", () => {
+        it("opens the editor seeded with that address rather than a blank form", async () => {
+            renderDrawer();
+            await screen.findByText(/Block 338/);
+
+            fireEvent.click(screen.getByRole("button", { name: /edit address/i }));
+
+            expect(await screen.findByRole("button", { name: /save changes/i })).toBeTruthy();
+            expect((screen.getByLabelText(/building/i) as HTMLInputElement).value).toBe("12");
+        });
+
+        /**
+         * The pin drives nearest-branch routing, the radius check and the ETA, and this row may
+         * already be attached to an order a courier is running. The pencil must not offer to move
+         * it, and the PATCH must not carry one.
+         */
+        it("does not offer to move the pin, and sends text only", async () => {
+            mockUpdate.mockResolvedValue({ ...ADDRESS, building: "14" });
+            renderDrawer();
+            await screen.findByText(/Block 338/);
+
+            fireEvent.click(screen.getByRole("button", { name: /edit address/i }));
+            await screen.findByRole("button", { name: /save changes/i });
+
+            expect(screen.queryByRole("button", { name: /use my current location/i })).toBeNull();
+            expect(screen.queryByRole("button", { name: /update location/i })).toBeNull();
+
+            fireEvent.change(screen.getByLabelText(/building/i), { target: { value: "14" } });
+            fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+            await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+            const [, addressId, body] = mockUpdate.mock.calls[0];
+            expect(addressId).toBe("a1");
+            expect(body).toEqual({
+                label: "Home", block: "338", road: "3801", building: "14", flat: null, note: null,
+            });
+            expect(body).not.toHaveProperty("latitude");
+            expect(body).not.toHaveProperty("longitude");
+        });
+
+        it("shows the corrected text in the list once the edit lands", async () => {
+            mockUpdate.mockResolvedValue({ ...ADDRESS, building: "14" });
+            renderDrawer();
+            await screen.findByText(/Block 338/);
+
+            fireEvent.click(screen.getByRole("button", { name: /edit address/i }));
+            await screen.findByRole("button", { name: /save changes/i });
+            fireEvent.change(screen.getByLabelText(/building/i), { target: { value: "14" } });
+            fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+            expect(await screen.findByText(/Building 14/)).toBeTruthy();
+        });
+
+        // Reaching for the pencil is not a choice of where to deliver.
+        it("does not change the selection when the pencil is clicked", async () => {
+            const second: CustomerAddress = { ...ADDRESS, id: "a2", label: "Office", building: "99" };
+            mockList.mockResolvedValue([ADDRESS, second]);
+            renderDrawer();
+            await screen.findByText(/Building 99/);
+
+            fireEvent.click(screen.getAllByRole("button", { name: /edit address/i })[1]);
+            await screen.findByRole("button", { name: /save changes/i });
+
+            // Seeded from the row whose pencil was clicked, not from the selected one.
+            expect((screen.getByLabelText(/building/i) as HTMLInputElement).value).toBe("99");
+        });
+    });
+
+    /**
+     * The server folds a re-save of the same doorstep onto the existing row and returns it. The
+     * customer must end up on that address — not looking at a duplicate, and not at an error.
+     */
+    it("selects the existing address when a save is deduplicated server-side", async () => {
+        mockCreate.mockResolvedValue(ADDRESS);
+        renderDrawer();
+        await screen.findByText(/Block 338/);
+
+        fireEvent.click(screen.getByRole("button", { name: /add a new address/i }));
+        // The picker seeds no pin, so drive the save through the location capture it requires.
+        Object.defineProperty(global.navigator, "geolocation", {
+            value: { getCurrentPosition: (ok: (p: { coords: { latitude: number; longitude: number } }) => void) =>
+                    ok({ coords: { latitude: 26.2286, longitude: 50.586 } }) },
+            configurable: true,
+        });
+        fireEvent.click(await screen.findByRole("button", { name: /use my current location/i }));
+        await waitFor(() => expect(
+            (screen.getByRole("button", { name: /save address/i }) as HTMLButtonElement).disabled
+        ).toBe(false));
+        fireEvent.click(screen.getByRole("button", { name: /save address/i }));
+
+        await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+        // One row, not two: the returned address was already in the list.
+        expect(await screen.findAllByText(/Block 338/)).toHaveLength(1);
     });
 });
