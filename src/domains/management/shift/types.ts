@@ -90,3 +90,37 @@ export type MonthlyShiftReport = {
     branchNo: number;
     summaries: StaffShiftSummary[];
 };
+
+// ── Salary slip ──────────────────────────────────────────────────────────────
+// The slip is confirmed in a popup before it downloads: GET .../salary_slip/preview returns these
+// defaults, the owner checks and may correct any of them, and POST .../salary_slip renders exactly
+// what was confirmed. Edits are PRINT-ONLY -- nothing is written back to the employee's record.
+
+export type SalarySlipDeduction = {
+    description: string;
+    amount: number | null;
+};
+
+export type SalarySlipForm = {
+    employeeName: string;
+    position: string;
+    cprNumber: string | null;
+    payPeriodLabel: string;
+    paymentDate: string;              // "YYYY-MM-DD"
+    basicSalary: number | null;
+    housingAllowance: number | null;
+    transportAllowance: number | null;
+    // Printed in the overtime row's label, e.g. "Overtime (20.96 hrs @ 1.000/hr)".
+    overtimeHours: number | null;
+    overtimeRate: number | null;
+    overtimeAmount: number | null;
+    deductions: SalarySlipDeduction[];
+    // Totals travel with the form rather than being recomputed server-side: the owner may
+    // override them. The popup recalculates them live and flags any mismatch against the rows, so
+    // an override is always deliberate.
+    grossEarnings: number | null;
+    totalDeductions: number | null;
+    netPay: number | null;
+    amountInWords: string;
+    notes: string[];
+};

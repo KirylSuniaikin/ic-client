@@ -27,6 +27,7 @@ import LockResetIcon from "@mui/icons-material/LockReset";
 import BlockIcon from "@mui/icons-material/Block";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
@@ -45,6 +46,7 @@ import HireStaffDrawer from "./HireStaffDrawer";
 import ResetPasswordDrawer from "./ResetPasswordDrawer";
 import DeactivateStaffDialog from "./DeactivateStaffDialog";
 import ChangeBranchDrawer from "./ChangeBranchDrawer";
+import EditPayrollDrawer from "./EditPayrollDrawer";
 
 const colorRed = "#E44B4C";
 const pageBg = "#fbfaf6";
@@ -96,11 +98,12 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // non-city role a one-element array, so this is the role gate for free. Same shape as
     // InventoryPage / CashRegisterPopup / HistoryComponent.
     const { branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch } = useBranchScope(branch);
-    const { staff, loading, error, create, resetPassword, setEnabled, changeBranch } = useStaffAccounts(scopedBranch.id);
+    const { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll } = useStaffAccounts(scopedBranch.id);
 
     const [hireOpen, setHireOpen] = useState(false);
     const [resetTarget, setResetTarget] = useState<StaffAdminTO | null>(null);
     const [branchTarget, setBranchTarget] = useState<StaffAdminTO | null>(null);
+    const [payrollTarget, setPayrollTarget] = useState<StaffAdminTO | null>(null);
     const [deactivateTarget, setDeactivateTarget] = useState<StaffAdminTO | null>(null);
     const [togglingId, setTogglingId] = useState<number | null>(null);
     const [showDeactivated, setShowDeactivated] = useState(false);
@@ -171,6 +174,21 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                     <LockResetIcon fontSize="small" />
                 </IconButton>
             </Tooltip>
+            {/* Payroll is redacted server-side for anyone below OWNER (StaffService.toAdminTO),
+                so a non-OWNER viewer would open a form with nothing meaningful to edit. */}
+            {isOwnerViewer && (
+                <Tooltip title="Edit payroll">
+                    <IconButton
+                        size="small"
+                        aria-label="Edit payroll"
+                        onClick={() => setPayrollTarget(s)}
+                        data-testid={`staff-edit-payroll-${s.id}`}
+                        sx={iconButtonSx}
+                    >
+                        <PaymentsOutlinedIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            )}
             {s.enabled ? (
                 <Tooltip title="Deactivate account">
                     <IconButton
@@ -565,6 +583,13 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 target={branchTarget}
                 onClose={() => setBranchTarget(null)}
                 changeBranch={async (id, targetBranchId) => { await changeBranch(id, targetBranchId); }}
+            />
+
+            <EditPayrollDrawer
+                open={payrollTarget !== null}
+                target={payrollTarget}
+                onClose={() => setPayrollTarget(null)}
+                updatePayroll={async (id, payload) => { await updatePayroll(id, payload); }}
             />
 
             <DeactivateStaffDialog

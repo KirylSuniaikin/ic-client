@@ -32,6 +32,10 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         branchId: "branch-1",
         pricePerHour: null,
         enabled: true,
+        cprNumber: null,
+        basicSalary: null,
+        housingAllowance: null,
+        transportAllowance: null,
         ...overrides,
     };
 }

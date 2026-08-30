@@ -228,7 +228,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     )}
                     {mode === "Reports" && <VatReportCard branchId={singleScope.branch.id}/>}
                     {mode === "Pricing" && <ProductsTable/>}
-                    {mode === "Shifts" && <StaffSummaryContent branchId={singleScope.branch.id}/>}
+                    {mode === "Shifts" && <StaffSummaryContent branchId={singleScope.branch.id} role={role}/>}
                 </Box>
             </Box>
         </Box>

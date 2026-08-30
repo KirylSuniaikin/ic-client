@@ -1,3 +1,4 @@
+import type { SalarySlipForm } from '../../domains/management/shift/types';
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 
 // Uses the manual mock at __mocks__/client.ts.
@@ -19,9 +20,13 @@ import {
     getBranchEvents,
     getWorkingHours,
     putWorkingHours,
+    updateStaffPayroll,
+    downloadSalarySlip,
 } from "./management";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
+import type { StaffAdminTO, UpdateStaffPayrollRequest } from "../../domains/management/staff/types";
+import { StaffRoles } from "../../domains/auth/types";
 
 const mockAuthFetch = jest.mocked(authFetch);
 
@@ -564,5 +569,167 @@ describe("putWorkingHours", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
 
         await expect(putWorkingHours(payload)).rejects.toThrow("HTTP 403");
+    });
+});
+
+// ── updateStaffPayroll ────────────────────────────────────────────────────────
+
+describe("updateStaffPayroll", () => {
+    const payload: UpdateStaffPayrollRequest = {
+        cprNumber: "990101123",
+        basicSalary: 240,
+        housingAllowance: 60,
+        transportAllowance: 40,
+    };
+
+    function staffResponse(): StaffAdminTO {
+        return {
+            id: 5,
+            username: "casey.cook",
+            fullName: "Casey Cook",
+            role: StaffRoles.COOK,
+            branchId: "branch-1",
+            pricePerHour: 3,
+            enabled: true,
+            cprNumber: "990101123",
+            basicSalary: 240,
+            housingAllowance: 60,
+            transportAllowance: 40,
+        };
+    }
+
+    it("calls the staff/{id}/payroll endpoint with PATCH and the JSON body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(staffResponse()), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await updateStaffPayroll(5, payload);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("staff/5/payroll");
+        expect(init.method).toBe("PATCH");
+        expect(JSON.parse(init.body as string)).toEqual(payload);
+    });
+
+    it("returns the updated StaffAdminTO on 200", async () => {
+        const response = staffResponse();
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(response), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await updateStaffPayroll(5, payload);
+
+        expect(result).toEqual(response);
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(updateStaffPayroll(5, payload)).rejects.toThrow("HTTP 403");
+    });
+});
+
+// ── downloadSalarySlip ────────────────────────────────────────────────────────
+
+// The confirmed slip body. downloadSalarySlip is a POST now: the popup sends back what the owner
+// checked, so every call carries a form.
+function slipForm(): SalarySlipForm {
+    return {
+        employeeName: "Casey Cook",
+        position: "Cook",
+        cprNumber: "850012345",
+        payPeriodLabel: "July 2026",
+        paymentDate: "2026-07-31",
+        basicSalary: 240,
+        housingAllowance: 40,
+        transportAllowance: null,
+        overtimeHours: 4,
+        overtimeRate: 1.5,
+        overtimeAmount: 6,
+        deductions: [],
+        grossEarnings: 286,
+        totalDeductions: 0,
+        netPay: 286,
+        amountInWords: "Bahraini Dinars Two Hundred Eighty Six Only",
+        notes: ["1. Basic Salary of BD 240.000 paid in full with no deduction."],
+    };
+}
+
+describe("downloadSalarySlip", () => {
+    it("calls the staff/{id}/salary_slip endpoint with the yearMonth query param", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(new Blob(["%PDF-"], { type: "application/pdf" }), { status: 200 })
+        );
+
+        await downloadSalarySlip(5, "2026-07", slipForm());
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("staff/5/salary_slip");
+        expect(url).toContain("yearMonth=2026-07");
+    });
+
+    it("reads the filename from the Content-Disposition header when present", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(new Blob(["%PDF-"], { type: "application/pdf" }), {
+                status: 200,
+                headers: { "Content-Disposition": 'attachment; filename="Salary_Slip_Casey_Cook_Jul2026.pdf"' },
+            })
+        );
+
+        const result = await downloadSalarySlip(5, "2026-07", slipForm());
+
+        expect(result.filename).toBe("Salary_Slip_Casey_Cook_Jul2026.pdf");
+        expect(result.blob).toBeTruthy();
+    });
+
+    it("falls back to a deterministic filename when Content-Disposition is missing", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(new Blob(["%PDF-"], { type: "application/pdf" }), { status: 200 })
+        );
+
+        const result = await downloadSalarySlip(5, "2026-07", slipForm());
+
+        expect(result.filename).toBe("Salary_Slip_2026-07.pdf");
+    });
+
+    it("reads and decodes the RFC 5987 filename* form when present", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(new Blob(["%PDF-"], { type: "application/pdf" }), {
+                status: 200,
+                headers: { "Content-Disposition": "attachment; filename*=UTF-8''Salary_Slip_Casey_Cook_Jul2026.pdf" },
+            })
+        );
+
+        const result = await downloadSalarySlip(5, "2026-07", slipForm());
+
+        expect(result.filename).toBe("Salary_Slip_Casey_Cook_Jul2026.pdf");
+    });
+
+    it("prefers the RFC 5987 filename* form over the plain quoted form when both are present", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(new Blob(["%PDF-"], { type: "application/pdf" }), {
+                status: 200,
+                headers: {
+                    "Content-Disposition":
+                        'attachment; filename="fallback.pdf"; filename*=UTF-8\'\'Salary_Slip_Casey_Cook_Jul2026.pdf',
+                },
+            })
+        );
+
+        const result = await downloadSalarySlip(5, "2026-07", slipForm());
+
+        expect(result.filename).toBe("Salary_Slip_Casey_Cook_Jul2026.pdf");
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+
+        await expect(downloadSalarySlip(5, "2026-07", slipForm())).rejects.toThrow("HTTP 409");
     });
 });

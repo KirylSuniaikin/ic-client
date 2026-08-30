@@ -1,3 +1,4 @@
+import type { SalarySlipForm } from '../../../domains/management/shift/types';
 import { jest } from "@jest/globals";
 import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from "../../../domains/management/inventory/types";
 import type { BlackListCstmr } from "../../../domains/management/blacklist/types";
@@ -12,7 +13,7 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from "../../../domains/management/purchases/types";
-import type { WorkingHoursResponse, WorkingHoursRequest } from '../management';
+import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
@@ -27,7 +28,13 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
-import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../../domains/management/staff/types';
+import type {
+    CurrentStaffTO,
+    HireStaffRequest,
+    HiredStaffTO,
+    StaffAdminTO,
+    UpdateStaffPayrollRequest
+} from '../../../domains/management/staff/types';
 import type {
     AccountingCategoryTO,
     AccountingReportSummary,
@@ -126,3 +133,8 @@ export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
 export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();
 export const setStaffBranch = jest.fn<Promise<StaffAdminTO>, [number, string]>();
 export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
+
+// Salary slip PDF (Phase F6/F7/F8).
+export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();
+export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string]>();
+export const downloadSalarySlip = jest.fn<Promise<SalarySlipDownload>, [number, string, SalarySlipForm]>();

@@ -43,6 +43,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
     const [password, setPassword] = useState("");
     const [selectedRole, setSelectedRole] = useState<StaffRoles | "">("");
     const [pricePerHourStr, setPricePerHourStr] = useState("");
+    const [cprNumber, setCprNumber] = useState("");
     const [branches, setBranches] = useState<IBranch[]>([]);
     const [branchesLoaded, setBranchesLoaded] = useState(false);
     const [selectedBranchId, setSelectedBranchId] = useState("");
@@ -85,6 +86,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
         setPassword("");
         setSelectedRole("");
         setPricePerHourStr("");
+        setCprNumber("");
         setSelectedBranchId("");
         setBranchesLoaded(false);
         setFormError(null);
@@ -131,6 +133,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
             fullName: fullName.trim(),
             role: selectedRole,
             pricePerHour,
+            cprNumber: cprNumber.trim() === "" ? null : cprNumber.trim(),
             branchId,
         };
 
@@ -231,6 +234,16 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                         inputProps={{ inputMode: "decimal" }}
                         InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
                         sx={{ mb: 2 }}
+                    />
+
+                    <TextField
+                        label="CPR No. (optional)"
+                        fullWidth
+                        value={cprNumber}
+                        onChange={e => setCprNumber(e.target.value)}
+                        inputProps={{ inputMode: "numeric" }}
+                        sx={{ mb: 2 }}
+                        data-testid="hire-staff-cpr"
                     />
 
                     {cityAccess && (

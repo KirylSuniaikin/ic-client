@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { logger } from "../../../../shared/utils/logger";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled } from "../../../../shared/api/management";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffPayroll } from "../../../../shared/api/management";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
 
 export interface UseStaffAccountsResult {
     staff: StaffAdminTO[];
@@ -11,6 +11,7 @@ export interface UseStaffAccountsResult {
     resetPassword: (id: number, password: string) => Promise<void>;
     setEnabled: (id: number, enabled: boolean) => Promise<StaffAdminTO>;
     changeBranch: (id: number, branchId: string) => Promise<StaffAdminTO>;
+    updatePayroll: (id: number, payload: UpdateStaffPayrollRequest) => Promise<StaffAdminTO>;
     refresh: () => void;
 }
 
@@ -59,6 +60,13 @@ export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
             pricePerHour: hired.pricePerHour,
             // A hire is always active; the endpoint has no way to create a disabled account.
             enabled: true,
+            // CPR can be captured at hire time, so it comes back on the response. The salary
+            // figures cannot -- those are OWNER-only and this form is also used by a MANAGER --
+            // so they stay null until the payroll PATCH sets them.
+            cprNumber: hired.cprNumber,
+            basicSalary: null,
+            housingAllowance: null,
+            transportAllowance: null,
         }]);
         return hired;
     }, []);
@@ -90,7 +98,16 @@ export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
         return updated;
     }, [branchId]);
 
+    // Same reconcile-from-the-server-response idiom as setEnabled/changeBranch: the payroll
+    // block is redacted for non-OWNER callers, so writing back the response (rather than the
+    // submitted payload) is also what keeps a non-OWNER caller from ever holding un-redacted data.
+    const updatePayroll = useCallback(async (id: number, payload: UpdateStaffPayrollRequest): Promise<StaffAdminTO> => {
+        const updated = await updateStaffPayroll(id, payload);
+        setStaff(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+        return updated;
+    }, []);
+
     const refresh = useCallback((): void => setRefreshToken(prev => prev + 1), []);
 
-    return { staff, loading, error, create, resetPassword, setEnabled, changeBranch, refresh };
+    return { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll, refresh };
 }

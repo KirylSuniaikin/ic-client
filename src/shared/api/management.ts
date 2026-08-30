@@ -21,6 +21,7 @@ import type {
     EditShiftReportTO,
     MonthlyShiftReport,
     ShiftReportTO,
+    SalarySlipForm,
     StaffOption
 } from '../../domains/management/shift/types';
 import type { VatStatePayload } from '../../domains/management/statistics/types';
@@ -50,7 +51,13 @@ import type {
     TaskCard,
     TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
-import type { CurrentStaffTO, HireStaffRequest, HiredStaffTO, StaffAdminTO } from '../../domains/management/staff/types';
+import type {
+    CurrentStaffTO,
+    HireStaffRequest,
+    HiredStaffTO,
+    StaffAdminTO,
+    UpdateStaffPayrollRequest
+} from '../../domains/management/staff/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -425,6 +432,67 @@ export async function setStaffBranch(id: number, branchId: string): Promise<Staf
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
+}
+
+// OWNER-only; returns the updated row so callers (e.g. the Account Manager roster) can reconcile
+// in place, matching setStaffEnabled/setStaffBranch.
+export async function updateStaffPayroll(id: number, body: UpdateStaffPayrollRequest): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/payroll`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// The generated file name, so the caller can name the downloaded blob without re-deriving it
+// client-side. `Content-Disposition` is only readable cross-origin because SecurityConfig
+// explicitly exposes it (setExposedHeaders) -- fall back to a deterministic name if that header
+// is ever missing (a same-origin deploy, or a CORS regression), so the download never saves
+// under a junk/UUID name.
+export type SalarySlipDownload = {
+    blob: Blob;
+    filename: string;
+};
+
+function parseContentDispositionFilename(contentDisposition: string | null): string | null {
+    if (!contentDisposition) return null;
+    const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+    if (utf8Match) return decodeURIComponent(utf8Match[1]);
+    const quotedMatch = /filename="([^"]+)"/i.exec(contentDisposition);
+    if (quotedMatch) return quotedMatch[1];
+    return null;
+}
+
+export async function getSalarySlipPreview(
+    staffId: number, yearMonth: string,
+): Promise<SalarySlipForm> {
+    const params = new URLSearchParams({yearMonth});
+    const res = await authFetch(BASE_URL + `/staff/${staffId}/salary_slip/preview?${params}`, {
+        method: "GET",
+        headers: {Accept: "application/json"},
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// POST, not GET: the slip is rendered from what the owner confirmed in the popup, not from the
+// database alone. Nothing is persisted by this call.
+export async function downloadSalarySlip(
+    staffId: number, yearMonth: string, form: SalarySlipForm,
+): Promise<SalarySlipDownload> {
+    const params = new URLSearchParams({yearMonth});
+    const res = await authFetch(BASE_URL + `/staff/${staffId}/salary_slip?${params}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(form),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const filename = parseContentDispositionFilename(res.headers.get("Content-Disposition"))
+        ?? `Salary_Slip_${yearMonth}.pdf`;
+    return {blob, filename};
 }
 
 // The caller's own identity. The JWT carries a branchId claim, but it is frozen at login and a

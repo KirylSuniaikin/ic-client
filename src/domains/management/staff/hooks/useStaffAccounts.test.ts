@@ -1,8 +1,8 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled } from "../../../../shared/api/management";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffPayroll } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
 import { useStaffAccounts } from "./useStaffAccounts";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
@@ -13,6 +13,7 @@ const mockHireStaff = jest.mocked(hireStaff);
 const mockResetStaffPassword = jest.mocked(resetStaffPassword);
 const mockSetStaffEnabled = jest.mocked(setStaffEnabled);
 const mockSetStaffBranch = jest.mocked(setStaffBranch);
+const mockUpdateStaffPayroll = jest.mocked(updateStaffPayroll);
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {
@@ -23,6 +24,10 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         branchId: "branch-1",
         pricePerHour: null,
         enabled: true,
+        cprNumber: null,
+        basicSalary: null,
+        housingAllowance: null,
+        transportAllowance: null,
         ...overrides,
     };
 }
@@ -35,6 +40,7 @@ function hireRequest(overrides: Partial<HireStaffRequest> = {}): HireStaffReques
         role: StaffRoles.COOK,
         pricePerHour: 3,
         branchId: "branch-1",
+        cprNumber: null,
         ...overrides,
     };
 }
@@ -47,6 +53,7 @@ function hiredResponse(overrides: Partial<HiredStaffTO> = {}): HiredStaffTO {
         role: StaffRoles.COOK,
         pricePerHour: 3,
         branchId: "branch-1",
+        cprNumber: null,
         ...overrides,
     };
 }
@@ -102,7 +109,11 @@ describe("useStaffAccounts", () => {
         expect(mockHireStaff).toHaveBeenCalledWith(request);
         expect(result.current.staff).toEqual([
             makeStaff(),
-            { id: 2, username: "new.cook", fullName: "New Cook", role: StaffRoles.COOK, branchId: "branch-1", pricePerHour: 3, enabled: true },
+            {
+                id: 2, username: "new.cook", fullName: "New Cook", role: StaffRoles.COOK, branchId: "branch-1",
+                pricePerHour: 3, enabled: true,
+                cprNumber: null, basicSalary: null, housingAllowance: null, transportAllowance: null,
+            },
         ]);
     });
 
@@ -233,5 +244,58 @@ describe("useStaffAccounts", () => {
         })).rejects.toThrow("Response: 403");
 
         expect(result.current.staff).toEqual([makeStaff()]);
+    });
+
+    it("updatePayroll() replaces the row with the one the server returned", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff(), makeStaff({ id: 2, username: "sam" })]);
+        mockUpdateStaffPayroll.mockResolvedValue(makeStaff({ cprNumber: "830101234", basicSalary: 240 }));
+
+        const { result } = renderHook(() => useStaffAccounts());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        const untouchedSibling = result.current.staff[1];
+
+        const payload: UpdateStaffPayrollRequest = {
+            cprNumber: "830101234",
+            basicSalary: 240,
+            housingAllowance: null,
+            transportAllowance: null,
+        };
+        await act(async () => {
+            await result.current.updatePayroll(1, payload);
+        });
+
+        expect(mockUpdateStaffPayroll).toHaveBeenCalledWith(1, payload);
+        expect(result.current.staff).toEqual([
+            makeStaff({ cprNumber: "830101234", basicSalary: 240 }),
+            makeStaff({ id: 2, username: "sam" }),
+        ]);
+        // Identity-preserving patch: the sibling row that was not targeted keeps the exact same
+        // object reference, which is what lets a memoized row skip re-rendering.
+        const sibling = result.current.staff[1];
+        expect(sibling).toBe(untouchedSibling);
+    });
+
+    it("updatePayroll() leaves the row untouched when the request is rejected", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
+        mockUpdateStaffPayroll.mockRejectedValue(new Error("Response: 403"));
+
+        const { result } = renderHook(() => useStaffAccounts());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        const beforeRow = result.current.staff[0];
+
+        await expect(act(async () => {
+            await result.current.updatePayroll(1, {
+                cprNumber: null,
+                basicSalary: null,
+                housingAllowance: null,
+                transportAllowance: null,
+            });
+        })).rejects.toThrow("Response: 403");
+
+        expect(result.current.staff).toEqual([makeStaff()]);
+        // A rejected write must never touch local state at all, not even by allocating a new
+        // (equal-by-value) array or row.
+        expect(result.current.staff[0]).toBe(beforeRow);
     });
 });

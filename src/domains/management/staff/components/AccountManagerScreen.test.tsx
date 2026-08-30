@@ -3,7 +3,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { UseStaffAccountsResult } from "../hooks/useStaffAccounts";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO } from "../types";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
 
 // The staff auth context decodes a JWT out of storage on mount; the screen reads `userId`
 // (for the self-guard on the row actions), so stub the hook rather than standing up a real
@@ -66,6 +66,14 @@ jest.mock("./ChangeBranchDrawer", () => ({
     default: mockChangeBranchDrawer,
 }));
 
+function mockEditPayrollDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null; onClose: () => void; updatePayroll: unknown }): JSX.Element {
+    return <div data-testid="edit-payroll-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
+}
+jest.mock("./EditPayrollDrawer", () => ({
+    __esModule: true,
+    default: mockEditPayrollDrawer,
+}));
+
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
 import AccountManagerScreen from "./AccountManagerScreen";
 
@@ -80,6 +88,10 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         branchId: "branch-1",
         pricePerHour: null,
         enabled: true,
+        cprNumber: null,
+        basicSalary: null,
+        housingAllowance: null,
+        transportAllowance: null,
         ...overrides,
     };
 }
@@ -93,6 +105,7 @@ function staffAccountsValue(overrides: Partial<UseStaffAccountsResult> = {}): Us
         resetPassword: jest.fn<Promise<void>, [number, string]>(),
         setEnabled: jest.fn<Promise<StaffAdminTO>, [number, boolean]>(),
         changeBranch: jest.fn<Promise<StaffAdminTO>, [number, string]>(),
+        updatePayroll: jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>(),
         refresh: jest.fn<void, []>(),
         ...overrides,
     };
@@ -275,6 +288,41 @@ describe("AccountManagerScreen", () => {
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-change-branch-9")).toBeNull();
+    });
+
+    // Payroll is redacted server-side for anyone below OWNER, so the edit action is gated on the
+    // viewer's role in addition to the usual administrable-row check.
+    it("opens the edit-payroll drawer for the chosen row when the viewer is an OWNER", () => {
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 10 })] }));
+
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
+
+        expect(screen.getByTestId("edit-payroll-drawer-stub").getAttribute("data-open")).toBe("false");
+
+        fireEvent.click(screen.getByTestId("staff-edit-payroll-10"));
+
+        const stub = screen.getByTestId("edit-payroll-drawer-stub");
+        expect(stub.getAttribute("data-open")).toBe("true");
+        expect(stub.getAttribute("data-target")).toBe("10");
+    });
+
+    it("offers no edit-payroll action for a non-OWNER viewer", () => {
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 11 })] }));
+
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+        expect(screen.queryByTestId("staff-edit-payroll-11")).toBeNull();
+    });
+
+    it("offers no edit-payroll action on the OWNER viewer's own row", () => {
+        mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 12 });
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+            staff: [makeStaff({ id: 12, role: StaffRoles.OWNER })],
+        }));
+
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
+
+        expect(screen.queryByTestId("staff-edit-payroll-12")).toBeNull();
     });
 
     // Reactivation is not destructive, so it must NOT go through the dialog.
