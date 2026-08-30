@@ -9,9 +9,9 @@
   "comingSoon": "قريباً",
   "paymentTitle": "طريقة الدفع",
   "payment": {
-    "cash": "نقداً",
-    "card": "بطاقة",
-    "benefit": "بنفت"
+    "atCounter": "الدفع عند الاستلام",
+    "benefit": "بنفت (عبر الإنترنت)",
+    "benefitPay": "بنفت باي"
   },
   "extras": {
     "thinDough": "عجينة رقيقة",

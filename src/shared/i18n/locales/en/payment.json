@@ -6,7 +6,8 @@
   "approved": {
     "title": "Thank you",
     "subtitle": "Your payment was approved",
-    "orderNumber": "Order number"
+    "orderNumber": "Order number",
+    "returningIn": "Back to the menu in {{seconds}}s"
   },
   "declined": {
     "title": "Payment didn't go through",
@@ -30,5 +31,10 @@
   "action": {
     "tryAgain": "Try again",
     "backToMenu": "Back to menu"
+  },
+  "wallet": {
+    "title": "Pay with BenefitPay",
+    "instruction": "Scan this code with the BenefitPay app on your phone.",
+    "close": "Close"
   }
 }

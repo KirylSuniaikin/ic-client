@@ -6,6 +6,7 @@ import { DeliveryApiError } from '../../domains/delivery/types';
 import type {
     CourierBoardRow,
     CourierOrderSummary,
+    CourierPeriodStats,
     CourierStats,
     DeliveryCard,
     OrderRoute,
@@ -40,6 +41,45 @@ export async function fetchCourierOrders(courierId: string): Promise<CourierOrde
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
+}
+
+/**
+ * One rider's numbers over a window. `from`/`to` are inclusive Bahrain dates, `yyyy-MM-dd`.
+ *
+ * Named `from`/`to` and not the statistics page's `start_date`/`finish_date`: this is a
+ * dispatcher endpoint, not part of that page's fetch shape. Both are optional server-side
+ * (omitting them gives today), but the panel always sends them so the reading on screen and the
+ * dates beside it can never disagree.
+ */
+export async function fetchCourierPeriodStats(
+    courierId: string,
+    from: string,
+    to: string
+): Promise<CourierPeriodStats> {
+    const res = await authFetch(`${BASE}/couriers/${courierId}/stats?from=${from}&to=${to}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * The photo the rider took at the door, for the one question it exists to answer: a customer says
+ * the order never arrived and a manager needs to see where it was left.
+ *
+ * Returns the bytes, never a URL: the endpoint is MANAGER-gated and the JWT is attached by
+ * authFetch, so a plain `<img src="/api/...">` would carry no credential and 401 — see
+ * useAuthImageUrl.
+ *
+ * 404 is null, not an error. Retention sweeps the photo after seven days, so "gone" is the
+ * NORMAL state for anything older than a week, and so is an order the rider never photographed.
+ */
+export async function fetchOrderProofPhoto(orderId: number): Promise<Blob | null> {
+    const res = await authFetch(`${BASE}/orders/${orderId}/proof-photo`, { method: 'GET' });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
 }
 
 export async function fetchOrderRoute(orderId: number): Promise<OrderRoute> {

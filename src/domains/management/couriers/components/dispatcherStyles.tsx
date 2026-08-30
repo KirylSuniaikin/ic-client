@@ -27,16 +27,51 @@ export const SECTION_TITLE_SX: SxProps<Theme> = {
     mb: 1.5,
 };
 
-/** Rows read as list items, not spreadsheet cells: no dividers, generous vertical rhythm. */
+/**
+ * Rows read as list items, not spreadsheet cells: no dividers, generous vertical rhythm.
+ *
+ * Below `sm` the row becomes a stacked card, which is the layout {@link DeliveryBoardPanel}
+ * already gives its own cards at every width. It was a fixed single-line flex, so on a phone the
+ * name column was the only thing that could give: it truncated while a nowrap stats string held
+ * its full width. Stacking lets the row grow downwards instead, which is the direction there is
+ * room in — and the extra `py` at `xs` is deliberate, because these are touch targets on a
+ * handset, not table rows under a mouse.
+ *
+ * `sm` and up is byte-for-byte the single line it always was.
+ */
 export const ROW_SX: SxProps<Theme> = {
     display: "flex",
-    alignItems: "center",
-    gap: 2,
+    flexDirection: { xs: "column", sm: "row" },
+    alignItems: { xs: "stretch", sm: "center" },
+    gap: { xs: 1, sm: 2 },
     px: 2,
-    py: 1.75,
+    py: { xs: 2.25, sm: 1.75 },
     borderBottom: "1px solid #f6f1ec",
     "&:last-of-type": { borderBottom: "none" },
 };
+
+/**
+ * What a pill or a chip needs so `alignItems: stretch` does not pull it edge to edge on a phone.
+ * A status chip stretched across a whole card stops reading as a chip at all.
+ */
+export const CHIP_SELF_SX: SxProps<Theme> = {
+    alignSelf: { xs: "flex-start", sm: "auto" },
+};
+
+/**
+ * A stats string that may wrap on a phone and never on a desktop row. Unconditional nowrap is
+ * what forced the name column to truncate at `xs`; at `sm` it is still what keeps the figures on
+ * one line beside the name.
+ */
+export const STATS_WRAP_SX: SxProps<Theme> = {
+    whiteSpace: { xs: "normal", sm: "nowrap" },
+};
+
+/**
+ * A floor for a panel body, so an empty list does not collapse to nothing beside a full one.
+ * Roughly one row plus its empty state — enough to keep two stretched columns reading as a pair.
+ */
+export const PANEL_MIN_HEIGHT = 160;
 
 export const CLICKABLE_ROW_SX: SxProps<Theme> = {
     ...ROW_SX,

@@ -37,6 +37,8 @@ import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
+import { confirmBenefitPayPayment } from "../shared/api/public";
+import { BenefitPayDialog } from "../domains/payment/components/BenefitPayDialog";
 
 interface HomePageModalsProps {
     cart: UseCartResult;
@@ -484,6 +486,25 @@ export default function HomePageModals({
                     />
                 </>
             )}
+            {/* The wallet QR. Opened by a successful benefitPayCheckout; the customer stays on this
+                 page. Whether the payment succeeded is decided by the server, not by the widget. */}
+            <BenefitPayDialog
+                open={checkout.walletSession != null}
+                session={checkout.walletSession}
+                onFinished={(completed) => {
+                    const reference = checkout.walletSession?.reference ?? null;
+                    checkout.setWalletSession(null);
+                    if (reference != null && completed) {
+                        // Ask our own server what actually happened, then show the result page — the
+                        // widget's callback is advisory and never decides an outcome.
+                        void confirmBenefitPayPayment(reference)
+                            .catch(() => undefined)
+                            .finally(() => window.location.assign(`/payment_result?ref=${reference}`));
+                    }
+                }}
+                onClose={() => checkout.setWalletSession(null)}
+            />
+
         </>
     );
 }

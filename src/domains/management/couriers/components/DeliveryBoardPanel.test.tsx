@@ -5,6 +5,8 @@ import { DeliveryBoardPanel } from "./DeliveryBoardPanel";
 import { fetchBoardCouriers, fetchDeliveryCards } from "../../../../shared/api/dispatcher";
 import type { CourierBoardRow, DeliveryCard } from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
+import { PANEL_MIN_HEIGHT } from "./dispatcherStyles";
+import { emotionRulesFor } from "./emotionRules.testutil";
 
 jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
@@ -294,5 +296,58 @@ describe("DeliveryBoardPanel — live updates", () => {
         render(<DeliveryBoardPanel />);
 
         expect(await screen.findByText(/Response: 403/)).toBeTruthy();
+    });
+});
+
+/**
+ * Admin item 4: the two panels sat at different heights because the row that holds them set
+ * `alignItems: 'flex-start'`. They are meant to be read against each other — the delivery on the
+ * left, the riders who could take it on the right — and two ragged cards beside a gap read as two
+ * unrelated widgets instead of one board.
+ *
+ * Asserted through the CSS emotion actually generated for the nodes (see emotionRules.testutil):
+ * this repo wires no jest-dom matchers, and getComputedStyle returns empty for every emotion class
+ * because the rules are inserted through the CSSOM.
+ */
+describe("DeliveryBoardPanel — the two panels line up", () => {
+    it("stretches both columns rather than letting them start ragged", async () => {
+        mockCards.mockResolvedValue([AT_RISK]);
+        mockCouriers.mockResolvedValue([ELIGIBLE]);
+
+        render(<DeliveryBoardPanel />);
+        const columns = await screen.findByTestId("delivery-board-columns");
+
+        expect(emotionRulesFor(columns)).toContain("align-items:stretch");
+        expect(emotionRulesFor(columns)).not.toContain("align-items:flex-start");
+    });
+
+    /**
+     * The case the floor exists for: an empty list on one side and a populated one on the other.
+     * Without it the empty card collapses to the height of its own one-line empty state and the
+     * board looks broken rather than quiet.
+     */
+    it("gives an empty list a floor instead of letting it collapse", async () => {
+        mockCards.mockResolvedValue([]);
+        mockCouriers.mockResolvedValue([ELIGIBLE, STALE_FIX]);
+
+        render(<DeliveryBoardPanel />);
+        const emptyCard = await screen.findByTestId("live-deliveries-card");
+
+        expect(await screen.findByText("Nothing is out for delivery right now.")).toBeTruthy();
+        expect(emotionRulesFor(emptyCard)).toContain(`min-height:${PANEL_MIN_HEIGHT}px`);
+    });
+
+    // Both cards, not just whichever happens to be shorter today: which one is shorter flips with
+    // the hour, so a floor on one of them is no floor at all.
+    it("floors the courier panel too, and lets each card fill its stretched column", async () => {
+        mockCards.mockResolvedValue([AT_RISK]);
+        mockCouriers.mockResolvedValue([]);
+
+        render(<DeliveryBoardPanel />);
+        const courierCard = await screen.findByTestId("courier-availability-card");
+
+        expect(await screen.findByText("No couriers on the roster.")).toBeTruthy();
+        expect(emotionRulesFor(courierCard)).toContain(`min-height:${PANEL_MIN_HEIGHT}px`);
+        expect(emotionRulesFor(courierCard)).toContain("flex:1");
     });
 });

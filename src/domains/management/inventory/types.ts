@@ -38,6 +38,15 @@ export interface IBranch {
     // branch fetch", and the switch says so instead of guessing a default — showing a delivery
     // branch as disabled (or the reverse) is worse than showing nothing.
     deliveryEnabled?: boolean;
+    // Mirrors BranchTO.deliveryRadiusKm — how far this kitchen currently delivers, the same number
+    // BranchRoutingService applies on every availability check. Recomputed server-side on every
+    // read and stored nowhere, so it is never stale.
+    //
+    // Optional for the same reason deliveryEnabled is: ~20 unrelated branch fixtures have nothing
+    // to do with delivery. `undefined` means "this object did not come from a branch fetch", and
+    // the zone map draws NO circle in that case rather than guessing a radius — a circle in the
+    // wrong place is worse than no circle, because a manager would draw zones against it.
+    deliveryRadiusKm?: number;
 }
 
 export interface IUser {

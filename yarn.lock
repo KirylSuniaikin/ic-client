@@ -2398,6 +2398,13 @@
   dependencies:
     "@types/istanbul-lib-report" "*"
 
+"@types/jquery@^3.5.34":
+  version "3.5.34"
+  resolved "https://registry.npmjs.org/@types/jquery/-/jquery-3.5.34.tgz"
+  integrity sha512-3m3939S3erqmTLJANS/uy0B6V7BorKx7RorcGZVjZ62dF5PAGbKEDZK1CuLtKombJkFA2T1jl8LAIIs7IV6gBQ==
+  dependencies:
+    "@types/sizzle" "*"
+
 "@types/json-schema@*", "@types/json-schema@^7.0.4", "@types/json-schema@^7.0.5", "@types/json-schema@^7.0.8", "@types/json-schema@^7.0.9":
   version "7.0.15"
   resolved "https://registry.npmjs.org/@types/json-schema/-/json-schema-7.0.15.tgz"
@@ -2505,6 +2512,11 @@
     "@types/http-errors" "*"
     "@types/node" "*"
     "@types/send" "*"
+
+"@types/sizzle@*":
+  version "2.3.10"
+  resolved "https://registry.npmjs.org/@types/sizzle/-/sizzle-2.3.10.tgz"
+  integrity sha512-TC0dmN0K8YcWEAEfiPi5gJP14eJe30TTGjkvek3iM/1NdHHsdCA/Td6GvNndMOo/iSnIsZ4HuuhrYPDAmbxzww==
 
 "@types/slice-ansi@^4.0.0":
   version "4.0.0"
@@ -6549,6 +6561,11 @@ jest@^27.4.3:
 
 jiti@^1.21.6:
   version "1.21.7"
+
+jquery@^3.7.1:
+  version "3.7.1"
+  resolved "https://registry.npmjs.org/jquery/-/jquery-3.7.1.tgz"
+  integrity sha512-m4avr8yL8kmFN8psrbFFFmB/If14iN5o9nw/NgnnM+kybDJpRsAynV2BsfpTYrTRysYUdADVD7CkUUizgkpLfg==
 
 "js-tokens@^3.0.0 || ^4.0.0", js-tokens@^4.0.0:
   version "4.0.0"

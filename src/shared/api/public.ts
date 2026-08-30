@@ -3,7 +3,7 @@ import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, reportIfServerError, reportNetw
 import { applyClientPlatform } from './clientPlatform';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type { IBranch } from '../../domains/management/inventory/types';
-import type { BpgPaymentResult, BpgRetryResult } from '../../domains/payment/types';
+import type { BenefitPaySession, BpgCheckoutResult, BpgPaymentResult, BpgRetryResult } from '../../domains/payment/types';
 import type {
     BaseAppInfoResponse,
     Items409Response,
@@ -478,4 +478,102 @@ export async function retryBpgPayment(reference: string): Promise<BpgRetryResult
     }
 
     return JSON.parse(text) as BpgRetryResult;
+}
+
+/**
+ * Creates a PICKUP order that the customer has chosen to pay for online.
+ *
+ * Distinct from `createOrder`: that one puts the order straight in front of the kitchen because
+ * the customer will pay at the counter. This one creates it `Pending Payment`, announced to
+ * nobody, and hands back where to pay. Delivery has its own route, which also resolves an address.
+ */
+export async function bpgCheckout(body: {
+    method: string;
+    order: CreateOrderRequest;
+    returnUrl?: string;
+}): Promise<BpgCheckoutResult> {
+    const url = `${BASE_URL}/payments/bpg/checkout`;
+
+    const headers = new Headers({"Content-Type": "application/json"});
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "POST", headers, body: JSON.stringify(body)});
+    } catch (error) {
+        void reportNetworkError(error, url, "POST");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "POST");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text) as BpgCheckoutResult;
+}
+
+/**
+ * Creates a pickup order to be paid with the BenefitPay wallet, and returns the signed parameters
+ * the widget needs.
+ */
+export async function benefitPayCheckout(order: CreateOrderRequest): Promise<BenefitPaySession> {
+    const url = `${BASE_URL}/payments/benefitpay/checkout`;
+
+    const headers = new Headers({"Content-Type": "application/json"});
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "POST", headers, body: JSON.stringify({order})});
+    } catch (error) {
+        void reportNetworkError(error, url, "POST");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "POST");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+
+    return JSON.parse(text) as BenefitPaySession;
+}
+
+/**
+ * Asks the server to confirm a wallet payment with BenefitPay.
+ *
+ * The widget's own success callback is advisory — the SDK guide is explicit that "successful
+ * operation does not indicate successful payment" — so this is what actually decides the outcome.
+ * Safe to call repeatedly; settlement is idempotent.
+ */
+export async function confirmBenefitPayPayment(reference: string): Promise<string> {
+    const url = `${BASE_URL}/payments/benefitpay/confirm/${encodeURIComponent(reference)}`;
+
+    const headers = new Headers();
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "POST", headers});
+    } catch (error) {
+        void reportNetworkError(error, url, "POST");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "POST");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    return (await response.text()).replace(/"/g, "").trim();
 }

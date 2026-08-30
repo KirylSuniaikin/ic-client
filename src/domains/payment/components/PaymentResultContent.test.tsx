@@ -1,8 +1,8 @@
-import { describe, it, expect, jest } from "@jest/globals";
+import { afterEach, beforeEach, describe, it, expect, jest } from "@jest/globals";
 // This repo does not wire jest-dom to the `expect` exported by @jest/globals — see the comments
 // in DeliverySwitch.test.tsx and AddressPickerDrawer.test.tsx. Presence is asserted with
 // toBeTruthy()/toBeNull() throughout.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 import { PaymentResultContent } from "./PaymentResultContent";
@@ -158,6 +158,93 @@ describe("PaymentResultContent", () => {
 
             expect(screen.getByText("We couldn't confirm your payment")).toBeTruthy();
             expect(screen.queryByText("Payment didn't go through")).toBeNull();
+        });
+    });
+
+    /**
+     * The screen hands a paid customer back to the menu on its own, because from that point the
+     * menu's active-order pill is the live surface and this receipt is finished. Every other
+     * outcome stays put: it is the only screen explaining what happened, and navigating away from
+     * an explanation the customer has not read yet is a trapdoor, not a timer.
+     */
+    describe("the ten-second return to the menu", () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it("says out loud that it is about to leave", () => {
+            renderContent({ result: resultWith("APPROVED") });
+
+            expect(screen.getByText("Back to the menu in 10s")).toBeTruthy();
+        });
+
+        it("counts the seconds down where the customer can see them", () => {
+            renderContent({ result: resultWith("APPROVED") });
+
+            act(() => {
+                jest.advanceTimersByTime(4000);
+            });
+
+            expect(screen.getByText("Back to the menu in 6s")).toBeTruthy();
+        });
+
+        it("returns to the menu once the ten seconds are up", () => {
+            const onBackToMenu = jest.fn();
+            renderContent({ result: resultWith("APPROVED"), onBackToMenu });
+
+            act(() => {
+                jest.advanceTimersByTime(10_000);
+            });
+
+            expect(onBackToMenu).toHaveBeenCalledTimes(1);
+        });
+
+        it("lets the customer leave immediately instead of waiting it out", () => {
+            const onBackToMenu = jest.fn();
+            renderContent({ result: resultWith("APPROVED"), onBackToMenu });
+
+            fireEvent.click(screen.getByText("Back to menu"));
+
+            expect(onBackToMenu).toHaveBeenCalledTimes(1);
+        });
+
+        it("never leaves a declined payment on its own", () => {
+            const onBackToMenu = jest.fn();
+            renderContent({ result: resultWith("DECLINED"), onBackToMenu });
+
+            act(() => {
+                jest.advanceTimersByTime(60_000);
+            });
+
+            expect(onBackToMenu).not.toHaveBeenCalled();
+            expect(screen.getByText("Payment didn't go through")).toBeTruthy();
+        });
+
+        /** Money HAS left the card here; walking the customer away from that is the worst case. */
+        it("never leaves an amount mismatch on its own", () => {
+            const onBackToMenu = jest.fn();
+            renderContent({ result: resultWith("AMOUNT_MISMATCH"), onBackToMenu });
+
+            act(() => {
+                jest.advanceTimersByTime(60_000);
+            });
+
+            expect(onBackToMenu).not.toHaveBeenCalled();
+        });
+
+        it("never leaves an unconfirmed payment on its own", () => {
+            const onBackToMenu = jest.fn();
+            renderContent({ timedOut: true, onBackToMenu });
+
+            act(() => {
+                jest.advanceTimersByTime(60_000);
+            });
+
+            expect(onBackToMenu).not.toHaveBeenCalled();
         });
     });
 });

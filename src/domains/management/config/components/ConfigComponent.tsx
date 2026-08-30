@@ -16,6 +16,7 @@ import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import ScheduleView from "./ScheduleView";
 import DeliverySwitch from "./DeliverySwitch";
+import DeliveryZonesSection from "./DeliveryZonesSection";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 import type {IBranch} from "../../inventory/types";
@@ -54,8 +55,12 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     const [changes, setChanges] = useState<ConfigChange[]>([]);
     const [inventoryBuffer, setInventoryBuffer] = useState<DoughInventory>({S: 0, M: 0, L: 0, Brick: 0});
     const [inventoryDirty, setInventoryDirty] = useState(false);
+    // Owned by DeliveryZonesSection, reported up: the Save button below belongs to the Menu tab
+    // and must stay disabled by zone work, but the branch-switch guard must NOT ignore it -- a
+    // half-drawn polygon is the most expensive thing on this screen to lose.
+    const [zonesDirty, setZonesDirty] = useState(false);
     const isSaveDisabled = changes.length === 0 && !inventoryDirty;
-    const hasUnsavedChanges = changes.length > 0 || inventoryDirty;
+    const hasUnsavedChanges = changes.length > 0 || inventoryDirty || zonesDirty;
     // "Schedule" tab is only available to MANAGER and city-level roles.
     const showScheduleToggle =
         role === StaffRoles.MANAGER || hasCityAccess(role);
@@ -253,6 +258,9 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         setScopedBranch(pendingBranch);
         setChanges([]);
         setInventoryDirty(false);
+        // zonesDirty is not cleared here: DeliveryZonesSection abandons its draft and reloads on
+        // the new branch id, and reports the resulting clean state itself. Clearing it here as
+        // well would race that report and could leave the flag stuck.
         setPendingBranch(null);
     };
 
@@ -349,6 +357,17 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         branchId={scopedBranch.id}
                         deliveryEnabled={scopedBranch.deliveryEnabled}
                     />
+                    {/* Beside the delivery switch, not on Menu: both answer "what is this one
+                        kitchen delivering today", and both need the same MANAGER-and-up roles
+                        that /api/management/delivery/** requires -- which is exactly the audience
+                        this tab is already gated to. */}
+                    <DeliveryZonesSection
+                        branchId={scopedBranch.id}
+                        branchLatitude={scopedBranch.latitude}
+                        branchLongitude={scopedBranch.longitude}
+                        branchRadiusKm={scopedBranch.deliveryRadiusKm ?? null}
+                        onDirtyChange={setZonesDirty}
+                    />
                     <ScheduleView branchId={scopedBranch.id} />
                 </Box>
             ) : (
@@ -433,7 +452,8 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                 </DialogTitle>
                 <DialogContent sx={{ textAlign: "center", pb: 1.5 }}>
                     <Typography fontSize="13px" color="text.secondary">
-                        Switching branches will discard your unsaved menu and dough changes. Continue?
+                        Switching branches will discard your unsaved menu, dough and delivery-zone
+                        changes. Continue?
                     </Typography>
                 </DialogContent>
                 <Divider />

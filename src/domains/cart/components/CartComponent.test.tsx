@@ -8,7 +8,7 @@ import "../../../shared/i18n";
 
 import CartPopup from "./CartComponent";
 import type { CartItem } from "../../menu/types";
-import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
+import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 
 function makeCartItem(): CartItem {
     return {
@@ -62,25 +62,38 @@ describe("CartPopup — payment toggle", () => {
     it("renders the payment options and preselects the passed method (customer)", () => {
         renderCart();
 
-        expect(screen.getByRole("button", { name: "Cash" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Benefit" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Card" }).getAttribute("aria-pressed")).toBe("true");
+        expect(screen.getByRole("button", { name: "At counter" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Benefit (Online)" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "BenefitPay" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "At counter" }).getAttribute("aria-pressed")).toBe("true");
     });
 
+    // The labels changed but the wire values did not: "At counter" still sends the historic
+    // DEFAULT_PAYMENT_METHOD, so the cash-drawer gate, the admin dropdown and past stats are
+    // untouched by the relabel.
     it("calls onPaymentChange with the canonical value when a method is selected", () => {
+        const onPaymentChange = jest.fn<void, [string]>();
+        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
+
+        fireEvent.click(screen.getByRole("button", { name: "At counter" }));
+
+        expect(onPaymentChange).toHaveBeenCalledWith(DEFAULT_PAYMENT_METHOD);
+    });
+
+    it("offers the wallet as its own method, distinct from the hosted card page", () => {
         const onPaymentChange = jest.fn<void, [string]>();
         renderCart({ onPaymentChange });
 
-        fireEvent.click(screen.getByRole("button", { name: "Cash" }));
+        fireEvent.click(screen.getByRole("button", { name: "BenefitPay" }));
 
-        expect(onPaymentChange).toHaveBeenCalledWith("Cash");
+        expect(onPaymentChange).toHaveBeenCalledWith(WALLET_METHOD);
     });
 
     it("hides the payment toggle for admin", () => {
         renderCart({ isAdmin: true });
 
-        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
     });
 });
 
@@ -109,18 +122,18 @@ describe("CartPopup — delivery-type toggle", () => {
         renderCart({ orderType: "Delivery" });
 
         expect(screen.getByRole("button", { name: /delivery/i })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
     });
 
     it("hides both the delivery-type and payment-method toggles on kiosk (always Pickup + Card)", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
         expect(screen.queryByText(/payment method/i)).toBeNull();
     });
 

@@ -7,7 +7,7 @@ import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import type { CourierBoardRow, DeliveryCard, NoOfferReason } from '../types';
 import {
     BRAND_RED as brandRed, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState, PANEL_CARD_SX,
-    PanelNotice, ROW_SX, SECTION_TITLE_SX,
+    PANEL_MIN_HEIGHT, PanelNotice, ROW_SX, SECTION_TITLE_SX,
 } from './dispatcherStyles';
 
 /**
@@ -159,10 +159,20 @@ export function DeliveryBoardPanel(): JSX.Element {
             {error !== null && <PanelNotice tone="error">{error}</PanelNotice>}
             {loading && <CircularProgress size={22} sx={{ mb: 2, color: brandRed }} />}
 
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'flex-start' }}>
-                <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
+            {/* Stretched, not flex-start: the two panels are read against each other — "why is
+                this order still sitting here" on the left, "who could take it" on the right — and
+                two cards of different heights beside a shared gap read as two unrelated widgets.
+                Stretching the COLUMN is not enough on its own, because the card is a child of it,
+                so each column is itself a flex column whose card takes the remaining height. */}
+            <Box
+                data-testid="delivery-board-columns"
+                sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'stretch' }}
+            >
+                <Box sx={{ flex: 1, minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Live deliveries</Typography>
-                    <Box sx={PANEL_CARD_SX}>
+                    {/* The floor goes on BOTH cards, not on "the shorter one": which of the two is
+                        shorter flips with the hour, and a floor on the wrong one is no floor. */}
+                    <Box data-testid="live-deliveries-card" sx={{ ...PANEL_CARD_SX, flex: 1, minHeight: PANEL_MIN_HEIGHT }}>
                         {cards.length === 0 && !loading && (
                             <EmptyState>Nothing is out for delivery right now.</EmptyState>
                         )}
@@ -231,7 +241,7 @@ export function DeliveryBoardPanel(): JSX.Element {
                     </Box>
                 </Box>
 
-                <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
+                <Box sx={{ flex: 1, minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="subtitle1" sx={{ ...SECTION_TITLE_SX, mb: 0.5 }}>
                         {selectedCard === null
                             ? 'Courier availability'
@@ -242,7 +252,7 @@ export function DeliveryBoardPanel(): JSX.Element {
                             ? 'Pick a delivery to see the order the engine would offer it in.'
                             : "The engine's own ranking, and why the rest got no offer."}
                     </Typography>
-                    <Box sx={PANEL_CARD_SX}>
+                    <Box data-testid="courier-availability-card" sx={{ ...PANEL_CARD_SX, flex: 1, minHeight: PANEL_MIN_HEIGHT }}>
                         {rows.length === 0 && !loading && (
                             <EmptyState>No couriers on the roster.</EmptyState>
                         )}

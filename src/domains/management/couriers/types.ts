@@ -28,6 +28,12 @@ export type CourierOrderSummary = {
     travelTimeMinutes: number | null;
     geofenceWarning: boolean | null;
     geofenceDistanceM: number | null;
+    /**
+     * True when the rider was refused for the geofence breach and pushed past it anyway. Only
+     * readable NEXT TO `geofenceWarning`, never instead of it: a warning on its own can be GPS
+     * drift, a warning the rider had to override by hand is a rider making a claim.
+     */
+    geofenceOverridden: boolean | null;
 };
 
 export type CourierRoutePoint = {
@@ -45,8 +51,51 @@ export type OrderRoute = {
     serviceTimeMinutes: number | null;
     geofenceWarning: boolean | null;
     geofenceDistanceM: number | null;
+    /** See CourierOrderSummary — the pair is only readable together. */
+    geofenceOverridden: boolean | null;
     destination: CourierRoutePoint | null;
+    /**
+     * Where the rider actually was when the kitchen handed the order over: the sample closest in
+     * time to `inTransitAt`. Picked by the server, not by the map, so the marker cannot mean one
+     * thing here and another anywhere else the route is drawn. Null when the order was never
+     * handed over, or when no sample was recorded against it.
+     */
+    pickup: CourierRoutePoint | null;
     points: CourierRoutePoint[];
+};
+
+/**
+ * Mirrors backend `CourierPeriodStatsTO`. One rider's numbers over a chosen window — the panel
+ * behind the roster row, and the home of the declined/missed counters that used to sit on the
+ * card itself.
+ *
+ * They moved because lifetime counters answered nothing: "taken" and "done" are equal by
+ * construction whenever every accepted order is delivered, and a lifetime refusal count says
+ * nothing about last week. Every number here is bounded by `from`/`to`, which is what makes any
+ * of them a fact a manager can act on.
+ */
+export type CourierPeriodStats = {
+    courierId: string;
+    /** Inclusive Bahrain dates, `yyyy-MM-dd`, echoed back by the server. */
+    from: string;
+    to: string;
+    /**
+     * Mean `deliveredAt − inTransitAt` — the drive itself, not the wait at the pass. Null, never
+     * zero, when it cannot be derived: zero would read as "instant".
+     */
+    averageDeliveryMinutes: number | null;
+    deliveredCount: number;
+    /** What the rider carried, not what they earned — there is no commission model here. */
+    deliveredTotal: number;
+    /**
+     * Summed over the calendar month containing `from`, NOT over the window: the window defaults
+     * to today, and "hours worked today" is not the number anyone means by a rider's workload.
+     */
+    hoursWorkedThisMonth: number;
+    /** Actively refused — a choice. Never summed with `missed`. */
+    declined: number;
+    /** Lapsed with no answer, which may be a dead phone rather than a decision. */
+    missed: number;
 };
 
 /**

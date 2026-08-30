@@ -4,10 +4,13 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { CourierDispatcherPanel } from "./CourierDispatcherPanel";
 import {
     cancelOrder, fetchBoardCouriers, fetchCouriers, fetchCourierOrders, fetchDeliveryCards,
-    fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
+    fetchOrderProofPhoto, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
 } from "../../../../shared/api/dispatcher";
-import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from "../types";
+import type {
+    CourierBoardRow, CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder,
+} from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
+import { emotionRulesFor } from "./emotionRules.testutil";
 
 jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
@@ -25,6 +28,14 @@ jest.mock("../../../branch/utils/mapsConfig", () => ({
 
 // The map itself is covered by OrderRouteMap.test.tsx against a fake Google loader; here it is a
 // probe, so these tests keep asserting on which of the two renderings the panel chose.
+// The per-courier stats panel has its own suite (CourierPeriodStatsPanel.test.tsx). Stubbed here
+// so these tests keep asserting on the drill-down, not on the panel's own fetch.
+jest.mock("./CourierPeriodStatsPanel", () => ({
+    CourierPeriodStatsPanel: ({ courierId }: { courierId: string }) => (
+        <div data-testid="courier-period-stats">{courierId}</div>
+    ),
+}));
+
 jest.mock("./OrderRouteMap", () => ({
     OrderRouteMap: ({ route }: { route: { points: unknown[] } }) => (
         <div data-testid="order-route-map">{route.points.length}</div>
@@ -50,6 +61,7 @@ const mockCancel = jest.mocked(cancelOrder);
 // these tests keep asserting on the roster and the queue rather than on the board.
 const mockBoardCards = jest.mocked(fetchDeliveryCards);
 const mockBoardCouriers = jest.mocked(fetchBoardCouriers);
+const mockProofPhoto = jest.mocked(fetchOrderProofPhoto);
 
 const COURIER: CourierStats = {
     courierId: "c1", name: "ali", status: "FREE",
@@ -57,9 +69,24 @@ const COURIER: CourierStats = {
     accepted: 5, declined: 2, missed: 1, delivered: 4,
 };
 
+// The engine's own count of what this rider is holding. Deliberately NOT COURIER.accepted minus
+// COURIER.delivered (5 - 4 = 1): a cancelled or returned run has no deliveredAt, so the derived
+// figure climbs permanently, and the two numbers are different here so a test can tell which one
+// the panel used.
+// name is null on purpose: DeliveryBoardPanel is embedded in the couriers view and reads the SAME
+// endpoint, so a board row named "ali" would put that text on screen twice and every findByText
+// for the roster would hit two nodes.
+const BOARD_ROW: CourierBoardRow = {
+    courierId: "c1", name: null, phone: null, status: "FREE", freeAt: null,
+    rank: null, score: null, noOfferReason: null,
+    declinedCount: 2, missedCount: 1, ordersInHand: 3,
+    onShiftSince: null, positionFixedAt: null, positionStaleAfterMinutes: 10,
+};
+
 const ORDER: CourierOrderSummary = {
     orderId: 42, orderNo: 7, status: "Delivered", deliveredAt: "2026-08-08T10:00:00",
     waitTimeMinutes: 3, travelTimeMinutes: 12, geofenceWarning: false, geofenceDistanceM: 20,
+    geofenceOverridden: null,
 };
 
 // Still in flight, so release and cancel are both legal on it — unlike ORDER, which is Delivered
@@ -67,6 +94,7 @@ const ORDER: CourierOrderSummary = {
 const LIVE_ORDER: CourierOrderSummary = {
     orderId: 43, orderNo: 8, status: "Out for delivery", deliveredAt: null,
     waitTimeMinutes: 2, travelTimeMinutes: null, geofenceWarning: null, geofenceDistanceM: null,
+    geofenceOverridden: null,
 };
 
 const AWAITING: UnassignedOrder = {
@@ -76,8 +104,9 @@ const AWAITING: UnassignedOrder = {
 
 const ROUTE: OrderRoute = {
     orderId: 42, orderNo: 7, waitTimeMinutes: 3, travelTimeMinutes: 12, serviceTimeMinutes: null,
-    geofenceWarning: false, geofenceDistanceM: 20,
+    geofenceWarning: false, geofenceDistanceM: 20, geofenceOverridden: null,
     destination: { latitude: 26.2285, longitude: 50.586, recordedAt: null },
+    pickup: null,
     points: [{ latitude: 26.22, longitude: 50.58, recordedAt: "2026-08-08T09:55:00" }],
 };
 
@@ -108,25 +137,91 @@ beforeEach(() => {
     mockBoardCards.mockReset();
     mockBoardCouriers.mockReset();
     mockBoardCards.mockResolvedValue([]);
-    mockBoardCouriers.mockResolvedValue([]);
+    mockBoardCouriers.mockResolvedValue([BOARD_ROW]);
+    mockProofPhoto.mockReset();
+    mockProofPhoto.mockResolvedValue(null);
     // No key is the default in test and in any environment that never configured one.
     mockMapsKey.value = undefined;
 });
 
 describe("CourierDispatcherPanel", () => {
     /**
-     * A rider who declines is making a choice; one who never answers may have a dead phone.
-     * §4 counts them separately, so the panel must show them as separate columns rather than
-     * summing them into one "refused" figure.
+     * The roster row carries THREE numbers: delivered, in progress, missed. "Taken" is equal to
+     * delivered by construction whenever every accepted order gets delivered, so the pair read as
+     * noise, and a lifetime declined count says nothing about any period — both live in the
+     * per-courier panel instead, where a date range makes them mean something.
      */
-    // Declined and missed stay distinct numbers — see types.ts. The roster now reads them on one
-    // line per courier rather than as separate table columns, so the assertion is on the values.
-    it("shows declined and no-answer as separate counts", async () => {
+    it("shows delivered, in progress and missed on the roster row, and neither taken nor declined", async () => {
         render(<CourierDispatcherPanel />);
 
         expect(await screen.findByText("ali")).toBeTruthy();
-        expect(screen.getByText(/2 declined/)).toBeTruthy();
-        expect(screen.getByText(/1 missed/)).toBeTruthy();
+        const row = screen.getByText(/4 delivered/);
+        // One line, so all three read off the same node: a regression that splits them apart or
+        // drops one of them fails here rather than passing on three separate lookups.
+        expect(row.textContent).toBe("4 delivered · 3 in progress · 1 missed");
+        // The exact shape the roster used to print for the two that left. The board panel above
+        // it renders its own "Declined"/"Missed" labels in separate nodes from their values, so
+        // it cannot produce either of these and cannot mask a regression here.
+        expect(screen.queryByText(/\d+ taken/)).toBeNull();
+        expect(screen.queryByText(/\d+ declined/)).toBeNull();
+    });
+
+    /**
+     * "In progress" comes from the board roster, never from `accepted - delivered` off
+     * CourierStats: that counts every order ever assigned, so a cancelled or returned run — which
+     * has no deliveredAt — would keep inflating it forever. COURIER makes the two disagree on
+     * purpose (5 - 4 = 1 derived, 3 reported), so this fails the moment anyone re-derives it.
+     */
+    it("reads orders in progress from the board roster rather than deriving accepted minus delivered", async () => {
+        render(<CourierDispatcherPanel />);
+
+        expect(await screen.findByText(/3 in progress/)).toBeTruthy();
+        expect(screen.queryByText(/1 in progress/)).toBeNull();
+    });
+
+    /**
+     * Admin item 1: on a phone the row could only give in one direction — the name column
+     * truncated while the nowrap stats string held its full width. It now stacks below `sm` and
+     * is untouched above it.
+     *
+     * Asserted on the exported tokens, not on the rendered node. Two things rule the DOM out
+     * here: this repo wires no jest-dom matchers at all, and `window.getComputedStyle` on the
+     * rendered row comes back EMPTY — jsdom does not resolve the rules emotion injects — so a DOM
+     * assertion would either be vacuous or fail for the wrong reason. The tokens are what the
+     * breakpoint CSS is generated from, and they are what the roster and the queue both consume.
+     */
+    it("stacks the roster row on a phone and keeps the single line from sm upwards", async () => {
+        render(<CourierDispatcherPanel />);
+
+        const row = (await screen.findByTestId("courier-stats-c1")).parentElement as HTMLElement;
+        const rules = emotionRulesFor(row);
+
+        expect(rules).toContain("@media (min-width:0px)");
+        expect(rules).toContain("flex-direction:column");
+        expect(rules).toContain("align-items:stretch");
+        // Unchanged above sm: the owner's complaint was about a handset, and a desktop dispatcher
+        // reads the roster far faster as one line per courier.
+        expect(rules).toContain("@media (min-width:600px)");
+        expect(rules).toContain("flex-direction:row");
+        expect(rules).toContain("align-items:center");
+    });
+
+    /**
+     * The stats string is the node that carried the unconditional nowrap, so the wrapping token
+     * has to be on THAT node — not merely exported. Reads the class list rather than the computed
+     * style, which jsdom leaves empty for emotion rules.
+     */
+    it("applies the wrapping token to the roster's own stats string", async () => {
+        render(<CourierDispatcherPanel />);
+
+        const rules = emotionRulesFor(await screen.findByTestId("courier-stats-c1"));
+
+        // Wraps on a phone, still one line on a desktop row. The unconditional nowrap this
+        // replaced is what forced the name column to truncate instead.
+        expect(rules).toContain("@media (min-width:0px)");
+        expect(rules).toContain("white-space:normal");
+        expect(rules).toContain("@media (min-width:600px)");
+        expect(rules).toContain("white-space:nowrap");
     });
 
     /** §4 is a drill-down: couriers → that courier's orders → one order's route. */
@@ -154,6 +249,63 @@ describe("CourierDispatcherPanel", () => {
         expect(await screen.findByText("At the door")).toBeTruthy();
         expect(screen.getAllByText("—").length).toBeGreaterThan(0);
         expect(screen.queryByText("0 min")).toBeNull();
+    });
+
+    /**
+     * The override is only readable NEXT TO the distance, never instead of it: a drop-off logged
+     * 180 m out can be GPS drift among buildings, but the same 180 m the rider had to push past
+     * by hand is the rider asserting they were there. Two notices, not one merged sentence.
+     */
+    it("reports a geofence override alongside the distance, not in place of it", async () => {
+        mockRoute.mockResolvedValue({
+            ...ROUTE, geofenceWarning: true, geofenceDistanceM: 180, geofenceOverridden: true,
+        });
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        expect(await screen.findByText(/180 m from the customer's pin/)).toBeTruthy();
+        expect(screen.getByText(/overrode the check/)).toBeTruthy();
+    });
+
+    /** A flagged distance the rider did NOT override must not accuse them of overriding it. */
+    it("says nothing about an override when the rider did not make one", async () => {
+        mockRoute.mockResolvedValue({
+            ...ROUTE, geofenceWarning: true, geofenceDistanceM: 180, geofenceOverridden: false,
+        });
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        expect(await screen.findByText(/180 m from the customer's pin/)).toBeTruthy();
+        expect(screen.queryByText(/overrode the check/)).toBeNull();
+    });
+
+    /**
+     * The photo answers "the customer says it never arrived, where was it left?", which is asked
+     * about orders nothing was ever flagged on — so it is offered on every route, and fetched
+     * only when it is actually opened.
+     */
+    it("fetches the proof photo only once the manager opens it", async () => {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        const button = await screen.findByRole("button", { name: /Proof photo/ });
+        expect(mockProofPhoto).not.toHaveBeenCalled();
+
+        fireEvent.click(button);
+        await waitFor(() => expect(mockProofPhoto).toHaveBeenCalledWith(42));
+    });
+
+    /** The stats panel belongs to the courier, so it is bound to the courier that was opened. */
+    it("mounts the per-courier stats panel on the order list", async () => {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+
+        // .textContent, not toHaveTextContent: jest-dom's matchers are not attached to
+        // @jest/globals' expect in this repo.
+        expect((await screen.findByTestId("courier-period-stats")).textContent).toBe("c1");
     });
 
     it("can navigate back up the drill-down", async () => {

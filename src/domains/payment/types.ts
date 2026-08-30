@@ -79,3 +79,45 @@ export type BpgRetryResult = {
     reference: string;
     redirectUrl: string;
 };
+
+/**
+ * Mirrors the backend `BpgCheckoutResultTO` — the 201 body of
+ * `POST /payments/bpg/checkout`, the pay-online route for a PICKUP order.
+ *
+ * The order EXISTS but is NOT paid when this comes back: it is created `Pending Payment` and the
+ * customer still has to settle it on the gateway's page. Ignoring `redirectUrl` would leave them
+ * believing an unpaid order was placed.
+ */
+export type BpgCheckoutResult = {
+    /** The customer-facing ticket number — never `orders.id`. */
+    orderNo: number;
+    /** Always `"Pending Payment"` on a 201; a field rather than an assumption. */
+    status: string;
+    /** The attempt reference, for polling the result page. */
+    reference: string;
+    /** Where the customer must be sent to pay. */
+    redirectUrl: string;
+};
+
+/**
+ * Mirrors the backend `BenefitPaySessionTO` — what the browser needs to open the wallet widget.
+ *
+ * Note what is absent: the secret token. `InApp.min.js` computes nothing, so the finished
+ * `secureHash` travels instead and the secret never leaves the server.
+ */
+export type BenefitPaySession = {
+    /** The customer-facing ticket number — never `orders.id`. */
+    orderNo: number;
+    /** Always `"Pending Payment"` on a 201. */
+    status: string;
+    /** Per-attempt reference. Polled for the result, and what check-status is asked about. */
+    reference: string;
+    merchantId: string;
+    appId: string;
+    /** BHD, three decimals. */
+    amount: string;
+    /** Numeric ISO code — `048` for BHD. */
+    currency: string;
+    secureHash: string;
+    qrTimeoutMs: number;
+};

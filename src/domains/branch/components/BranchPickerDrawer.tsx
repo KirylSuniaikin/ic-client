@@ -13,6 +13,30 @@ import { BranchMapView } from "./BranchMapView";
 import { BRAND_RED, BranchListView } from "./BranchListView";
 import { BranchDetailsSheet } from "./BranchDetailsSheet";
 
+/**
+ * The branch closest to a point, or null when there is no point or no branch has coordinates.
+ *
+ * <p>Shared by the badge in the list and by the "use nearest" action, so the branch the customer
+ * is shown and the branch the button opens cannot be two different ones.
+ */
+function nearestBranchTo(origin: Coordinates | null, branches: IBranch[]): IBranch | null {
+    if (origin === null) return null;
+    let best: IBranch | null = null;
+    let bestDistanceKm = Infinity;
+    for (const branch of branches) {
+        if (branch.latitude === null || branch.longitude === null) continue;
+        const distanceKm = haversineDistanceKm(origin, {
+            latitude: branch.latitude,
+            longitude: branch.longitude,
+        });
+        if (distanceKm < bestDistanceKm) {
+            bestDistanceKm = distanceKm;
+            best = branch;
+        }
+    }
+    return best;
+}
+
 export interface BranchPickerDrawerProps {
     open: boolean;
     branches: IBranch[];
@@ -61,19 +85,10 @@ export function BranchPickerDrawer({
         return result;
     }, [origin, branches]);
 
-    const nearestBranchId = useMemo<string | null>(() => {
-        if (distances === null) return null;
-        let bestId: string | null = null;
-        let bestDistanceKm = Infinity;
-        for (const branch of branches) {
-            const distanceKm = distances[branch.id];
-            if (distanceKm !== null && distanceKm !== undefined && distanceKm < bestDistanceKm) {
-                bestDistanceKm = distanceKm;
-                bestId = branch.id;
-            }
-        }
-        return bestId;
-    }, [distances, branches]);
+    const nearestBranchId = useMemo<string | null>(
+        () => nearestBranchTo(origin, branches)?.id ?? null,
+        [origin, branches]
+    );
 
     // Geolocation is requested ONLY here, on a deliberate tap — never on mount/render.
     function handleUseNearestBranch(): void {
@@ -85,8 +100,27 @@ export function BranchPickerDrawer({
         setLocationError(null);
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setOrigin({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+                const resolved = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                };
+                setOrigin(resolved);
                 setLocating(false);
+                // Open the winner, exactly as tapping its pin would.
+                //
+                // Without this the button did its whole job and showed nothing: `nearestBranchId`
+                // is read only by BranchListView, which in map mode starts hidden, and the map is
+                // given `activeBranchId` from the details sheet rather than from this. So the
+                // customer tapped the one big red CTA, watched a spinner, and got back the same
+                // screen — the branch HAD been chosen, silently.
+                //
+                // Describing it rather than selecting it outright keeps the one rule this picker
+                // has: `onSelect` fires only from the details sheet's own CTA, so "nearest" can
+                // never commit a branch the customer has not looked at.
+                const nearest = nearestBranchTo(resolved, branches);
+                if (nearest !== null) {
+                    setDetailsBranch(nearest);
+                }
             },
             () => {
                 // Denied, unavailable or timed out all read the same to the customer, mirroring

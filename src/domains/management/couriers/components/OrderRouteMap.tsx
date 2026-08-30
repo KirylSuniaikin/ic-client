@@ -35,6 +35,8 @@ const MAX_SINGLE_POINT_ZOOM = 16;
 const TRAIL_COLOR = BRAND_RED;
 const START_COLOR = '#3b352c';
 const DESTINATION_COLOR = '#1a73e8';
+/** Green, so the hand-over reads as the moment the run began rather than as another fix. */
+const PICKUP_COLOR = '#2e7d32';
 /** Amber, matching the geofence chip on the orders list — recorded, never an error state. */
 const GEOFENCE_COLOR = '#8a5a00';
 
@@ -80,10 +82,14 @@ export function OrderRouteMap({ route }: { route: OrderRoute }): JSX.Element {
 
     const points = route.points;
     const destination = route.destination;
+    const pickup = route.pickup;
     const path = useMemo(() => points.map(toLatLng), [points]);
 
     const fitToRoute = useCallback(
         (target: google.maps.Map) => {
+            // The pickup is deliberately NOT added here: the server picks it as the sample
+            // closest in time to the hand-over, so it is one of `points` already and extending
+            // the bounds with it a second time would change nothing.
             const positions = destination === null ? path : [...path, toLatLng(destination)];
             if (positions.length === 0) return;
 
@@ -169,6 +175,24 @@ export function OrderRouteMap({ route }: { route: OrderRoute }): JSX.Element {
             }
         }
 
+        /**
+         * The hand-over, which is the one thing the trail cannot show on its own: the drive to the
+         * kitchen and the drive to the customer are a single unbroken line, and this is the join
+         * between them. Drawn larger than the first fix so it is not read as another breadcrumb.
+         *
+         * Which sample it is, is the server's call (DispatcherService.pickupPoint), not the map's
+         * — otherwise the marker would mean one thing here and another anywhere else the route is
+         * later drawn.
+         */
+        if (pickup !== null) {
+            overlays.push(new google.maps.Marker({
+                position: toLatLng(pickup),
+                map,
+                title: `Picked up · ${clockOf(pickup)}`,
+                icon: dot(PICKUP_COLOR, 8),
+            }));
+        }
+
         if (destination !== null) {
             overlays.push(new google.maps.Marker({
                 position: toLatLng(destination),
@@ -202,7 +226,7 @@ export function OrderRouteMap({ route }: { route: OrderRoute }): JSX.Element {
                 overlay.setMap(null);
             }
         };
-    }, [map, path, points, destination, route.geofenceWarning]);
+    }, [map, path, points, destination, pickup, route.geofenceWarning]);
 
     const handleLoad = useCallback((loaded: google.maps.Map) => setMap(loaded), []);
     const handleUnmount = useCallback(() => setMap(null), []);
@@ -257,6 +281,7 @@ export function OrderRouteMap({ route }: { route: OrderRoute }): JSX.Element {
                     {points.length === 1 ? 'Only recorded fix' : 'First fix'}
                 </LegendItem>
                 {points.length > 1 && <LegendItem color={TRAIL_COLOR}>Drop-off</LegendItem>}
+                {pickup !== null && <LegendItem color={PICKUP_COLOR}>Picked up</LegendItem>}
                 {destination !== null && <LegendItem color={DESTINATION_COLOR}>Customer's pin</LegendItem>}
             </Box>
         </Box>

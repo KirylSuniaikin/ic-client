@@ -66,6 +66,18 @@ export type PaymentType = 'Cash' | 'Online' | 'Card';
 // also defaults to — a null payment_type would NPE the admin edit path server-side.
 export const DEFAULT_PAYMENT_METHOD = 'Card (Through card machine)';
 
+// The one cart option that means PAY NOW rather than "this is how I will pay at the counter".
+// Kept as the wire value 'Benefit' — byte-identical to what the backend, the mobile app, the
+// kitchen ticket and the admin dropdown already expect — while the customer-facing label says
+// "(Online)". Changing the value instead would split historic stats and break the admin edit
+// dropdown, for a wording change.
+export const PAY_ONLINE_METHOD = 'Benefit';
+
+// The wallet — a QR the customer scans, rather than a card typed on the gateway's page. Its own
+// tender because it is its own rail: blurring it into a card would merge three different things
+// (kiosk terminal, online card, wallet) into one line in the stats and the cash register.
+export const WALLET_METHOD = 'BenefitPay';
+
 export type WorkloadLevel =
     | 'IDLE'
     | 'BUSY'
@@ -137,9 +149,13 @@ export type Order = {
     // exactly the condition the hand-over endpoint answers 409 to, while `courier_at_kitchen` is
     // the stronger, advisory signal that the rider is physically at the pass.
     //
-    // `courier_at_kitchen` also arrives LIVE, as a COURIER_AT_KITCHEN frame on the branch's
-    // /delivery-alert topic (useAdminOrders patches this same field rather than holding a second
-    // copy of the fact). `courier_assigned` does not — it only refreshes on a REST fetch or a
+    // Both arrive LIVE on the branch's /delivery-alert topic — `courier_at_kitchen` as a
+    // COURIER_AT_KITCHEN frame, `courier_assigned` as a COURIER_ASSIGNED one — and useAdminOrders
+    // patches these same fields rather than holding a second copy of either fact.
+    //
+    // One asymmetry survives: a manager RELEASING an order sets `courier_assigned` back to false
+    // server-side, and that event is published to the courier's own topic, not to this branch
+    // channel. So the field is only ever pushed true, and comes back to false on a REST fetch or a
     // reconnect resync.
     courier_assigned?: boolean;
     courier_at_kitchen?: boolean;

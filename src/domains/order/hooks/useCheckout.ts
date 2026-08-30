@@ -2,7 +2,7 @@ import { logger } from "../../../shared/utils/logger";
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { NavigateFunction } from "react-router-dom";
-import { createOrder, editOrder } from "../../../shared/api/public";
+import { benefitPayCheckout, bpgCheckout, createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
 import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
@@ -11,7 +11,8 @@ import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage"
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
-import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
+import type { BenefitPaySession } from "../../payment/types";
+import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
@@ -84,6 +85,9 @@ export interface UseCheckoutResult {
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null, infoCollected?: boolean) => Promise<void>;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
+    /** Non-null only while a BenefitPay wallet payment is on screen. */
+    walletSession: BenefitPaySession | null;
+    setWalletSession: Dispatch<SetStateAction<BenefitPaySession | null>>;
     // wasCrossSellShown never reset before -- on a long-lived kiosk tab only the day's first
     // customer would see the cross-sell. Called by resetKioskSession at session end.
     resetCrossSellShown: () => void;
@@ -118,6 +122,9 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // component so the ClientInfoPopup detour (guests / logged-in customers with no name on file)
     // can recover the customer's choices when it re-enters checkout.
     const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+    // Set when a wallet checkout succeeds; the page opens BenefitPayDialog on it. Null the rest of
+    // the time, including after the customer finishes, so the dialog cannot reopen itself.
+    const [walletSession, setWalletSession] = useState<BenefitPaySession | null>(null);
     const [orderType, setOrderType] = useState("Pick Up");
     // The order a delivery customer has reached payment with, held rather than created (§1.7).
     // Non-null is what opens DeliveryCheckoutDrawer.
@@ -189,6 +196,38 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         submittingRef.current = true;
         try {
             setCheckoutLoading(true);
+
+            // "Benefit" on a pickup order means PAY NOW, not "pay with a Benefit card at the
+            // counter". It takes a different route entirely: the order is created Pending Payment
+            // and announced to nobody, and the customer is sent to the gateway. Cash and Card keep
+            // the counter flow below, where the order reaches the kitchen immediately because
+            // someone will pay for it on collection.
+            //
+            // Delivery never reaches here — HomePageModals owns that path, because it also has to
+            // resolve an address and re-check availability.
+            // The wallet is not a redirect — the customer stays here and scans a QR — so the
+            // order is created and the caller opens the dialog. Whether money moved is decided by
+            // the server asking check-status, never by the widget's own callback.
+            if (orderData.payment_type === WALLET_METHOD) {
+                const session = await benefitPayCheckout(orderData);
+                setCartItems([]);
+                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPendingOrder(null);
+                setWalletSession(session);
+                return;
+            }
+
+            if (orderData.payment_type === PAY_ONLINE_METHOD) {
+                const checkout = await bpgCheckout({method: PAY_ONLINE_METHOD, order: orderData});
+                setCartItems([]);
+                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPendingOrder(null);
+                // A full-page assign, not a route change: the destination is the gateway's own
+                // domain, which is where card details belong.
+                window.location.assign(checkout.redirectUrl);
+                return;
+            }
+
             const response = await createOrder(orderData);
             window.ttq?.track('PlaceAnOrder', { content_id: "PlaceAnOrder", order_id: response.id, currency: 'BHD', value: orderData.amount_paid });
             // window.ttq is the TikTok pixel SDK; a global.d.ts augmentation would be cleaner but is not available
@@ -532,6 +571,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         showOrderConfirmed, setShowOrderConfirmed,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, executeOrderCreation,
+        walletSession, setWalletSession,
         resetCrossSellShown,
     };
 }

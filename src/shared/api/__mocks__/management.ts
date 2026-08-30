@@ -14,7 +14,8 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, DeliveryEnabledResponse } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload } from '../../../domains/management/statistics/types';
+import type { DeliveryAvailabilityStats, DeliveryHourBucket, VatStatePayload } from '../../../domains/management/statistics/types';
+import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
@@ -127,3 +128,17 @@ export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
 export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();
 export const setStaffBranch = jest.fn<Promise<StaffAdminTO>, [number, string]>();
 export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
+
+// Delivery availability (Statistics -> Performance).
+export const fetchDeliveryAvailabilityStats =
+    jest.fn<Promise<DeliveryAvailabilityStats>, [string, string, string]>();
+
+// Delivered by weekday/hour (Statistics -> Delivery).
+export const fetchDeliveryHourlyStats =
+    jest.fn<Promise<DeliveryHourBucket[]>, [string, string, string]>();
+
+// Delivery zones (Config -> Schedule).
+export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();
+export const createDeliveryZone = jest.fn<Promise<DeliveryZone>, [SaveDeliveryZone]>();
+export const updateDeliveryZone = jest.fn<Promise<DeliveryZone>, [string, SaveDeliveryZone]>();
+export const deleteDeliveryZone = jest.fn<Promise<void>, [string]>();

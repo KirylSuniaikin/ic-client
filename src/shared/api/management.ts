@@ -23,7 +23,8 @@ import type {
     ShiftReportTO,
     StaffOption
 } from '../../domains/management/shift/types';
-import type { VatStatePayload } from '../../domains/management/statistics/types';
+import type { DeliveryAvailabilityStats, DeliveryHourBucket, VatStatePayload } from '../../domains/management/statistics/types';
+import type { DeliveryZone, SaveDeliveryZone } from '../../domains/management/config/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
 import type {
     BranchBalanceResponse,
@@ -538,6 +539,88 @@ export async function generatePrepPlan(payload: GeneratePrepPlanRequest): Promis
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+/**
+ * How long delivery was unavailable per branch over a period, and why (Statistics ->
+ * Performance). Branch ids are joined into the SINGLE `branchId` query param, the same
+ * shape `fetchStatistics` uses — the backend param is a List<UUID> and Spring binds a
+ * comma-joined value.
+ */
+export async function fetchDeliveryAvailabilityStats(
+    startDate: string,
+    finishDate: string,
+    joinedBranchIds: string
+): Promise<DeliveryAvailabilityStats> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/availability-stats?start_date=${startDate}` +
+        `&finish_date=${finishDate}&branchId=${joinedBranchIds}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Delivered total AND delivered count per weekday/hour cell (Statistics -> Delivery).
+ *
+ * `from`/`to` rather than `start_date`/`finish_date`: this endpoint is named after the dispatcher
+ * side of delivery, not after the statistics page's fetch shape. Branch ids are still the single
+ * comma-joined `branchId` param every other multi-branch call on this page sends.
+ */
+export async function fetchDeliveryHourlyStats(
+    from: string,
+    to: string,
+    joinedBranchIds: string
+): Promise<DeliveryHourBucket[]> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/hourly?from=${from}&to=${to}&branchId=${joinedBranchIds}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delivery zones (Config -> Schedule). A zone decides where the restaurant will deliver, and
+// DeliveryZoneService fails CLOSED — a polygon it cannot parse covers nothing — so whoever can
+// write one can also switch a branch's delivery off. Validate before calling any of these.
+// ---------------------------------------------------------------------------------------------
+
+/** One branch's zones, active and inactive alike: hiding an inactive one would make it unswitchable. */
+export async function fetchDeliveryZones(branchId: string): Promise<DeliveryZone[]> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/zones?branchId=${encodeURIComponent(branchId)}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function createDeliveryZone(body: SaveDeliveryZone): Promise<DeliveryZone> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/** Full replace, never a patch: half a ring is not a smaller area, it is a broken one. */
+export async function updateDeliveryZone(zoneId: string, body: SaveDeliveryZone): Promise<DeliveryZone> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones/${zoneId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function deleteDeliveryZone(zoneId: string): Promise<void> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones/${zoneId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 export async function getDoughInventory(branchId: string): Promise<DoughStatus> {

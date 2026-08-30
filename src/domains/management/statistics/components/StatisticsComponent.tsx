@@ -9,11 +9,12 @@ import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
 import {PerformanceTab} from "./tabs/PerformanceTab";
+import {DeliveryTab} from "./tabs/DeliveryTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
-import {formatStatDate} from "./performance/statsFormat";
+import {formatStatDate, formatStatRange} from "./performance/statsFormat";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
-import {BranchMultiSelectComponent} from "../../_shared/components/BranchMultiSelectComponent";
+import {BranchMultiSelectComponent, renderSelectedLabel} from "../../_shared/components/BranchMultiSelectComponent";
 import {useBranchScope, useMultiBranchScope} from "../../_shared/hooks/useBranchScope";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import type {IBranch} from "../../inventory/types";
@@ -26,7 +27,7 @@ interface StatisticsComponentProps {
     role: StaffRoles | null;
 }
 
-type StatsMode = "Performance" | "Consumption" | "Pricing" | "Reports" | "Shifts";
+type StatsMode = "Performance" | "Delivery" | "Consumption" | "Pricing" | "Reports" | "Shifts";
 
 export default function StatisticsComponent({onClose, branchId, role}: StatisticsComponentProps): JSX.Element {
     // StatisticsComponent only receives a raw branchId string (not the full IBranch the
@@ -41,6 +42,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     const multiScope = useMultiBranchScope(fallbackBranch);
     const singleScope = useBranchScope(fallbackBranch);
 
+    // Computed BEFORE useStatistics: it also decides whether the delivery fetches are worth
+    // making, and /api/management/delivery/** is MANAGER-and-up.
+    // Performance, Delivery and Shifts share the same audience: a branch manager sees their own
+    // branch's figures, a city-level role sees whichever branches they select.
+    const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
+
     const {
         loading,
         globalStats,
@@ -48,24 +55,42 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         retentionStats,
         sellStats,
         doughUsage,
+        deliveryAvailability,
+        deliveryStatsScope,
+        deliveryHourly,
         dateRange,
         setDateRange,
         selectedDate,
         setSelectedDate,
         refresh,
-    } = useStatistics(multiScope.selected.map(b => b.id));
+    } = useStatistics(multiScope.selected.map(b => b.id), canSeePerformance);
 
-    // Performance and Shifts share the same audience: a branch manager sees their own branch's
-    // figures, a city-level role sees whichever branches they select.
-    const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
 
-    const showMultiBranchControl = (mode === "Performance" || mode === "Consumption") && multiScope.canSwitch;
+    /**
+     * What the availability card pins in its header, so two readings of the same figure can be
+     * told apart.
+     *
+     * The two halves come from different places on purpose. The DATES come from the hook, which
+     * records the range it actually fetched with — the picker's own range runs ahead of the data
+     * until Refresh is pressed. The BRANCHES come from the live selection, which cannot run ahead:
+     * changing it refetches. `renderSelectedLabel` is the branch control's own wording, reused so
+     * the header and the control above it cannot drift apart.
+     */
+    const availabilityScope = deliveryStatsScope === null ? null : {
+        branches: renderSelectedLabel(multiScope.selected, multiScope.branches.length),
+        range: formatStatRange(deliveryStatsScope.startDate, deliveryStatsScope.finishDate),
+    };
+
+    const showMultiBranchControl =
+        (mode === "Performance" || mode === "Delivery" || mode === "Consumption") && multiScope.canSwitch;
     const showSingleBranchControl = (mode === "Reports" || mode === "Shifts") && singleScope.canSwitch;
-    const showDateRangeButton = mode === "Performance";
+    // Delivery reads the same range as Performance -- both grids are fetched by the same
+    // refresh, so hiding the picker on one of them would leave a range nobody could change.
+    const showDateRangeButton = mode === "Performance" || mode === "Delivery";
     const showFilterRow = showMultiBranchControl || showSingleBranchControl || showDateRangeButton;
 
     return (
@@ -125,6 +150,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     >
                         {canSeePerformance && (
                             <ToggleButton value="Performance">Performance</ToggleButton>
+                        )}
+                        {/* Same gate as Performance, and not a cosmetic one: every endpoint
+                            behind this tab is /api/management/delivery/**, which is
+                            MANAGER-and-up. */}
+                        {canSeePerformance && (
+                            <ToggleButton value="Delivery">Delivery</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
@@ -213,9 +244,18 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             globalStats={globalStats}
                             retentionStats={retentionStats}
                             sellStats={sellStats}
+                            deliveryAvailability={deliveryAvailability}
+                            deliveryAvailabilityScope={availabilityScope}
                             selectedDate={selectedDate}
                             onSelectedDateChange={setSelectedDate}
                             onRefresh={refresh}
+                        />
+                    )}
+                    {mode === "Delivery" && (
+                        <DeliveryTab
+                            hourly={deliveryHourly}
+                            availability={deliveryAvailability}
+                            availabilityScope={availabilityScope}
                         />
                     )}
                     {mode === "Consumption" && (

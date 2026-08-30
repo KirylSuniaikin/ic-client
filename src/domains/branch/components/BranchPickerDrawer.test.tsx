@@ -114,6 +114,36 @@ describe("BranchPickerDrawer", () => {
         expect(getCurrentPositionSpy).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * The owner reported the button as doing nothing at all. It was doing its whole job: it
+     * resolved the position and picked the winner, but the only thing reading that answer is the
+     * list, which is hidden in map mode — so the branch was chosen silently and the customer saw
+     * the same screen back.
+     */
+    it("opens the nearest branch's details once the position resolves", () => {
+        mockGeolocation((ok) => ok({ coords: { latitude: 26.0, longitude: 50.0 } }));
+        const { onSelect, branches } = renderDrawer();
+
+        fireEvent.click(screen.getByText("nearest-probe"));
+
+        // The sheet is open on the branch with coordinates — Karlin has none and cannot win.
+        chooseFromDetailsSheet();
+        expect(onSelect).toHaveBeenCalledWith(branches[0]);
+    });
+
+    /**
+     * Describing it, not choosing it: `onSelect` fires from the details sheet's own CTA and
+     * nowhere else, so "nearest" can never commit a branch the customer has not looked at.
+     */
+    it("does not select the nearest branch outright", () => {
+        mockGeolocation((ok) => ok({ coords: { latitude: 26.0, longitude: 50.0 } }));
+        const { onSelect } = renderDrawer();
+
+        fireEvent.click(screen.getByText("nearest-probe"));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
     it("renders and is selectable with no Google Maps key set — the map is never mounted", () => {
         const { onSelect, branches } = renderDrawer();
 

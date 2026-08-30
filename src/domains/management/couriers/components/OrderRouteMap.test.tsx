@@ -121,7 +121,11 @@ function route(overrides: Partial<OrderRoute> = {}): OrderRoute {
         serviceTimeMinutes: null,
         geofenceWarning: false,
         geofenceDistanceM: null,
+        geofenceOverridden: null,
         destination: DESTINATION,
+        // The default case is an order that never reached hand-over, so the pickup marker is
+        // opt-in per test rather than always present.
+        pickup: null,
         // Oldest first, exactly as the backend serves them.
         points: [
             { latitude: 26.21, longitude: 50.57, recordedAt: "2026-08-08T09:55:00Z" },
@@ -174,6 +178,42 @@ describe("OrderRouteMap", () => {
             "Drop-off · 13:09",
             "Customer's pin",
         ]);
+    });
+
+    /**
+     * The hand-over is the one thing the trail cannot show on its own: the drive to the kitchen
+     * and the drive to the customer are a single unbroken line, and the pickup marker is the join
+     * between them.
+     */
+    it("marks the pickup the server picked, between the drop-off and the customer's pin", () => {
+        render(
+            <OrderRouteMap
+                route={route({
+                    pickup: { latitude: 26.22, longitude: 50.58, recordedAt: "2026-08-08T10:01:00Z" },
+                })}
+            />
+        );
+
+        const titles = mockMarkers.map((marker) => marker.markerOptions.title);
+        expect(titles).toEqual([
+            "First fix · 12:55",
+            "Drop-off · 13:09",
+            "Picked up · 13:01",
+            "Customer's pin",
+        ]);
+        expect(mockMarkers[2].markerOptions.position).toEqual({ lat: 26.22, lng: 50.58 });
+    });
+
+    /**
+     * Null means the order never reached hand-over, or that no sample was recorded against it. A
+     * marker at the wrong end of the run is worse than no marker, so nothing is guessed.
+     */
+    it("draws no pickup marker when the server could not place one", () => {
+        render(<OrderRouteMap route={route({ pickup: null })} />);
+
+        const titles = mockMarkers.map((marker) => marker.markerOptions.title);
+        expect(titles).toEqual(["First fix · 12:55", "Drop-off · 13:09", "Customer's pin"]);
+        expect(screen.queryByText("Picked up")).toBeNull();
     });
 
     /**

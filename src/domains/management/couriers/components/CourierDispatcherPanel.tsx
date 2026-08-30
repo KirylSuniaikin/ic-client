@@ -1,23 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import {
-    cancelOrder, fetchCouriers, fetchCourierOrders, fetchOrderRoute, fetchOrdersAwaitingCourier,
-    manualAssign, releaseOrder,
+    cancelOrder, fetchBoardCouriers, fetchCouriers, fetchCourierOrders, fetchOrderProofPhoto,
+    fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
 } from '../../../../shared/api/dispatcher';
 import { logger } from '../../../../shared/utils/logger';
 import { AssignCourierDialog } from './AssignCourierDialog';
+import { CourierPeriodStatsPanel } from './CourierPeriodStatsPanel';
 import { DeliveryBoardPanel } from './DeliveryBoardPanel';
 import { DispatcherOrderActionDialog } from './DispatcherOrderActionDialog';
 import type { DispatcherOrderAction } from './DispatcherOrderActionDialog';
 import { OrderRouteMap } from './OrderRouteMap';
 import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import { GOOGLE_MAPS_API_KEY } from '../../../branch/utils/mapsConfig';
+import { EntityPhotoViewer } from '../../../../shared/components/EntityPhotoViewer';
 import { formatBahrainClock } from '../../../../shared/utils/timeUtils';
 import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from '../types';
 import {
-    BRAND_RED as brandRed, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState, PANEL_CARD_SX,
-    PanelNotice, ROW_SX, SECTION_TITLE_SX,
+    BRAND_RED as brandRed, CHIP_SELF_SX, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState,
+    PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX,
 } from './dispatcherStyles';
 
 /**
@@ -52,11 +55,21 @@ type PendingOrderAction = { action: DispatcherOrderAction; order: CourierOrderSu
 export function CourierDispatcherPanel(): JSX.Element {
     const [view, setView] = useState<View>({ level: 'couriers' });
     const [couriers, setCouriers] = useState<CourierStats[]>([]);
+    /**
+     * courierId -> orders the rider is currently holding, from the board's own roster.
+     *
+     * Read from that endpoint rather than derived as `accepted - delivered` off CourierStats,
+     * which counts every order ever assigned: a cancelled or returned run has no deliveredAt, so
+     * the derived figure would climb permanently and never come back to zero. This is the
+     * assignment engine's own count, so it also cannot disagree with the board card above it.
+     */
+    const [ordersInHand, setOrdersInHand] = useState<Record<string, number>>({});
     const [awaiting, setAwaiting] = useState<UnassignedOrder[]>([]);
     const [assigning, setAssigning] = useState<UnassignedOrder | null>(null);
     const [orders, setOrders] = useState<CourierOrderSummary[]>([]);
     const [pendingAction, setPendingAction] = useState<PendingOrderAction | null>(null);
     const [route, setRoute] = useState<OrderRoute | null>(null);
+    const [proofPhotoOrderId, setProofPhotoOrderId] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -77,10 +90,13 @@ export function CourierDispatcherPanel(): JSX.Element {
     // call would wipe the first one's failure off the screen.
     const loadCouriersView = useCallback(async (): Promise<void> => {
         await load(
-            async () => await Promise.all([fetchCouriers(), fetchOrdersAwaitingCourier()]),
-            ([loadedCouriers, loadedAwaiting]) => {
+            async () => await Promise.all([
+                fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
+            ]),
+            ([loadedCouriers, loadedAwaiting, boardRows]) => {
                 setCouriers(loadedCouriers);
                 setAwaiting(loadedAwaiting);
+                setOrdersInHand(Object.fromEntries(boardRows.map((row) => [row.courierId, row.ordersInHand])));
             }
         );
     }, [load]);
@@ -115,11 +131,14 @@ export function CourierDispatcherPanel(): JSX.Element {
         await load(
             async () => {
                 await manualAssign(order.orderId, courierId);
-                return await Promise.all([fetchCouriers(), fetchOrdersAwaitingCourier()]);
+                return await Promise.all([
+                    fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
+                ]);
             },
-            ([loadedCouriers, loadedAwaiting]) => {
+            ([loadedCouriers, loadedAwaiting, boardRows]) => {
                 setCouriers(loadedCouriers);
                 setAwaiting(loadedAwaiting);
+                setOrdersInHand(Object.fromEntries(boardRows.map((row) => [row.courierId, row.ordersInHand])));
             }
         );
     }
@@ -197,7 +216,7 @@ export function CourierDispatcherPanel(): JSX.Element {
                                         </Box>
                                         {/* The wait is the reason this row exists, so it is the
                                             one number that gets emphasis. */}
-                                        <Typography variant="body2" sx={{ fontWeight: 700, color: brandRed, whiteSpace: 'nowrap' }}>
+                                        <Typography variant="body2" sx={{ ...STATS_WRAP_SX, fontWeight: 700, color: brandRed }}>
                                             {order.waitingMinutes} min
                                         </Typography>
                                         <Button
@@ -243,12 +262,29 @@ export function CourierDispatcherPanel(): JSX.Element {
                                         {courier.nearestBranchName ?? 'Position unknown'}
                                     </Typography>
                                 </Box>
-                                <CourierStatusChip status={courier.status} />
-                                {/* Declined and missed stay separate — see types.ts. Delivered
-                                    leads because it is the number a dispatcher trusts. */}
-                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
-                                    {courier.delivered} done · {courier.accepted} taken ·{' '}
-                                    {courier.declined} declined · {courier.missed} missed
+                                {/* The chip needs its own alignSelf: under the stacked `xs`
+                                    layout `alignItems: stretch` would otherwise pull the pill
+                                    across the whole card and it would stop reading as a chip. */}
+                                <Box sx={CHIP_SELF_SX}>
+                                    <CourierStatusChip status={courier.status} />
+                                </Box>
+                                {/* Three numbers, not the old four. "Taken" is equal to
+                                    "delivered" by construction whenever every accepted order gets
+                                    delivered, so the pair read as noise, and a lifetime declined
+                                    count says nothing about last week — both live in the
+                                    per-courier panel behind this row, where a date range makes
+                                    them mean something. What stays is what a dispatcher acts on:
+                                    what the rider finished, what they are carrying now, and how
+                                    often they went silent. "In progress" comes from the board
+                                    roster, never from `accepted - delivered` — see ordersInHand. */}
+                                <Typography
+                                    data-testid={`courier-stats-${courier.courierId}`}
+                                    variant="body2"
+                                    sx={{ ...STATS_WRAP_SX, color: '#8a807a' }}
+                                >
+                                    {courier.delivered} delivered ·{' '}
+                                    {ordersInHand[courier.courierId] ?? 0} in progress ·{' '}
+                                    {courier.missed} missed
                                 </Typography>
                             </Box>
                         ))}
@@ -261,6 +297,10 @@ export function CourierDispatcherPanel(): JSX.Element {
 
             {view.level === 'orders' && (
                 <>
+                    {/* Above the list, not inside it: the period figures describe the rider, and
+                        the list below describes individual runs. */}
+                    <CourierPeriodStatsPanel courierId={view.courier.courierId} />
+
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
                         {view.courier.name ?? view.courier.courierId} — orders
                     </Typography>
@@ -282,13 +322,16 @@ export function CourierDispatcherPanel(): JSX.Element {
                                 </Box>
                                 {/* Wait is time the rider stood at the counter, travel is time on
                                     the road — a dispatcher reads them together or not at all. */}
-                                <Typography variant="body2" sx={{ color: '#8a807a', whiteSpace: 'nowrap' }}>
+                                <Typography variant="body2" sx={{ ...STATS_WRAP_SX, color: '#8a807a' }}>
                                     wait {renderMinutes(order.waitTimeMinutes)} · travel {renderMinutes(order.travelTimeMinutes)}
                                 </Typography>
+                                {/* The override is only readable NEXT TO the warning, never
+                                    instead of it: a warning alone can be GPS drift, a warning the
+                                    rider had to push past by hand is the rider making a claim. */}
                                 {order.geofenceWarning === true && (
-                                    <Box sx={{ backgroundColor: '#fff6e6', borderRadius: 999, px: 1.25, py: 0.25 }}>
+                                    <Box sx={{ ...CHIP_SELF_SX, backgroundColor: '#fff6e6', borderRadius: 999, px: 1.25, py: 0.25 }}>
                                         <Typography variant="caption" sx={{ color: '#8a5a00', fontWeight: 700 }}>
-                                            Geofence
+                                            {order.geofenceOverridden === true ? 'Geofence · overridden' : 'Geofence'}
                                         </Typography>
                                     </Box>
                                 )}
@@ -343,6 +386,20 @@ export function CourierDispatcherPanel(): JSX.Element {
                 onConfirm={() => { void handleConfirmAction(); }}
             />
 
+            {/* Shares the viewer the purchase and accounting photos use, so the fetch/objectURL/
+                revoke cycle exists once. The bytes cannot be reached with a plain <img src>: the
+                endpoint is MANAGER-gated and the JWT is attached by authFetch, so a browser-issued
+                image request carries no credential and 401s. */}
+            <EntityPhotoViewer
+                open={proofPhotoOrderId !== null}
+                onClose={() => setProofPhotoOrderId(null)}
+                blob={null}
+                serverId={proofPhotoOrderId}
+                fetchImage={fetchOrderProofPhoto}
+                title="Proof of delivery"
+                testIdPrefix="proof-photo"
+            />
+
             {view.level === 'route' && route !== null && (
                 <>
                     <Typography variant="h6" sx={{ mb: 2 }}>
@@ -363,6 +420,29 @@ export function CourierDispatcherPanel(): JSX.Element {
                             Drop-off logged {Math.round(route.geofenceDistanceM ?? 0)} m from the customer's pin.
                         </PanelNotice>
                     )}
+
+                    {/* Sits next to the distance, never in place of it. The distance on its own
+                        can be GPS drift among buildings; the same distance the rider had to
+                        override by hand is a rider asserting they were there. A rider who shows
+                        up here routinely means the radius is wrong, not that the rider is. */}
+                    {route.geofenceOverridden === true && (
+                        <PanelNotice tone="error">
+                            The courier was refused for that distance and overrode the check to close this delivery.
+                        </PanelNotice>
+                    )}
+
+                    {/* Offered on every order, not only flagged ones: the question it answers —
+                        "the customer says it never arrived, where was it left?" — is asked about
+                        orders nothing was ever flagged on. Retention takes the photo after seven
+                        days, and the viewer says so rather than failing. */}
+                    <Button
+                        size="small"
+                        startIcon={<PhotoCameraOutlinedIcon fontSize="small" />}
+                        onClick={() => setProofPhotoOrderId(route.orderId)}
+                        sx={{ textTransform: 'none', fontWeight: 700, color: brandRed, mb: 2 }}
+                    >
+                        Proof photo
+                    </Button>
 
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>
                         Route ({route.points.length} points)

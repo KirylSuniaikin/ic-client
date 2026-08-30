@@ -96,3 +96,62 @@ export type ProductStatRow = {
     price: number;
     targetPrice: number;
 };
+
+// ---------------------------------------------------------------------------
+// Delivery availability — mirrors backend DeliveryAvailabilityStatsTO.
+//
+// Answers one question: do we need another rider? The reasons are reported
+// separately and MUST NOT be summed into a single "unavailable" figure — a
+// branch a manager switched off would otherwise read as a courier shortage.
+// ---------------------------------------------------------------------------
+
+// The three outage states a timer can actually observe. OUTSIDE_RADIUS and
+// OUTSIDE_ZONE — two of the five reasons the availability gate refuses a
+// customer for — are properties of the CUSTOMER'S PIN, not of the branch: a
+// branch is zero km from itself and a zone only narrows which pins it serves.
+// Neither is sampleable, so neither exists here or in the stored data.
+export type DeliveryOutageReason = "NO_COURIER" | "DELIVERY_DISABLED" | "NO_BRANCH";
+
+export type DeliveryOutageBucket = {
+    reason: DeliveryOutageReason;
+    seconds: number;
+    // Separate episodes, not just total time: ten two-minute gaps and one
+    // twenty-minute gap are the same total and different problems.
+    occurrences: number;
+};
+
+export type DeliveryAvailabilityHourBucket = {
+    dayOfWeek: number; // ISO: 1 = Monday .. 7 = Sunday
+    hour: number;      // 0..23, Bahrain local
+    noCourierSeconds: number;
+    observedSeconds: number;
+};
+
+export type DeliveryAvailabilityStats = {
+    // Open time actually sampled — the denominator. Excludes minutes lost to a
+    // redeploy rather than guessing at them, so the ratios stay honest.
+    observedSeconds: number;
+    unavailableSeconds: number;
+    byReason: DeliveryOutageBucket[];
+    byHour: DeliveryAvailabilityHourBucket[];
+};
+
+// ---------------------------------------------------------------------------
+// Delivered-by-hour — mirrors backend DeliveryHourBucketTO.
+//
+// Both numbers, never just the money. A cell holding 200 BHD from four orders
+// and one holding 200 BHD from twenty are opposite operational situations —
+// the first is fine, the second is the hour that needs another rider — and a
+// revenue-only heatmap cannot tell them apart.
+// ---------------------------------------------------------------------------
+export type DeliveryHourBucket = {
+    // ISO day, 1 = Monday .. 7 = Sunday. Same convention as
+    // DeliveryAvailabilityHourBucket, so the two grids share one axis and can
+    // be read against each other.
+    dayOfWeek: number;
+    // 0..23, Bahrain local, taken from delivered_at: the question is when the
+    // food arrived, not when the order was placed.
+    hour: number;
+    total: number;
+    count: number;
+};

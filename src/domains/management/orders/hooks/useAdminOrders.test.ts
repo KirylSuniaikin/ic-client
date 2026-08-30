@@ -463,19 +463,20 @@ describe("useAdminOrders — Keeta orders must not auto-print", () => {
 });
 
 /**
- * The courier reaching the pass is the one delivery fact the kitchen could not previously learn.
- * It rides the branch's existing /delivery-alert channel — the same one that already carries
- * NO_COURIER_AVAILABLE, PICKUP_OVERDUE and GEOFENCE_WARNING — so the board has to pick its own
- * type out of a shared union and ignore the rest.
+ * The two delivery facts the kitchen could not previously learn on its own: that a rider is
+ * standing at the pass, and that the order has a rider at all. Both ride the branch's existing
+ * /delivery-alert channel — the same one that already carries NO_COURIER_AVAILABLE,
+ * PICKUP_OVERDUE and GEOFENCE_WARNING — so the board has to pick its own two types out of a
+ * shared union and ignore the rest.
  */
-describe("useAdminOrders — courier at the kitchen", () => {
+describe("useAdminOrders — delivery alerts", () => {
     const stopSound = jest.fn<void, []>();
     const DELIVERY_ALERT_TOPIC = "/topic/branch-1/delivery-alert";
     let handlers: Record<string, (msg: IMessage) => void>;
 
     // Minimal Order shape; only id/courier_at_kitchen are read by this handler.
     const deliveryOrder = (id: number): Order =>
-        ({ id, order_type: "Delivery", courier_at_kitchen: false } as unknown as Order);
+        ({ id, order_type: "Delivery", courier_assigned: false, courier_at_kitchen: false } as unknown as Order);
 
     const sendAlert = (payload: unknown): void => {
         handlers[DELIVERY_ALERT_TOPIC]({ body: JSON.stringify(payload) } as unknown as IMessage);
@@ -539,6 +540,10 @@ describe("useAdminOrders — courier at the kitchen", () => {
         act(() => sendAlert({ type: "NO_COURIER_AVAILABLE", orderId: 7 }));
 
         expect(view.result.current.orders[0].courier_at_kitchen).toBe(false);
+        // NO_COURIER_AVAILABLE is the exact OPPOSITE of an assignment, so a filter widened to
+        // COURIER_ASSIGNED must not start letting it through: that would enable hand-over on the
+        // one order the engine has just said has nobody to hand to.
+        expect(view.result.current.orders[0].courier_assigned).toBe(false);
     });
 
     /**
@@ -562,5 +567,68 @@ describe("useAdminOrders — courier at the kitchen", () => {
         act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
 
         expect(view.result.current.orders[0].courier_at_kitchen).toBe(true);
+    });
+
+    /**
+     * The bug the COURIER_ASSIGNED frame exists for: `courier_assigned` had no live push at all,
+     * so a tablet open since before the assignment sat on a disabled hand-over button
+     * indefinitely — the REST fetch that would have corrected it only runs on mount or on a
+     * reconnect resync.
+     */
+    it("flips courier_assigned on the order that just gained a rider", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_assigned).toBe(true);
+    });
+
+    it("leaves every other card's courier_assigned alone", async () => {
+        const view = await boardWith([deliveryOrder(7), deliveryOrder(8)]);
+
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+        expect(view.result.current.orders[1].courier_assigned).toBe(false);
+    });
+
+    /**
+     * The two facts must never be conflated. `courier_assigned` gates the hand-over button (it
+     * mirrors the condition the endpoint 409s on) and `courier_at_kitchen` is only the badge, so
+     * an assignment must not enable the hand-over AND claim the rider is standing at the pass —
+     * nor may an arrival enable a hand-over the server would refuse.
+     */
+    it("does not also claim the rider has arrived when one is merely assigned", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_at_kitchen).toBe(false);
+    });
+
+    it("does not treat an arrival as an assignment", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_AT_KITCHEN", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_assigned).toBe(false);
+    });
+
+    // Same reasoning as the arrival frame: the release that would set this back to false is
+    // published to the courier's own topic, so nothing on this channel can contradict a repeat.
+    it("is idempotent under a repeated assignment frame", async () => {
+        const view = await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+        expect(view.result.current.orders[0].courier_assigned).toBe(true);
+    });
+
+    it("never acks an assignment frame either", async () => {
+        await boardWith([deliveryOrder(7)]);
+
+        act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+        expect(jest.mocked(socket.publish)).not.toHaveBeenCalled();
     });
 });
