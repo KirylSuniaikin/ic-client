@@ -3,6 +3,7 @@ import {
     Alert,
     Box,
     CircularProgress,
+    IconButton,
     Paper,
     Table,
     TableBody,
@@ -11,14 +12,25 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Tooltip,
     Typography,
 } from "@mui/material";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+// First `Capacitor` import anywhere in src/ — used only to hide the salary-slip download on the
+// Android WebView build, where a <a download> on a blob: URL is a silent no-op (no
+// DownloadListener on the host Activity) rather than a visible failure.
+import {Capacitor} from "@capacitor/core";
 import dayjs from "dayjs";
-import {getMonthlyShiftReport} from "../../../../shared/api/management";
+import {downloadSalarySlip, getMonthlyShiftReport, getSalarySlipPreview} from "../../../../shared/api/management";
+import SalarySlipPopup from "./SalarySlipPopup";
+import type {SalarySlipForm} from "../types";
+import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import {StaffRoles} from "../../../auth/types";
 import type {MonthlyShiftReport} from "../types";
 
 type Props = {
     branchId: string;
+    role: StaffRoles | null;
 };
 
 const pillSx = {
@@ -36,11 +48,77 @@ const overtimePillSx = {
     text: "#c41c00",
 };
 
-export function StaffSummaryContent({branchId}: Props): JSX.Element {
+export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
     const [yearMonth, setYearMonth] = useState<string>(dayjs().format("YYYY-MM"));
     const [report, setReport] = useState<MonthlyShiftReport | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Per-row pending state -- only the row whose slip is being generated disables its own button.
+    const [downloadingStaffId, setDownloadingStaffId] = useState<number | null>(null);
+    // The slip is confirmed before it downloads: open the popup on the previewed defaults, let the
+    // owner check and correct them, then render exactly what they confirmed.
+    const [slipStaffId, setSlipStaffId] = useState<number | null>(null);
+    const [slipLabel, setSlipLabel] = useState("");
+    const [slipForm, setSlipForm] = useState<SalarySlipForm | null>(null);
+    const [slipLoading, setSlipLoading] = useState(false);
+    const [slipError, setSlipError] = useState<string | null>(null);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState("");
+
+    // A non-OWNER's costs already arrive null from the backend, so the action would be
+    // meaningless even before the 403 -- and on the Android WebView build (Capacitor) a blob
+    // download silently does nothing, so the action is hidden there too rather than appearing
+    // to work.
+    const showSlipColumn = role === StaffRoles.OWNER && !Capacitor.isNativePlatform();
+
+    function slipErrorMessage(e: unknown): string {
+        return e instanceof Error && e.message.endsWith("409")
+            ? "Set this employee's payroll in Account Manager first."
+            : e instanceof Error ? e.message : "Failed to generate salary slip";
+    }
+
+    async function handleOpenSlip(staffId: number, label: string): Promise<void> {
+        setSlipStaffId(staffId);
+        setSlipLabel(label);
+        setSlipForm(null);
+        setSlipError(null);
+        setSlipLoading(true);
+        try {
+            setSlipForm(await getSalarySlipPreview(staffId, yearMonth));
+        } catch (e: unknown) {
+            setSlipError(slipErrorMessage(e));
+        } finally {
+            setSlipLoading(false);
+        }
+    }
+
+    function handleCloseSlip(): void {
+        setSlipStaffId(null);
+        setSlipForm(null);
+        setSlipError(null);
+    }
+
+    async function handleDownloadSlip(staffId: number, form: SalarySlipForm): Promise<void> {
+        setDownloadingStaffId(staffId);
+        try {
+            const {blob, filename} = await downloadSalarySlip(staffId, yearMonth, form);
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            // Object URLs are heap that never frees itself; on an all-day tablet shift these add up.
+            URL.revokeObjectURL(objectUrl);
+            handleCloseSlip();
+        } catch (e: unknown) {
+            setSnackbarMessage(slipErrorMessage(e));
+            setSnackbarOpen(true);
+        } finally {
+            setDownloadingStaffId(null);
+        }
+    }
 
     useEffect(() => {
         let alive = true;
@@ -100,6 +178,9 @@ export function StaffSummaryContent({branchId}: Props): JSX.Element {
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Role</TableCell>
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Cost</TableCell>
+                                {showSlipColumn && (
+                                    <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}/>
+                                )}
                             </TableRow>
                         </TableHead>
 
@@ -178,13 +259,36 @@ export function StaffSummaryContent({branchId}: Props): JSX.Element {
                                                 {s.totalCost != null ? s.totalCost.toFixed(3) : "—"}
                                             </Box>
                                         </TableCell>
+
+                                        {/* Salary slip */}
+                                        {showSlipColumn && (
+                                            <TableCell sx={{width: 40, pr: 1}}>
+                                                <Tooltip title="Check and download salary slip">
+                                                    <span>
+                                                        <IconButton
+                                                            size="small"
+                                                            aria-label="Salary slip"
+                                                            disabled={downloadingStaffId === s.staffId}
+                                                            onClick={() => handleOpenSlip(s.staffId, s.fullName ?? s.username)}
+                                                            sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
+                                                        >
+                                                            <DescriptionOutlinedIcon fontSize="small"/>
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 );
                             })}
 
                             {rows.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={4} align="center" sx={{py: 3, color: "text.secondary"}}>
+                                    <TableCell
+                                        colSpan={showSlipColumn ? 5 : 4}
+                                        align="center"
+                                        sx={{py: 3, color: "text.secondary"}}
+                                    >
                                         No data for this period
                                     </TableCell>
                                 </TableRow>
@@ -193,6 +297,26 @@ export function StaffSummaryContent({branchId}: Props): JSX.Element {
                     </Table>
                 </TableContainer>
             )}
+
+            <SalarySlipPopup
+                open={slipStaffId !== null}
+                form={slipForm}
+                employeeLabel={slipLabel}
+                loading={slipLoading}
+                submitting={downloadingStaffId !== null}
+                error={slipError}
+                onConfirm={(form) => {
+                    if (slipStaffId !== null) void handleDownloadSlip(slipStaffId, form);
+                }}
+                onClose={handleCloseSlip}
+            />
+
+            <ErrorSnackbar
+                open={snackbarOpen}
+                message={snackbarMessage}
+                severity="error"
+                handleClose={() => setSnackbarOpen(false)}
+            />
         </Box>
     );
 }

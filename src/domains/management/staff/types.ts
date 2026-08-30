@@ -7,6 +7,9 @@ export type HireStaffRequest = {
     fullName: string;
     role: StaffRoles;
     pricePerHour: number;
+    // Optional, and nullable in the column. Captured here so a CPR does not have to be filled in
+    // afterwards from the Account Manager -- where it stays editable in the payroll drawer.
+    cprNumber: string | null;
     branchId: string;
 };
 
@@ -17,10 +20,13 @@ export type HiredStaffTO = {
     fullName: string;
     role: StaffRoles;
     pricePerHour: number;
+    cprNumber: string | null;
     branchId: string;
 };
 
 // GET /api/staff list item — pricePerHour is redacted (null) server-side for non-OWNER callers.
+// cprNumber/basicSalary/housingAllowance/transportAllowance ride the same all-or-nothing OWNER
+// gate as pricePerHour (StaffService.toAdminTO) -- nothing below OWNER has a use for payroll data.
 export type StaffAdminTO = {
     id: number;
     username: string;
@@ -31,6 +37,20 @@ export type StaffAdminTO = {
     // Never redacted, unlike pricePerHour: the roster cannot render a deactivated row, hide it
     // behind the filter, or offer reactivation without it.
     enabled: boolean;
+    cprNumber: string | null;
+    basicSalary: number | null;
+    housingAllowance: number | null;
+    transportAllowance: number | null;
+};
+
+// PATCH /api/staff/{id}/payroll. Full replacement of the payroll block, not a sparse patch -- the
+// form always sends all four, and a null field means "not set" (mirrors HireStaffRequest's shape,
+// but payroll is set after hiring, not at hire time).
+export type UpdateStaffPayrollRequest = {
+    cprNumber: string | null;
+    basicSalary: number | null;
+    housingAllowance: number | null;
+    transportAllowance: number | null;
 };
 
 // Frontend-only presentation filter mirroring the backend's hiring hierarchy (task-spec.md Task

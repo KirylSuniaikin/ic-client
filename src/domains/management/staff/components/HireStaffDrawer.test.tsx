@@ -55,6 +55,7 @@ function hired(overrides: Partial<HiredStaffTO> = {}): HiredStaffTO {
         role: StaffRoles.COOK,
         pricePerHour: 3,
         branchId: "branch-1",
+        cprNumber: null,
         ...overrides,
     };
 }
@@ -140,6 +141,7 @@ describe("HireStaffDrawer", () => {
             fullName: "New Cook",
             role: StaffRoles.COOK,
             pricePerHour: 3,
+            cprNumber: null,
             branchId: "branch-1",
         });
 
@@ -235,5 +237,32 @@ describe("HireStaffDrawer", () => {
         );
 
         await waitFor(() => expect(screen.getByTestId("hire-staff-branch-select").textContent).toContain("Seef"));
+    });
+
+    // Captured at hire so it does not have to be filled in from the Account Manager afterwards.
+    it("sends the CPR number entered on the hire form", async () => {
+        const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
+
+        fillRequiredFields("COOK");
+        fireEvent.change(screen.getByLabelText("CPR No. (optional)"), { target: { value: "850012345" } });
+        fireEvent.click(screen.getByText("Add"));
+
+        await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+        expect(createMock.mock.calls[0][0].cprNumber).toBe("850012345");
+    });
+
+    // The column is nullable and the field is optional -- a blank must not persist as "".
+    it("sends null when the CPR is left blank", async () => {
+        const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
+
+        fillRequiredFields("COOK");
+        fireEvent.click(screen.getByText("Add"));
+
+        await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+        expect(createMock.mock.calls[0][0].cprNumber).toBeNull();
     });
 });
