@@ -4,6 +4,7 @@ import { Alert, Box, Button, Stack, TextField } from "@mui/material";
 import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import { generatePassword } from "../utils/generatePassword";
 import type { StaffAdminTO } from "../types";
 import CredentialsRevealPanel from "./CredentialsRevealPanel";
@@ -63,7 +64,7 @@ export default function ResetPasswordDrawer({
             open={open}
             onClose={onClose}
             title={revealed ? undefined : "Reset password"}
-            subtitle={revealed ? undefined : `${target?.fullName ?? target?.username} (${target?.username})`}
+            subtitle={revealed ? undefined : `${target ? shortStaffName(staffDisplayName(target)) : undefined} (${target?.username})`}
             testId="reset-password-drawer"
         >
             {revealed && target ? (

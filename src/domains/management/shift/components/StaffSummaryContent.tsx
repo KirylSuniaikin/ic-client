@@ -25,6 +25,7 @@ import {downloadSalarySlip, getMonthlyShiftReport, getSalarySlipPreview} from ".
 import SalarySlipPopup from "./SalarySlipPopup";
 import type {SalarySlipForm} from "../types";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import {shortStaffName, staffDisplayName} from "../../../../shared/utils/staffName";
 import {StaffRoles} from "../../../auth/types";
 import type {MonthlyShiftReport} from "../types";
 
@@ -195,7 +196,7 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                                     >
                                         {/* Staff */}
                                         <TableCell sx={{color: "#333", fontSize: "0.9rem"}}>
-                                            <Box>{s.fullName ?? s.username}</Box>
+                                            <Box>{shortStaffName(staffDisplayName(s))}</Box>
                                             <Typography variant="caption" sx={{color: "text.secondary"}}>
                                                 {s.username}
                                             </Typography>
@@ -269,7 +270,7 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                                                             size="small"
                                                             aria-label="Salary slip"
                                                             disabled={downloadingStaffId === s.staffId}
-                                                            onClick={() => handleOpenSlip(s.staffId, s.fullName ?? s.username)}
+                                                            onClick={() => handleOpenSlip(s.staffId, shortStaffName(staffDisplayName(s)))}
                                                             sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
                                                         >
                                                             <DescriptionOutlinedIcon fontSize="small"/>

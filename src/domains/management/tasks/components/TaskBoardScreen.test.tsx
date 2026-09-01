@@ -152,6 +152,40 @@ describe("TaskBoardScreen", () => {
             expect(badgeFor(12).queryByText("7")).toBeNull();
         });
 
+        // Regression for the bug where switching owners left the newly-selected owner's badge
+        // showing the count computed from the PREVIOUS owner's still-in-state cards: TaskBoardPanel
+        // reports via onOpenCardCountChange(ownerId, count), keyed by whichever ownerId prop it
+        // currently holds, so switching alone (with no report in between) must never overwrite
+        // the newly-selected owner's server-seeded count with anything derived from the old owner.
+        it("switching owners never shows the previous owner's count under the newly-selected owner's badge", async () => {
+            const owners = [
+                makeOwner({ id: 12, openCardCount: 6 }),
+                makeOwner({ id: 9, username: "riley.manager", role: StaffRoles.MANAGER, openCardCount: 12 }),
+            ];
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
+
+            render(<TaskBoardScreen role={StaffRoles.OWNER} />);
+            await waitFor(() => expect(badgeFor(12).getByText("6")).toBeTruthy());
+            expect(badgeFor(9).getByText("12")).toBeTruthy();
+
+            fireEvent.click(screen.getByTestId("staff-board-sidebar-row-9"));
+
+            // The switch itself reports nothing (the real TaskBoardPanel only reports once its own
+            // fetch for the new owner resolves) — owner 9's badge must still read its server-seeded
+            // 12, never owner 12's leftover 6.
+            await waitFor(() => expect(getOwnerId()).toBe("9"));
+            expect(badgeFor(9).getByText("12")).toBeTruthy();
+            expect(badgeFor(9).queryByText("6")).toBeNull();
+            expect(badgeFor(12).getByText("6")).toBeTruthy();
+
+            // Once the (stubbed) panel reports for the now-selected owner, that report lands under
+            // the correct id.
+            fireEvent.click(screen.getByTestId("panel-reports-4-open-cards"));
+
+            await waitFor(() => expect(badgeFor(9).getByText("4")).toBeTruthy());
+            expect(badgeFor(12).getByText("6")).toBeTruthy();
+        });
+
         it("leaves the other owners' badges untouched", async () => {
             mockUseBoardOwners.mockReturnValue(boardOwnersValue({
                 owners: [

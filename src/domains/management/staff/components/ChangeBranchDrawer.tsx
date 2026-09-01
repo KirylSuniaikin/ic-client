@@ -4,6 +4,7 @@ import { Alert, Box, Button, MenuItem, TextField } from "@mui/material";
 import ResponsiveSheet, { SHEET_Z_INDEX } from "../../_shared/components/ResponsiveSheet";
 import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import type { IBranch } from "../../inventory/types";
 import type { StaffAdminTO } from "../types";
@@ -76,7 +77,7 @@ export default function ChangeBranchDrawer({
             open={open}
             onClose={onClose}
             title="Change branch"
-            subtitle={`${target?.fullName ?? target?.username} (${target?.username})`}
+            subtitle={`${target ? shortStaffName(staffDisplayName(target)) : undefined} (${target?.username})`}
             testId="change-branch-drawer"
         >
             <Box>

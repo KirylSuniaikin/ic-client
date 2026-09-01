@@ -47,6 +47,7 @@ import ResetPasswordDrawer from "./ResetPasswordDrawer";
 import DeactivateStaffDialog from "./DeactivateStaffDialog";
 import ChangeBranchDrawer from "./ChangeBranchDrawer";
 import EditPayrollDrawer from "./EditPayrollDrawer";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 
 const colorRed = "#E44B4C";
 const pageBg = "#fbfaf6";
@@ -238,7 +239,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 </Avatar>
                 <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "#1f2430", lineHeight: 1.3 }} noWrap>
-                        {s.fullName ?? s.username}
+                        {shortStaffName(staffDisplayName(s))}
                     </Typography>
                     <Typography sx={{ fontSize: "0.8rem", color: "#8a8f98" }} noWrap>
                         {s.username}

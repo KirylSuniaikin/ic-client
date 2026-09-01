@@ -4,7 +4,7 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {StatEmptyState, StatSkeleton} from "./performance/statPlaceholders";
 
 export type CustomerColumn = {
-    heading: string;        // "New" / "Returning"
+    heading: string;        // "New" / "Returning" / "Unknown / No phone"
     orders: number;         // orders placed by this segment
     sharePct: string;       // share of all orders, whole number (e.g. "30")
     customers?: number;     // unique customers (returning segment only)
@@ -23,13 +23,17 @@ const metricLegend = (
             <b>orders</b> — orders placed in the selected range
         </Typography>
         <Typography variant="caption" component="div" sx={{mb: 0.5}}>
-            <b>% of orders</b> — share of all (new + returning) orders
+            <b>% of orders</b> — share of the total orders shown on this card
         </Typography>
         <Typography variant="caption" component="div" sx={{mb: 0.5}}>
             <b>customers</b> — unique returning customers
         </Typography>
-        <Typography variant="caption" component="div">
+        <Typography variant="caption" component="div" sx={{mb: 0.5}}>
             <b>orders each</b> — average orders per returning customer
+        </Typography>
+        <Typography variant="caption" component="div">
+            <b>Unknown / No phone</b> — orders with no phone on file can&apos;t be attributed to a
+            customer (Keeta masks some numbers)
         </Typography>
     </Box>
 );
@@ -61,7 +65,7 @@ export const CustomerStatCard = ({title, columns}: Props): JSX.Element => {
                 <Grid container spacing={2} alignItems="flex-start">
                     {columns.map((col, index) => (
                         <Grid
-                            size={{xs: 6}}
+                            size={{xs: columns.length === 3 ? 4 : 6}}
                             key={index}
                             sx={{
                                 borderLeft: index > 0 ? "1px solid #f0f0f0" : "none",

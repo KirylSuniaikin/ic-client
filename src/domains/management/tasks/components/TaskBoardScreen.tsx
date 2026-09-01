@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import { StaffRoles } from "../../../auth/types";
 import { useBoardOwners } from "../hooks/useBoardOwners";
 import StaffBoardSidebar from "./StaffBoardSidebar";
@@ -54,7 +55,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     }, [owners, selectedOwnerId]);
 
     const selectedOwnerLabel = ownersWithCounts.find(owner => owner.id === selectedOwnerId);
-    const ownerLabel = selectedOwnerLabel ? (selectedOwnerLabel.fullName ?? selectedOwnerLabel.username) : undefined;
+    const ownerLabel = selectedOwnerLabel ? shortStaffName(staffDisplayName(selectedOwnerLabel)) : undefined;
 
     // Mirror the hook's error into local snackbar state, same pattern as TaskBoardPanel.tsx.
     useEffect(() => {

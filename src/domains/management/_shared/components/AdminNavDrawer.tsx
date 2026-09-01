@@ -8,6 +8,7 @@ import { ShiftButton } from "../../shift/components/ShiftButton";
 import { buildAdminNavSections } from "./adminNavItems";
 import type { AdminNavHandlers } from "./adminNavItems";
 import type { AdminTabKey } from "../hooks/useAdminUIState";
+import {shortStaffName} from "../../../../shared/utils/staffName";
 
 const colorRed = "#E44B4C";
 
@@ -78,8 +79,9 @@ export default function AdminNavDrawer({
             >
                 <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
                     <PersonOutlineIcon sx={{fontSize: "1.2rem", color: "#555"}}/>
-                    <Box>
+                    <Box sx={{minWidth: 0}}>
                         <Typography
+                            noWrap
                             sx={{
                                 textTransform: "capitalize",
                                 fontSize: "1rem",
@@ -88,7 +90,7 @@ export default function AdminNavDrawer({
                                 lineHeight: 1.2,
                             }}
                         >
-                            {userName}
+                            {shortStaffName(userName)}
                         </Typography>
                         {role && (
                             <Typography sx={{fontSize: "0.75rem", color: "#888", textTransform: "capitalize"}}>

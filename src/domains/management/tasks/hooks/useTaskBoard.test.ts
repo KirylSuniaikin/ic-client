@@ -99,6 +99,39 @@ describe("useTaskBoard", () => {
         });
     });
 
+    it("loadedOwnerId lags ownerId until the new fetch resolves, then matches it", async () => {
+        const ownerACards = [makeCard({ id: 1, assigneeId: 1 })];
+        const ownerBCards = [makeCard({ id: 2, assigneeId: 7 }), makeCard({ id: 3, assigneeId: 7 })];
+        mockFetchTaskBoard.mockResolvedValueOnce(ownerACards);
+
+        const { result, rerender } = renderHook(({ ownerId }: { ownerId?: number | null }) => useTaskBoard(ownerId), {
+            initialProps: { ownerId: 1 },
+        });
+
+        await waitFor(() => {
+            expect(result.current.loadedOwnerId).toBe(1);
+        });
+        expect(result.current.cards).toEqual(ownerACards);
+
+        let resolveOwnerB: (value: TaskCard[]) => void = () => {};
+        mockFetchTaskBoard.mockImplementation(() => new Promise(resolve => { resolveOwnerB = resolve; }));
+
+        rerender({ ownerId: 7 });
+
+        // Cards/loadedOwnerId must still reflect the previous owner while the new fetch is in flight.
+        expect(result.current.loadedOwnerId).toBe(1);
+        expect(result.current.cards).toEqual(ownerACards);
+
+        await act(async () => {
+            resolveOwnerB(ownerBCards);
+        });
+
+        await waitFor(() => {
+            expect(result.current.loadedOwnerId).toBe(7);
+        });
+        expect(result.current.cards).toEqual(ownerBCards);
+    });
+
     it("sets error and leaves cards empty when fetchTaskBoard rejects", async () => {
         mockFetchTaskBoard.mockRejectedValue(new Error("HTTP 500"));
 

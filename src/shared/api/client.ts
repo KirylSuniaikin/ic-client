@@ -52,7 +52,20 @@ export async function reportNetworkError(error: unknown, url: string, method: st
     });
 }
 
-export async function authFetch(url: string, headersWithoutAuth: RequestInit): Promise<Response> {
+// task-spec.md Extra defect 1: opt-out of the global sign-out redirect below, for callers
+// (namely the staff identity call, GET /staff/me) where a 401 must NOT be treated as "this
+// browser's session is over" -- a genuinely revoked account still signs out on its next real
+// API call (TokenFilter), so nothing about the disabled-staff behaviour is lost by skipping it
+// here.
+export type AuthFetchOptions = {
+    skipAuthRedirectOn401?: boolean;
+};
+
+export async function authFetch(
+    url: string,
+    headersWithoutAuth: RequestInit,
+    options?: AuthFetchOptions
+): Promise<Response> {
     const token = localStorage.getItem("jwt_token");
 
     const headers = new Headers(headersWithoutAuth?.headers);
@@ -82,8 +95,10 @@ export async function authFetch(url: string, headersWithoutAuth: RequestInit): P
 
     if (response.status === 401) {
         logger.warn("Unauthorized");
-        localStorage.removeItem("jwt_token");
-        window.location.href = "/auth";
+        if (!options?.skipAuthRedirectOn401) {
+            localStorage.removeItem("jwt_token");
+            window.location.href = "/auth";
+        }
         return Promise.reject(new Error("Unauthorized"));
     }
 
