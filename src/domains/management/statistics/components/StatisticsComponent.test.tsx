@@ -21,6 +21,7 @@ jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ Consump
 jest.mock("./VatReportCard", () => ({ VatReportCard: () => null }));
 jest.mock("./ProductsTable", () => ({ ProductsTable: () => null }));
 jest.mock("../../shift/components/StaffSummaryContent", () => ({ StaffSummaryContent: () => null }));
+jest.mock("./business/BusinessTab", () => ({ __esModule: true, default: () => null }));
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts. useStatistics
 // runs for real here (not mocked), so the branch-switch -> refetch wiring is genuine.
@@ -69,6 +70,57 @@ function renderWithTwoBranches(): ReturnType<typeof render> {
 }
 
 describe("StatisticsComponent", () => {
+    // Business Stats is the consolidated company P&L, owner withdrawals included, and has no branch
+    // dimension -- so it is OWNER-only, mirroring the SecurityConfig matcher. These assertions are
+    // about the tab STRIP: a role that must not see it must not be offered it.
+    describe("Business tab visibility", () => {
+        function renderAs(role: StaffRoles): ReturnType<typeof render> {
+            return render(
+                <ManagementBranchScopeProvider branches={[branchA, branchB]} homeBranch={branchA}>
+                    <StatisticsComponent onClose={jest.fn()} branchId={branchA.id} role={role} />
+                </ManagementBranchScopeProvider>
+            );
+        }
+
+        it("offers the Business tab to an OWNER", () => {
+            renderAs(StaffRoles.OWNER);
+
+            expect(screen.queryByRole("button", { name: "Business" })).toBeTruthy();
+        });
+
+        it("hides the Business tab from a SUPER_MANAGER, who sees every other tab", () => {
+            // The load-bearing case: city-level access reaches Performance and Shifts, so this is
+            // what proves the gate is OWNER-only rather than just "not a cook".
+            renderAs(StaffRoles.SUPER_MANAGER);
+
+            expect(screen.queryByRole("button", { name: "Business" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Performance" })).toBeTruthy();
+        });
+
+        it("hides the Business tab from a MANAGER", () => {
+            renderAs(StaffRoles.MANAGER);
+
+            expect(screen.queryByRole("button", { name: "Business" })).toBeNull();
+        });
+
+        it("hides the Business tab from a COOK", () => {
+            renderAs(StaffRoles.COOK);
+
+            expect(screen.queryByRole("button", { name: "Business" })).toBeNull();
+        });
+
+        it("shows no branch control and no date-range button on Business", async () => {
+            // Business level by design: a branch selector here would be a lie, and the day-grained
+            // range picker is the wrong instrument for a monthly report.
+            renderAs(StaffRoles.OWNER);
+            await switchTab("Business");
+
+            expect(screen.queryByRole("combobox")).toBeNull();
+            const today = formatStatDate(new Date());
+            expect(screen.queryByRole("button", { name: `${today} — ${today}` })).toBeNull();
+        });
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
         mockFetchStatistics.mockResolvedValue(emptyStats);

@@ -15,6 +15,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
+import type { CategoryClassification, UpdateCategoryClassification } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -783,4 +784,31 @@ export async function putWorkingHours(payload: WorkingHoursRequest): Promise<Wor
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+// --- Business Stats -----------------------------------------------------------------------
+// Every path here is OWNER-only server-side; the UI gate mirrors it but does not replace it.
+
+export async function getBusinessCategories(): Promise<CategoryClassification[]> {
+    const res = await authFetch(BASE_URL + `/business-stats/categories`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function updateCategoryClassification(
+    id: number,
+    payload: UpdateCategoryClassification
+): Promise<CategoryClassification> {
+    const res = await authFetch(BASE_URL + `/business-stats/categories/${id}/classification`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
 }

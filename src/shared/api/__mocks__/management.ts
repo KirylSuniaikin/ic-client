@@ -15,7 +15,7 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, CategoryClassification, UpdateCategoryClassification } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
@@ -138,3 +138,8 @@ export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
 export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();
 export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string]>();
 export const downloadSalarySlip = jest.fn<Promise<SalarySlipDownload>, [number, string, SalarySlipForm]>();
+
+// Business Stats (Statistics -> Business tab).
+export const getBusinessCategories = jest.fn<Promise<CategoryClassification[]>, []>();
+export const updateCategoryClassification =
+    jest.fn<Promise<CategoryClassification>, [number, UpdateCategoryClassification]>();

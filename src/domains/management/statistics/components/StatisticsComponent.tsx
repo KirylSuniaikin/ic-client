@@ -8,6 +8,7 @@ import {VatReportCard} from "./VatReportCard";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
+import BusinessTab from "./business/BusinessTab";
 import {PerformanceTab} from "./tabs/PerformanceTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
@@ -26,7 +27,7 @@ interface StatisticsComponentProps {
     role: StaffRoles | null;
 }
 
-type StatsMode = "Performance" | "Consumption" | "Pricing" | "Reports" | "Shifts";
+type StatsMode = "Performance" | "Business" | "Consumption" | "Pricing" | "Reports" | "Shifts";
 
 export default function StatisticsComponent({onClose, branchId, role}: StatisticsComponentProps): JSX.Element {
     // StatisticsComponent only receives a raw branchId string (not the full IBranch the
@@ -58,6 +59,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     // Performance and Shifts share the same audience: a branch manager sees their own branch's
     // figures, a city-level role sees whichever branches they select.
     const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
+
+    // Business Stats is the consolidated company P&L, owner withdrawals included, and it has no
+    // branch dimension to scope it by -- so there is no version of it a branch manager could see
+    // that is not the owner's full picture. Mirrors the OWNER-only SecurityConfig matcher; the
+    // server is the real gate, this only keeps a tab nobody can use off the strip.
+    const canSeeBusiness = role === StaffRoles.OWNER;
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
 
@@ -66,6 +73,8 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     const showMultiBranchControl = (mode === "Performance" || mode === "Consumption") && multiScope.canSwitch;
     const showSingleBranchControl = (mode === "Reports" || mode === "Shifts") && singleScope.canSwitch;
     const showDateRangeButton = mode === "Performance";
+    // Business Stats deliberately opts into NO branch control: it is a business-level report, and a
+    // branch selector on it would be a lie. Its month-range control arrives with the pivot.
     const showFilterRow = showMultiBranchControl || showSingleBranchControl || showDateRangeButton;
 
     return (
@@ -125,6 +134,9 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     >
                         {canSeePerformance && (
                             <ToggleButton value="Performance">Performance</ToggleButton>
+                        )}
+                        {canSeeBusiness && (
+                            <ToggleButton value="Business">Business</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
@@ -218,6 +230,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             onRefresh={refresh}
                         />
                     )}
+                    {mode === "Business" && canSeeBusiness && <BusinessTab/>}
                     {mode === "Consumption" && (
                         <Box sx={{mt: 1}}>
                             <PrepPlanTable branchIds={multiScope.selected.map(b => b.id)}/>

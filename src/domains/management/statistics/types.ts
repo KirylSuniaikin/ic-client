@@ -96,3 +96,39 @@ export type ProductStatRow = {
     price: number;
     targetPrice: number;
 };
+
+// --- Business Stats -----------------------------------------------------------------------
+// Mirrors the backend records in domain/businessstats/dto field-for-field.
+
+/** Mirrors backend PnlClass. null on the wire means Unclassified — a real state, not missing data. */
+export type PnlClass =
+    | "REVENUE"
+    | "COGS_PURCHASES"
+    | "OPEX"
+    | "CAPEX"
+    | "OWNER_WITHDRAWAL"
+    | "FINANCING"
+    | "ADJUSTMENT"
+    | "EXCLUDED";
+
+/** Mirrors backend KpiTag. Orthogonal to PnlClass — Marketing is OPEX *and* MARKETING. */
+export type KpiTag = "MARKETING" | "LABOUR" | "RENT" | "UTILITIES";
+
+// Mirrors backend CategoryClassificationTO. The server returns these already ordered
+// (unclassified first, then heaviest lifetime spend first) — do not re-sort on the client.
+export type CategoryClassification = {
+    id: number;
+    name: string;
+    type: "DEBIT" | "CREDIT";
+    pnlClass: PnlClass | null;
+    kpiTag: KpiTag | null;
+    entryCount: number;
+    lifetimeTotal: number;
+};
+
+// Mirrors backend UpdateCategoryClassificationTO. null clears the field: "unclassified" is a
+// legitimate resting state a misclassified category must be returnable to.
+export type UpdateCategoryClassification = {
+    pnlClass: PnlClass | null;
+    kpiTag: KpiTag | null;
+};
