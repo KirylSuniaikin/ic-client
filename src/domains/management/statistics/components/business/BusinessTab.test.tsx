@@ -3,10 +3,10 @@ import React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BusinessTab from "./BusinessTab";
-import type { CategoryClassification } from "../../types";
+import type { BusinessStatsResponse, CategoryClassification } from "../../types";
 
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts. The hook runs for
-// real, so the fetch -> classify -> refetch wiring is genuine.
+// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts. useBusinessCategories
+// runs for real, so the fetch -> classify -> refetch wiring is genuine.
 jest.mock("../../../../../shared/api/management");
 
 import { getBusinessCategories, updateCategoryClassification } from "../../../../../shared/api/management";
@@ -23,6 +23,51 @@ const rent: CategoryClassification = {
     entryCount: 14, lifetimeTotal: 2521.54,
 };
 
+const report: BusinessStatsResponse = {
+    months: ["2026-06", "2026-07"],
+    expensePivot: {
+        months: ["2026-06", "2026-07"],
+        blocks: [
+            {
+                pnlClass: "OPEX", label: "Operating expenses", note: null,
+                includedInOperatingExpenses: true,
+                rows: [{ categoryId: 2, categoryName: "Rent", kpiTag: "RENT", amounts: [180, 180.11], total: 360.11 }],
+                totals: [180, 180.11], grandTotal: 360.11,
+            },
+            {
+                pnlClass: "COGS_PURCHASES", label: "COGS — groceries & packaging",
+                note: "Reaches the P&L through COGS via inventory.",
+                includedInOperatingExpenses: false,
+                rows: [{ categoryId: 3, categoryName: "Groceries", kpiTag: null, amounts: [731.19, 866.648], total: 1597.838 }],
+                totals: [731.19, 866.648], grandTotal: 1597.838,
+            },
+        ],
+        unclassifiedCategoryCount: 1,
+        unclassifiedTotal: 4102.5,
+    },
+    revenue: [],
+    inventoryCogs: [
+        {
+            period: "2026-06", state: "OK", monthInProgress: false,
+            openingInventory: 553.679, purchases: 808.69, available: 1362.369,
+            endingInventory: 522.673, movementCogs: 839.696, cogsPercentOfGrossRevenue: 25.7,
+            contributingBranches: ["Adliya"], missingBranches: [], missingReports: [],
+        },
+        {
+            period: "2026-07", state: "MISSING_PURCHASES", monthInProgress: false,
+            openingInventory: 522.673, purchases: null, available: null,
+            endingInventory: 896.003, movementCogs: null, cogsPercentOfGrossRevenue: null,
+            contributingBranches: [], missingBranches: ["Adliya"],
+            missingReports: ["PURCHASE jul-26 @ Adliya"],
+        },
+    ],
+    notices: ["Revenue here includes orders recorded before branches existed."],
+};
+
+function renderTab(data: BusinessStatsResponse | null = report): ReturnType<typeof render> {
+    return render(<BusinessTab data={data} loading={false} onRefresh={jest.fn(async () => undefined)} />);
+}
+
 describe("BusinessTab", () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -30,55 +75,91 @@ describe("BusinessTab", () => {
         mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX" });
     });
 
-    it("warns with the count and the amount when categories are unclassified", async () => {
-        // The amount is the point: "6 unclassified" is ignorable, "4,102.500 BHD unclassified" is
-        // not, and that spend is currently in no P&L total.
-        render(<BusinessTab />);
+    describe("classification", () => {
+        it("warns with the count and the amount when categories are unclassified", async () => {
+            // The amount is the point: "1 unclassified" is ignorable, "4,102.500 BHD" is not, and
+            // that spend is currently in no P&L total.
+            renderTab();
 
-        expect(await screen.findByText(/1 unclassified · 4,102.500 BHD/)).toBeTruthy();
+            expect(await screen.findByText(/1 unclassified · 4,102.500 BHD/)).toBeTruthy();
+        });
+
+        it("reports success when everything is classified", async () => {
+            mockGet.mockResolvedValue([rent]);
+
+            renderTab();
+
+            expect(await screen.findByText(/All 1 categories classified/)).toBeTruthy();
+        });
+
+        it("patches only the chosen category and refetches when a class is picked", async () => {
+            renderTab();
+            await screen.findByRole("button", { name: "Classify categories" });
+            await userEvent.click(screen.getByRole("button", { name: "Classify categories" }));
+
+            const row = await screen.findByTestId("category-row-1");
+            await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
+            await userEvent.click(await screen.findByRole("option", { name: /Operating expense/ }));
+
+            await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+            // Both fields go every time: sending only the changed one would clear the other.
+            expect(mockUpdate).toHaveBeenCalledWith(1, { pnlClass: "OPEX", kpiTag: null });
+            await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
+        });
+
+        it("keeps rendering when the categories request fails", async () => {
+            // Errors go to the logger and are never thrown at the UI, matching useStatistics.
+            mockGet.mockRejectedValue(new Error("Response: 500"));
+
+            renderTab();
+
+            expect(await screen.findByText(/All 0 categories classified/)).toBeTruthy();
+        });
     });
 
-    it("reports success when everything is classified", async () => {
-        mockGet.mockResolvedValue([rent]);
+    describe("expense pivot", () => {
+        it("renders a column per month and a row per category", async () => {
+            renderTab();
 
-        render(<BusinessTab />);
+            expect(await screen.findByText("Rent")).toBeTruthy();
+            expect(screen.getByText("Groceries")).toBeTruthy();
+            expect(screen.getAllByText("Jun 26").length).toBeGreaterThan(0);
+        });
 
-        expect(await screen.findByText(/All 1 categories classified/)).toBeTruthy();
+        it("marks a block that is not part of operating expenses", async () => {
+            // Groceries and packaging are visible but deliberately outside the Operating Expenses
+            // total; without the label a reader would assume the total was simply wrong.
+            renderTab();
+
+            expect(await screen.findByText(/not in Operating Expenses/)).toBeTruthy();
+        });
     });
 
-    it("opens the drawer with a row per category when the button is pressed", async () => {
-        render(<BusinessTab />);
-        await screen.findByText(/1 unclassified/);
+    describe("inventory COGS", () => {
+        it("shows an em dash rather than a zero when a month cannot be computed", async () => {
+            // Zero is a claim about the business; absence is a claim about the paperwork. Printing
+            // the first when you mean the second turns unfiled invoices into a brilliant margin.
+            renderTab();
 
-        await userEvent.click(screen.getByRole("button", { name: "Classify categories" }));
+            expect((await screen.findByTestId("cogs-missing-2026-07")).textContent).toBe("—");
+        });
 
-        expect(await screen.findByTestId("category-row-1")).toBeTruthy();
-        expect(screen.getByTestId("category-row-2")).toBeTruthy();
+        it("names the missing document for a completed month", async () => {
+            renderTab();
+
+            expect(await screen.findByText(/PURCHASE jul-26 @ Adliya/)).toBeTruthy();
+        });
     });
 
-    it("patches only the chosen category and refetches when a class is picked", async () => {
-        render(<BusinessTab />);
-        await screen.findByText(/1 unclassified/);
-        await userEvent.click(screen.getByRole("button", { name: "Classify categories" }));
+    it("surfaces the server's notices", async () => {
+        renderTab();
 
-        const row = await screen.findByTestId("category-row-1");
-        await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
-        await userEvent.click(await screen.findByRole("option", { name: /Operating expense/ }));
-
-        await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
-        // kpiTag is carried through unchanged: the PATCH sets both fields, so sending only the one
-        // that changed would silently clear the other.
-        expect(mockUpdate).toHaveBeenCalledWith(1, { pnlClass: "OPEX", kpiTag: null });
-        // Re-fetched rather than patched locally — the server owns the ordering.
-        await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
+        expect(await screen.findByText(/includes orders recorded before branches existed/)).toBeTruthy();
     });
 
-    it("keeps rendering when the categories request fails", async () => {
-        // Errors go to the logger and are never thrown at the UI, matching useStatistics.
-        mockGet.mockRejectedValue(new Error("Response: 500"));
+    it("says the report could not be loaded when it is absent", async () => {
+        renderTab(null);
 
-        render(<BusinessTab />);
-
-        expect(await screen.findByText(/All 0 categories classified/)).toBeTruthy();
+        expect(await screen.findByText(/could not be loaded/)).toBeTruthy();
     });
 });

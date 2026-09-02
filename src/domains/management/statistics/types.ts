@@ -132,3 +132,75 @@ export type UpdateCategoryClassification = {
     pnlClass: PnlClass | null;
     kpiTag: KpiTag | null;
 };
+
+export type ExpenseRow = {
+    categoryId: number;
+    categoryName: string;
+    kpiTag: KpiTag | null;
+    // Positionally aligned to BusinessStatsResponse.months — an unused month is 0, never a gap.
+    amounts: number[];
+    total: number;
+};
+
+export type ExpenseBlock = {
+    // "UNCLASSIFIED" for the null bucket — a real block, not an omission.
+    pnlClass: PnlClass | "UNCLASSIFIED";
+    label: string;
+    note: string | null;
+    // False for COGS_PURCHASES, CAPEX and others. Carried so the screen can say WHY a visible
+    // block is outside the Operating Expenses total.
+    includedInOperatingExpenses: boolean;
+    rows: ExpenseRow[];
+    totals: number[];
+    grandTotal: number;
+};
+
+export type ExpensePivot = {
+    months: string[];
+    blocks: ExpenseBlock[];
+    unclassifiedCategoryCount: number;
+    unclassifiedTotal: number;
+};
+
+export type MonthlyRevenue = {
+    period: string;
+    orders: number;
+    grossRevenue: number;
+    operatingDays: number;
+    // Null, not 0, when there were no orders: "no orders" is not "a basket worth nothing".
+    averageBasketSize: number | null;
+    dailyOrdersAverage: number | null;
+};
+
+export type InventoryCogsState =
+    | "OK"
+    | "PARTIAL_BRANCHES"
+    | "MISSING_OPENING"
+    | "MISSING_ENDING"
+    | "MISSING_PURCHASES"
+    | "NO_DATA";
+
+export type InventoryCogs = {
+    period: string;
+    state: InventoryCogsState;
+    // When true a missing closing count is expected, not a failure — do not nag.
+    monthInProgress: boolean;
+    openingInventory: number | null;
+    purchases: number | null;
+    available: number | null;
+    endingInventory: number | null;
+    // Null, NEVER 0, when an input is missing. Zero is a claim; absence is not.
+    movementCogs: number | null;
+    cogsPercentOfGrossRevenue: number | null;
+    contributingBranches: string[];
+    missingBranches: string[];
+    missingReports: string[];
+};
+
+export type BusinessStatsResponse = {
+    months: string[];
+    expensePivot: ExpensePivot;
+    revenue: MonthlyRevenue[];
+    inventoryCogs: InventoryCogs[];
+    notices: string[];
+};

@@ -15,7 +15,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
-import type { CategoryClassification, UpdateCategoryClassification } from '../../domains/management/statistics/types';
+import type { BusinessStatsResponse, CategoryClassification, UpdateCategoryClassification } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -807,6 +807,18 @@ export async function updateCategoryClassification(
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getBusinessStats(from: string, to: string): Promise<BusinessStatsResponse> {
+    const params = new URLSearchParams({ from, to });
+
+    const res = await authFetch(BASE_URL + `/business-stats?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
     });
 
     if (!res.ok) throw new Error(`Response: ${res.status}`);

@@ -9,6 +9,8 @@ import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
 import BusinessTab from "./business/BusinessTab";
+import MonthRangePickerPopover from "./business/MonthRangePickerPopover";
+import {useBusinessStats} from "../hooks/useBusinessStats";
 import {PerformanceTab} from "./tabs/PerformanceTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
@@ -20,6 +22,13 @@ import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import type {IBranch} from "../../inventory/types";
 
 const BRAND = "#E44B4C";
+
+/** "Mar 2026 — Sep 2026". Months, because the report has no day grain. */
+function formatMonthRange(range: {from: Date; to: Date}): string {
+    const fmt = (d: Date): string =>
+        d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
+    return `${fmt(range.from)} — ${fmt(range.to)}`;
+}
 
 interface StatisticsComponentProps {
     onClose: () => void;
@@ -67,6 +76,11 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     const canSeeBusiness = role === StaffRoles.OWNER;
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
+    const [monthRangeAnchorEl, setMonthRangeAnchorEl] = useState<HTMLElement | null>(null);
+
+    // Fetches on mount rather than on tab selection: the tab strip is cheap to switch and a
+    // report that reloads every time the owner glances away is worse than one extra request.
+    const businessStats = useBusinessStats();
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
 
@@ -74,8 +88,11 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     const showSingleBranchControl = (mode === "Reports" || mode === "Shifts") && singleScope.canSwitch;
     const showDateRangeButton = mode === "Performance";
     // Business Stats deliberately opts into NO branch control: it is a business-level report, and a
-    // branch selector on it would be a lie. Its month-range control arrives with the pivot.
-    const showFilterRow = showMultiBranchControl || showSingleBranchControl || showDateRangeButton;
+    // branch selector on it would be a lie. It takes a MONTH range instead of the day-grained
+    // picker, because the report has no day grain at all.
+    const showMonthRangeButton = mode === "Business";
+    const showFilterRow = showMultiBranchControl || showSingleBranchControl
+        || showDateRangeButton || showMonthRangeButton;
 
     return (
         <Box sx={{display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden'}}>
@@ -208,6 +225,42 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                 />
                             </>
                         )}
+                        {showMonthRangeButton && (
+                            <>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CalendarTodayRoundedIcon sx={{fontSize: 16}}/>}
+                                    onClick={(e) => setMonthRangeAnchorEl(e.currentTarget)}
+                                    sx={{
+                                        borderRadius: "9999px",
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        px: 1.75,
+                                        height: 40,
+                                        color: "text.primary",
+                                        backgroundColor: "#fff",
+                                        borderColor: "#e0e0e0",
+                                        "&:hover": {borderColor: BRAND, backgroundColor: "#fff"},
+                                    }}
+                                >
+                                    {formatMonthRange(businessStats.range)}
+                                </Button>
+                                <MonthRangePickerPopover
+                                    open={Boolean(monthRangeAnchorEl)}
+                                    anchorEl={monthRangeAnchorEl}
+                                    range={businessStats.range}
+                                    onRangeChange={businessStats.setRange}
+                                    onClose={() => setMonthRangeAnchorEl(null)}
+                                    onApply={() => {
+                                        // No explicit refresh call: the hook refetches when the
+                                        // yyyy-MM keys change, so applying an unchanged range
+                                        // correctly does nothing.
+                                        setMonthRangeAnchorEl(null);
+                                    }}
+                                />
+                            </>
+                        )}
                     </Box>
                 )}
 
@@ -230,7 +283,13 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             onRefresh={refresh}
                         />
                     )}
-                    {mode === "Business" && canSeeBusiness && <BusinessTab/>}
+                    {mode === "Business" && canSeeBusiness && (
+                        <BusinessTab
+                            data={businessStats.data}
+                            loading={businessStats.loading}
+                            onRefresh={businessStats.refresh}
+                        />
+                    )}
                     {mode === "Consumption" && (
                         <Box sx={{mt: 1}}>
                             <PrepPlanTable branchIds={multiScope.selected.map(b => b.id)}/>
