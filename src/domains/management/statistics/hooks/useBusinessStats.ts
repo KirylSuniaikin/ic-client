@@ -1,7 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {format, subMonths} from "date-fns";
-import {getBusinessStats} from "../../../../shared/api/management";
-import type {BusinessStatsResponse} from "../types";
+import {
+    getBusinessStats, patchChannelPerformance, regenerateChannelPerformance
+} from "../../../../shared/api/management";
+import type {BusinessStatsResponse, ChannelOverridePatch} from "../types";
 import {logger} from "../../../../shared/utils/logger";
 import type {MonthRange} from "../components/business/MonthRangePickerPopover";
 
@@ -15,8 +17,11 @@ type UseBusinessStats = {
     loading: boolean;
     data: BusinessStatsResponse | null;
     range: MonthRange;
+    rangeLabel: string;
     setRange: (range: MonthRange) => void;
     refresh: () => Promise<void>;
+    patchChannel: (id: number, payload: ChannelOverridePatch) => Promise<void>;
+    regenerateChannels: () => Promise<void>;
 };
 
 function startOfThisMonth(): Date {
@@ -71,5 +76,38 @@ export function useBusinessStats(): UseBusinessStats {
         void refresh();
     }, [refresh]);
 
-    return {loading, data, range, setRange, refresh};
+    // Both mutations refetch rather than patching state locally: a channel edit changes the
+    // month's totals and, later, the profit statement built on them, so a local patch would leave
+    // the rest of the screen quietly disagreeing with the row the owner just corrected.
+    const patchChannel = useCallback(async (
+        id: number,
+        payload: ChannelOverridePatch
+    ): Promise<void> => {
+        try {
+            await patchChannelPerformance(id, payload);
+            await refresh();
+        } catch (e) {
+            logger.error("Failed to update channel performance", e);
+            // Refetch anyway: on a 409 the server's copy is the truth, and leaving the stale row on
+            // screen would invite the owner to retype over someone else's correction.
+            await refresh();
+        }
+    }, [refresh]);
+
+    const regenerateChannels = useCallback(async (): Promise<void> => {
+        try {
+            await regenerateChannelPerformance(fromKey, toKey);
+            await refresh();
+        } catch (e) {
+            logger.error("Failed to regenerate channel performance", e);
+        }
+    }, [fromKey, toKey, refresh]);
+
+    const rangeLabel = useMemo(() => {
+        const fmt = (d: Date): string =>
+            d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
+        return `${fmt(range.from)} — ${fmt(range.to)}`;
+    }, [range.from, range.to]);
+
+    return {loading, data, range, rangeLabel, setRange, refresh, patchChannel, regenerateChannels};
 }

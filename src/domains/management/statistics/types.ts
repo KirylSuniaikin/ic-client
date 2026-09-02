@@ -202,5 +202,60 @@ export type BusinessStatsResponse = {
     expensePivot: ExpensePivot;
     revenue: MonthlyRevenue[];
     inventoryCogs: InventoryCogs[];
+    channels: ChannelPerformanceMonth[];
     notices: string[];
+};
+
+export type ChannelPerformanceRow = {
+    id: number;
+    period: string;
+    channelKey: string;
+    channelLabel: string;
+    generatedOrders: number | null;
+    generatedGrossRevenue: number | null;
+    overrideOrders: number | null;
+    overrideGrossRevenue: number | null;
+    overrideAppFees: number | null;
+    effectiveOrders: number | null;
+    effectiveGrossRevenue: number | null;
+    effectiveAppFees: number | null;
+    // False when nobody has entered a fee. Distinct from a fee of zero — there is no fee-free
+    // channel, so an absent fee overstates profit rather than merely leaving a blank.
+    appFeesEntered: boolean;
+    netRevenue: number | null;
+    appCommissionPercent: number | null;
+    note: string | null;
+    generatedAt: string | null;
+    updatedAt: string | null;
+    updatedByName: string | null;
+    version: number;
+};
+
+export type ChannelPerformanceMonth = {
+    period: string;
+    rows: ChannelPerformanceRow[];
+    totalOrders: number;
+    totalGrossRevenue: number;
+    totalAppFees: number;
+    totalNetRevenue: number;
+    appFeesMissing: boolean;
+};
+
+// The clear* flags exist because in a PATCH a JSON null is indistinguishable from an absent field,
+// so "revert this cell to the generated figure" would otherwise be inexpressible.
+export type ChannelOverridePatch = {
+    orders?: number | null;
+    grossRevenue?: number | null;
+    appFees?: number | null;
+    note?: string | null;
+    clearOrders?: boolean;
+    clearGrossRevenue?: boolean;
+    clearAppFees?: boolean;
+    version: number;
+};
+
+export type ChannelRegenerateResponse = {
+    succeeded: number;
+    failed: number;
+    failedPeriods: string[];
 };

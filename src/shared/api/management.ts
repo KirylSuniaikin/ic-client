@@ -15,7 +15,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
-import type { BusinessStatsResponse, CategoryClassification, UpdateCategoryClassification } from '../../domains/management/statistics/types';
+import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, UpdateCategoryClassification } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -819,6 +819,35 @@ export async function getBusinessStats(from: string, to: string): Promise<Busine
     const res = await authFetch(BASE_URL + `/business-stats?${params}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function regenerateChannelPerformance(
+    from: string,
+    to: string
+): Promise<ChannelRegenerateResponse> {
+    const params = new URLSearchParams({ from, to });
+
+    const res = await authFetch(BASE_URL + `/business-stats/channels/regenerate?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function patchChannelPerformance(
+    id: number,
+    payload: ChannelOverridePatch
+): Promise<ChannelPerformanceRow> {
+    const res = await authFetch(BASE_URL + `/business-stats/channels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
     });
 
     if (!res.ok) throw new Error(`Response: ${res.status}`);

@@ -15,7 +15,7 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, UpdateCategoryClassification } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, UpdateCategoryClassification } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
@@ -144,3 +144,7 @@ export const getBusinessCategories = jest.fn<Promise<CategoryClassification[]>, 
 export const updateCategoryClassification =
     jest.fn<Promise<CategoryClassification>, [number, UpdateCategoryClassification]>();
 export const getBusinessStats = jest.fn<Promise<BusinessStatsResponse>, [string, string]>();
+export const regenerateChannelPerformance =
+    jest.fn<Promise<ChannelRegenerateResponse>, [string, string]>();
+export const patchChannelPerformance =
+    jest.fn<Promise<ChannelPerformanceRow>, [number, ChannelOverridePatch]>();

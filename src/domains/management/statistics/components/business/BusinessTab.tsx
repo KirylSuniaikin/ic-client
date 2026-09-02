@@ -3,16 +3,20 @@ import {Alert, Box, Button, Card, CardContent, Chip, Typography} from "@mui/mate
 import CategoryClassificationDrawer from "./CategoryClassificationDrawer";
 import MonthlyExpensesPivotCard from "./MonthlyExpensesPivotCard";
 import InventoryCogsCard from "./InventoryCogsCard";
+import ChannelPerformanceCard from "./ChannelPerformanceCard";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
 import {formatBd} from "./businessFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
-import type {BusinessStatsResponse} from "../../types";
+import type {BusinessStatsResponse, ChannelOverridePatch} from "../../types";
 
 type Props = {
     data: BusinessStatsResponse | null;
     loading: boolean;
+    rangeLabel: string;
     onRefresh: () => Promise<void>;
+    onPatchChannel: (id: number, payload: ChannelOverridePatch) => Promise<void>;
+    onRegenerateChannels: () => Promise<void>;
 };
 
 /**
@@ -25,7 +29,9 @@ type Props = {
  * <p>The month range lives in {@code StatisticsComponent}'s filter row rather than here, so it sits
  * alongside the other tabs' controls instead of inventing a second place to change scope.
  */
-export default function BusinessTab({data, loading, onRefresh}: Props): React.JSX.Element {
+export default function BusinessTab(
+    {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
+): React.JSX.Element {
     const {categories, unclassifiedCount, classify} = useBusinessCategories();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
 
@@ -110,6 +116,12 @@ export default function BusinessTab({data, loading, onRefresh}: Props): React.JS
                     <MonthlyExpensesPivotCard
                         pivot={data.expensePivot}
                         onClassify={() => setDrawerOpen(true)}
+                    />
+                    <ChannelPerformanceCard
+                        months={data.channels}
+                        rangeLabel={rangeLabel}
+                        onPatch={onPatchChannel}
+                        onRegenerate={onRegenerateChannels}
                     />
                     <InventoryCogsCard months={data.inventoryCogs}/>
                 </>

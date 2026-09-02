@@ -61,11 +61,59 @@ const report: BusinessStatsResponse = {
             missingReports: ["PURCHASE jul-26 @ Adliya"],
         },
     ],
+    channels: [
+        {
+            period: "2026-06",
+            rows: [
+                {
+                    id: 10, period: "2026-06", channelKey: "talabat", channelLabel: "Talabat",
+                    generatedOrders: 269, generatedGrossRevenue: 1741.08,
+                    overrideOrders: null, overrideGrossRevenue: null, overrideAppFees: 666.498,
+                    effectiveOrders: 269, effectiveGrossRevenue: 1741.08, effectiveAppFees: 666.498,
+                    appFeesEntered: true, netRevenue: 1074.582, appCommissionPercent: 38.3,
+                    note: null, generatedAt: "2026-07-01T20:00:00", updatedAt: null,
+                    updatedByName: null, version: 3,
+                },
+                {
+                    id: 11, period: "2026-06", channelKey: "keeta", channelLabel: "Keeta",
+                    generatedOrders: 98, generatedGrossRevenue: 526.498,
+                    overrideOrders: null, overrideGrossRevenue: 530.0, overrideAppFees: null,
+                    effectiveOrders: 98, effectiveGrossRevenue: 530.0, effectiveAppFees: null,
+                    appFeesEntered: false, netRevenue: 530.0, appCommissionPercent: 0,
+                    note: null, generatedAt: "2026-07-01T20:00:00", updatedAt: null,
+                    updatedByName: null, version: 5,
+                },
+                {
+                    id: 12, period: "2026-06", channelKey: "pick up", channelLabel: "Pick Up",
+                    generatedOrders: 254, generatedGrossRevenue: 1667.69,
+                    overrideOrders: null, overrideGrossRevenue: null, overrideAppFees: 30.29,
+                    effectiveOrders: 254, effectiveGrossRevenue: 1667.69, effectiveAppFees: 30.29,
+                    appFeesEntered: true, netRevenue: 1637.4, appCommissionPercent: 1.8,
+                    note: null, generatedAt: "2026-07-01T20:00:00", updatedAt: null,
+                    updatedByName: null, version: 1,
+                },
+            ],
+            totalOrders: 621, totalGrossRevenue: 3938.77, totalAppFees: 696.788,
+            totalNetRevenue: 1604.582, appFeesMissing: true,
+        },
+    ],
     notices: ["Revenue here includes orders recorded before branches existed."],
 };
 
+const mockPatchChannel = jest.fn<Promise<void>, [number, unknown]>();
+const mockRegenerateChannels = jest.fn<Promise<void>, []>();
+
 function renderTab(data: BusinessStatsResponse | null = report): ReturnType<typeof render> {
-    return render(<BusinessTab data={data} loading={false} onRefresh={jest.fn(async () => undefined)} />);
+    return render(
+        <BusinessTab
+            data={data}
+            loading={false}
+            rangeLabel="Jun 2026 — Jul 2026"
+            onRefresh={jest.fn(async () => undefined)}
+            onPatchChannel={mockPatchChannel as never}
+            onRegenerateChannels={mockRegenerateChannels as never}
+        />
+    );
 }
 
 describe("BusinessTab", () => {
@@ -148,6 +196,64 @@ describe("BusinessTab", () => {
             renderTab();
 
             expect(await screen.findByText(/PURCHASE jul-26 @ Adliya/)).toBeTruthy();
+        });
+    });
+
+    describe("channel performance", () => {
+        it("warns when a channel has revenue but no app fee", async () => {
+            // No channel is genuinely fee-free -- even pick-up carries a card-gateway cut -- so a
+            // blank fee overstates profit rather than merely leaving a gap.
+            renderTab();
+
+            expect(await screen.findByText(/no app fee entered/)).toBeTruthy();
+        });
+
+        it("marks an overridden cell so an edited figure cannot pass for a measured one", async () => {
+            renderTab();
+
+            const cell = await screen.findByTestId("cell-grossRevenue-11");
+            expect(cell.textContent).toContain("530.000");
+        });
+
+        it("sends the clear flags when a row is reverted", async () => {
+            // Without them an override could be changed forever but never removed, because a JSON
+            // null in a PATCH is indistinguishable from an absent field.
+            renderTab();
+
+            await userEvent.click(await screen.findByRole("button", { name: "Revert Keeta" }));
+
+            expect(mockPatchChannel).toHaveBeenCalledWith(11, {
+                version: 5, clearOrders: true, clearGrossRevenue: true, clearAppFees: true,
+            });
+        });
+
+        it("enables revert only on a row that actually carries an override", async () => {
+            // Talabat's fee is hand-entered, so its revert is live. A row with nothing overridden
+            // has nothing to revert TO, and offering the action would imply otherwise.
+            renderTab();
+
+            expect((await screen.findByRole("button", { name: "Revert Talabat" })).hasAttribute("disabled"))
+                .toBe(false);
+        });
+
+        it("only regenerates after the confirm is accepted", async () => {
+            renderTab();
+
+            await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
+            expect(mockRegenerateChannels).not.toHaveBeenCalled();
+
+            await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+            expect(mockRegenerateChannels).toHaveBeenCalledTimes(1);
+        });
+
+        it("promises that manual edits survive a refresh", async () => {
+            // Prep-plan's "this will replace the current plan" would be a lie here and would make
+            // the owner afraid to press the button.
+            renderTab();
+
+            await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
+
+            expect(await screen.findByText(/Your manual edits are kept/)).toBeTruthy();
         });
     });
 

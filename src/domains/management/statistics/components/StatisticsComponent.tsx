@@ -23,13 +23,6 @@ import type {IBranch} from "../../inventory/types";
 
 const BRAND = "#E44B4C";
 
-/** "Mar 2026 — Sep 2026". Months, because the report has no day grain. */
-function formatMonthRange(range: {from: Date; to: Date}): string {
-    const fmt = (d: Date): string =>
-        d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
-    return `${fmt(range.from)} — ${fmt(range.to)}`;
-}
-
 interface StatisticsComponentProps {
     onClose: () => void;
     branchId: string;
@@ -244,7 +237,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                         "&:hover": {borderColor: BRAND, backgroundColor: "#fff"},
                                     }}
                                 >
-                                    {formatMonthRange(businessStats.range)}
+                                    {businessStats.rangeLabel}
                                 </Button>
                                 <MonthRangePickerPopover
                                     open={Boolean(monthRangeAnchorEl)}
@@ -287,7 +280,10 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         <BusinessTab
                             data={businessStats.data}
                             loading={businessStats.loading}
+                            rangeLabel={businessStats.rangeLabel}
                             onRefresh={businessStats.refresh}
+                            onPatchChannel={businessStats.patchChannel}
+                            onRegenerateChannels={businessStats.regenerateChannels}
                         />
                     )}
                     {mode === "Consumption" && (
