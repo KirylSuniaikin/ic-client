@@ -9,10 +9,14 @@ import type { BusinessStatsResponse, CategoryClassification } from "../../types"
 // runs for real, so the fetch -> classify -> refetch wiring is genuine.
 jest.mock("../../../../../shared/api/management");
 
-import { getBusinessCategories, updateCategoryClassification } from "../../../../../shared/api/management";
+import {
+    getBusinessCategories, getComponentCosts, getMenuCostCards, updateCategoryClassification
+} from "../../../../../shared/api/management";
 
 const mockGet = jest.mocked(getBusinessCategories);
 const mockUpdate = jest.mocked(updateCategoryClassification);
+const mockCostCards = jest.mocked(getMenuCostCards);
+const mockComponents = jest.mocked(getComponentCosts);
 
 const marketing: CategoryClassification = {
     id: 1, name: "Marketing", type: "DEBIT", pnlClass: null, kpiTag: null,
@@ -97,6 +101,85 @@ const report: BusinessStatsResponse = {
             totalNetRevenue: 1604.582, appFeesMissing: true,
         },
     ],
+    profitAndLoss: [
+        {
+            period: "2026-06",
+            grossRevenue: 3261.626, appFees: 672.836, netRevenue: 2588.79,
+            recipeCogs: 800.0, grossProfit: 1788.79,
+            operatingExpenses: 936.17, operatingProfit: 852.62,
+            capex: 763.906, financing: 0, ownerWithdrawals: 21.38, adjustments: 0,
+            netProfit: 67.334, unclassified: 4102.5,
+            reconciliation: {
+                ledgerCogsPurchases: 808.69, invoicePurchases: 808.69, ledgerVsInvoices: 0,
+                openingInventory: 553.679, endingInventory: 522.673, inventoryDelta: 31.006,
+                movementCogs: 839.696, recipeCogs: 800.0, unexplainedVariance: 39.696,
+                variancePercentOfNetRevenue: 1.53, netCashMovement: 58.644, complete: true,
+            },
+            flags: ["UNCLASSIFIED_SPEND"],
+        },
+        {
+            period: "2026-07",
+            grossRevenue: 3935.269, appFees: 858.264, netRevenue: 3077.005,
+            recipeCogs: 1000.0, grossProfit: 2077.005,
+            operatingExpenses: 893.542, operatingProfit: 1183.463,
+            capex: 661.283, financing: 0, ownerWithdrawals: 74.988, adjustments: 0,
+            netProfit: 447.192, unclassified: 0,
+            reconciliation: {
+                ledgerCogsPurchases: 1119.317, invoicePurchases: null, ledgerVsInvoices: null,
+                openingInventory: 522.673, endingInventory: 896.003, inventoryDelta: -373.33,
+                movementCogs: null, recipeCogs: 1000.0, unexplainedVariance: null,
+                variancePercentOfNetRevenue: null, netCashMovement: null, complete: false,
+            },
+            flags: ["RECONCILIATION_INCOMPLETE"],
+        },
+    ],
+    kpi: [
+        {
+            period: "2026-06",
+            kpis: [
+                {
+                    key: "grossProfitMargin", label: "Gross profit margin", value: 69.1, unit: "%",
+                    previousValue: null, unavailableReason: null, detail: "of net revenue",
+                },
+                {
+                    key: "dailyOrders", label: "Daily orders (avg)", value: 20.12, unit: "count",
+                    previousValue: null, unavailableReason: null, detail: "÷ 26 trading days",
+                },
+                {
+                    key: "debtEquity", label: "Debt / equity", value: null, unit: "x",
+                    previousValue: null,
+                    unavailableReason: "Not tracked — this system has no loan or equity register.",
+                    detail: null,
+                },
+            ],
+        },
+        {
+            period: "2026-07",
+            kpis: [
+                {
+                    key: "grossProfitMargin", label: "Gross profit margin", value: 67.5, unit: "%",
+                    previousValue: 69.1, unavailableReason: null, detail: "of net revenue",
+                },
+                {
+                    key: "dailyOrders", label: "Daily orders (avg)", value: 23.88, unit: "count",
+                    previousValue: null, unavailableReason: null, detail: "÷ 27 trading days",
+                },
+                {
+                    key: "debtEquity", label: "Debt / equity", value: null, unit: "x",
+                    previousValue: null,
+                    unavailableReason: "Not tracked — this system has no loan or equity register.",
+                    detail: null,
+                },
+            ],
+        },
+    ],
+    costing: {
+        componentsUsed: 10, componentsResolved: 8, coveragePercent: 80,
+        warnings: [{
+            code: "COMPONENT_COST_MISSING", componentId: 5, componentName: "Oregano",
+            detail: "No batch recipe, no product price and no manual cost — costed at zero.",
+        }],
+    },
     notices: ["Revenue here includes orders recorded before branches existed."],
 };
 
@@ -121,6 +204,11 @@ describe("BusinessTab", () => {
         jest.clearAllMocks();
         mockGet.mockResolvedValue([marketing, rent]);
         mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX" });
+        mockCostCards.mockResolvedValue({
+            cards: [], menuItemsWithoutRecipe: [],
+            costing: { componentsUsed: 0, componentsResolved: 0, coveragePercent: 100, warnings: [] },
+        });
+        mockComponents.mockResolvedValue([]);
     });
 
     describe("classification", () => {
@@ -254,6 +342,78 @@ describe("BusinessTab", () => {
             await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
 
             expect(await screen.findByText(/Your manual edits are kept/)).toBeTruthy();
+        });
+    });
+
+    describe("profit and loss", () => {
+        it("shows the reconciliation memo inside the same card as the statement", async () => {
+            // Beside it in its own card it would be scrolled past -- which matters, because with
+            // recipe-costed COGS the net profit line above is no longer a cash figure.
+            renderTab();
+
+            expect(await screen.findByText(/COGS reconciliation/)).toBeTruthy();
+            expect(screen.getByText(/Unexplained variance/)).toBeTruthy();
+        });
+
+        it("says that net profit is not a cash figure", async () => {
+            renderTab();
+
+            expect(await screen.findByText(/COGS is recipe-costed, not cash/)).toBeTruthy();
+        });
+
+        it("shows an em dash rather than a variance when a stock count is missing", async () => {
+            // Computing one anyway would invent a waste figure out of missing paperwork.
+            renderTab();
+
+            expect(await screen.findByText(/No variance is computed from an input that does not exist/))
+                .toBeTruthy();
+        });
+    });
+
+    describe("KPI block", () => {
+        it("renders an em dash with a reason rather than a zero when a KPI is unavailable", async () => {
+            // "0x debt to equity" and "we do not track debt to equity" look identical on a
+            // dashboard and mean opposite things.
+            renderTab();
+
+            const tile = await screen.findByTestId("kpi-debtEquity");
+            expect(tile.textContent).toContain("—");
+            expect(tile.textContent).not.toContain("0.00");
+        });
+
+        it("prints the divisor beside a KPI that has one", async () => {
+            // So a constant can never hide inside a KPI again.
+            renderTab();
+
+            expect((await screen.findByTestId("kpi-dailyOrders")).textContent).toContain("trading days");
+        });
+
+        it("shows the latest month in the range", async () => {
+            renderTab();
+
+            expect(await screen.findByText("July 2026")).toBeTruthy();
+        });
+    });
+
+    describe("ingredient costs", () => {
+        it("reports full coverage when every ingredient is costed", async () => {
+            renderTab();
+
+            expect(await screen.findByText(/All 0 ingredients costed/)).toBeTruthy();
+        });
+
+        it("warns with the count when ingredients have no cost", async () => {
+            mockComponents.mockResolvedValue([
+                {
+                    id: 5, name: "Oregano", unit: "GRAMS", productId: null, productName: null,
+                    productPrice: null, cost: null, batchYield: null, ingredients: [],
+                    resolvedUnitCost: 0, costSource: "MISSING",
+                },
+            ]);
+
+            renderTab();
+
+            expect(await screen.findByText(/1 ingredients with no cost/)).toBeTruthy();
         });
     });
 

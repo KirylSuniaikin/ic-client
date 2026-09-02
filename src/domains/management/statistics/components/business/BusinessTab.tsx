@@ -4,6 +4,11 @@ import CategoryClassificationDrawer from "./CategoryClassificationDrawer";
 import MonthlyExpensesPivotCard from "./MonthlyExpensesPivotCard";
 import InventoryCogsCard from "./InventoryCogsCard";
 import ChannelPerformanceCard from "./ChannelPerformanceCard";
+import KpiBlockCard from "./KpiBlockCard";
+import ProfitAndLossCard from "./ProfitAndLossCard";
+import MenuCostCardsCard from "./MenuCostCardsCard";
+import ComponentCostDrawer from "./ComponentCostDrawer";
+import {useCostCards} from "../../hooks/useCostCards";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
 import {formatBd} from "./businessFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
@@ -33,7 +38,9 @@ export default function BusinessTab(
     {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
 ): React.JSX.Element {
     const {categories, unclassifiedCount, classify} = useBusinessCategories();
+    const costCards = useCostCards();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+    const [costDrawerOpen, setCostDrawerOpen] = useState<boolean>(false);
 
     const unclassifiedTotal = categories
         .filter(c => c.pnlClass === null)
@@ -44,6 +51,16 @@ export default function BusinessTab(
     // payload.
     const handleClassify = async (id: number, payload: Parameters<typeof classify>[1]): Promise<void> => {
         await classify(id, payload);
+        await onRefresh();
+    };
+
+    // A cost change moves COGS in every month of the statement, so the report is refetched too --
+    // the server evicts its cache on the write, but this client still holds the old payload.
+    const handleSetComponentCost = async (
+        id: number,
+        payload: Parameters<typeof costCards.setComponentCost>[1]
+    ): Promise<void> => {
+        await costCards.setComponentCost(id, payload);
         await onRefresh();
     };
 
@@ -93,6 +110,50 @@ export default function BusinessTab(
                 </CardContent>
             </Card>
 
+            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
+                <CardContent>
+                    <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>
+                        🍕 Ingredient costs
+                    </Typography>
+                    <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
+                        Every ingredient needs a cost before the profit statement means anything.
+                        An uncosted ingredient contributes nothing, which understates cost and
+                        overstates margin on every recipe that uses it.
+                    </Typography>
+
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
+                        {costCards.uncostedCount > 0 ? (
+                            <Chip
+                                label={`⚠ ${costCards.uncostedCount} ingredients with no cost`}
+                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}
+                                onClick={() => setCostDrawerOpen(true)}
+                            />
+                        ) : (
+                            <Chip
+                                label={`✓ All ${costCards.components.length} ingredients costed`}
+                                sx={{backgroundColor: '#4CAF50', color: '#fff', fontWeight: 'bold'}}
+                            />
+                        )}
+
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setCostDrawerOpen(true)}
+                            sx={{
+                                ml: 'auto',
+                                textTransform: 'none',
+                                borderRadius: 999,
+                                borderColor: '#e0e0e0',
+                                color: '#3b352c',
+                                '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
+                            }}
+                        >
+                            Set ingredient costs
+                        </Button>
+                    </Box>
+                </CardContent>
+            </Card>
+
             {loading && data === null ? (
                 <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
                     <CardContent><StatSkeleton lines={6}/></CardContent>
@@ -113,6 +174,8 @@ export default function BusinessTab(
                         </Alert>
                     ))}
 
+                    <KpiBlockCard blocks={data.kpi}/>
+                    <ProfitAndLossCard months={data.profitAndLoss}/>
                     <MonthlyExpensesPivotCard
                         pivot={data.expensePivot}
                         onClassify={() => setDrawerOpen(true)}
@@ -124,6 +187,7 @@ export default function BusinessTab(
                         onRegenerate={onRegenerateChannels}
                     />
                     <InventoryCogsCard months={data.inventoryCogs}/>
+                    <MenuCostCardsCard data={costCards.cards} loading={costCards.loading}/>
                 </>
             )}
 
@@ -132,6 +196,13 @@ export default function BusinessTab(
                 categories={categories}
                 onClose={() => setDrawerOpen(false)}
                 onChange={handleClassify}
+            />
+
+            <ComponentCostDrawer
+                open={costDrawerOpen}
+                components={costCards.components}
+                onClose={() => setCostDrawerOpen(false)}
+                onChange={handleSetComponentCost}
             />
         </Box>
     );

@@ -203,6 +203,9 @@ export type BusinessStatsResponse = {
     revenue: MonthlyRevenue[];
     inventoryCogs: InventoryCogs[];
     channels: ChannelPerformanceMonth[];
+    profitAndLoss: ProfitAndLoss[];
+    kpi: KpiBlock[];
+    costing: CostingCoverage;
     notices: string[];
 };
 
@@ -258,4 +261,144 @@ export type ChannelRegenerateResponse = {
     succeeded: number;
     failed: number;
     failedPeriods: string[];
+};
+
+export type CostSource = "BATCH" | "PRODUCT" | "MANUAL" | "MISSING";
+
+export type CostingWarning = {
+    code: string;
+    componentId: number;
+    componentName: string;
+    detail: string;
+};
+
+export type CostingCoverage = {
+    componentsUsed: number;
+    componentsResolved: number;
+    coveragePercent: number;
+    warnings: CostingWarning[];
+};
+
+export type CogsReconciliation = {
+    ledgerCogsPurchases: number | null;
+    invoicePurchases: number | null;
+    ledgerVsInvoices: number | null;
+    openingInventory: number | null;
+    endingInventory: number | null;
+    inventoryDelta: number | null;
+    movementCogs: number | null;
+    recipeCogs: number | null;
+    // Positive means more was consumed than the recipes predict: waste, over-portioning or theft.
+    unexplainedVariance: number | null;
+    variancePercentOfNetRevenue: number | null;
+    // netProfit + recipeCogs − invoicePurchases: what the bank balance actually moved by.
+    netCashMovement: number | null;
+    complete: boolean;
+};
+
+export type ProfitAndLoss = {
+    period: string;
+    grossRevenue: number;
+    appFees: number;
+    netRevenue: number;
+    recipeCogs: number;
+    grossProfit: number;
+    operatingExpenses: number;
+    operatingProfit: number;
+    capex: number;
+    financing: number;
+    ownerWithdrawals: number;
+    adjustments: number;
+    netProfit: number;
+    unclassified: number;
+    reconciliation: CogsReconciliation;
+    flags: string[];
+};
+
+export type Kpi = {
+    key: string;
+    label: string;
+    // Null whenever it could not be computed. NEVER rendered as 0 in that case.
+    value: number | null;
+    unit: string;
+    previousValue: number | null;
+    unavailableReason: string | null;
+    detail: string | null;
+};
+
+export type KpiBlock = {
+    period: string;
+    kpis: Kpi[];
+};
+
+export type CostCardLine = {
+    componentId: number;
+    componentName: string;
+    unit: string | null;
+    amount: number;
+    // Printed on screen: a per-kilogram price mistaken for a per-gram one is invisible in a total.
+    unitCost: number;
+    costSource: CostSource;
+    lineCost: number;
+};
+
+export type MenuItemCostCard = {
+    menuItemId: number;
+    category: string | null;
+    name: string;
+    size: string | null;
+    salePrice: number | null;
+    lines: CostCardLine[];
+    totalCost: number;
+    grossProfit: number | null;
+    foodCostPercent: number | null;
+    // False when a line resolved to nothing — the card understates cost and overstates margin.
+    complete: boolean;
+};
+
+export type UncostedMenuItem = {
+    menuItemId: number;
+    category: string | null;
+    name: string;
+    size: string | null;
+};
+
+export type MenuCostCardsResponse = {
+    cards: MenuItemCostCard[];
+    menuItemsWithoutRecipe: UncostedMenuItem[];
+    costing: CostingCoverage;
+};
+
+export type ComponentIngredientLine = {
+    id: number;
+    ingredientProductId: number | null;
+    ingredientProductName: string | null;
+    ingredientComponentId: number | null;
+    ingredientComponentName: string | null;
+    amount: number;
+};
+
+export type ComponentCost = {
+    id: number;
+    name: string;
+    unit: string | null;
+    productId: number | null;
+    productName: string | null;
+    productPrice: number | null;
+    // Per kg / litre / piece — the basis the owner works in.
+    cost: number | null;
+    batchYield: number | null;
+    ingredients: ComponentIngredientLine[];
+    // Per gram / ml / piece, after resolution.
+    resolvedUnitCost: number;
+    costSource: CostSource;
+};
+
+export type UpdateComponentCost = {
+    productId?: number | null;
+    cost?: number | null;
+    batchYield?: number | null;
+    clearProduct?: boolean;
+    clearCost?: boolean;
+    clearBatchYield?: boolean;
 };

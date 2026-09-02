@@ -15,7 +15,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
-import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, UpdateCategoryClassification } from '../../domains/management/statistics/types';
+import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -845,6 +845,40 @@ export async function patchChannelPerformance(
     payload: ChannelOverridePatch
 ): Promise<ChannelPerformanceRow> {
     const res = await authFetch(BASE_URL + `/business-stats/channels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getMenuCostCards(): Promise<MenuCostCardsResponse> {
+    const res = await authFetch(BASE_URL + `/business-stats/cost-cards`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getComponentCosts(): Promise<ComponentCost[]> {
+    const res = await authFetch(BASE_URL + `/business-stats/components`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function updateComponentCost(
+    id: number,
+    payload: UpdateComponentCost
+): Promise<ComponentCost> {
+    const res = await authFetch(BASE_URL + `/business-stats/components/${id}/cost`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
