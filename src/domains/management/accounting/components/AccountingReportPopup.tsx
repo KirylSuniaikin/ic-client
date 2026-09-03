@@ -185,10 +185,19 @@ export function AccountingReportPopup({
 
     // Sorting is for DISPLAY only — computedRows above already carries the correct running
     // balances (oldest-first internally), so re-sorting it here must never touch balance math.
+    // Ties (same-date rows) are broken by insertion order in `rows`, NOT position within
+    // computedRows (which recomputeBalances may have already re-sorted for an owner) — this is
+    // what lets a freshly added same-date row still show first without needing addRow() to
+    // mutate the underlying array order (see addRow()'s comment for why that was a real bug).
     const sortedRows = useMemo(() => {
         const factor = sortDir === "asc" ? 1 : -1;
-        return [...computedRows].sort((a, b) => factor * a.date.localeCompare(b.date));
-    }, [computedRows, sortDir]);
+        const insertionIndex = new Map(rows.map((r, i) => [r._key, i]));
+        return [...computedRows].sort((a, b) => {
+            const dateCmp = factor * a.date.localeCompare(b.date);
+            if (dateCmp !== 0) return dateCmp;
+            return (insertionIndex.get(b._key) ?? 0) - (insertionIndex.get(a._key) ?? 0);
+        });
+    }, [computedRows, rows, sortDir]);
 
     useEffect(() => {
         if (!open) return;
@@ -256,7 +265,15 @@ export function AccountingReportPopup({
     }
 
     function addRow(): void {
-        setRows((prev) => [newRow(), ...prev]);
+        // Append, not prepend: `rows` is sent to the backend verbatim as the entries payload
+        // on save (see handleSave), and the backend's balance computation sorts entries by
+        // occurredAt with a STABLE sort — for same-date entries, ties are broken by array
+        // order. Prepending here silently reversed that tie-break for every same-day report,
+        // corrupting running balances (a swap: entries get processed newest-added-first
+        // instead of oldest-added-first). "New row on top" is a display-only concern —
+        // sortedRows (below) already puts a freshly added same-date row first for the user,
+        // without touching this array's true chronological order.
+        setRows((prev) => [...prev, newRow()]);
     }
 
     function categoriesForType(type: AccountingType): AccountingCategoryTO[] {

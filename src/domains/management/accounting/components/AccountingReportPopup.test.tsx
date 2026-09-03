@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, beforeAll, afterAll } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import { prefixer } from "stylis";
@@ -349,6 +349,45 @@ describe("AccountingReportPopup", () => {
             const firstBodyRow = screen.getAllByRole("row")[1];
             const dateInput = firstBodyRow.querySelector('input[type="date"]') as HTMLInputElement;
             expect(dateInput.value).toBe(todayIso());
+        });
+
+        it("keeps the save payload in true insertion order even though the newest same-date row displays first", async () => {
+            // Regression test: addRow() used to prepend into `rows`, which handleSave sends to
+            // the backend verbatim as the entries payload. The backend sorts entries by
+            // occurredAt with a STABLE sort, so same-date entries are tie-broken by array
+            // order -- prepending silently reversed that tie-break and swapped every same-day
+            // report's running balances (row1 created first must still be entries[0], even
+            // though it displays SECOND once row2 is added).
+            mockCreateReport.mockResolvedValue(report());
+            renderPopup({ mode: "new", reportId: undefined });
+            await findTable();
+
+            // Category is the LAST combobox within a row (Type, Account, Category, in that
+            // order) -- scope to the row element itself rather than a page-wide combobox
+            // index, since that index shifts once a second row is added.
+            async function fillRow(rowIndex: number, amount: string): Promise<void> {
+                const row = screen.getAllByRole("row")[rowIndex];
+                fireEvent.change(within(row).getByPlaceholderText("0"), { target: { value: amount } });
+                const combos = within(row).getAllByRole("combobox");
+                fireEvent.mouseDown(combos[combos.length - 1]);
+                await waitFor(() => expect(screen.getByRole("option", { name: "Supplies" })).toBeTruthy());
+                fireEvent.click(screen.getByRole("option", { name: "Supplies" }));
+            }
+
+            // Row 1 (created first, the only row so far): amount 40.
+            await fillRow(1, "40");
+
+            // Row 2 (added second, same default today's-date -- displays FIRST under the
+            // newest-first default sort, so it's row index 1 and row1 shifts to index 2).
+            fireEvent.click(screen.getByRole("button", { name: "Add" }));
+            await waitFor(() => expect(screen.getAllByRole("row").length).toBe(3));
+            await fillRow(1, "99");
+
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+            await waitFor(() => expect(mockCreateReport).toHaveBeenCalledTimes(1));
+
+            // Insertion order (row1 first, row2 second) -- NOT display order (row2, row1).
+            expect(mockCreateReport.mock.calls[0][0].entries.map((e) => e.amount)).toEqual([40, 99]);
         });
 
         it("removes a row on delete", async () => {
