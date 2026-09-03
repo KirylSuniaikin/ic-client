@@ -1,8 +1,8 @@
-export function dateFormatter(sep: string = "-", locale: string = "en"): string {
+export function dateFormatter(sep: string = "-", locale: string = "en", rollbackNearMonthStart: boolean = true): string {
     const now = new Date();
     const d = new Date(now);
 
-    if (now.getDate() <= 3) {
+    if (rollbackNearMonthStart && now.getDate() <= 3) {
         d.setMonth(d.getMonth() - 1);
     }
 

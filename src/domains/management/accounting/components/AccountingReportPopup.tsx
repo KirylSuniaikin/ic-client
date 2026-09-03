@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    AppBar,
     Box,
     Button,
     CircularProgress,
@@ -11,6 +10,7 @@ import {
     Paper,
     Select,
     SelectChangeEvent,
+    Stack,
     Table,
     TableBody,
     TableCell,
@@ -18,10 +18,11 @@ import {
     TableHead,
     TableRow,
     TextField,
-    Toolbar,
     Typography,
 } from "@mui/material";
-import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import type { IBranch } from "../../inventory/types";
 import type {
     AccountingCategoryTO,
@@ -45,6 +46,7 @@ import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import { dateFormatter } from "../../../../shared/utils/dateFormatter";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import { PreResponseNetworkError } from "../../../../shared/api/client";
 
 type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT";
 
@@ -173,11 +175,20 @@ export function AccountingReportPopup({
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Newest-first by default, matching a freshly added row's expected position.
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
     const computedRows = useMemo(
         () => (isOwner ? recomputeBalances(rows, baseBalance) : rows),
         [rows, baseBalance, isOwner]
     );
+
+    // Sorting is for DISPLAY only — computedRows above already carries the correct running
+    // balances (oldest-first internally), so re-sorting it here must never touch balance math.
+    const sortedRows = useMemo(() => {
+        const factor = sortDir === "asc" ? 1 : -1;
+        return [...computedRows].sort((a, b) => factor * a.date.localeCompare(b.date));
+    }, [computedRows, sortDir]);
 
     useEffect(() => {
         if (!open) return;
@@ -198,7 +209,7 @@ export function AccountingReportPopup({
                     if (!alive) return;
                     setTitle(report.title);
                     setVersion(report.version);
-                    const base = isOwner ? deriveBaseBalance(report) : null;
+                    const base = isOwner ? (report.startBalance ?? deriveBaseBalance(report)) : null;
                     setBaseBalance(base);
                     setRows(
                         [...(report.entries ?? [])]
@@ -220,7 +231,9 @@ export function AccountingReportPopup({
                             }))
                     );
                 } else {
-                    setTitle(dateFormatter().toLowerCase() + "-" + branch.locale.toUpperCase());
+                    // Accounting always names the report after the current month — never roll
+                    // back near month-start the way Inventory does.
+                    setTitle(dateFormatter("-", "en", false).toLowerCase() + "-" + branch.locale.toUpperCase());
                     setVersion(null);
                     setBaseBalance(null);
                     setRows([newRow()]);
@@ -243,7 +256,7 @@ export function AccountingReportPopup({
     }
 
     function addRow(): void {
-        setRows((prev) => [...prev, newRow()]);
+        setRows((prev) => [newRow(), ...prev]);
     }
 
     function categoriesForType(type: AccountingType): AccountingCategoryTO[] {
@@ -334,10 +347,11 @@ export function AccountingReportPopup({
             return;
         }
 
-        setSaving(true);
-        setError(null);
-        try {
-            let saved: AccountingReportTO;
+        if (mode === "edit" && version == null) return;
+
+        // Kept as nested functions (rather than hoisted to module scope) so the null-check above
+        // narrows `version` for the edit-mode payload below.
+        async function saveReportOnce(): Promise<AccountingReportTO> {
             if (mode === "new") {
                 const payload: CreateAccountingReportPayload = {
                     branchId: branch.id.toString(),
@@ -351,23 +365,41 @@ export function AccountingReportPopup({
                         clientRef: r._key,
                     })),
                 };
-                saved = await createAccountingReport(payload);
-            } else {
-                if (version == null) return;
-                const payload: UpdateAccountingReportPayload = {
-                    version,
-                    entries: rows.map((r) => ({
-                        id: r.id,
-                        categoryId: r.categoryId as number,
-                        accountType: r.account,
-                        amount: parseFloat(r.amount),
-                        occurredAt: r.date + "T00:00:00",
-                        note: r.note || undefined,
-                        clientRef: r._key,
-                    })),
-                };
-                saved = await updateAccountingReport(reportId as number, payload);
+                return createAccountingReport(payload);
             }
+            const payload: UpdateAccountingReportPayload = {
+                version,
+                entries: rows.map((r) => ({
+                    id: r.id,
+                    categoryId: r.categoryId as number,
+                    accountType: r.account,
+                    amount: parseFloat(r.amount),
+                    occurredAt: r.date + "T00:00:00",
+                    note: r.note || undefined,
+                    clientRef: r._key,
+                })),
+            };
+            return updateAccountingReport(reportId as number, payload);
+        }
+
+        // Retries once, but ONLY when no HTTP response was ever received (offline, DNS failure,
+        // a rejected `fetch()` inside authFetch). authFetch throws PreResponseNetworkError
+        // exclusively for that case; anything past a received response (an `!res.ok` status, the
+        // 401 handler, or a body-parse failure on a successful response) surfaces as a plain
+        // Error and must never be blind-retried — that could duplicate the report server-side.
+        async function saveReportWithOneRetry(): Promise<AccountingReportTO> {
+            try {
+                return await saveReportOnce();
+            } catch (e: unknown) {
+                if (!(e instanceof PreResponseNetworkError)) throw e;
+                return saveReportOnce();
+            }
+        }
+
+        setSaving(true);
+        setError(null);
+        try {
+            const saved = await saveReportWithOneRetry();
 
             const failedPhotos = await syncEntryImages(saved);
 
@@ -390,6 +422,8 @@ export function AccountingReportPopup({
                 setError(
                     "This report was modified by another user. Please reload to see the latest changes."
                 );
+            } else if (e instanceof PreResponseNetworkError) {
+                setError("Network error — please check your connection and try saving again.");
             } else {
                 setError(e instanceof Error ? e.message : "Failed to save.");
             }
@@ -407,23 +441,10 @@ export function AccountingReportPopup({
             onClose={onClose}
             sx={{ "& .MuiDialog-paper": { backgroundColor: "#fff" } }}
         >
-            <AppBar
-                elevation={0}
-                color="inherit"
-                position="sticky"
-                sx={{ p: 2,
-                    borderBottom: 1,
-                    borderColor: "divider",
-                    backgroundColor: "#fff",
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 10, }}
-            >
-                <Toolbar sx={{ gap: 1 }}>
-                    <IconButton edge="start" onClick={onClose} size="small" aria-label="close">
-                        <ArrowBackIosNewRoundedIcon />
-                    </IconButton>
-
+            <ManagementTopBar
+                title="Accounting Report"
+                onBack={onClose}
+                titleSlot={
                     <TextField
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
@@ -433,39 +454,40 @@ export function AccountingReportPopup({
                         sx={{ minWidth: 180, fontWeight: 700 }}
                         inputProps={{ style: { fontWeight: 700, fontSize: "1.1rem" } }}
                     />
+                }
+                actions={
+                    <>
+                        <Button
+                            onClick={addRow}
+                            sx={{
+                                borderRadius: 4,
+                                textTransform: "none",
+                                fontWeight: 700,
+                                border: `1px solid ${BRAND}`,
+                                color: BRAND,
+                                mr: 1,
+                            }}
+                        >
+                            Add
+                        </Button>
 
-                    <Box flex={1} />
-
-                    <Button
-                        onClick={addRow}
-                        sx={{
-                            borderRadius: 4,
-                            textTransform: "none",
-                            fontWeight: 700,
-                            border: `1px solid ${BRAND}`,
-                            color: BRAND,
-                            mr: 1,
-                        }}
-                    >
-                        Add
-                    </Button>
-
-                    <Button
-                        variant="contained"
-                        onClick={handleSave}
-                        disabled={saving}
-                        sx={{
-                            borderRadius: 4,
-                            textTransform: "none",
-                            fontWeight: 700,
-                            bgcolor: BRAND,
-                            "&:hover": { bgcolor: "#c93d3e" },
-                        }}
-                    >
-                        {saving ? <CircularProgress size={18} color="inherit" /> : "Save"}
-                    </Button>
-                </Toolbar>
-            </AppBar>
+                        <Button
+                            variant="contained"
+                            onClick={handleSave}
+                            disabled={saving}
+                            sx={{
+                                borderRadius: 4,
+                                textTransform: "none",
+                                fontWeight: 700,
+                                bgcolor: BRAND,
+                                "&:hover": { bgcolor: "#c93d3e" },
+                            }}
+                        >
+                            {saving ? <CircularProgress size={18} color="inherit" /> : "Save"}
+                        </Button>
+                    </>
+                }
+            />
 
             <Box sx={{ p: 2 }}>
                 {error && (
@@ -479,94 +501,178 @@ export function AccountingReportPopup({
                         <CircularProgress />
                     </Box>
                 ) : (
-                    <TableContainer
-                        component={Paper}
-                        elevation={0}
-                        sx={{ borderRadius: 4,
-                            overflow: "hidden",
-                            overflowX: "auto",
-                            WebkitOverflowScrolling: "touch"
-                        }}
-                    >
-                        <Table size="small" stickyHeader aria-label="accounting entries">
-                            <TableHead sx={{ bgcolor: "#fff" }}>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
-                                    <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
-                                    {isOwner && (
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
-                                    )}
-                                    {/* Header for the delete-button column: unlabelled visually,
-                                        but it has to exist so head and body column counts match. */}
-                                    <TableCell aria-label="Actions" sx={{ width: 40, pr: 1 }} />
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {computedRows.map((row) => {
-                                    const isCredit = row.type === "CREDIT";
-                                    const pill = isCredit ? amountStyles.credit : amountStyles.debit;
-                                    const hasAmount = row.amount !== "" && !isNaN(parseFloat(row.amount));
+                    <>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                            {isOwner ? (
+                                <Typography
+                                    variant="body2"
+                                    data-testid="opening-balance"
+                                    sx={{ color: "text.secondary", fontWeight: 700 }}
+                                >
+                                    Opening balance:{" "}
+                                    {baseBalance != null ? baseBalance.toFixed(3) : "—"}
+                                </Typography>
+                            ) : (
+                                <span />
+                            )}
+                            {/* Labelled toggle matching PurchaseTablePopup's SortButton shape (brand
+                                outline, direction icon as startIcon) rather than a naked IconButton. */}
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                aria-label="toggle date sort"
+                                data-testid="sort-toggle"
+                                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                                startIcon={
+                                    sortDir === "asc" ? (
+                                        <ArrowUpwardIcon fontSize="small" />
+                                    ) : (
+                                        <ArrowDownwardIcon fontSize="small" />
+                                    )
+                                }
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    borderRadius: 16,
+                                    color: BRAND,
+                                    borderColor: `${BRAND}55`,
+                                    "&:hover": { borderColor: BRAND, bgcolor: `${BRAND}14` },
+                                }}
+                            >
+                                Date
+                            </Button>
+                        </Stack>
+                        <TableContainer
+                            component={Paper}
+                            elevation={0}
+                            sx={{ borderRadius: 4,
+                                overflow: "hidden",
+                                overflowX: "auto",
+                                WebkitOverflowScrolling: "touch"
+                            }}
+                        >
+                            <Table size="small" stickyHeader aria-label="accounting entries">
+                                <TableHead sx={{ bgcolor: "#fff" }}>
+                                    <TableRow>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
+                                        {isOwner && (
+                                            <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
+                                        )}
+                                        {/* Header for the delete-button column: unlabelled visually,
+                                            but it has to exist so head and body column counts match. */}
+                                        <TableCell aria-label="Actions" sx={{ width: 40, pr: 1 }} />
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {sortedRows.map((row) => {
+                                        const isCredit = row.type === "CREDIT";
+                                        const pill = isCredit ? amountStyles.credit : amountStyles.debit;
+                                        const hasAmount = row.amount !== "" && !isNaN(parseFloat(row.amount));
 
-                                    return (
-                                        <TableRow
-                                            key={row._key}
-                                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                                        >
-                                            {/* Date */}
-                                            <TableCell sx={{ minWidth: 130 }}>
-                                                <TextField
-                                                    type="date"
-                                                    value={row.date}
-                                                    onChange={(e) =>
-                                                        updateRow(row._key, { date: e.target.value })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    sx={{ width: 130, ...noUnderlineSx }}
-                                                />
-                                            </TableCell>
+                                        return (
+                                            <TableRow
+                                                key={row._key}
+                                                sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                                            >
+                                                {/* Date */}
+                                                <TableCell sx={{ minWidth: 130 }}>
+                                                    <TextField
+                                                        type="date"
+                                                        value={row.date}
+                                                        onChange={(e) =>
+                                                            updateRow(row._key, { date: e.target.value })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        sx={{ width: 130, ...noUnderlineSx }}
+                                                    />
+                                                </TableCell>
 
-                                            {/* Receipt photo */}
-                                            <TableCell sx={{ minWidth: 90 }}>
-                                                <EntryImageField
-                                                    rowKey={row._key}
-                                                    serverId={row.id ?? null}
-                                                    hasImage={row.hasImage}
-                                                    pendingImage={row.pendingImage}
-                                                    removeImage={row.removeImage}
-                                                    onChange={(patch) => updateRowPhoto(row._key, patch)}
-                                                />
-                                            </TableCell>
+                                                {/* Receipt photo */}
+                                                <TableCell sx={{ minWidth: 90 }}>
+                                                    <EntryImageField
+                                                        rowKey={row._key}
+                                                        serverId={row.id ?? null}
+                                                        hasImage={row.hasImage}
+                                                        pendingImage={row.pendingImage}
+                                                        removeImage={row.removeImage}
+                                                        onChange={(patch) => updateRowPhoto(row._key, patch)}
+                                                    />
+                                                </TableCell>
 
-                                            {/* Type */}
-                                            <TableCell sx={{ minWidth: 110 }}>
-                                                <Select
-                                                    value={row.type}
-                                                    onChange={(e: SelectChangeEvent) =>
-                                                        updateRow(row._key, {
-                                                            type: e.target.value as AccountingType,
-                                                            categoryId: null,
-                                                        })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    sx={{ width: 110, ...noUnderlineSx }}
-                                                >
-                                                    <MenuItem value="CREDIT">Credit</MenuItem>
-                                                    <MenuItem value="DEBIT">Debit</MenuItem>
-                                                </Select>
-                                            </TableCell>
+                                                {/* Type */}
+                                                <TableCell sx={{ minWidth: 110 }}>
+                                                    <Select
+                                                        value={row.type}
+                                                        onChange={(e: SelectChangeEvent) =>
+                                                            updateRow(row._key, {
+                                                                type: e.target.value as AccountingType,
+                                                                categoryId: null,
+                                                            })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        sx={{ width: 110, ...noUnderlineSx }}
+                                                    >
+                                                        <MenuItem value="CREDIT">Credit</MenuItem>
+                                                        <MenuItem value="DEBIT">Debit</MenuItem>
+                                                    </Select>
+                                                </TableCell>
 
-                                            {/* Amount — soft pill like TransactionDetailsTable */}
-                                            <TableCell sx={{ minWidth: 130 }}>
-                                                <Box
-                                                    sx={{
+                                                {/* Amount — soft pill like TransactionDetailsTable */}
+                                                <TableCell sx={{ minWidth: 130 }}>
+                                                    <Box
+                                                        sx={{
+                                                            backgroundColor: pill.bg,
+                                                            color: pill.text,
+                                                            py: 0.5,
+                                                            px: 1.5,
+                                                            borderRadius: 2,
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            fontWeight: "bold",
+                                                            fontSize: "0.9rem",
+                                                        }}
+                                                    >
+                                                        <Box component="span" sx={{ mr: 0.5 }}>
+                                                            {hasAmount ? (isCredit ? "+" : "−") : ""}
+                                                        </Box>
+                                                        <TextField
+                                                            type="number"
+                                                            value={row.amount}
+                                                            onChange={(e) =>
+                                                                updateRow(row._key, { amount: e.target.value })
+                                                            }
+                                                            size="small"
+                                                            variant="standard"
+                                                            placeholder="0"
+                                                            inputProps={{ min: 0, step: "0.001" }}
+                                                            sx={{
+                                                                width: 80,
+                                                                "& .MuiInput-underline:before, & .MuiInput-underline:after, & .MuiInput-underline:hover:not(.Mui-disabled):before": {
+                                                                    borderBottom: "none",
+                                                                },
+                                                                "& input": {
+                                                                    color: pill.text,
+                                                                    fontWeight: "bold",
+                                                                    fontSize: "0.9rem",
+                                                                    padding: 0,
+                                                                },
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                </TableCell>
+
+                                                {/* Description */}
+                                                <TableCell sx={{ minWidth: 160 }}>
+                                                    <Box sx={{
                                                         backgroundColor: pill.bg,
                                                         color: pill.text,
                                                         py: 0.5,
@@ -576,144 +682,30 @@ export function AccountingReportPopup({
                                                         alignItems: "center",
                                                         fontWeight: "bold",
                                                         fontSize: "0.9rem",
-                                                    }}
-                                                >
-                                                    <Box component="span" sx={{ mr: 0.5 }}>
-                                                        {hasAmount ? (isCredit ? "+" : "−") : ""}
+                                                    }}>
+                                                        <TextField
+                                                            value={row.note}
+                                                            onChange={(e) =>
+                                                                updateRow(row._key, { note: e.target.value })
+                                                            }
+                                                            size="small"
+                                                            variant="standard"
+                                                            placeholder="—"
+                                                            sx={{
+                                                                width: 160,
+                                                                ...noUnderlineSx,
+                                                                "& input": { fontSize: "0.85rem", color: pill.text, fontWeight: "bold", padding: 0 },
+                                                                "& input::placeholder": { color: pill.text, opacity: 0.5 },
+                                                            }}
+                                                        />
                                                     </Box>
-                                                    <TextField
-                                                        type="number"
-                                                        value={row.amount}
-                                                        onChange={(e) =>
-                                                            updateRow(row._key, { amount: e.target.value })
-                                                        }
-                                                        size="small"
-                                                        variant="standard"
-                                                        placeholder="0"
-                                                        inputProps={{ min: 0, step: "0.001" }}
-                                                        sx={{
-                                                            width: 80,
-                                                            "& .MuiInput-underline:before, & .MuiInput-underline:after, & .MuiInput-underline:hover:not(.Mui-disabled):before": {
-                                                                borderBottom: "none",
-                                                            },
-                                                            "& input": {
-                                                                color: pill.text,
-                                                                fontWeight: "bold",
-                                                                fontSize: "0.9rem",
-                                                                padding: 0,
-                                                            },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            </TableCell>
+                                                </TableCell>
 
-                                            {/* Description */}
-                                            <TableCell sx={{ minWidth: 160 }}>
-                                                <Box sx={{
-                                                    backgroundColor: pill.bg,
-                                                    color: pill.text,
-                                                    py: 0.5,
-                                                    px: 1.5,
-                                                    borderRadius: 2,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    fontWeight: "bold",
-                                                    fontSize: "0.9rem",
-                                                }}>
-                                                    <TextField
-                                                        value={row.note}
-                                                        onChange={(e) =>
-                                                            updateRow(row._key, { note: e.target.value })
-                                                        }
-                                                        size="small"
-                                                        variant="standard"
-                                                        placeholder="—"
-                                                        sx={{
-                                                            width: 160,
-                                                            ...noUnderlineSx,
-                                                            "& input": { fontSize: "0.85rem", color: pill.text, fontWeight: "bold", padding: 0 },
-                                                            "& input::placeholder": { color: pill.text, opacity: 0.5 },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Account */}
-                                            <TableCell sx={{ minWidth: 150 }}>
-                                                <Box sx={{
-                                                    backgroundColor: pill.bg,
-                                                    color: pill.text,
-                                                    py: 0.5,
-                                                    px: 1.5,
-                                                    borderRadius: 2,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    fontWeight: "bold",
-                                                    fontSize: "0.9rem",
-                                                }}>
-                                                    <Select
-                                                        value={row.account}
-                                                        onChange={(e: SelectChangeEvent) =>
-                                                            updateRow(row._key, {
-                                                                account: e.target.value as AccountSource,
-                                                            })
-                                                        }
-                                                        size="small"
-                                                        variant="standard"
-                                                        sx={{ fontSize: "0.9rem", color: pill.text, fontWeight: "bold", ...noUnderlineSx }}
-                                                    >
-                                                        {ACCOUNT_OPTIONS.map((opt) => (
-                                                            <MenuItem key={opt} value={opt}>
-                                                                {ACCOUNT_LABELS[opt]}
-                                                            </MenuItem>
-                                                        ))}
-                                                    </Select>
-                                                </Box>
-                                            </TableCell>
-
-                                            {/* Category */}
-                                            <TableCell sx={{ minWidth: 150 }}>
-                                                <Select
-                                                    value={row.categoryId != null ? String(row.categoryId) : ""}
-                                                    onChange={(e: SelectChangeEvent) =>
-                                                        updateRow(row._key, {
-                                                            categoryId: Number(e.target.value),
-                                                        })
-                                                    }
-                                                    size="small"
-                                                    variant="standard"
-                                                    displayEmpty
-                                                    sx={{ width: 150, fontSize: "0.9rem", ...noUnderlineSx }}
-                                                >
-                                                    <MenuItem value="" disabled>
-                                                        <Typography color="text.secondary" variant="body2">
-                                                            Select…
-                                                        </Typography>
-                                                    </MenuItem>
-                                                    {categoriesForType(row.type).map((c) => (
-                                                        <MenuItem key={c.id} value={String(c.id)}>
-                                                            {c.name}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </TableCell>
-
-                                            {/* Contributor */}
-                                            <TableCell sx={{ minWidth: 160 }}>
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{ width: 160, fontSize: "0.85rem" }}
-                                                    color="text.secondary"
-                                                >
-                                                    {row.contributorName ?? username}
-                                                </Typography>
-                                            </TableCell>
-
-                                            {/* Running balance (OWNER only) */}
-                                            {isOwner && (
-                                                <TableCell sx={{ minWidth: 100 }}>
+                                                {/* Account */}
+                                                <TableCell sx={{ minWidth: 150 }}>
                                                     <Box sx={{
-                                                        backgroundColor: "#e2e874",
+                                                        backgroundColor: pill.bg,
+                                                        color: pill.text,
                                                         py: 0.5,
                                                         px: 1.5,
                                                         borderRadius: 2,
@@ -722,45 +714,117 @@ export function AccountingReportPopup({
                                                         fontWeight: "bold",
                                                         fontSize: "0.9rem",
                                                     }}>
-                                                        <Typography
-                                                            variant="body2"
-                                                            sx={{ fontSize: "0.85rem", fontWeight: "bold", color: "#5a5e00" }}
+                                                        <Select
+                                                            value={row.account}
+                                                            onChange={(e: SelectChangeEvent) =>
+                                                                updateRow(row._key, {
+                                                                    account: e.target.value as AccountSource,
+                                                                })
+                                                            }
+                                                            size="small"
+                                                            variant="standard"
+                                                            sx={{ fontSize: "0.9rem", color: pill.text, fontWeight: "bold", ...noUnderlineSx }}
                                                         >
-                                                            {row.runningBalance != null
-                                                                ? row.runningBalance.toFixed(3)
-                                                                : "?"}
-                                                        </Typography>
+                                                            {ACCOUNT_OPTIONS.map((opt) => (
+                                                                <MenuItem key={opt} value={opt}>
+                                                                    {ACCOUNT_LABELS[opt]}
+                                                                </MenuItem>
+                                                            ))}
+                                                        </Select>
                                                     </Box>
                                                 </TableCell>
-                                            )}
 
-                                            {/* Delete */}
-                                            <TableCell sx={{width: 40, pr: 1}}>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => deleteRow(row._key)}
-                                                    sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
-                                                >
-                                                    <DeleteOutlineRoundedIcon fontSize="small"/>
-                                                </IconButton>
+                                                {/* Category */}
+                                                <TableCell sx={{ minWidth: 150 }}>
+                                                    <Select
+                                                        value={row.categoryId != null ? String(row.categoryId) : ""}
+                                                        onChange={(e: SelectChangeEvent) =>
+                                                            updateRow(row._key, {
+                                                                categoryId: Number(e.target.value),
+                                                            })
+                                                        }
+                                                        size="small"
+                                                        variant="standard"
+                                                        displayEmpty
+                                                        sx={{ width: 150, fontSize: "0.9rem", ...noUnderlineSx }}
+                                                    >
+                                                        <MenuItem value="" disabled>
+                                                            <Typography color="text.secondary" variant="body2">
+                                                                Select…
+                                                            </Typography>
+                                                        </MenuItem>
+                                                        {categoriesForType(row.type).map((c) => (
+                                                            <MenuItem key={c.id} value={String(c.id)}>
+                                                                {c.name}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                </TableCell>
+
+                                                {/* Contributor */}
+                                                <TableCell sx={{ minWidth: 160 }}>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{ width: 160, fontSize: "0.85rem" }}
+                                                        color="text.secondary"
+                                                    >
+                                                        {row.contributorName ?? username}
+                                                    </Typography>
+                                                </TableCell>
+
+                                                {/* Running balance (OWNER only) */}
+                                                {isOwner && (
+                                                    <TableCell sx={{ minWidth: 100 }}>
+                                                        <Box sx={{
+                                                            backgroundColor: "#e2e874",
+                                                            py: 0.5,
+                                                            px: 1.5,
+                                                            borderRadius: 2,
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            fontWeight: "bold",
+                                                            fontSize: "0.9rem",
+                                                        }}>
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{ fontSize: "0.85rem", fontWeight: "bold", color: "#5a5e00" }}
+                                                            >
+                                                                {row.runningBalance != null
+                                                                    ? row.runningBalance.toFixed(3)
+                                                                    : "?"}
+                                                            </Typography>
+                                                        </Box>
+                                                    </TableCell>
+                                                )}
+
+                                                {/* Delete */}
+                                                <TableCell sx={{width: 40, pr: 1}}>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => deleteRow(row._key)}
+                                                        sx={{color: "rgba(0,0,0,0.3)", "&:hover": {color: "#c41c00"}}}
+                                                    >
+                                                        <DeleteOutlineRoundedIcon fontSize="small"/>
+                                                    </IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {sortedRows.length === 0 && (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={isOwner ? 10 : 9}
+                                                align="center"
+                                                sx={{ py: 3, color: "text.secondary" }}
+                                            >
+                                                No entries yet — click “Add” to create one
                                             </TableCell>
                                         </TableRow>
-                                    );
-                                })}
-                                {computedRows.length === 0 && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={isOwner ? 10 : 9}
-                                            align="center"
-                                            sx={{ py: 3, color: "text.secondary" }}
-                                        >
-                                            No entries yet — click “Add” to create one
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </>
                 )}
             </Box>
         </Dialog>

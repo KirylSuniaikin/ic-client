@@ -7,9 +7,11 @@ interface ManagementTopBarProps {
     onBack?: () => void;
     actions?: React.ReactNode;
     branchSelector?: React.ReactNode;
+    /** Replaces the default title Typography when present — e.g. an editable title field. */
+    titleSlot?: React.ReactNode;
 }
 
-export function ManagementTopBar({ title, onBack, actions, branchSelector }: ManagementTopBarProps): React.JSX.Element {
+export function ManagementTopBar({ title, onBack, actions, branchSelector, titleSlot }: ManagementTopBarProps): React.JSX.Element {
     return (
         <AppBar
             elevation={0}
@@ -24,9 +26,11 @@ export function ManagementTopBar({ title, onBack, actions, branchSelector }: Man
                     </IconButton>
                 )}
 
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    {title}
-                </Typography>
+                {titleSlot ?? (
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {title}
+                    </Typography>
+                )}
 
                 <Box flex={1} />
 
