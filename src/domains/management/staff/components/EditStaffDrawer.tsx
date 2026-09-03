@@ -15,7 +15,7 @@ import {
     TextField,
 } from "@mui/material";
 import ResponsiveSheet, { SHEET_Z_INDEX } from "../../_shared/components/ResponsiveSheet";
-import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
+import { BRAND_BUTTON_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
@@ -357,25 +357,38 @@ export default function EditStaffDrawer({
                         label={enabled ? "Enabled" : "Disabled"}
                     />
 
+                </Box>
+
+                {/* Pinned to the bottom of the sheet's own scroll container (the Drawer/Dialog
+                    Paper, not this Box) so Save is always reachable on a small phone without
+                    scrolling past the payroll block. The negative horizontal margin cancels the
+                    sheet's own side padding so the bar's background spans edge-to-edge; px puts
+                    the button back at the same inset as every field above it. Cancel is gone --
+                    the close (X) in the sheet's header already covers that, and a second "leave
+                    without saving" affordance was redundant next to it. */}
+                <Box
+                    sx={{
+                        position: "sticky",
+                        bottom: 0,
+                        mx: -3,
+                        px: 3,
+                        pt: 1.5,
+                        pb: "calc(16px + env(safe-area-inset-bottom))",
+                        mt: 1,
+                        backgroundColor: "#fff",
+                        borderTop: "1px solid #efece4",
+                    }}
+                >
                     <Button
                         fullWidth
                         variant="contained"
                         disableElevation
                         disabled={submitting || validationError !== null}
                         onClick={() => { void handleSubmit(); }}
-                        sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
+                        sx={BRAND_BUTTON_SX}
                         data-testid="edit-staff-submit"
                     >
                         Save
-                    </Button>
-                    <Button
-                        fullWidth
-                        variant="outlined"
-                        onClick={onClose}
-                        disabled={submitting}
-                        sx={NEUTRAL_BUTTON_SX}
-                    >
-                        Cancel
                     </Button>
                 </Box>
             </ResponsiveSheet>

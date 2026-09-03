@@ -280,9 +280,9 @@ describe("EditStaffDrawer", () => {
 
         fireEvent.click(screen.getByRole("switch"));
 
-        // The drawer's own Cancel button and the nested confirm dialog's Cancel button are both
-        // on screen at once, so scope the query to MUI's Dialog role rather than a DOM-structure
-        // assumption about the confirm button's direct parent.
+        // Scope to MUI's Dialog role rather than a DOM-structure assumption about the confirm
+        // button's direct parent -- the drawer itself has no Cancel button of its own, only the
+        // nested confirm dialog does.
         fireEvent.click(within(screen.getByRole("dialog")).getByText("Cancel"));
 
         expect(setEnabled).not.toHaveBeenCalled();
