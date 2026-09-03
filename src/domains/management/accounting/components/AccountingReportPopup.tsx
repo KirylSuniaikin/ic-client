@@ -456,7 +456,7 @@ export function AccountingReportPopup({
             fullScreen
             open={open}
             onClose={onClose}
-            sx={{ "& .MuiDialog-paper": { backgroundColor: "#fff" } }}
+            sx={{ "& .MuiDialog-paper": { backgroundColor: "#fbfaf6" } }}
         >
             <ManagementTopBar
                 title="Accounting Report"
