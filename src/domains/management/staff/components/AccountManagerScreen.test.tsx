@@ -1,9 +1,9 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { UseStaffAccountsResult } from "../hooks/useStaffAccounts";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffDetailsRequest, UpdateStaffPayrollRequest } from "../types";
 
 // The staff auth context decodes a JWT out of storage on mount; the screen reads `userId`
 // (for the self-guard on the row actions), so stub the hook rather than standing up a real
@@ -46,32 +46,14 @@ jest.mock("./ResetPasswordDrawer", () => ({
     default: mockResetPasswordDrawer,
 }));
 
-function mockDeactivateStaffDialog({ open, target, onConfirm }: { open: boolean; target: StaffAdminTO | null; submitting: boolean; onConfirm: () => void; onCancel: () => void }): JSX.Element {
-    return (
-        <div data-testid="deactivate-dialog-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""}>
-            <button data-testid="deactivate-dialog-confirm" onClick={onConfirm}>confirm</button>
-        </div>
-    );
+// Has its own dedicated test file -- here it only needs to report whether the screen opened it
+// for the clicked row, mirroring the ResetPasswordDrawer/HireStaffDrawer stubs above.
+function mockEditStaffDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null; callerRole: unknown; onClose: () => void; updateDetails: unknown; changeBranch: unknown; updatePayroll: unknown; setEnabled: unknown }): JSX.Element {
+    return <div data-testid="edit-staff-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
 }
-jest.mock("./DeactivateStaffDialog", () => ({
+jest.mock("./EditStaffDrawer", () => ({
     __esModule: true,
-    default: mockDeactivateStaffDialog,
-}));
-
-function mockChangeBranchDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null; onClose: () => void; changeBranch: unknown }): JSX.Element {
-    return <div data-testid="change-branch-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
-}
-jest.mock("./ChangeBranchDrawer", () => ({
-    __esModule: true,
-    default: mockChangeBranchDrawer,
-}));
-
-function mockEditPayrollDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null; onClose: () => void; updatePayroll: unknown }): JSX.Element {
-    return <div data-testid="edit-payroll-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
-}
-jest.mock("./EditPayrollDrawer", () => ({
-    __esModule: true,
-    default: mockEditPayrollDrawer,
+    default: mockEditStaffDrawer,
 }));
 
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
@@ -106,6 +88,7 @@ function staffAccountsValue(overrides: Partial<UseStaffAccountsResult> = {}): Us
         setEnabled: jest.fn<Promise<StaffAdminTO>, [number, boolean]>(),
         changeBranch: jest.fn<Promise<StaffAdminTO>, [number, string]>(),
         updatePayroll: jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>(),
+        updateDetails: jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffDetailsRequest]>(),
         refresh: jest.fn<void, []>(),
         ...overrides,
     };
@@ -222,7 +205,7 @@ describe("AccountManagerScreen", () => {
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-reset-1")).toBeNull();
-        expect(screen.queryByTestId("staff-deactivate-1")).toBeNull();
+        expect(screen.queryByTestId("staff-edit-1")).toBeNull();
     });
 
     it("offers no actions on a peer the caller may not administer", () => {
@@ -233,9 +216,11 @@ describe("AccountManagerScreen", () => {
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.queryByTestId("staff-reset-3")).toBeNull();
-        expect(screen.queryByTestId("staff-deactivate-3")).toBeNull();
+        expect(screen.queryByTestId("staff-edit-3")).toBeNull();
     });
 
+    // Reset password stays exactly as it was before the consolidation -- its own icon, its own
+    // drawer -- so this proves the change to the other three buttons did not touch it.
     it("opens the reset drawer for the chosen row", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 4 })] }));
 
@@ -250,98 +235,44 @@ describe("AccountManagerScreen", () => {
         expect(stub.getAttribute("data-target")).toBe("4");
     });
 
-    it("confirms before deactivating, then calls setEnabled(false)", async () => {
-        const setEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>()
-            .mockResolvedValue(makeStaff({ id: 5, enabled: false }));
-        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 5 })], setEnabled }));
+    // Change branch, Edit payroll and Deactivate/Reactivate were consolidated into one Edit
+    // button opening EditStaffDrawer -- their old per-row icons must no longer render.
+    it("no longer renders the old change-branch, edit-payroll or deactivate/reactivate buttons", () => {
+        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+            staff: [makeStaff({ id: 5 }), makeStaff({ id: 6, enabled: false })],
+        }));
 
-        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
+        fireEvent.click(screen.getByTestId("staff-filter-all"));
 
-        fireEvent.click(screen.getByTestId("staff-deactivate-5"));
-        expect(screen.getByTestId("deactivate-dialog-stub").getAttribute("data-open")).toBe("true");
-        expect(setEnabled).not.toHaveBeenCalled();
-
-        fireEvent.click(screen.getByTestId("deactivate-dialog-confirm"));
-
-        await waitFor(() => expect(setEnabled).toHaveBeenCalledWith(5, false));
+        expect(screen.queryByTestId("staff-change-branch-5")).toBeNull();
+        expect(screen.queryByTestId("staff-edit-payroll-5")).toBeNull();
+        expect(screen.queryByTestId("staff-deactivate-5")).toBeNull();
+        expect(screen.queryByTestId("staff-reactivate-6")).toBeNull();
     });
 
-    it("opens the change-branch drawer for the chosen row", () => {
+    it("opens EditStaffDrawer with the clicked row as target, for any administrable row", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 8 })] }));
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-        expect(screen.getByTestId("change-branch-drawer-stub").getAttribute("data-open")).toBe("false");
+        expect(screen.getByTestId("edit-staff-drawer-stub").getAttribute("data-open")).toBe("false");
 
-        fireEvent.click(screen.getByTestId("staff-change-branch-8"));
+        fireEvent.click(screen.getByTestId("staff-edit-8"));
 
-        const stub = screen.getByTestId("change-branch-drawer-stub");
+        const stub = screen.getByTestId("edit-staff-drawer-stub");
         expect(stub.getAttribute("data-open")).toBe("true");
         expect(stub.getAttribute("data-target")).toBe("8");
     });
 
-    it("offers no change-branch action on a row the caller may not administer", () => {
-        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
-            staff: [makeStaff({ id: 9, role: StaffRoles.MANAGER })],
-        }));
-
-        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
-
-        expect(screen.queryByTestId("staff-change-branch-9")).toBeNull();
-    });
-
-    // Payroll is redacted server-side for anyone below OWNER, so the edit action is gated on the
-    // viewer's role in addition to the usual administrable-row check.
-    it("opens the edit-payroll drawer for the chosen row when the viewer is an OWNER", () => {
-        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 10 })] }));
-
-        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
-
-        expect(screen.getByTestId("edit-payroll-drawer-stub").getAttribute("data-open")).toBe("false");
-
-        fireEvent.click(screen.getByTestId("staff-edit-payroll-10"));
-
-        const stub = screen.getByTestId("edit-payroll-drawer-stub");
-        expect(stub.getAttribute("data-open")).toBe("true");
-        expect(stub.getAttribute("data-target")).toBe("10");
-    });
-
-    it("offers no edit-payroll action for a non-OWNER viewer", () => {
+    it("offers the Edit action to a non-OWNER viewer too -- payroll/price gating now lives inside the drawer", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 11 })] }));
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-        expect(screen.queryByTestId("staff-edit-payroll-11")).toBeNull();
+        expect(screen.getByTestId("staff-edit-11")).toBeTruthy();
     });
 
-    it("offers no edit-payroll action on the OWNER viewer's own row", () => {
-        mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 12 });
-        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
-            staff: [makeStaff({ id: 12, role: StaffRoles.OWNER })],
-        }));
-
-        render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
-
-        expect(screen.queryByTestId("staff-edit-payroll-12")).toBeNull();
-    });
-
-    // Reactivation is not destructive, so it must NOT go through the dialog.
-    it("reactivates directly, without a confirmation", async () => {
-        const setEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>()
-            .mockResolvedValue(makeStaff({ id: 6, enabled: true }));
-        mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
-            staff: [makeStaff({ id: 6, enabled: false })],
-            setEnabled,
-        }));
-
-        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
-        fireEvent.click(screen.getByTestId("staff-filter-all"));
-
-        fireEvent.click(screen.getByTestId("staff-reactivate-6"));
-
-        await waitFor(() => expect(setEnabled).toHaveBeenCalledWith(6, true));
-        expect(screen.getByTestId("deactivate-dialog-stub").getAttribute("data-open")).toBe("false");
-    });
     // It stopped being a tab and became a full-screen surface opened from the nav drawer's
     // Management section, so `open` and a way back out are now part of its contract.
     describe("full-screen presentation", () => {

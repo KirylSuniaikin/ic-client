@@ -11,6 +11,9 @@ export type HireStaffRequest = {
     // afterwards from the Account Manager -- where it stays editable in the payroll drawer.
     cprNumber: string | null;
     branchId: string;
+    // OWNER-only at hire time (enforced server-side); a non-OWNER submitting a non-undefined
+    // value gets 403. Omitted, not the response type: HiredStaffTO does not echo it either.
+    basicSalary?: number;
 };
 
 // Response never echoes the password.
@@ -51,6 +54,18 @@ export type UpdateStaffPayrollRequest = {
     basicSalary: number | null;
     housingAllowance: number | null;
     transportAllowance: number | null;
+};
+
+// PATCH /api/staff/{id}/details. Sparse patch, unlike UpdateStaffPayrollRequest's full-replacement
+// shape -- each field is independently optional to change, since this is submitted from one
+// consolidated drawer that may only be touching one of the three. pricePerHour is OWNER-gated
+// server-side (see UpdateStaffPayrollRequest's comment for the same all-or-nothing redaction
+// rationale) -- a non-owner cannot see the current value (StaffAdminTO.pricePerHour is already
+// redacted for them), so this type still lets a non-owner submit fullName/role alone.
+export type UpdateStaffDetailsRequest = {
+    fullName?: string;
+    role?: StaffRoles;
+    pricePerHour?: number;
 };
 
 // Frontend-only presentation filter mirroring the backend's hiring hierarchy (task-spec.md Task
