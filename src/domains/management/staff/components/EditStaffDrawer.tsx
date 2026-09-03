@@ -370,6 +370,11 @@ export default function EditStaffDrawer({
                     sx={{
                         position: "sticky",
                         bottom: 0,
+                        // `sticky` alone doesn't establish a stacking context, so without an
+                        // explicit z-index a scrolled-under field's label -- MUI floats/shrinks
+                        // it with a CSS transform, which DOES create its own compositing layer --
+                        // can paint above this bar's background instead of under it.
+                        zIndex: 1,
                         mx: -3,
                         px: 3,
                         pt: 1.5,
