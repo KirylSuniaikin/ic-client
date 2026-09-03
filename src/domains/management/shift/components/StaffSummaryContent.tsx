@@ -177,7 +177,7 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Staff</TableCell>
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Role</TableCell>
                                 <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
-                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Cost</TableCell>
+                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total(Basic Salary + Allowance + OT)</TableCell>
                                 {showSlipColumn && (
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}/>
                                 )}
@@ -244,19 +244,38 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                                             </Box>
                                         </TableCell>
 
-                                        {/* Total Cost */}
+                                        {/* Total Salary */}
                                         <TableCell>
                                             <Box sx={{
-                                                backgroundColor: s.totalCost != null ? costPillSx.bg : pillSx.bg,
-                                                color: s.totalCost != null ? costPillSx.text : pillSx.text,
+                                                backgroundColor: s.totalSalary != null ? costPillSx.bg : pillSx.bg,
+                                                color: s.totalSalary != null ? costPillSx.text : pillSx.text,
                                                 py: 0.5,
                                                 px: 1.5,
                                                 borderRadius: 2,
                                                 display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 0.5,
                                                 fontWeight: "bold",
                                                 fontSize: "0.9rem",
                                             }}>
-                                                {s.totalCost != null ? s.totalCost.toFixed(3) : "—"}
+                                                {s.totalSalary != null ? s.totalSalary.toFixed(3) : "—"}
+                                                {/* basicSalary/allowance/totalSalary are backend-guaranteed all-or-nothing
+                                                    (see backend "Null-payroll behavior": hasPayroll gates all three on
+                                                    basicSalary != null), so `?.` on basicSalary/allowance here is safe,
+                                                    not defensive. overtimeCost is NOT covered by that guarantee — it is
+                                                    gated independently by pricePerHour != null, so a salaried staff member
+                                                    without an hourly rate can have a non-null totalSalary but a null
+                                                    overtimeCost. The backend folds that null into the total as zero via
+                                                    nz(), so we mirror that with `?? 0` instead of `?.` for this term. */}
+                                                {s.totalSalary != null && (
+                                                    <Typography component="span" sx={{
+                                                        fontSize: "0.78rem",
+                                                        opacity: 0.75,
+                                                        fontWeight: "normal"
+                                                    }}>
+                                                        ({s.basicSalary?.toFixed(3)} + {s.allowance?.toFixed(3)} + {(s.overtimeCost ?? 0).toFixed(3)} OT)
+                                                    </Typography>
+                                                )}
                                             </Box>
                                         </TableCell>
 
