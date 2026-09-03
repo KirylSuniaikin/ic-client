@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { logger } from "../../../../shared/utils/logger";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffPayroll } from "../../../../shared/api/management";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffDetails, updateStaffPayroll } from "../../../../shared/api/management";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffDetailsRequest, UpdateStaffPayrollRequest } from "../types";
 
 export interface UseStaffAccountsResult {
     staff: StaffAdminTO[];
@@ -12,6 +12,7 @@ export interface UseStaffAccountsResult {
     setEnabled: (id: number, enabled: boolean) => Promise<StaffAdminTO>;
     changeBranch: (id: number, branchId: string) => Promise<StaffAdminTO>;
     updatePayroll: (id: number, payload: UpdateStaffPayrollRequest) => Promise<StaffAdminTO>;
+    updateDetails: (id: number, payload: UpdateStaffDetailsRequest) => Promise<StaffAdminTO>;
     refresh: () => void;
 }
 
@@ -107,7 +108,17 @@ export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
         return updated;
     }, []);
 
+    // Same reconcile-from-the-server-response idiom as updatePayroll: fullName/role are visible to
+    // any administering caller, but pricePerHour is OWNER-gated server-side, so writing back the
+    // response (rather than the submitted payload) is what keeps a non-OWNER caller from ever
+    // holding a value the backend would have redacted.
+    const updateDetails = useCallback(async (id: number, payload: UpdateStaffDetailsRequest): Promise<StaffAdminTO> => {
+        const updated = await updateStaffDetails(id, payload);
+        setStaff(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+        return updated;
+    }, []);
+
     const refresh = useCallback((): void => setRefreshToken(prev => prev + 1), []);
 
-    return { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll, refresh };
+    return { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll, updateDetails, refresh };
 }

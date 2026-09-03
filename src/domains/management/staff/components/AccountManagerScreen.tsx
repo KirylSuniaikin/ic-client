@@ -24,14 +24,10 @@ import {
     useMediaQuery,
 } from "@mui/material";
 import LockResetIcon from "@mui/icons-material/LockReset";
-import BlockIcon from "@mui/icons-material/Block";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
-import { logger } from "../../../../shared/utils/logger";
 import theme from "../../../../shared/utils/theme";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
@@ -44,9 +40,7 @@ import { canAdministerStaff } from "../types";
 import type { StaffAdminTO } from "../types";
 import HireStaffDrawer from "./HireStaffDrawer";
 import ResetPasswordDrawer from "./ResetPasswordDrawer";
-import DeactivateStaffDialog from "./DeactivateStaffDialog";
-import ChangeBranchDrawer from "./ChangeBranchDrawer";
-import EditPayrollDrawer from "./EditPayrollDrawer";
+import EditStaffDrawer from "./EditStaffDrawer";
 
 const colorRed = "#E44B4C";
 const pageBg = "#fbfaf6";
@@ -98,14 +92,11 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // non-city role a one-element array, so this is the role gate for free. Same shape as
     // InventoryPage / CashRegisterPopup / HistoryComponent.
     const { branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch } = useBranchScope(branch);
-    const { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll } = useStaffAccounts(scopedBranch.id);
+    const { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll, updateDetails } = useStaffAccounts(scopedBranch.id);
 
     const [hireOpen, setHireOpen] = useState(false);
     const [resetTarget, setResetTarget] = useState<StaffAdminTO | null>(null);
-    const [branchTarget, setBranchTarget] = useState<StaffAdminTO | null>(null);
-    const [payrollTarget, setPayrollTarget] = useState<StaffAdminTO | null>(null);
-    const [deactivateTarget, setDeactivateTarget] = useState<StaffAdminTO | null>(null);
-    const [togglingId, setTogglingId] = useState<number | null>(null);
+    const [editTarget, setEditTarget] = useState<StaffAdminTO | null>(null);
     const [showDeactivated, setShowDeactivated] = useState(false);
     const [roleFilter, setRoleFilter] = useState<string>("ALL");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -127,19 +118,6 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // Only roles actually on this branch, so the filter can never select an empty roster.
     const rolesPresent = Array.from(new Set(staff.map(s => s.role).filter((r): r is StaffRoles => r !== null))).sort();
 
-    const applyEnabled = async (target: StaffAdminTO, enabled: boolean): Promise<void> => {
-        setTogglingId(target.id);
-        try {
-            await setEnabled(target.id, enabled);
-            setDeactivateTarget(null);
-        } catch (err) {
-            logger.error("Failed to change staff account state:", err);
-            setErrorMessage(err instanceof Error ? err.message : "Failed to update the account");
-        } finally {
-            setTogglingId(null);
-        }
-    };
-
     const iconButtonSx = {
         border: `1px solid ${hairline}`,
         borderRadius: "10px",
@@ -152,15 +130,15 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // where there is no hover and a hidden control is an unreachable one.
     const rowActions = (s: StaffAdminTO): React.JSX.Element => (
         <Stack direction="row" spacing={0.75} justifyContent="flex-end">
-            <Tooltip title="Change branch">
+            <Tooltip title="Edit">
                 <IconButton
                     size="small"
-                    aria-label="Change branch"
-                    onClick={() => setBranchTarget(s)}
-                    data-testid={`staff-change-branch-${s.id}`}
+                    aria-label="Edit"
+                    onClick={() => setEditTarget(s)}
+                    data-testid={`staff-edit-${s.id}`}
                     sx={iconButtonSx}
                 >
-                    <SwapHorizIcon fontSize="small" />
+                    <EditOutlinedIcon fontSize="small" />
                 </IconButton>
             </Tooltip>
             <Tooltip title="Reset password">
@@ -174,49 +152,6 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                     <LockResetIcon fontSize="small" />
                 </IconButton>
             </Tooltip>
-            {/* Payroll is redacted server-side for anyone below OWNER (StaffService.toAdminTO),
-                so a non-OWNER viewer would open a form with nothing meaningful to edit. */}
-            {isOwnerViewer && (
-                <Tooltip title="Edit payroll">
-                    <IconButton
-                        size="small"
-                        aria-label="Edit payroll"
-                        onClick={() => setPayrollTarget(s)}
-                        data-testid={`staff-edit-payroll-${s.id}`}
-                        sx={iconButtonSx}
-                    >
-                        <PaymentsOutlinedIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
-            )}
-            {s.enabled ? (
-                <Tooltip title="Deactivate account">
-                    <IconButton
-                        size="small"
-                        aria-label="Deactivate account"
-                        onClick={() => setDeactivateTarget(s)}
-                        data-testid={`staff-deactivate-${s.id}`}
-                        sx={iconButtonSx}
-                    >
-                        <BlockIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
-            ) : (
-                // Reactivation is not destructive, so it fires directly -- the dialog stays
-                // single-purpose.
-                <Tooltip title="Reactivate account">
-                    <IconButton
-                        size="small"
-                        aria-label="Reactivate account"
-                        disabled={togglingId === s.id}
-                        onClick={() => { void applyEnabled(s, true); }}
-                        data-testid={`staff-reactivate-${s.id}`}
-                        sx={{ ...iconButtonSx, "&:hover": { backgroundColor: "#eefaf3", borderColor: "#2e9e6b", color: "#2e9e6b" } }}
-                    >
-                        <CheckCircleOutlineIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
-            )}
         </Stack>
     );
 
@@ -578,26 +513,15 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 resetPassword={resetPassword}
             />
 
-            <ChangeBranchDrawer
-                open={branchTarget !== null}
-                target={branchTarget}
-                onClose={() => setBranchTarget(null)}
-                changeBranch={async (id, targetBranchId) => { await changeBranch(id, targetBranchId); }}
-            />
-
-            <EditPayrollDrawer
-                open={payrollTarget !== null}
-                target={payrollTarget}
-                onClose={() => setPayrollTarget(null)}
-                updatePayroll={async (id, payload) => { await updatePayroll(id, payload); }}
-            />
-
-            <DeactivateStaffDialog
-                open={deactivateTarget !== null}
-                target={deactivateTarget}
-                submitting={deactivateTarget !== null && togglingId === deactivateTarget.id}
-                onConfirm={() => { if (deactivateTarget) void applyEnabled(deactivateTarget, false); }}
-                onCancel={() => setDeactivateTarget(null)}
+            <EditStaffDrawer
+                open={editTarget !== null}
+                target={editTarget}
+                callerRole={role}
+                onClose={() => setEditTarget(null)}
+                updateDetails={updateDetails}
+                changeBranch={changeBranch}
+                updatePayroll={updatePayroll}
+                setEnabled={setEnabled}
             />
 
             <ErrorSnackbar

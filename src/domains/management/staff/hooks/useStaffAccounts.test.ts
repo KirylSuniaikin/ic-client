@@ -1,8 +1,8 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffPayroll } from "../../../../shared/api/management";
+import { getStaffAdminList, hireStaff, resetStaffPassword, setStaffBranch, setStaffEnabled, updateStaffDetails, updateStaffPayroll } from "../../../../shared/api/management";
 import { StaffRoles } from "../../../auth/types";
-import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
+import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffDetailsRequest, UpdateStaffPayrollRequest } from "../types";
 import { useStaffAccounts } from "./useStaffAccounts";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
@@ -14,6 +14,7 @@ const mockResetStaffPassword = jest.mocked(resetStaffPassword);
 const mockSetStaffEnabled = jest.mocked(setStaffEnabled);
 const mockSetStaffBranch = jest.mocked(setStaffBranch);
 const mockUpdateStaffPayroll = jest.mocked(updateStaffPayroll);
+const mockUpdateStaffDetails = jest.mocked(updateStaffDetails);
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {
@@ -296,6 +297,46 @@ describe("useStaffAccounts", () => {
         expect(result.current.staff).toEqual([makeStaff()]);
         // A rejected write must never touch local state at all, not even by allocating a new
         // (equal-by-value) array or row.
+        expect(result.current.staff[0]).toBe(beforeRow);
+    });
+
+    it("updateDetails() replaces the row with the one the server returned", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff(), makeStaff({ id: 2, username: "sam" })]);
+        mockUpdateStaffDetails.mockResolvedValue(makeStaff({ fullName: "Casey Baker" }));
+
+        const { result } = renderHook(() => useStaffAccounts());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        const untouchedSibling = result.current.staff[1];
+
+        const payload: UpdateStaffDetailsRequest = { fullName: "Casey Baker" };
+        await act(async () => {
+            await result.current.updateDetails(1, payload);
+        });
+
+        expect(mockUpdateStaffDetails).toHaveBeenCalledWith(1, payload);
+        expect(result.current.staff).toEqual([
+            makeStaff({ fullName: "Casey Baker" }),
+            makeStaff({ id: 2, username: "sam" }),
+        ]);
+        // Identity-preserving patch, same as updatePayroll: an untouched sibling row keeps the
+        // exact same object reference.
+        expect(result.current.staff[1]).toBe(untouchedSibling);
+    });
+
+    it("updateDetails() leaves the row untouched when the request is rejected", async () => {
+        mockGetStaffAdminList.mockResolvedValue([makeStaff()]);
+        mockUpdateStaffDetails.mockRejectedValue(new Error("Response: 403"));
+
+        const { result } = renderHook(() => useStaffAccounts());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        const beforeRow = result.current.staff[0];
+
+        await expect(act(async () => {
+            await result.current.updateDetails(1, { pricePerHour: 5 });
+        })).rejects.toThrow("Response: 403");
+
+        expect(result.current.staff).toEqual([makeStaff()]);
         expect(result.current.staff[0]).toBe(beforeRow);
     });
 });

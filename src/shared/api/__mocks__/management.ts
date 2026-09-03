@@ -33,6 +33,7 @@ import type {
     HireStaffRequest,
     HiredStaffTO,
     StaffAdminTO,
+    UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../../domains/management/staff/types';
 import type {
@@ -136,5 +137,6 @@ export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
 
 // Salary slip PDF (Phase F6/F7/F8).
 export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();
+export const updateStaffDetails = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffDetailsRequest]>();
 export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string]>();
 export const downloadSalarySlip = jest.fn<Promise<SalarySlipDownload>, [number, string, SalarySlipForm]>();
