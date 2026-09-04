@@ -2,12 +2,19 @@ import {useCallback, useEffect, useState} from "react";
 import {endOfDay, format, startOfDay} from "date-fns";
 import {formatInTimeZone} from "date-fns-tz";
 import {fetchStatistics} from "../../../../shared/api/public";
-import {fetchDeliveryAvailabilityStats, fetchDeliveryHourlyStats} from "../../../../shared/api/management";
+import {
+    fetchDeliveryAvailabilityStats,
+    fetchDeliveryEstimateAccuracy,
+    fetchDeliveryHourlyStats,
+    fetchDeliverySkipReasonStats,
+} from "../../../../shared/api/management";
 import {logger} from "../../../../shared/utils/logger";
 import type {
     DateRangeState,
     DeliveryAvailabilityStats,
+    DeliveryEstimateAccuracy,
     DeliveryHourBucket,
+    DeliverySkipReasonStats,
     DoughUsageTO,
     SellsByHourStat,
     StatsResponse,
@@ -38,6 +45,9 @@ type UseStatistics = {
     deliveryAvailability: DeliveryAvailabilityStats | null;
     deliveryStatsScope: DeliveryStatsScope | null;
     deliveryHourly: DeliveryHourBucket[];
+    deliveryEstimateAccuracy: DeliveryEstimateAccuracy | null;
+    deliverySkipReasons: DeliverySkipReasonStats | null;
+    deliveryChainScope: DeliveryStatsScope | null;
     dateRange: DateRangeState[];
     setDateRange: (range: DateRangeState[]) => void;
     selectedDate: Date;
@@ -65,6 +75,13 @@ export function useStatistics(branchIds: string[], includeDeliveryStats: boolean
     const [deliveryAvailability, setDeliveryAvailability] = useState<DeliveryAvailabilityStats | null>(null);
     const [deliveryStatsScope, setDeliveryStatsScope] = useState<DeliveryStatsScope | null>(null);
     const [deliveryHourly, setDeliveryHourly] = useState<DeliveryHourBucket[]>([]);
+    const [deliveryEstimateAccuracy, setDeliveryEstimateAccuracy] = useState<DeliveryEstimateAccuracy | null>(null);
+    const [deliverySkipReasons, setDeliverySkipReasons] = useState<DeliverySkipReasonStats | null>(null);
+    // Its own scope, not `deliveryStatsScope`: those two figures are fetched WITHOUT a branch
+    // filter (both endpoints read the whole chain by default, which is what makes the road
+    // estimate and the staffing question answerable at all), so labelling them with the
+    // branch-scoped range would name a narrower question than the one that was asked.
+    const [deliveryChainScope, setDeliveryChainScope] = useState<DeliveryStatsScope | null>(null);
     const [loading, setLoading] = useState(true);
 
     // Joined into the SINGLE existing branchId query param -- the backend param is
@@ -117,6 +134,33 @@ export function useStatistics(branchIds: string[], includeDeliveryStats: boolean
                 logger.error("Failed to load delivery hourly stats:", err);
                 setDeliveryHourly([]);
             }
+
+            // The two chain-wide reads. Separate tries again, for the same reason as above: they
+            // answer different questions (are we lying about the time / why riders were passed
+            // over) and one being down must not blank the other.
+            let chainFetched = false;
+            try {
+                setDeliveryEstimateAccuracy(await fetchDeliveryEstimateAccuracy(start, end));
+                chainFetched = true;
+            } catch (err) {
+                logger.error("Failed to load delivery estimate accuracy:", err);
+                setDeliveryEstimateAccuracy(null);
+            }
+
+            try {
+                setDeliverySkipReasons(await fetchDeliverySkipReasonStats(start, end));
+                chainFetched = true;
+            } catch (err) {
+                logger.error("Failed to load delivery skip reasons:", err);
+                setDeliverySkipReasons(null);
+            }
+
+            // Set from the strings these calls were just made with, never from `dateRange`: the
+            // picker moves on every drag while the data only reloads on Refresh, and a range that
+            // does not belong to the numbers beside it is worse than no range at all. Cleared
+            // outright when neither call came back, so no scope can outlive every figure it
+            // described.
+            setDeliveryChainScope(chainFetched ? {startDate: start, finishDate: end} : null);
         }
 
         setLoading(false);
@@ -141,6 +185,9 @@ export function useStatistics(branchIds: string[], includeDeliveryStats: boolean
         deliveryAvailability,
         deliveryStatsScope,
         deliveryHourly,
+        deliveryEstimateAccuracy,
+        deliverySkipReasons,
+        deliveryChainScope,
         dateRange,
         setDateRange,
         selectedDate,

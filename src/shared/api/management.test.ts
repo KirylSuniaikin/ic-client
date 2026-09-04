@@ -19,6 +19,8 @@ import {
     getBranchEvents,
     getWorkingHours,
     putWorkingHours,
+    fetchDeliveryEstimateAccuracy,
+    fetchDeliverySkipReasonStats,
 } from "./management";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
@@ -564,5 +566,121 @@ describe("putWorkingHours", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
 
         await expect(putWorkingHours(payload)).rejects.toThrow("HTTP 403");
+    });
+});
+
+// ── fetchDeliveryEstimateAccuracy ─────────────────────────────────────────────
+
+describe("fetchDeliveryEstimateAccuracy", () => {
+    it("asks the estimate-accuracy endpoint for the given window", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ deliveredOrders: 0, legs: [] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await fetchDeliveryEstimateAccuracy("2026-08-01", "2026-08-30");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("management/delivery/stats/estimate-accuracy");
+        expect(url).toContain("start_date=2026-08-01");
+        expect(url).toContain("finish_date=2026-08-30");
+    });
+
+    /**
+     * No branch filter, deliberately. The road half of every quote comes from one router and one
+     * speed constant shared by the whole chain, and an unscoped read is also the only one that can
+     * see the orders whose branch_id is NULL — which `branch_id IN (...)` can never match. Sending
+     * the statistics page's branch selection here would silently narrow the question.
+     */
+    it("sends no branch filter, so the whole chain is read", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ deliveredOrders: 0, legs: [] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await fetchDeliveryEstimateAccuracy("2026-08-01", "2026-08-30");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("branchId");
+    });
+
+    it("returns the parsed report on a 200", async () => {
+        const report = { deliveredOrders: 3, legs: [] };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(report), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await fetchDeliveryEstimateAccuracy("2026-08-01", "2026-08-30");
+
+        expect(result).toEqual(report);
+    });
+
+    it("throws rather than resolving to an empty report when the server refuses", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(fetchDeliveryEstimateAccuracy("2026-08-01", "2026-08-30")).rejects.toThrow("HTTP 403");
+    });
+});
+
+// ── fetchDeliverySkipReasonStats ──────────────────────────────────────────────
+
+describe("fetchDeliverySkipReasonStats", () => {
+    it("asks the skip-reasons endpoint for the given window", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ totalSkips: 0, ordersAffected: 0, couriersAffected: 0, byReason: [] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await fetchDeliverySkipReasonStats("2026-08-01", "2026-08-30");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("management/delivery/stats/skip-reasons");
+        expect(url).toContain("start_date=2026-08-01");
+        expect(url).toContain("finish_date=2026-08-30");
+    });
+
+    // Chain-wide for the same reason: the staffing question is chain-wide before it is per-branch,
+    // and a skip recorded against an order with no branch is only visible unscoped.
+    it("sends no branch filter, so the whole chain is read", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ totalSkips: 0, ordersAffected: 0, couriersAffected: 0, byReason: [] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await fetchDeliverySkipReasonStats("2026-08-01", "2026-08-30");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("branchId");
+    });
+
+    it("returns the parsed report on a 200", async () => {
+        const report = { totalSkips: 4, ordersAffected: 2, couriersAffected: 1, byReason: [] };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(report), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await fetchDeliverySkipReasonStats("2026-08-01", "2026-08-30");
+
+        expect(result).toEqual(report);
+    });
+
+    it("throws rather than resolving to an empty report when the server refuses", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(fetchDeliverySkipReasonStats("2026-08-01", "2026-08-30")).rejects.toThrow("HTTP 500");
     });
 });

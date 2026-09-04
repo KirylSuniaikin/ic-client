@@ -11,13 +11,13 @@ const ADDRESS: CustomerAddress = {
     note: null, latitude: 26.2285, longitude: 50.586,
 };
 
-function renderCard(withEdit: boolean) {
+function renderCard(withEdit: boolean, address: CustomerAddress = ADDRESS) {
     const onSelect = jest.fn<void, [CustomerAddress]>();
     const onEdit = jest.fn<void, [CustomerAddress]>();
     render(
         <I18nextProvider i18n={i18n}>
             <AddressCard
-                address={ADDRESS}
+                address={address}
                 selected={false}
                 onSelect={onSelect}
                 onEdit={withEdit ? onEdit : undefined}
@@ -25,6 +25,17 @@ function renderCard(withEdit: boolean) {
         </I18nextProvider>
     );
     return { onSelect, onEdit };
+}
+
+/**
+ * The outer row carries role="radio" AND wraps an MUI `Radio`, whose own input carries the same
+ * role — `getByRole("radio")` is ambiguous. The row is the one that owns the key handler.
+ */
+function selectableRow(): HTMLElement {
+    // The row is the outermost node carrying the role; the MUI input is nested inside it.
+    const rows = screen.getAllByRole("radio").filter((node) => node.tagName !== "INPUT");
+    if (rows.length !== 1) throw new Error(`expected one selectable row, found ${rows.length}`);
+    return rows[0];
 }
 
 describe("AddressCard", () => {
@@ -57,5 +68,59 @@ describe("AddressCard", () => {
         renderCard(false);
 
         expect(screen.queryByRole("button", { name: /edit address/i })).toBeNull();
+    });
+
+    /**
+     * The row is a div carrying role="radio", so keyboard selection has to be wired by hand. A
+     * customer picking a delivery address with a keyboard is not exotic — it is anyone on a
+     * laptop, and the alternative is that the address list simply cannot be operated.
+     */
+    it("can be chosen from the keyboard, not only by clicking", () => {
+        const { onSelect } = renderCard(true);
+        const row = selectableRow();
+
+        fireEvent.keyDown(row, { key: "Enter" });
+        fireEvent.keyDown(row, { key: " " });
+
+        expect(onSelect).toHaveBeenCalledTimes(2);
+        expect(onSelect).toHaveBeenCalledWith(ADDRESS);
+    });
+
+    it("ignores a keystroke that is not a selection", () => {
+        const { onSelect } = renderCard(true);
+
+        fireEvent.keyDown(selectableRow(), { key: "Tab" });
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Labels are optional. Falling through to an empty heading would leave a row the customer
+     * cannot tell apart from the one below it, on the screen where they choose between them.
+     */
+    it("names an unlabelled address rather than showing a blank row", () => {
+        renderCard(false, { ...ADDRESS, label: null });
+
+        expect(screen.getByText("Saved address")).toBeTruthy();
+        expect(screen.getByText(/Block 338/)).toBeTruthy();
+    });
+
+    /**
+     * "Use my current location" with nothing typed is a real, supported outcome (§12.7: the pin is
+     * the single value everything downstream depends on). It leaves every Bahrain part null, and
+     * `formatAddressLine` then returns "" — which must read as "a pinned location", not as a row
+     * with a missing line.
+     */
+    it("says the address is a bare pin when no Bahrain parts were given", () => {
+        renderCard(false, { ...ADDRESS, block: null, road: null, building: null, flat: null });
+
+        expect(screen.getByText("Pinned location")).toBeTruthy();
+    });
+
+    /** A delivery note is the "gate code is 1234" line — it must survive onto the card. */
+    it("shows the delivery note when there is one", () => {
+        renderCard(false, { ...ADDRESS, note: "Gate code 1234" });
+
+        expect(screen.getByText(/Gate code 1234/)).toBeTruthy();
     });
 });

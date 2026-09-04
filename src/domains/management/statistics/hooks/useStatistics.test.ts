@@ -7,19 +7,40 @@ jest.mock("../../../../shared/api/public");
 jest.mock("../../../../shared/api/management");
 
 import {fetchStatistics} from "../../../../shared/api/public";
-import {fetchDeliveryAvailabilityStats, fetchDeliveryHourlyStats} from "../../../../shared/api/management";
+import {
+    fetchDeliveryAvailabilityStats,
+    fetchDeliveryEstimateAccuracy,
+    fetchDeliveryHourlyStats,
+    fetchDeliverySkipReasonStats,
+} from "../../../../shared/api/management";
 import {useStatistics} from "./useStatistics";
-import type {DeliveryAvailabilityStats, StatsResponse} from "../types";
+import type {
+    DeliveryAvailabilityStats,
+    DeliveryEstimateAccuracy,
+    DeliverySkipReasonStats,
+    StatsResponse,
+} from "../types";
 
 const mockFetchStatistics = jest.mocked(fetchStatistics);
 const mockFetchDeliveryAvailability = jest.mocked(fetchDeliveryAvailabilityStats);
 const mockFetchDeliveryHourly = jest.mocked(fetchDeliveryHourlyStats);
+const mockFetchEstimateAccuracy = jest.mocked(fetchDeliveryEstimateAccuracy);
+const mockFetchSkipReasons = jest.mocked(fetchDeliverySkipReasonStats);
 
 const emptyAvailability: DeliveryAvailabilityStats = {
     observedSeconds: 0,
     unavailableSeconds: 0,
     byReason: [],
     byHour: [],
+};
+
+const emptyAccuracy: DeliveryEstimateAccuracy = {deliveredOrders: 0, legs: []};
+
+const emptySkipReasons: DeliverySkipReasonStats = {
+    totalSkips: 0,
+    ordersAffected: 0,
+    couriersAffected: 0,
+    byReason: [],
 };
 
 const emptyStats = {
@@ -53,6 +74,8 @@ describe("useStatistics", () => {
         mockFetchStatistics.mockResolvedValue(emptyStats);
         mockFetchDeliveryAvailability.mockResolvedValue(emptyAvailability);
         mockFetchDeliveryHourly.mockResolvedValue([]);
+        mockFetchEstimateAccuracy.mockResolvedValue(emptyAccuracy);
+        mockFetchSkipReasons.mockResolvedValue(emptySkipReasons);
     });
 
     afterEach(() => {
@@ -291,5 +314,136 @@ describe("useStatistics", () => {
         await waitFor(() => expect(result.current.loading).toBe(false));
 
         expect(result.current.deliveryStatsScope).toBeNull();
+    });
+
+    /**
+     * Both chain-wide endpoints take an OPTIONAL branchId, and omitting it is what makes them
+     * answerable: the road quote comes from one router shared by every branch, and an unscoped
+     * read is the only one that sees an order with no branch at all. The hook must therefore not
+     * quietly pass the page's branch selection down to them.
+     */
+    it("asks for the estimate accuracy and skip reasons over the applied range, with no branch", async () => {
+        const {result} = renderHook(() => useStatistics(["branch-1", "branch-2"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        act(() => {
+            const start = startOfDay(new Date(2026, 6, 4));
+            const end = endOfDay(new Date(2026, 6, 10));
+            result.current.setDateRange([{startDate: start, endDate: end, key: "selection"}]);
+        });
+
+        mockFetchEstimateAccuracy.mockClear();
+        mockFetchSkipReasons.mockClear();
+
+        await act(async () => {
+            await result.current.refresh();
+        });
+
+        expect(mockFetchEstimateAccuracy).toHaveBeenCalledWith("2026-07-04", "2026-07-10");
+        expect(mockFetchSkipReasons).toHaveBeenCalledWith("2026-07-04", "2026-07-10");
+    });
+
+    // Four independent fetches, four independent failures: the tab must not go blank because one
+    // of them is down.
+    it("keeps the skip reasons when only the estimate-accuracy fetch fails", async () => {
+        mockFetchEstimateAccuracy.mockRejectedValue(new Error("HTTP 500"));
+
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(result.current.deliveryEstimateAccuracy).toBeNull();
+        expect(result.current.deliverySkipReasons).not.toBeNull();
+        expect(result.current.deliveryAvailability).not.toBeNull();
+    });
+
+    it("keeps the estimate accuracy when only the skip-reason fetch fails", async () => {
+        mockFetchSkipReasons.mockRejectedValue(new Error("HTTP 500"));
+
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(result.current.deliverySkipReasons).toBeNull();
+        expect(result.current.deliveryEstimateAccuracy).not.toBeNull();
+    });
+
+    // One chain-wide figure standing is enough to label; nothing standing must clear the label,
+    // or a range would be claimed for numbers that never arrived.
+    it("clears the chain-wide scope only when neither chain-wide fetch came back", async () => {
+        mockFetchEstimateAccuracy.mockRejectedValue(new Error("HTTP 500"));
+        mockFetchSkipReasons.mockRejectedValue(new Error("HTTP 500"));
+
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(result.current.deliveryChainScope).toBeNull();
+    });
+
+    it("keeps the chain-wide scope while at least one of the two figures is readable", async () => {
+        mockFetchEstimateAccuracy.mockRejectedValue(new Error("HTTP 500"));
+
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(result.current.deliveryChainScope).not.toBeNull();
+    });
+
+    /**
+     * The trap this surface has already been caught by: the picker moves on every drag while the
+     * data only reloads on Refresh, so a card labelled with the live range names a window nothing
+     * was ever fetched for.
+     */
+    it("keeps the chain-wide scope on the range that was fetched, not the one now in the picker", async () => {
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        const fetched = result.current.deliveryChainScope;
+        expect(fetched).not.toBeNull();
+
+        act(() => {
+            const start = startOfDay(new Date(2026, 6, 4));
+            const end = endOfDay(new Date(2026, 6, 10));
+            result.current.setDateRange([{startDate: start, endDate: end, key: "selection"}]);
+        });
+
+        expect(result.current.deliveryChainScope).toEqual(fetched);
+        expect(result.current.deliveryChainScope?.startDate).not.toBe("2026-07-04");
+    });
+
+    it("moves the chain-wide scope to the new range once it is actually refreshed", async () => {
+        const {result} = renderHook(() => useStatistics(["branch-1"], true));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        act(() => {
+            const start = startOfDay(new Date(2026, 6, 4));
+            const end = endOfDay(new Date(2026, 6, 10));
+            result.current.setDateRange([{startDate: start, endDate: end, key: "selection"}]);
+        });
+
+        await act(async () => {
+            await result.current.refresh();
+        });
+
+        expect(result.current.deliveryChainScope)
+            .toEqual({startDate: "2026-07-04", finishDate: "2026-07-10"});
+    });
+
+    // /api/management/delivery/** is MANAGER-and-up: for a role that cannot open the tab these
+    // would be two guaranteed 403s on every open.
+    it("skips both chain-wide fetches for a role that cannot see the delivery tab", async () => {
+        const {result} = renderHook(() => useStatistics(["branch-1"], false));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(mockFetchEstimateAccuracy).not.toHaveBeenCalled();
+        expect(mockFetchSkipReasons).not.toHaveBeenCalled();
+        expect(result.current.deliveryEstimateAccuracy).toBeNull();
+        expect(result.current.deliverySkipReasons).toBeNull();
+        expect(result.current.deliveryChainScope).toBeNull();
     });
 });

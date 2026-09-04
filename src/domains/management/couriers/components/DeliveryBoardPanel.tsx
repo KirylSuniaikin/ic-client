@@ -5,6 +5,7 @@ import { logger } from '../../../../shared/utils/logger';
 import { formatBahrainClock, minutesSinceBahrain } from '../../../../shared/utils/timeUtils';
 import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import type { CourierBoardRow, DeliveryCard, NoOfferReason } from '../types';
+import { noOfferReasonLabel } from '../utils/noOfferReasonLabels';
 import {
     BRAND_RED as brandRed, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState, PANEL_CARD_SX,
     PANEL_MIN_HEIGHT, PanelNotice, ROW_SX, SECTION_TITLE_SX,
@@ -30,34 +31,12 @@ const MUTED = '#8a807a';
 const FADED = '#b0a79f';
 
 /**
- * Manager-readable text for the engine's verdicts. SCREAMING_SNAKE on a board someone reads under
- * pressure is not an answer; these are the words the TODO itself uses.
- */
-const NO_OFFER_REASON_LABELS: Record<NoOfferReason, string> = {
-    DECLINED: 'Declined this order',
-    NO_ANSWER: 'Never answered the offer',
-    OFFLINE: 'Off shift',
-    BLACKLISTED: 'Blacklisted',
-    PINGING_OTHER_ORDER: 'Being offered another order',
-    NO_RESOLVABLE_FREE_AT: 'No way to tell when they are free',
-    POSITION_STALE: 'Last position too old to trust',
-    TOO_FAR: 'Too far from the kitchen',
-    BUSY_UNTIL: 'Busy',
-};
-
-/** Turns an unmapped wire value into words rather than shouting the raw constant at a manager. */
-function humanise(value: string): string {
-    const words = value.toLowerCase().replace(/_/g, ' ');
-    return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/**
  * `BUSY_UNTIL` is the one reason that is useless without its time — "busy" tells a manager
  * nothing, "busy until 14:32" tells them whether to wait or to phone someone else. The fallback
  * exists because the backend enum can grow ahead of this client.
  */
 function noOfferReasonText(reason: NoOfferReason, freeAt: string | null): string {
-    const base = NO_OFFER_REASON_LABELS[reason] ?? humanise(reason);
+    const base = noOfferReasonLabel(reason);
     if (reason !== 'BUSY_UNTIL') return base;
     const until = formatBahrainClock(freeAt);
     return until === null ? base : `${base} until ${until}`;

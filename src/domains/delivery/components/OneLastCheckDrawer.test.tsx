@@ -61,4 +61,73 @@ describe("OneLastCheckDrawer", () => {
         const confirm = screen.getByRole("button", { name: /looks good/i }) as HTMLButtonElement;
         expect(confirm.disabled).toBe(true);
     });
+
+    /**
+     * A disabled button with a blank line above it looks broken rather than incomplete. This is
+     * the last screen before a charge — it has to say what is missing.
+     */
+    it("says no address is selected rather than showing an empty line", () => {
+        renderSheet({ address: null });
+
+        expect(screen.getByText("No address selected")).toBeTruthy();
+    });
+
+    /**
+     * The pin-only address (§12.7: the pin is the single value everything downstream depends on).
+     * Every Bahrain part is null, `formatAddressLine` returns "", and the sheet must name it
+     * rather than render the address block with nothing in it.
+     */
+    it("names a bare pin rather than leaving the address line empty", () => {
+        renderSheet({ address: { ...ADDRESS, block: null, road: null, building: null, flat: null } });
+
+        expect(screen.getByText("Pinned location")).toBeTruthy();
+    });
+
+    /**
+     * The discounted cart (DELIVERY_COVERAGE_MATRIX.md defect D-3). The lines print at full price
+     * and the saving gets its own row, so the numbers on this screen add up: lines − discount =
+     * total. Before this they did not, on the last screen before a charge.
+     */
+    describe("a discounted cart", () => {
+        const DISCOUNTED = [
+            { name: "Pepperoni", quantity: 2, amount: 3.5, discountAmount: 50 } as CartItem,
+            { name: "Coke", quantity: 1, amount: 0.8 } as CartItem,
+        ];
+
+        it("keeps the line at its full price", () => {
+            renderSheet({ items: DISCOUNTED });
+
+            // 2 x 3.50, not 2 x 1.75 — the customer recognises the price they chose.
+            expect(screen.getByText("7.00")).toBeTruthy();
+        });
+
+        it("names the saving on its own row", () => {
+            renderSheet({ items: DISCOUNTED });
+
+            expect(screen.getByText("Discount")).toBeTruthy();
+            // 50% off 2 x 3.50.
+            expect(screen.getByText("-3.50")).toBeTruthy();
+        });
+
+        it("charges the discounted total, and the rows add up to it", () => {
+            renderSheet({ items: DISCOUNTED });
+
+            // 7.00 + 0.80 - 3.50
+            expect(screen.getByText("4.30")).toBeTruthy();
+        });
+
+        /** A "-0.00" row on every undiscounted cart is noise; the ordinary cart must not grow one. */
+        it("says nothing about a discount when there is none", () => {
+            renderSheet();
+
+            expect(screen.queryByText("Discount")).toBeNull();
+        });
+    });
+
+    /** The method is chosen a screen earlier; this is the last chance to notice it is wrong. */
+    it("names the payment method the order is about to be charged to", () => {
+        renderSheet({ paymentLabel: "Benefit" });
+
+        expect(screen.getByText("Benefit")).toBeTruthy();
+    });
 });

@@ -101,6 +101,77 @@ describe("useBpgPaymentResult", () => {
         });
     });
 
+    /**
+     * manual §05: "Payment confirmation polling — 2 min. Beyond this the honest answer is 'we could
+     * not confirm', which is never the same statement as 'it failed'." Neither the window nor the
+     * shape of what happens at the end of it was pinned anywhere: the hook could have given up
+     * after two seconds, or never, and every existing test would still pass.
+     *
+     * The clock is driven through `Date.now` rather than by waiting: the hook computes its
+     * deadline from it, and the poll timer stays on real time so nothing about the scheduling is
+     * changed. Each fetch advances the clock by the amount under test, which puts the boundary
+     * check exactly where it needs to be without a two-minute test.
+     */
+    describe("the two-minute confirmation window", () => {
+        let now = 0;
+        let nowSpy: ReturnType<typeof jest.spyOn> | null = null;
+
+        function freezeClockAdvancingBy(msPerPoll: number): void {
+            now = 1_700_000_000_000;
+            nowSpy = jest.spyOn(Date, "now").mockImplementation(() => now);
+            mockFetch.mockImplementation(async () => {
+                now += msPerPoll;
+                return resultWith("PENDING");
+            });
+        }
+
+        afterEach(() => {
+            nowSpy?.mockRestore();
+            nowSpy = null;
+        });
+
+        it("keeps asking for two minutes before it gives up", async () => {
+            // One millisecond short of the window on the first poll: it must ask again.
+            freezeClockAdvancingBy(119_999);
+
+            const { result } = renderHook(() => useBpgPaymentResult("ref-1"));
+
+            await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2), POLL_WINDOW);
+            // Still inside the window at the point of the first check — nothing was abandoned.
+            expect(result.current.result?.status).toBe("PENDING");
+        });
+
+        /**
+         * The whole point of the timeout. Giving up abandons the PAGE, never the payment: the
+         * backend sweeper still resolves the attempt by Inquiry, so the hook must report
+         * "we stopped waiting" and must NOT invent a failure — `result` stays at whatever the
+         * gateway last said and `error` stays null, which is what lets the screen say
+         * "we couldn't confirm" instead of "your payment failed".
+         */
+        it("gives up as 'we could not confirm', never as a failure", async () => {
+            freezeClockAdvancingBy(120_000);
+
+            const { result } = renderHook(() => useBpgPaymentResult("ref-1"));
+
+            await waitFor(() => expect(result.current.timedOut).toBe(true), POLL_WINDOW);
+            expect(result.current.settling).toBe(false);
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+            // Nothing here says the payment failed — that statement is not ours to make.
+            expect(result.current.error).toBeNull();
+            expect(result.current.result?.status).toBe("PENDING");
+        });
+
+        it("does not give up while the window still has time left in it", async () => {
+            freezeClockAdvancingBy(1_000);
+
+            const { result } = renderHook(() => useBpgPaymentResult("ref-1"));
+
+            await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2), POLL_WINDOW);
+            expect(result.current.timedOut).toBe(false);
+            expect(result.current.settling).toBe(true);
+        });
+    });
+
     describe("when no reference is supplied", () => {
         it("reports a missing reference without calling the API", async () => {
             const { result } = renderHook(() => useBpgPaymentResult(null));

@@ -5,7 +5,7 @@ import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { DeliveryCheckoutDrawer } from "./DeliveryCheckoutDrawer";
 import { createAddress, getDeliveryAvailability, listAddresses, updateAddress } from "../../../shared/api/delivery";
-import type { CustomerAddress } from "../types";
+import type { CustomerAddress, DeliveryPaymentMethod } from "../types";
 import type { CartItem } from "../../menu/types";
 
 jest.mock("../../../shared/api/delivery");
@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 function renderDrawer() {
-    const onConfirm = jest.fn<void, [CustomerAddress, typeof AVAILABLE]>();
+    const onConfirm = jest.fn<void, [CustomerAddress, typeof AVAILABLE, DeliveryPaymentMethod]>();
     const onUnavailable = jest.fn<void, [typeof AVAILABLE]>();
     render(
         <I18nextProvider i18n={i18n}>
@@ -106,6 +106,42 @@ describe("DeliveryCheckoutDrawer", () => {
         expect(onConfirm).toHaveBeenCalledWith(
             expect.objectContaining({ id: "a1" }), expect.objectContaining(AVAILABLE), "CARD"
         );
+    });
+
+    /**
+     * §1.5 block 4. `payment_type` carries the EazyPay method onto the order, so it is real data
+     * even while the provider is stubbed — and the only assertion that existed used the default,
+     * which a component that ignored the toggle entirely would still satisfy.
+     */
+    it("carries a non-default payment method all the way to the caller", async () => {
+        const { onConfirm } = renderDrawer();
+        await screen.findByText(/20–30 min/);
+
+        fireEvent.click(screen.getByRole("button", { name: /benefit/i }));
+        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
+
+        await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+        expect(onConfirm.mock.calls[0][2]).toBe("BENEFIT");
+    });
+
+    /**
+     * The §1.6 sheet names the method, so a wrong choice is catchable before the charge.
+     *
+     * Read out of the "Paying with" block specifically: "Apple Pay" is also the label of the
+     * toggle button on the screen behind, so a document-wide query would pass with the confirm
+     * sheet hard-coded to Card.
+     */
+    it("names the chosen method on the confirm sheet", async () => {
+        renderDrawer();
+        await screen.findByText(/20–30 min/);
+
+        fireEvent.click(screen.getByRole("button", { name: /apple pay/i }));
+        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        await screen.findByRole("button", { name: /looks good/i });
+
+        const payingWith = screen.getByText("Paying with").nextElementSibling;
+        expect(payingWith?.textContent).toBe("Apple Pay");
     });
 
     it("returns to the checkout screen without charging when the customer backs out of the sheet", async () => {

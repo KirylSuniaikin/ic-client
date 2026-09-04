@@ -253,18 +253,37 @@ describe("DeliveryBoardPanel — courier table", () => {
         expect(screen.getByText("39001122")).toBeTruthy();
     });
 
-    /** Declined and missed never merge: a choice and a dead phone are different problems. */
+    /**
+     * Declined and missed never merge: a rider who refuses is making a choice, one who goes silent
+     * probably has a dead phone, and the two call for different conversations (manual §03).
+     *
+     * The numbers are read out of their OWN metric rather than looked up anywhere in the row.
+     * `Metric` renders the label and the value as two sibling nodes, so a row-wide `getByText("2")`
+     * would still pass with the two figures swapped — which is precisely the regression this
+     * exists to catch.
+     */
     it("keeps declined and missed as separate counts", async () => {
         render(<DeliveryBoardPanel />);
 
         await screen.findByText("ali");
-        const row = within(screen.getByTestId("courier-row-c1"));
-        expect(row.getByText("Declined")).toBeTruthy();
-        expect(row.getByText("2")).toBeTruthy();
-        expect(row.getByText("Missed")).toBeTruthy();
-        expect(row.getByText("1")).toBeTruthy();
+        const row = screen.getByTestId("courier-row-c1");
+
+        expect(metricValue(row, "Declined")).toBe("2");
+        expect(metricValue(row, "Missed")).toBe("1");
     });
 });
+
+/**
+ * Reads one `Metric`'s value: the label and the value are sibling `Typography` nodes inside the
+ * same Box, so the value is the label node's next sibling — not "some node in the row with that
+ * text", which is what makes a paired-number assertion meaningful.
+ */
+function metricValue(scope: HTMLElement, label: string): string {
+    const labelNode = within(scope).getByText(label);
+    const value = labelNode.nextElementSibling;
+    if (value === null) throw new Error(`metric "${label}" has no value beside it`);
+    return value.textContent ?? "";
+}
 
 describe("DeliveryBoardPanel — live updates", () => {
     it("subscribes to the cross-branch delivery topic", async () => {

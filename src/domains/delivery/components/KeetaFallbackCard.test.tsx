@@ -45,6 +45,17 @@ describe("KeetaFallbackCard", () => {
         expect(screen.getByText(/drivers are busy/i)).toBeTruthy();
     });
 
+    /**
+     * NO_BRANCH itself, rather than `null` standing in for it. It is a real value the gate
+     * returns, and it is the one a customer can do least about — telling them their address is
+     * out of area would be a permanent refusal for a configuration problem on our side.
+     */
+    it("uses the temporary wording for NO_BRANCH, which the customer can do nothing about", () => {
+        renderCard("NO_BRANCH");
+        expect(screen.getByText(/drivers are busy/i)).toBeTruthy();
+        expect(screen.queryByText(/outside our delivery area/i)).toBeNull();
+    });
+
     it("opens Keeta in a new tab without handing over a window reference", () => {
         const open = jest.fn<Window | null, [string?, string?, string?]>();
         window.open = open as unknown as typeof window.open;

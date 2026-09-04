@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
@@ -90,6 +90,17 @@ export default function HomePageModals({
     // empty until the customer reloads the page.
     const { refreshActiveOrder } = useCustomerAuthUi();
     const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
+    // Synchronous re-entry guard for the delivery confirm, the same shape as useCheckout's
+    // `submittingRef`. The pickup path is guarded inside `executeOrderCreation`, but a delivery
+    // order never enters it, so that guard is not on this branch: `pendingDeliveryOrder` — which
+    // is what keeps the confirm sheet open — is only cleared AFTER `payForDelivery` resolves, so
+    // a second press in the meantime starts a second charge. React state commits asynchronously;
+    // a ref updates in the same tick, so the second press short-circuits.
+    //
+    // In production this is currently absorbed by the backend's idempotency key and by the sheet
+    // closing on the first press. Neither of those is this screen's to keep, which is why the
+    // guard belongs here rather than being left to them.
+    const deliverySubmittingRef = useRef(false);
 
     /**
      * §1.2 step 1 — the early gate. Runs the moment the customer picks Delivery, before they
@@ -114,6 +125,8 @@ export default function HomePageModals({
     ): Promise<void> {
         const pending = checkout.pendingDeliveryOrder;
         if (pending === null) return;
+        if (deliverySubmittingRef.current) return;
+        deliverySubmittingRef.current = true;
         try {
             const result = await payForDelivery({
                 method,
@@ -149,6 +162,8 @@ export default function HomePageModals({
         } catch (error) {
             logger.error("Delivery checkout failed:", error);
             setDeliveryNotice(error instanceof Error ? error.message : String(error));
+        } finally {
+            deliverySubmittingRef.current = false;
         }
     }
 

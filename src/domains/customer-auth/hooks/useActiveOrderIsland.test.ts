@@ -147,10 +147,17 @@ describe("useActiveOrderIsland", () => {
         expect(result.current.totalSec).toBe(15 * 60);
     });
 
+    /**
+     * The refetch deliberately answers with the SAME order at its new status rather than `null`.
+     * Stubbing it to `null` — as this test used to — makes `isVisible` false because there is no
+     * active order at all, which is true whatever the terminal-status rule does; the assertion
+     * then passes with the rule deleted. Returning the order forces the terminality check to be
+     * the only thing that can hide the pill.
+     */
     it("hides the pill once a live frame advances the tracked order to Picked Up", async () => {
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
-        mockFetchActiveOrder.mockResolvedValueOnce(null);
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, status: "Picked Up" });
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
         await waitForAuthReady();
@@ -173,7 +180,8 @@ describe("useActiveOrderIsland", () => {
     it("hides the pill once a live frame advances the tracked order to Delivered", async () => {
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
-        mockFetchActiveOrder.mockResolvedValueOnce(null);
+        // Same reasoning as above: the refetch keeps the order, so only terminality can hide it.
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, status: "Delivered" });
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
         await waitForAuthReady();
@@ -322,6 +330,32 @@ describe("useActiveOrderIsland — a delivery outlives the hand-over", () => {
         const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Picked Up" });
 
         expect(result.current.isVisible).toBe(false);
+    });
+
+    /**
+     * manual §04 edge 9 — what the customer sees after a no-show. "Returned Undelivered" is the
+     * other terminal ending, and it is in DELIVERY_TERMINAL_STATUSES with nothing asserting it:
+     * the pill goes quiet rather than counting down forever to a door the rider already left.
+     * The order does not disappear — it stays in their history with the status that explains it,
+     * which is CustomerOrderDetailPopup's half of the same rule.
+     */
+    it("drops a delivery order that came back undelivered", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Returned Undelivered" });
+
+        expect(result.current.isVisible).toBe(false);
+        // Still tracked, just not shown: the pill is what goes quiet, not the order.
+        expect(result.current.activeOrder).not.toBeNull();
+    });
+
+    /**
+     * The status that ends a delivery is not the one that ends a pickup, and vice versa. A single
+     * shared terminal set would either strand a delivered order on screen or wipe the pill at
+     * hand-over — both of which have happened.
+     */
+    it("does not treat a returned delivery status as terminal for a pickup order", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Out for delivery" });
+
+        expect(result.current.isVisible).toBe(true);
     });
 });
 

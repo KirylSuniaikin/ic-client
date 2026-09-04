@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 import { BASE_URL } from "./client";
-import { getDeliveryAvailability, listAddresses, createAddress, updateAddress } from "./delivery";
+import { getDeliveryAvailability, listAddresses, createAddress, updateAddress, payForDelivery } from "./delivery";
 import { DeliveryApiError } from "../../domains/delivery/types";
 
 beforeAll(() => {
@@ -69,8 +69,22 @@ describe("getDeliveryAvailability", () => {
     it("throws DeliveryApiError with the server message on a 4xx", async () => {
         mockFetch.mockResolvedValueOnce(jsonResponse({ message: "Invalid coordinates" }, 400));
 
+        // The message half of this assertion is the point: a generic "Request failed with status
+        // 400" would tell the customer nothing, and the server's own wording is what the caller
+        // renders inline.
         await expect(getDeliveryAvailability({ latitude: 91, longitude: 50 }))
-            .rejects.toThrow(DeliveryApiError);
+            .rejects.toMatchObject({ name: "DeliveryApiError", message: "Invalid coordinates", status: 400 });
+    });
+
+    /**
+     * A body that is not JSON (an HTML error page from a proxy, or an empty 502) must still
+     * produce a readable error rather than a parse crash inside the error path.
+     */
+    it("falls back to a status message when the error body is not JSON", async () => {
+        mockFetch.mockResolvedValueOnce(new Response("<html>502</html>", { status: 502 }));
+
+        await expect(getDeliveryAvailability())
+            .rejects.toMatchObject({ message: "Request failed with status 502", status: 502 });
     });
 });
 
@@ -151,5 +165,67 @@ describe("updateAddress", () => {
         await expect(updateAddress("tok-1", "a1", {
             label: null, block: null, road: null, building: null, flat: "4", note: null,
         })).rejects.toMatchObject({ status: 409, message: "You already have this address saved" });
+    });
+
+    /** An id with a slash or a space in it must not be able to reshape the path. */
+    it("percent-encodes the address id into the path", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ id: "a/1" }, 200));
+
+        await updateAddress("tok-1", "a/1", {
+            label: null, block: null, road: null, building: null, flat: null, note: null,
+        });
+
+        const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/customer/addresses/a%2F1`);
+    });
+});
+
+/**
+ * §1.7 — the settle-then-create call. It has no test of its own anywhere else; the checkout
+ * screens only ever see it mocked, so the request shape it actually puts on the wire is pinned
+ * here or nowhere.
+ */
+describe("payForDelivery", () => {
+    const ORDER = { tel: "97312345678", type: "Delivery", idempotency_key: "idem-1" };
+
+    it("posts the method, the address and the whole order in one body", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse(
+            { orderNo: 41, status: "Pending Payment", redirectUrl: "https://pay.example/x", stub: false }, 201));
+
+        await payForDelivery({ method: "BENEFIT", addressId: "a1", order: ORDER });
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/delivery/payment/checkout`);
+        expect(init.method).toBe("POST");
+        const body = JSON.parse(init.body as string);
+        expect(body.method).toBe("BENEFIT");
+        expect(body.addressId).toBe("a1");
+        expect(body.order).toMatchObject(ORDER);
+    });
+
+    /**
+     * The 201 carries `redirectUrl` and `status: "Pending Payment"` — the order EXISTS but is NOT
+     * paid. An earlier version of the type claimed `{ orderId, status: 'PAID' | 'FAILED' }`, which
+     * described neither the field names nor the values the backend sends, and TypeScript could not
+     * catch it because the response is never validated. Pinning the real shape is the only guard.
+     */
+    it("returns the pending-payment result with the redirect the customer must be sent to", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse(
+            { orderNo: 41, status: "Pending Payment", redirectUrl: "https://pay.example/x", stub: false }, 201));
+
+        const result = await payForDelivery({ method: "CARD", addressId: "a1", order: ORDER });
+
+        expect(result).toMatchObject({
+            orderNo: 41, status: "Pending Payment", redirectUrl: "https://pay.example/x", stub: false,
+        });
+    });
+
+    /** Disabled in production, and the endpoint answers 501 — that must surface, not resolve. */
+    it("throws when the payment stub is switched off", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ message: "Delivery payment stub is disabled" }, 501));
+
+        await expect(payForDelivery({ method: "CARD", addressId: "a1", order: ORDER }))
+            .rejects.toMatchObject({ name: "DeliveryApiError", status: 501,
+                message: "Delivery payment stub is disabled" });
     });
 });

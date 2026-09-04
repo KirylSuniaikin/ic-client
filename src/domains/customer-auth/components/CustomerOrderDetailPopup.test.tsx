@@ -221,6 +221,84 @@ describe("CustomerOrderDetailPopup", () => {
         expect(screen.getByText("Some Unknown Status")).toBeTruthy();
     });
 
+    /**
+     * manual §04 edge 9 — what the customer sees after a no-show. The live pill goes quiet (see
+     * `useActiveOrderIsland`), but the order does NOT disappear: it stays in their history with
+     * the status that explains what happened. An order that vanished from history after a
+     * returned delivery would look like it was never placed, on the one occasion the customer is
+     * most likely to want to look it up.
+     *
+     * This popup had no delivery coverage at all — no delivery order, no delivery status, and no
+     * returned order appeared in any of its 27 tests.
+     */
+    it("keeps a returned order in the customer's history with the status that explains it", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(detail({
+            orderType: "Delivery",
+            status: "Returned Undelivered",
+            statusHistory: [
+                { status: "Kitchen Phase", changedAt: "2026-06-20 18:10" },
+                { status: "Ready", changedAt: "2026-06-20 18:35" },
+                { status: "Out for delivery", changedAt: "2026-06-20 18:42" },
+                { status: "Returned Undelivered", changedAt: "2026-06-20 19:05" },
+            ],
+        }));
+
+        await renderPopup();
+
+        await screen.findByText("Order ID #88");
+        // The explaining status, in words — not the raw backend string and not a blank chip.
+        expect(screen.getAllByText("Returned Undelivered").length).toBeGreaterThan(0);
+        // …and the ride that preceded it is still on the timeline, so the customer can see the
+        // order did leave the kitchen.
+        expect(screen.getByText("Out for Delivery")).toBeTruthy();
+        // The items are still there: a returned order is a completed record, not a deleted one.
+        expect(screen.getByText("Pepperoni")).toBeTruthy();
+    });
+
+    /** The delivery ladder's own statuses have to resolve to copy, not leak the raw string. */
+    it("names the ride in words while a delivery order is on the road", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(detail({
+            orderType: "Delivery",
+            status: "Out for delivery",
+            statusHistory: [
+                { status: "Ready", changedAt: "2026-06-20 18:35" },
+                { status: "Out for delivery", changedAt: "2026-06-20 18:42" },
+            ],
+        }));
+
+        await renderPopup();
+
+        await screen.findByText("Order ID #88");
+        expect(screen.getAllByText("Out for Delivery").length).toBeGreaterThan(0);
+        // The literal backend value, lower-case `d`, must not reach the screen.
+        expect(screen.queryByText("Out for delivery")).toBeNull();
+    });
+
+    /**
+     * The Arabic half of the same rule. `returnedUndelivered` is translated in `customerAuth.json`
+     * on both platforms, so a customer reading the app in Arabic must not be handed the English
+     * status on the one screen that explains why their food never arrived.
+     */
+    it("translates a returned delivery order's status when the locale is Arabic", async () => {
+        await act(async () => {
+            await i18n.changeLanguage("ar");
+        });
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(detail({
+            orderType: "Delivery",
+            status: "Returned Undelivered",
+            statusHistory: [{ status: "Returned Undelivered", changedAt: "2026-06-20 19:05" }],
+        }));
+
+        await renderPopup();
+
+        await waitFor(() =>
+            expect(screen.getAllByText("تم إرجاع الطلب دون تسليم").length).toBeGreaterThan(0));
+        expect(screen.queryByText("Returned Undelivered")).toBeNull();
+    });
+
     // Task T6 §6: the header status chip must show the TRANSLATED label in Arabic, not the raw
     // English status string leaking through untranslated.
     it("shows the translated Arabic status on the header chip and timeline when the locale is Arabic", async () => {

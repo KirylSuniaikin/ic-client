@@ -36,8 +36,12 @@ jest.mock("../domains/delivery/components/DeliveryCheckoutDrawer", () => ({
         return <div>DeliveryCheckoutDrawer</div>;
     },
 }));
+const mockKeetaCard = jest.fn();
 jest.mock("../domains/delivery/components/KeetaFallbackCard", () => ({
-    KeetaFallbackCard: () => <div>KeetaFallbackCard</div>,
+    KeetaFallbackCard: (props: unknown) => {
+        mockKeetaCard(props);
+        return <div>KeetaFallbackCard</div>;
+    },
 }));
 // HomePageModals seeds the homepage island itself on the delivery path (the pickup path does it
 // from useCheckout). Mocked rather than wrapped in a real provider: this suite renders the modals
@@ -71,7 +75,7 @@ jest.mock("../domains/branch/components/BranchSwitchWarningDrawer", () => ({
 }));
 
 import HomePageModals from "./HomePageModals";
-import { payForDelivery } from "../shared/api/delivery";
+import { getDeliveryAvailability, payForDelivery } from "../shared/api/delivery";
 import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
@@ -80,6 +84,7 @@ import type { UseBranchSwitchResult } from "../domains/branch/hooks/useBranchSwi
 import type { IBranch } from "../domains/management/inventory/types";
 
 const mockPay = jest.mocked(payForDelivery);
+const mockGate = jest.mocked(getDeliveryAvailability);
 
 const ADDRESS: CustomerAddress = {
     id: "addr-1", label: "Home", block: "338", road: "3801", building: "12", flat: null,
@@ -273,6 +278,43 @@ describe("HomePageModals — delivery checkout hand-off", () => {
             })
         );
         await waitFor(() => expect(setCartItems).toHaveBeenCalledWith([]));
+    });
+
+    /**
+     * D-1: `pendingDeliveryOrder` — which is what holds the confirm sheet open — is only cleared
+     * AFTER `payForDelivery` resolves, so between the press and the response the sheet is still
+     * mounted and a second "Looks good" starts a second charge with the same idempotency key.
+     * The pickup path is guarded inside `executeOrderCreation`; a delivery order never enters it.
+     *
+     * In production the backend's idempotency key absorbs the duplicate and the sheet closes on
+     * the first press, which is precisely why this needs its own guard: a change to either mask
+     * turns this into a double charge.
+     */
+    it("charges once when the confirm is pressed twice before the first settles", async () => {
+        // Held open, not resolved: the whole window this guard exists for is the one where the
+        // first request has not come back yet.
+        mockPay.mockReturnValue(new Promise(() => undefined));
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        const confirm = capturedOnConfirm();
+        await act(async () => {
+            confirm(ADDRESS, AVAILABLE, "CARD");
+            confirm(ADDRESS, AVAILABLE, "CARD");
+        });
+
+        expect(mockPay).toHaveBeenCalledTimes(1);
+    });
+
+    /** The guard must not outlive the request it guards — a declined card has to be retryable. */
+    it("lets the customer try again after a failed charge", async () => {
+        mockPay.mockRejectedValueOnce(new Error("Card declined"));
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(1));
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(2));
     });
 
     // The island is fed by the backend's active-order endpoint, so it only picks the new order up
@@ -474,3 +516,162 @@ async function screenFindText(pattern: RegExp): Promise<HTMLElement> {
         return match as HTMLElement;
     });
 }
+
+/**
+ * §1.2 **step 1** — the early gate, run the moment the customer picks Delivery in the cart, before
+ * they invest any effort in an address. Its whole point is that a branch with no free courier is
+ * caught up front rather than at Place order, with a checkout screen's worth of work already done.
+ *
+ * None of this was covered: `handleDeliveryTypeChange` lives in this file and only step 2 (inside
+ * `DeliveryCheckoutDrawer`) had a test, so the early pass, the revert-to-Pick-Up on refusal, and
+ * the reason reaching the Keeta card could all have been deleted with the suite green.
+ */
+describe("HomePageModals — the §1.2 step-1 gate", () => {
+    const REFUSED: DeliveryAvailability = {
+        available: false, reason: "NO_COURIER", branchId: "branch-nearest",
+        etaMinutesMin: null, etaMinutesMax: null,
+    };
+
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockDeliveryDrawer.mockClear();
+        mockKeetaCard.mockClear();
+        mockGate.mockReset();
+        mockGate.mockResolvedValue(AVAILABLE);
+    });
+
+    /** The cart's toggle reports through this prop; everything below goes through it. */
+    function pickOrderType(): (value: string) => Promise<void> {
+        const calls = mockCartPopup.mock.calls;
+        const props = calls[calls.length - 1][0] as { onDeliveryTypeChange: (v: string) => Promise<void> };
+        return props.onDeliveryTypeChange;
+    }
+
+    it("runs the §1.2 step-1 gate the moment the customer picks Delivery", async () => {
+        const setOrderType = jest.fn();
+        renderModals({}, { setOrderType });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(mockGate).toHaveBeenCalledTimes(1);
+        expect(setOrderType).toHaveBeenCalledWith("Delivery");
+    });
+
+    /**
+     * No pin exists yet at this point, so this pass can only ask the branch-level courier
+     * question. Sending coordinates the customer has not given would either be a lie or a 400 —
+     * the radius is re-checked at Place order, once a pin is real.
+     */
+    it("asks the branch-level question only, because no pin exists yet", async () => {
+        renderModals();
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(mockGate.mock.calls[0][0]).toBeUndefined();
+    });
+
+    /** Picking Pick Up is not a delivery question, and must not spend a request asking one. */
+    it("does not ask the gate when the customer picks Pick Up", async () => {
+        const setOrderType = jest.fn();
+        renderModals({}, { setOrderType });
+
+        await act(async () => { await pickOrderType()("Pick Up"); });
+
+        expect(mockGate).not.toHaveBeenCalled();
+        expect(setOrderType).toHaveBeenCalledWith("Pick Up");
+    });
+
+    /**
+     * On a refusal the toggle goes back to Pick Up rather than sitting on a Delivery the customer
+     * cannot have. Leaving it selected would walk them into the checkout screen and refuse them a
+     * second time, for the same reason, after more work.
+     */
+    it("leaves the customer on Pick Up and offers Keeta when the gate refuses", async () => {
+        mockGate.mockResolvedValue(REFUSED);
+        const setOrderType = jest.fn();
+        const setKeetaOpen = jest.fn();
+        renderModals({}, { setOrderType }, { setKeetaOpen });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(setOrderType).toHaveBeenCalledWith("Pick Up");
+        expect(setOrderType).not.toHaveBeenCalledWith("Delivery");
+        expect(setKeetaOpen).toHaveBeenCalledWith(true);
+    });
+
+    /**
+     * The reason is the difference between "this address will never work" and "try again in ten
+     * minutes". The card cannot branch on something it was never handed.
+     */
+    it("hands the gate's own reason to the Keeta card", async () => {
+        mockGate.mockResolvedValue({ ...REFUSED, reason: "OUTSIDE_RADIUS" });
+        renderModals({}, {}, { keetaOpen: true });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(mockKeetaCard).toHaveBeenLastCalledWith(
+            expect.objectContaining({ open: true, reason: "OUTSIDE_RADIUS" })
+        );
+    });
+
+    it("hands the card no reason at all before the gate has answered", () => {
+        renderModals({}, {}, { keetaOpen: true });
+
+        expect(mockKeetaCard).toHaveBeenLastCalledWith(expect.objectContaining({ reason: null }));
+    });
+
+    /**
+     * §1.2 step 2's other half. The drawer decides the gate refused; this file is what turns that
+     * into the customer seeing the Keeta card instead of a screen that silently does nothing —
+     * and it must drop the held order, or the drawer sits underneath it still open.
+     */
+    it("drops the held order and offers Keeta when the final gate refuses", async () => {
+        const setPendingDeliveryOrder = jest.fn();
+        const setKeetaOpen = jest.fn();
+        renderModals({},
+            { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setPendingDeliveryOrder },
+            { setKeetaOpen });
+
+        const calls = mockDeliveryDrawer.mock.calls;
+        const { onUnavailable } = calls[calls.length - 1][0] as {
+            onUnavailable: (a: DeliveryAvailability) => void;
+        };
+        act(() => { onUnavailable(REFUSED); });
+
+        expect(setPendingDeliveryOrder).toHaveBeenCalledWith(null);
+        expect(setKeetaOpen).toHaveBeenCalledWith(true);
+    });
+});
+
+/**
+ * §1.7 retry. `useCheckout` mints one idempotency key per checkout and parks it on the held order,
+ * so a customer who presses Looks good again after a declined card must re-send THAT key — a fresh
+ * one would let the backend create a second order for the same intent.
+ */
+describe("HomePageModals — a retried delivery payment", () => {
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockDeliveryDrawer.mockClear();
+        mockPay.mockReset();
+        mockRefreshActiveOrder.mockReset();
+    });
+
+    it("re-sends the same idempotency key when the customer retries a failed payment", async () => {
+        mockPay.mockRejectedValueOnce(new Error("Card declined"));
+        mockPay.mockResolvedValueOnce({
+            orderNo: 101, status: "Pending Payment",
+            redirectUrl: "https://stub.local/checkout/101", stub: true,
+        });
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+
+        await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(2));
+        const keys = mockPay.mock.calls.map(
+            ([body]) => (body as { order: { idempotency_key: string } }).order.idempotency_key
+        );
+        expect(keys[0]).toBe("idem-1");
+        expect(keys[1]).toBe(keys[0]);
+    });
+});

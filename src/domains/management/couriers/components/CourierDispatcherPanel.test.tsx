@@ -246,9 +246,23 @@ describe("CourierDispatcherPanel", () => {
         fireEvent.click(await screen.findByText("ali"));
         fireEvent.click(await screen.findByText("#7"));
 
-        expect(await screen.findByText("At the door")).toBeTruthy();
-        expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+        // Read the dash out of the metric it belongs to. `getAllByText("—").length > 0` does not
+        // tie the dash to the field under test — the route view prints several — so it would pass
+        // even with "At the door" showing 0 min beside somebody else's dash.
+        const label = await screen.findByText("At the door");
+        expect(label.nextElementSibling?.textContent).toBe("—");
         expect(screen.queryByText("0 min")).toBeNull();
+    });
+
+    /** The same field with a real number, so the dash above is a decision and not the only path. */
+    it("renders a derivable timing as minutes", async () => {
+        mockRoute.mockResolvedValue({ ...ROUTE, serviceTimeMinutes: 3 });
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        const label = await screen.findByText("At the door");
+        expect(label.nextElementSibling?.textContent).toBe("3 min");
     });
 
     /**

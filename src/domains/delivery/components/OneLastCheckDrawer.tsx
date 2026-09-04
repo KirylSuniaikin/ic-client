@@ -34,12 +34,20 @@ export function OneLastCheckDrawer({
 }: OneLastCheckDrawerProps): JSX.Element {
     const { t } = useTranslation('checkout');
 
-    const total = items
-        .reduce((acc, item) => {
-            const discount = item.discountAmount ?? 0;
-            return acc + item.amount * (1 - discount / 100) * item.quantity;
-        }, 0)
-        .toFixed(2);
+    // Receipt shape (owner's call): the lines keep printing at full price and the saving gets its
+    // own row above the total, so the lines visibly add up to the number underneath them AND the
+    // customer can see what the discount took off. Recomputing the lines at the discounted price
+    // would also add up, but it would hide the saving entirely.
+    const fullTotal = items.reduce((acc, item) => acc + item.amount * item.quantity, 0);
+    const payable = items.reduce((acc, item) => {
+        const discount = item.discountAmount ?? 0;
+        return acc + item.amount * (1 - discount / 100) * item.quantity;
+    }, 0);
+    const total = payable.toFixed(2);
+    const discount = (fullTotal - payable).toFixed(2);
+    // Compared after rounding, not before: a discount too small to print is not a discount, and a
+    // "-0.00" row on an undiscounted cart is noise on the last screen before a charge.
+    const hasDiscount = Number(discount) > 0;
 
     return (
         <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: SHEET_PAPER_SX }}>
@@ -80,6 +88,17 @@ export function OneLastCheckDrawer({
                             </Typography>
                         </Box>
                     ))}
+
+                    {hasDiscount && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 1.5 }}>
+                            <Typography variant="body2" sx={{ color: '#3b352c' }}>
+                                {t('delivery.discount')}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: BRAND_RED, whiteSpace: 'nowrap' }}>
+                                -{discount}
+                            </Typography>
+                        </Box>
+                    )}
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, pt: 1.5,
                                borderTop: '1px dashed #ece3dd' }}>

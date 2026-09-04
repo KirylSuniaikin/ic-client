@@ -298,11 +298,18 @@ describe("OrderRouteMap", () => {
         for (const overlay of stale) expect(overlay.map).toBeNull();
     });
 
+    /**
+     * A blank rectangle where a map should be reads as a broken panel; a spinner reads as "the
+     * script has not landed yet", which is what is actually true. The previous version of this
+     * asserted only what was ABSENT, so it would have passed had the component returned `null`
+     * and shown the manager nothing at all.
+     */
     it("shows a loading state while the script has not loaded yet", () => {
         mockLoaderState.isLoaded = false;
 
-        render(<OrderRouteMap route={route()} />);
+        const { container } = render(<OrderRouteMap route={route()} />);
 
+        expect(container.querySelector(".MuiCircularProgress-root")).not.toBeNull();
         expect(screen.queryByTestId("google-map")).toBeNull();
         expect(mockPolylines).toHaveLength(0);
     });

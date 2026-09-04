@@ -2,15 +2,30 @@ import React from "react";
 import {Card, CardContent, Typography} from "@mui/material";
 import {DeliveredByHourTable} from "../DeliveredByHourTable";
 import {DeliveryAvailabilityCard} from "../performance/DeliveryAvailabilityCard";
+import {DeliveryEstimateAccuracyCard} from "../DeliveryEstimateAccuracyCard";
+import {DeliverySkipReasonsCard} from "../DeliverySkipReasonsCard";
 import {StatEmptyState} from "../performance/statPlaceholders";
 import type {AvailabilityScope} from "../performance/DeliveryAvailabilityCard";
-import type {DeliveryAvailabilityStats, DeliveryHourBucket} from "../../types";
+import type {
+    DeliveryAvailabilityStats,
+    DeliveryEstimateAccuracy,
+    DeliveryHourBucket,
+    DeliverySkipReasonStats,
+} from "../../types";
 
 type Props = {
     hourly: DeliveryHourBucket[];
     availability: DeliveryAvailabilityStats | null;
     /** Passed straight through: the card pins the branches and dates its figures were fetched for. */
     availabilityScope: AvailabilityScope | null;
+    estimateAccuracy: DeliveryEstimateAccuracy | null;
+    skipReasons: DeliverySkipReasonStats | null;
+    /**
+     * The APPLIED range behind the two chain-wide cards, already formatted. Separate from
+     * `availabilityScope` because those two figures are fetched WITHOUT the branch filter — the
+     * branch half of a scope label would be false on them.
+     */
+    chainRange: string | null;
 };
 
 /**
@@ -25,7 +40,14 @@ type Props = {
  * figures belong to both questions, and a second copy of that grid would be the one that
  * quietly stopped matching.
  */
-export function DeliveryTab({hourly, availability, availabilityScope}: Props): JSX.Element {
+export function DeliveryTab({
+    hourly,
+    availability,
+    availabilityScope,
+    estimateAccuracy,
+    skipReasons,
+    chainRange,
+}: Props): JSX.Element {
     return (
         <>
             <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2}}>
@@ -44,6 +66,12 @@ export function DeliveryTab({hourly, availability, availabilityScope}: Props): J
             </Card>
 
             <DeliveryAvailabilityCard stats={availability} scope={availabilityScope}/>
+
+            {/* The two feedback loops the manual lists as open (section 06, D and E): what we
+                promised against what happened, and why riders were passed over. Both are read
+                chain-wide, which is why neither carries the branch half of a scope label. */}
+            <DeliveryEstimateAccuracyCard stats={estimateAccuracy} range={chainRange}/>
+            <DeliverySkipReasonsCard stats={skipReasons} range={chainRange}/>
         </>
     );
 }

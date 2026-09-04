@@ -64,13 +64,25 @@ describe("DeliveryAvailabilityCard", () => {
         expect(within(table).getByText("No branch coordinates")).toBeTruthy();
     });
 
+    /**
+     * OUTSIDE_RADIUS / OUTSIDE_ZONE are properties of a customer's PIN, not of a branch's open
+     * hours — nothing samples them, so a row for either would be a number nobody could source.
+     *
+     * The previous version of this asserted the absence of the words "radius" and "zone", which
+     * the component has no code path to emit: it passed whatever was rendered, and would only
+     * ever have failed on unrelated copy happening to contain those words. What it should pin is
+     * the reason set the table actually draws, which is what a new unsampleable reason would
+     * change.
+     */
     it("never offers a reason the sampler cannot observe", () => {
         render(<DeliveryAvailabilityCard stats={stats} scope={null}/>);
 
-        // OUTSIDE_RADIUS / OUTSIDE_ZONE are properties of a customer's pin and are
-        // deliberately absent from the whole pipeline — schema included.
-        expect(screen.queryByText(/radius/i)).toBeNull();
-        expect(screen.queryByText(/zone/i)).toBeNull();
+        const table = screen.getByTestId("outage-reason-table");
+        const reasons = within(table).getAllByRole("row")
+            .slice(1) // drop the header row
+            .map((row) => row.querySelectorAll("td")[0]?.textContent ?? "");
+
+        expect(reasons).toEqual(["No courier", "Switched off", "No branch coordinates"]);
     });
 
     it("reports how many separate episodes a reason had, not only its total time", () => {

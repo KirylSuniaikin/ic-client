@@ -59,13 +59,19 @@ describe("PaymentResultContent", () => {
          * could find. Only `orderNo` is ever displayed.
          */
         it("never renders a database id, only the ticket number", () => {
-            const result = resultWith("APPROVED", { orderNo: 4231 });
+            // The DTO carries no `id`, so querying for a value that appears in no prop would pass
+            // whatever the component rendered. An `id` is put ON the object instead — the shape a
+            // future DTO change would have — so this fails the moment anything prints it.
+            const result = {
+                ...resultWith("APPROVED", { orderNo: 4231 }),
+                id: 90210,
+            } as unknown as BpgPaymentResult;
 
             renderContent({ result });
 
-            // 90210 stands in for orders.id: it is not part of the DTO at all, so it must not be
-            // reachable from anything the component renders.
+            expect(screen.getByText("4231")).toBeTruthy();
             expect(screen.queryByText("90210")).toBeNull();
+            expect(document.body.textContent).not.toContain("90210");
         });
 
         it("shows the receipt details a customer would need for a dispute", () => {

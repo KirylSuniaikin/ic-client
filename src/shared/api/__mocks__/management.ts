@@ -14,7 +14,7 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, DeliveryEnabledResponse } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { DeliveryAvailabilityStats, DeliveryHourBucket, VatStatePayload } from '../../../domains/management/statistics/types';
+import type { DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, VatStatePayload } from '../../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
@@ -136,6 +136,13 @@ export const fetchDeliveryAvailabilityStats =
 // Delivered by weekday/hour (Statistics -> Delivery).
 export const fetchDeliveryHourlyStats =
     jest.fn<Promise<DeliveryHourBucket[]>, [string, string, string]>();
+
+// Estimate accuracy + skip reasons (Statistics -> Delivery). Chain-wide: no branch argument,
+// because the endpoints take an optional branchId and these two read the whole chain.
+export const fetchDeliveryEstimateAccuracy =
+    jest.fn<Promise<DeliveryEstimateAccuracy>, [string, string]>();
+export const fetchDeliverySkipReasonStats =
+    jest.fn<Promise<DeliverySkipReasonStats>, [string, string]>();
 
 // Delivery zones (Config -> Schedule).
 export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();

@@ -252,6 +252,22 @@ describe("OrderCard — HANDED TO COURIER", () => {
         );
         expect(notice).toBeTruthy();
     });
+
+    /**
+     * The other half of the branch. A 409 is an expected state with its own sentence; everything
+     * else is a fault, and the kitchen has to be told which one it is — a tablet that silently
+     * does nothing on a 500 gets the button pressed again and again while the rider waits.
+     */
+    it("says what went wrong when the hand-over fails for any other reason", async () => {
+        mockMarkHandedOverToCourier.mockRejectedValue(new DeliveryApiError("Response: 500", 500));
+        renderCard(makeReadyDelivery());
+
+        handOver();
+
+        expect(await screen.findByText(/Hand-over failed\. Response: 500/)).toBeTruthy();
+        // …and not the 409 sentence, which would be a lie about what happened.
+        expect(screen.queryByText(/No courier is assigned to this order yet/)).toBeNull();
+    });
 });
 
 /**
@@ -369,6 +385,10 @@ describe("OrderCard — the rider is at the pass", () => {
         renderCard(makeReadyDelivery({ courier_assigned: true, courier_at_kitchen: true }));
 
         const button = screen.getByText("HANDED TO COURIER").closest("button");
+        // The label is what the title is about, so it is asserted rather than merely used as a
+        // lookup: an arrival must not flip the button to "NO COURIER YET" or to a third wording.
+        expect(button?.textContent).toBe("HANDED TO COURIER");
+        expect(screen.queryByText("NO COURIER YET")).toBeNull();
         expect(button?.disabled).toBe(false);
     });
 });

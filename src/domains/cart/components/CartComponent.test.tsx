@@ -101,10 +101,25 @@ describe("CartPopup — delivery-type toggle", () => {
     // Delivery is selectable: HomePageModals' onDeliveryTypeChange runs the availability gate and
     // falls back to Keeta, so the cart must not pre-empt that decision by disabling the option.
     it("renders Pickup and a selectable Delivery option for customers", () => {
+        const onDeliveryTypeChange = jest.fn<void, [string]>();
+        renderCart({ onDeliveryTypeChange });
+
+        const delivery = screen.getByRole("button", { name: /delivery/i });
+        expect(screen.getByRole("button", { name: /pickup/i })).toBeTruthy();
+        expect(delivery.hasAttribute("disabled")).toBe(false);
+        // The absence of the attribute is not the same as the option being operable: MUI can mark
+        // a ToggleButton unusable through its own class alone, and the "coming soon" state this
+        // replaced was exactly that shape. Press it and see that the choice actually leaves.
+        expect(delivery.className).not.toMatch(/Mui-disabled/);
+        fireEvent.click(delivery);
+        expect(onDeliveryTypeChange).toHaveBeenCalledWith("Delivery");
+    });
+
+    /** The retired sub-label. `cart.comingSoon` was removed with the option's disabled state. */
+    it("no longer promises delivery is coming soon", () => {
         renderCart();
 
-        expect(screen.getByRole("button", { name: /pickup/i })).toBeTruthy();
-        expect(screen.getByRole("button", { name: /delivery/i }).hasAttribute("disabled")).toBe(false);
+        expect(screen.queryByText(/coming soon/i)).toBeNull();
     });
 
     it("reports a Delivery choice to the caller", () => {

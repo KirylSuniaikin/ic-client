@@ -23,7 +23,7 @@ import type {
     ShiftReportTO,
     StaffOption
 } from '../../domains/management/shift/types';
-import type { DeliveryAvailabilityStats, DeliveryHourBucket, VatStatePayload } from '../../domains/management/statistics/types';
+import type { DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, VatStatePayload } from '../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../domains/management/config/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
 import type {
@@ -575,6 +575,52 @@ export async function fetchDeliveryHourlyStats(
 ): Promise<DeliveryHourBucket[]> {
     const res = await authFetch(
         BASE_URL + `/management/delivery/stats/hourly?from=${from}&to=${to}&branchId=${joinedBranchIds}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Quoted versus actual delivery timings over a window, split KITCHEN / ROAD / TOTAL
+ * (Statistics -> Delivery).
+ *
+ * **Sends no `branchId` at all, on purpose.** The parameter is optional on this endpoint and
+ * omitting it reads the whole chain, which is the meaningful default here for two reasons the
+ * backend states: the road half of every quote comes from one router and one speed constant
+ * shared by every branch, so "is our drive estimate wrong" is a chain-wide question; and an
+ * unscoped read is the only one that can see the pre-2025-10-11 orders whose `branch_id` is NULL,
+ * which `branch_id IN (...)` can never match. The card says so in its header rather than letting a
+ * manager assume the branch filter above it applied.
+ */
+export async function fetchDeliveryEstimateAccuracy(
+    startDate: string,
+    finishDate: string
+): Promise<DeliveryEstimateAccuracy> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/estimate-accuracy?start_date=${startDate}` +
+        `&finish_date=${finishDate}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * How often the assignment engine passed a rider over, per reason, over a window
+ * (Statistics -> Delivery).
+ *
+ * Chain-wide for the same reason as `fetchDeliveryEstimateAccuracy`: the staffing question is
+ * chain-wide before it is per-branch, and an unscoped read is the only one that can see a skip
+ * recorded against an order with no branch.
+ */
+export async function fetchDeliverySkipReasonStats(
+    startDate: string,
+    finishDate: string
+): Promise<DeliverySkipReasonStats> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/skip-reasons?start_date=${startDate}` +
+        `&finish_date=${finishDate}`,
         { method: "GET", headers: { Accept: "application/json" } }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -1397,3 +1397,161 @@ describe("useCheckout — amount_paid wiring through the extracted orderPayload 
         expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ amount_paid: 16 }));
     });
 });
+
+/**
+ * DELIVERY_SPEC.md §12.1-F and §1.3. Two rules about the delivery seam that were only ever
+ * *implied* by other assertions:
+ *
+ *  - a delivery order must never open the pick-up reminder. `finalizeOrder` returns before
+ *    `resolveOrderCount` for Delivery, so the reminder cannot be reached — but nothing said so.
+ *    The existing delivery tests assert `createOrder` was not called, which is equally true when
+ *    the reminder DOES open, so the suppression itself was unobserved.
+ *  - a guest reaches the address book already verified. The OTP gate runs ahead of the seam, and
+ *    it is what guarantees a token by the time the account-scoped address list is opened. The
+ *    guest half of that path had no test at all.
+ */
+describe("useCheckout — the delivery seam sits ahead of the pick-up reminder", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    /**
+     * The exact setup that DOES open the reminder for a pickup order: an account that has never
+     * completed an order. Only the order type differs, so nothing but the delivery branch can
+     * explain the reminder staying shut.
+     */
+    async function checkoutAsFirstTimer(deliveryMethod: string | null) {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockFetchCustomerMe.mockResolvedValue({ ...MOCK_CUSTOMER_ME, name: "Newcomer", amountOfOrders: 0 });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        // First call is swallowed by the cross-sell gate; the second one checks out.
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Newcomer", deliveryMethod, "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Newcomer", deliveryMethod, "Cash", "", "branch-1");
+        });
+        return result;
+    }
+
+    it("never shows a delivery customer the pick-up reminder", async () => {
+        const result = await checkoutAsFirstTimer("Delivery");
+
+        await waitFor(() => expect(result.current.pendingDeliveryOrder).not.toBeNull());
+        expect(result.current.pickUpReminder).toBe(false);
+        expect(result.current.pendingOrder).toBeNull();
+    });
+
+    /** The control: the same first-timer on a pickup order does get the reminder. */
+    it("still shows a first-time pick-up customer the reminder", async () => {
+        const result = await checkoutAsFirstTimer(null);
+
+        await waitFor(() => expect(result.current.pickUpReminder).toBe(true));
+        expect(result.current.pendingDeliveryOrder).toBeNull();
+    });
+
+    /**
+     * The cart is a Drawer at the same modal z-index and portals in later, so leaving it open
+     * would bury the delivery checkout exactly as it once buried the pick-up reminder.
+     */
+    it("closes the cart so the delivery checkout is not buried behind it", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockFetchCustomerMe.mockResolvedValue(MOCK_CUSTOMER_ME);
+        const params = makeParams({ isAdmin: false });
+
+        const { result } = renderHook(() => useCheckout(params), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Andrew", "Delivery", "Cash", "", "branch-1");
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", "Andrew", "Delivery", "Cash", "", "branch-1");
+        });
+
+        await waitFor(() => expect(result.current.pendingDeliveryOrder).not.toBeNull());
+        expect(params.setCartOpen).toHaveBeenCalledWith(false);
+    });
+});
+
+describe("useCheckout — a guest's delivery order after the OTP gate", () => {
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    /**
+     * §12.7: "that last one is why delivery no longer needs the customer to be logged in
+     * beforehand — by the time the address book opens, the guest has a token." The address list is
+     * account-scoped, so a guest who reached the checkout drawer unverified would see an empty
+     * address book and be unable to place the order at all.
+     */
+    it("holds a verified guest's delivery order for payment rather than creating it", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "12345678", name: "Guest" });
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, "Delivery", "Cash", "", "branch-1", true);
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, "Delivery", "Cash", "", "branch-1", true);
+        });
+
+        // The gate, not the seam: no order exists yet and the customer is being asked to verify.
+        expect(result.current.ui.isLoginOpen).toBe(true);
+        expect(result.current.checkout.pendingDeliveryOrder).toBeNull();
+
+        await act(async () => {
+            await result.current.auth.login("12345678", "0000");
+        });
+
+        await waitFor(() => expect(result.current.checkout.pendingDeliveryOrder).not.toBeNull());
+        expect(result.current.checkout.pendingDeliveryOrder).toEqual(expect.objectContaining({
+            type: "Delivery",
+            tel: "12345678",
+        }));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The verified phone, not the typed one: the sheet lets a customer go back and change the
+     * number on the code step, and `POST /create_order` links an order to an account purely by
+     * string-matching `tel`. A delivery order filed under a phone nobody verified would be
+     * unreachable from the account it belongs to — and its saved addresses belong to the other one.
+     */
+    it("files the held delivery order under the phone that was actually verified", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "99998888", name: "Verified Name" });
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, "Delivery", "Cash", "", "branch-1", true);
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, "Delivery", "Cash", "", "branch-1", true);
+        });
+
+        await act(async () => {
+            await result.current.auth.login("99998888", "0000");
+        });
+
+        await waitFor(() => expect(result.current.checkout.pendingDeliveryOrder).not.toBeNull());
+        expect(result.current.checkout.pendingDeliveryOrder).toEqual(
+            expect.objectContaining({ tel: "99998888", type: "Delivery" }));
+    });
+});

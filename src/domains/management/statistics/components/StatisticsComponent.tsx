@@ -58,6 +58,9 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         deliveryAvailability,
         deliveryStatsScope,
         deliveryHourly,
+        deliveryEstimateAccuracy,
+        deliverySkipReasons,
+        deliveryChainScope,
         dateRange,
         setDateRange,
         selectedDate,
@@ -84,6 +87,18 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         branches: renderSelectedLabel(multiScope.selected, multiScope.branches.length),
         range: formatStatRange(deliveryStatsScope.startDate, deliveryStatsScope.finishDate),
     };
+
+    /**
+     * The applied range behind the two chain-wide delivery cards.
+     *
+     * Same rule as `availabilityScope` and for the same reason — it comes from the range the hook
+     * actually fetched with, never from the picker, which runs ahead of the data until Refresh is
+     * pressed. It carries no branch half at all: those two endpoints are called without a branch
+     * filter, so naming the selected branches beside their numbers would be a straight lie.
+     */
+    const deliveryChainRange = deliveryChainScope === null
+        ? null
+        : formatStatRange(deliveryChainScope.startDate, deliveryChainScope.finishDate);
 
     const showMultiBranchControl =
         (mode === "Performance" || mode === "Delivery" || mode === "Consumption") && multiScope.canSwitch;
@@ -256,6 +271,9 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             hourly={deliveryHourly}
                             availability={deliveryAvailability}
                             availabilityScope={availabilityScope}
+                            estimateAccuracy={deliveryEstimateAccuracy}
+                            skipReasons={deliverySkipReasons}
+                            chainRange={deliveryChainRange}
                         />
                     )}
                     {mode === "Consumption" && (
