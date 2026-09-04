@@ -2,10 +2,11 @@ import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals
 import React from "react";
 import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { DeliveryBoardPanel } from "./DeliveryBoardPanel";
+import type { DeliveryBoardPanelProps } from "./DeliveryBoardPanel";
 import { fetchBoardCouriers, fetchDeliveryCards } from "../../../../shared/api/dispatcher";
-import type { CourierBoardRow, DeliveryCard } from "../types";
+import type { CourierBoardRow, CourierStats, DeliveryCard, UnassignedOrder } from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
-import { PANEL_MIN_HEIGHT } from "./dispatcherStyles";
+import { PANEL_MIN_HEIGHT, TONE_BAD, TONE_OK } from "./dispatcherStyles";
 import { emotionRulesFor } from "./emotionRules.testutil";
 
 jest.mock("../../../../shared/api/socket");
@@ -40,6 +41,7 @@ const AT_RISK: DeliveryCard = {
     customerPhone: "33110022", courierPhone: "39887766",
     readyAt: "2026-08-08T10:00:00", estimatedHandoverAt: "2026-08-08T10:05:00",
     estimatedDeliveredAt: "2026-08-08T10:48:00", riskMinutes: 48,
+    freshnessBudgetMinutes: 20,
 };
 
 const CALM: DeliveryCard = {
@@ -48,6 +50,7 @@ const CALM: DeliveryCard = {
     customerPhone: "33445566", courierPhone: null,
     readyAt: "2026-08-08T11:00:00", estimatedHandoverAt: "2026-08-08T11:02:00",
     estimatedDeliveredAt: "2026-08-08T11:06:00", riskMinutes: 6,
+    freshnessBudgetMinutes: 20,
 };
 
 /** Nothing about this one is derivable yet — every timing came back null, not zero. */
@@ -56,6 +59,7 @@ const UNKNOWABLE: DeliveryCard = {
     branchId: "b1", branchName: "Manama", addressLine: null,
     customerPhone: null, courierPhone: null,
     readyAt: null, estimatedHandoverAt: null, estimatedDeliveredAt: null, riskMinutes: null,
+    freshnessBudgetMinutes: 20,
 };
 
 const ELIGIBLE: CourierBoardRow = {
@@ -81,6 +85,82 @@ const NO_FIX: CourierBoardRow = {
     onShiftSince: null, positionFixedAt: null, positionStaleAfterMinutes: 10,
 };
 
+/** The picker's own roster, from a different endpoint. Capitalised so it cannot be confused with
+ *  ELIGIBLE's "ali" when both are on screen inside the dialog. */
+const PICKABLE: CourierStats = {
+    courierId: "c1", name: "Ali", status: "FREE",
+    nearestBranchId: "b1", nearestBranchName: "Manama",
+    accepted: 0, declined: 0, missed: 0, delivered: 0,
+};
+
+/** The server's own "still nobody holds this" list — the only orders manual assignment works on. */
+const AWAITING_AT_RISK: UnassignedOrder = {
+    orderId: 101, orderNo: 11, status: "Ready", branchId: "b1", branchName: "Manama",
+    addressLine: "Block 338, Road 3801", waitingMinutes: 14,
+};
+
+function renderBoard(props: Partial<DeliveryBoardPanelProps> = {}) {
+    const onAssign = jest.fn<void, [number, string]>();
+    render(
+        <DeliveryBoardPanel
+            couriers={[PICKABLE]}
+            awaiting={[]}
+            onAssign={onAssign}
+            {...props}
+        />
+    );
+    return { onAssign };
+}
+
+/**
+ * Opens the popup for a card and waits for its annotated roster to actually land.
+ *
+ * Waiting for the section heading alone is not enough: it renders the moment the dialog opens,
+ * while the annotated fetch is still in flight and the list is empty — so every assertion about a
+ * rider would race the fetch it depends on.
+ */
+async function openCard(orderNo: string): Promise<void> {
+    fireEvent.click(await screen.findByText(orderNo));
+    await screen.findByText("Why this order is with this rider and not another");
+    await screen.findByTestId("courier-row-c1");
+}
+
+/**
+ * Reads one labelled figure's value: the label and the value are sibling nodes, so the value is
+ * the label node's next sibling — not "some node in the row with that text", which is what makes
+ * a paired assertion meaningful. Two figures swapped between their labels would otherwise pass.
+ */
+function metricValue(scope: HTMLElement, label: string): string {
+    const labelNode = within(scope).getByText(label);
+    const value = labelNode.nextElementSibling;
+    if (value === null) throw new Error(`metric "${label}" has no value beside it`);
+    return value.textContent ?? "";
+}
+
+/**
+ * The board topic handler that is actually live.
+ *
+ * `useDeliveryBoardEvents` re-subscribes whenever its callback's identity changes — which is every
+ * time an order is opened or closed, because that is what re-annotates the roster. The FIRST
+ * subscription's handler therefore closes over a `reload` that still believes nothing is open, so
+ * driving a frame through it would test a subscription the hook has already replaced.
+ */
+function boardFrameHandler(): (frame: unknown) => void {
+    const handlers = mockSubscribe.mock.calls
+        .filter((call) => call[0] === "/topic/delivery-board")
+        .map((call) => call[1]);
+    const latest = handlers[handlers.length - 1];
+    if (latest === undefined) throw new Error("nothing subscribed to the board topic");
+    return latest as (frame: unknown) => void;
+}
+
+function metricValueNode(scope: HTMLElement, label: string): Element {
+    const labelNode = within(scope).getByText(label);
+    const value = labelNode.nextElementSibling;
+    if (value === null) throw new Error(`metric "${label}" has no value beside it`);
+    return value;
+}
+
 beforeEach(() => {
     // Mirrors the real contract: connectSocket runs the listener and hands back an unregister.
     // Without the return value the board hook's cleanup throws on unmount.
@@ -97,18 +177,20 @@ beforeEach(() => {
 
 describe("DeliveryBoardPanel — cards", () => {
     /**
-     * The server precomputes riskMinutes and sorts on it, most likely to be late first. A
+     * The server precomputes the freshness figure and sorts on it, most likely to be late first. A
      * chronological list buries the one order that needs attention, so the board renders the list
      * in the order it arrives and never re-sorts it.
      */
     it("renders the cards risk-first, in the order the server sent them", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
         await screen.findByText("#11");
         const numbers = screen.getAllByText(/^#\d+$/).map((node) => node.textContent);
         expect(numbers).toEqual(["#11", "#12"]);
-        expect(screen.getByText("48 min")).toBeTruthy();
-        expect(screen.getByText("6 min")).toBeTruthy();
+        // Read against the budget the cards carry, so the sort key is visible as the quantity it
+        // actually is rather than as a bare integer.
+        expect(screen.getByText("48 of 20 min")).toBeTruthy();
+        expect(screen.getByText("6 of 20 min")).toBeTruthy();
     });
 
     /**
@@ -116,11 +198,34 @@ describe("DeliveryBoardPanel — cards", () => {
      * live on the card — and an absent one has to say so rather than render as a blank.
      */
     it("shows both phone numbers, and says so when one is absent", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
-        expect(await screen.findByText("39887766")).toBeTruthy();
-        expect(screen.getByText("33110022")).toBeTruthy();
-        expect(screen.getByText("not assigned")).toBeTruthy();
+        await screen.findByText("#11");
+        const card = screen.getByTestId("delivery-card-101");
+        expect(metricValue(card, "Customer")).toBe("33110022");
+        expect(metricValue(card, "Courier")).toBe("39887766");
+        expect(metricValue(screen.getByTestId("delivery-card-102"), "Courier")).toBe("not assigned");
+    });
+
+    /**
+     * A number that has to be copied out by hand while a delivery is stuck is a number nobody
+     * uses. Dialling must not also open the order behind the call, which is what the row's own
+     * click handler would otherwise do.
+     */
+    it("offers each phone number as a call without opening the order behind it", async () => {
+        renderBoard();
+
+        await screen.findByText("#11");
+        const card = screen.getByTestId("delivery-card-101");
+        const customer = metricValueNode(card, "Customer");
+
+        expect(customer.getAttribute("href")).toBe("tel:33110022");
+        expect(metricValueNode(card, "Courier").getAttribute("href")).toBe("tel:39887766");
+
+        fireEvent.click(customer);
+
+        expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull();
+        expect(mockCouriers).not.toHaveBeenCalled();
     });
 
     /**
@@ -130,16 +235,16 @@ describe("DeliveryBoardPanel — cards", () => {
     it("renders an underivable timing as a dash and never as zero", async () => {
         mockCards.mockResolvedValue([UNKNOWABLE]);
 
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
         await screen.findByText("#13");
-        // readyAt, handover, at-the-door and risk are all null on this card.
-        expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4);
+        // readyAt, handover and at-the-door are all null on this card.
+        expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
         expect(screen.queryByText("0 min")).toBeNull();
     });
 
     it("renders a naive Bahrain timestamp at its own wall clock, not shifted by three hours", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
         // readyAt "2026-08-08T10:00:00" is already Bahrain local; 07:00 or 13:00 would mean the
         // zoneless string was re-interpreted.
@@ -149,75 +254,141 @@ describe("DeliveryBoardPanel — cards", () => {
     });
 });
 
-describe("DeliveryBoardPanel — linked panels", () => {
-    it("starts as an unannotated roster", async () => {
-        render(<DeliveryBoardPanel />);
+/**
+ * The card's headline figure is `DeliveryCardTO.riskMinutes` —
+ * `Duration.between(readyAt, estimatedDeliveredAt)`, i.e. how long the food will have been out of
+ * the oven when it reaches the customer. It used to render as a bare integer captioned "risk",
+ * which names nothing a manager can act on.
+ */
+describe("DeliveryBoardPanel — the freshness figure", () => {
+    it("names the figure and gives it its unit instead of a bare integer captioned risk", async () => {
+        // No budget on the card, so the figure is named and measured but not judged. The budget
+        // moved onto the card when the server started sending it; a null prop no longer withholds
+        // one.
+        mockCards.mockResolvedValue([{ ...AT_RISK, freshnessBudgetMinutes: null }]);
+        renderBoard();
 
-        await screen.findByText("ali");
-        expect(mockCouriers).toHaveBeenCalledWith(null);
-        expect(screen.getByText("Courier availability")).toBeTruthy();
-    });
+        await screen.findByText("#11");
+        const card = screen.getByTestId("delivery-card-101");
 
-    /** The orderId query parameter is the whole point of the link — and it is the id, not the no. */
-    it("re-annotates the courier table for the selected card", async () => {
-        render(<DeliveryBoardPanel />);
-
-        fireEvent.click(await screen.findByText("#11"));
-
-        await waitFor(() => expect(mockCouriers).toHaveBeenCalledWith(101));
-        expect(await screen.findByText("Couriers for #11")).toBeTruthy();
-    });
-
-    it("clears the annotation when the same card is picked again", async () => {
-        render(<DeliveryBoardPanel />);
-
-        fireEvent.click(await screen.findByText("#11"));
-        await waitFor(() => expect(mockCouriers).toHaveBeenCalledWith(101));
-
-        fireEvent.click(screen.getByText("#11"));
-
-        expect(await screen.findByText("Courier availability")).toBeTruthy();
+        expect(metricValue(card, "Out of the oven on arrival")).toBe("48 min");
+        expect(screen.queryByText("risk")).toBeNull();
     });
 
     /**
-     * An order concludes and drops off the card list while the board is open. Leaving its ranking
-     * on the courier table would answer a question nobody is asking any more.
+     * The budget is `delivery.freshness.max-minutes-after-ready`, the same number the delivery
+     * radius is derived from. Read against it, 48 minutes is an order arriving well outside the
+     * window the coverage area was drawn around — which a bare "48" never said.
      */
-    it("drops a selection whose card is no longer live", async () => {
-        render(<DeliveryBoardPanel />);
+    it("reads the figure against the budget the server supplies, and marks an overshoot", async () => {
+        renderBoard({ freshnessBudgetMinutes: 20 });
 
-        fireEvent.click(await screen.findByText("#11"));
-        await screen.findByText("Couriers for #11");
+        await screen.findByText("#11");
+        const over = metricValueNode(screen.getByTestId("delivery-card-101"), "Out of the oven on arrival");
+        const within_ = metricValueNode(screen.getByTestId("delivery-card-102"), "Out of the oven on arrival");
 
-        mockCards.mockResolvedValue([CALM]);
-        const handler = mockSubscribe.mock.calls.find(
-            (call) => call[0] === "/topic/delivery-board"
-        )?.[1] as (frame: unknown) => void;
-        await act(async () => { handler({}); });
+        expect(over.textContent).toBe("48 of 20 min");
+        expect(within_.textContent).toBe("6 of 20 min");
+        expect(emotionRulesFor(over)).toContain(`color:${TONE_BAD}`);
+        expect(emotionRulesFor(within_)).toContain(`color:${TONE_OK}`);
+        expect(screen.getAllByTestId("freshness-bar").length).toBe(2);
+    });
 
-        expect(await screen.findByText("Courier availability")).toBeTruthy();
+    /**
+     * The budget now travels ON the card, so the figure and the window it is judged against can
+     * never come from two different places. This drives the prop to a value the cards contradict:
+     * a board reading the prop would print "of 20", and only one reading the card prints "of 33".
+     */
+    it("judges the figure against the budget on the card, not a value of its own", async () => {
+        // Arrange
+        mockCards.mockResolvedValue([{ ...AT_RISK, freshnessBudgetMinutes: 33 }]);
+        renderBoard({ freshnessBudgetMinutes: 20 });
+
+        // Act
+        await screen.findByText("#11");
+        const value = metricValueNode(screen.getByTestId("delivery-card-101"), "Out of the oven on arrival");
+
+        // Assert
+        expect(value.textContent).toBe("48 of 33 min");
+    });
+
+    /**
+     * Without the server's own budget the client has nothing to judge the figure against, and a
+     * colour would be this client's opinion dressed as the engine's. The figure is still named and
+     * in minutes — it just makes no claim.
+     */
+    it("makes no verdict while the budget is unknown", async () => {
+        // Unknown means the CARD carries no budget: that is the field the board reads, and the
+        // prop is only the fallback for a payload written before the server sent one.
+        mockCards.mockResolvedValue([{ ...AT_RISK, freshnessBudgetMinutes: null }]);
+        renderBoard({ freshnessBudgetMinutes: null });
+
+        await screen.findByText("#11");
+        const value = metricValueNode(screen.getByTestId("delivery-card-101"), "Out of the oven on arrival");
+
+        expect(value.textContent).toBe("48 min");
+        expect(emotionRulesFor(value)).not.toContain(`color:${TONE_BAD}`);
+        expect(emotionRulesFor(value)).not.toContain(`color:${TONE_OK}`);
+        expect(screen.queryByTestId("freshness-bar")).toBeNull();
+    });
+
+    /** A figure that could not be computed is not zero and is certainly not "fine". */
+    it("reads a null figure as not known, never as zero and never as within budget", async () => {
+        mockCards.mockResolvedValue([UNKNOWABLE]);
+
+        renderBoard({ freshnessBudgetMinutes: 20 });
+
+        await screen.findByText("#13");
+        const value = metricValueNode(screen.getByTestId("delivery-card-103"), "Out of the oven on arrival");
+
+        expect(value.textContent).toBe("not known");
+        expect(emotionRulesFor(value)).not.toContain(`color:${TONE_OK}`);
+        expect(screen.queryByTestId("freshness-bar")).toBeNull();
+        expect(screen.queryByText("0 of 20 min")).toBeNull();
     });
 });
 
-describe("DeliveryBoardPanel — courier table", () => {
+describe("DeliveryBoardPanel — the engine's verdict popup", () => {
     /**
-     * The reason column is the one that answers "why is this order still sitting here". It comes
-     * straight from the assignment engine and is never recomputed here — but it has to reach the
-     * manager as language, not as the raw constant.
+     * Every column of the roster (rank, score, freeAt, the skip reason) is annotated for ONE
+     * order, so an unannotated copy sitting on the board answers nothing — which is why it is not
+     * fetched, let alone rendered, until an order is opened.
      */
-    it("renders the engine's no-offer reason as words, not as a raw enum", async () => {
-        render(<DeliveryBoardPanel />);
+    it("keeps the roster off the board until an order is opened", async () => {
+        renderBoard();
 
-        expect(await screen.findByText("Last position too old to trust")).toBeTruthy();
-        expect(screen.queryByText("POSITION_STALE")).toBeNull();
-        expect(screen.queryByText("BUSY_UNTIL")).toBeNull();
+        await screen.findByText("#11");
+        expect(screen.getByText("Block 338, Road 3801", { exact: false })).toBeTruthy();
+        expect(screen.queryByText("ali")).toBeNull();
+        expect(mockCouriers).not.toHaveBeenCalled();
     });
 
-    /** "Busy" alone tells a manager nothing; the time tells them whether to wait or phone around. */
-    it("carries freeAt into the busy reason", async () => {
-        render(<DeliveryBoardPanel />);
+    /** The orderId query parameter is the whole point of the link — and it is the id, not the no. */
+    it("annotates the roster for the order that was opened", async () => {
+        renderBoard();
 
-        expect(await screen.findByText("Busy until 10:40")).toBeTruthy();
+        await openCard("#11");
+
+        expect(mockCouriers).toHaveBeenCalledWith(101);
+        expect(screen.getByText("ali")).toBeTruthy();
+        expect(screen.getByText(/Order #11/)).toBeTruthy();
+    });
+
+    /**
+     * The reason line answers "why is this order still sitting here". It comes straight from the
+     * assignment engine and is never recomputed here — but it has to reach the manager as
+     * language, not as the raw constant.
+     */
+    it("renders the engine's no-offer reasons as words, not as raw enums", async () => {
+        renderBoard();
+
+        await openCard("#11");
+
+        expect(screen.getByText("Last position too old to trust")).toBeTruthy();
+        // "Busy" alone tells a manager nothing; the time says whether to wait or phone around.
+        expect(screen.getByText("Busy until 10:40")).toBeTruthy();
+        expect(screen.queryByText("POSITION_STALE")).toBeNull();
+        expect(screen.queryByText("BUSY_UNTIL")).toBeNull();
     });
 
     /**
@@ -225,31 +396,31 @@ describe("DeliveryBoardPanel — courier table", () => {
      * and never confused with courier_queue.position, which is a sparse key.
      */
     it("shows the engine's own ranking for the eligible courier", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
-        expect(await screen.findByText("#1 · score 2.3")).toBeTruthy();
+        await openCard("#11");
+
+        expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
     });
 
-    /** A fix past the server's own cutoff must not read as a usable position. */
-    it("marks a position fix past the staleness cutoff as stale", async () => {
-        render(<DeliveryBoardPanel />);
+    /** A fix past the server's own cutoff must not read as a usable position, and no fix is nowhere. */
+    it("marks an unusable position as unusable rather than plausible", async () => {
+        renderBoard();
 
-        expect(await screen.findByText(/stale/)).toBeTruthy();
+        await openCard("#11");
+
+        expect(screen.getByText(/stale/)).toBeTruthy();
         expect(screen.getByText(/2 min ago/)).toBeTruthy();
-    });
-
-    /** A courier with no fix is nowhere — never "near everything". */
-    it("says a courier has no position fix at all rather than showing a blank", async () => {
-        render(<DeliveryBoardPanel />);
-
-        expect(await screen.findByText("No position fix")).toBeTruthy();
+        expect(screen.getByText("No position fix")).toBeTruthy();
     });
 
     /** Null, not "": "not filled in" has to stay distinguishable from "filled in as blank". */
     it("renders a missing courier phone as genuinely absent", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
-        expect(await screen.findByText("No phone on file")).toBeTruthy();
+        await openCard("#11");
+
+        expect(screen.getByText("No phone on file")).toBeTruthy();
         expect(screen.getByText("39001122")).toBeTruthy();
     });
 
@@ -257,51 +428,97 @@ describe("DeliveryBoardPanel — courier table", () => {
      * Declined and missed never merge: a rider who refuses is making a choice, one who goes silent
      * probably has a dead phone, and the two call for different conversations (manual §03).
      *
-     * The numbers are read out of their OWN metric rather than looked up anywhere in the row.
-     * `Metric` renders the label and the value as two sibling nodes, so a row-wide `getByText("2")`
-     * would still pass with the two figures swapped — which is precisely the regression this
-     * exists to catch.
+     * The numbers are read out of their OWN metric rather than looked up anywhere in the row: the
+     * label and the value are sibling nodes, so a row-wide `getByText("2")` would still pass with
+     * the two figures swapped — which is precisely the regression this exists to catch.
      */
     it("keeps declined and missed as separate counts", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
-        await screen.findByText("ali");
+        await openCard("#11");
         const row = screen.getByTestId("courier-row-c1");
 
         expect(metricValue(row, "Declined")).toBe("2");
         expect(metricValue(row, "Missed")).toBe("1");
     });
+
+    it("closes the popup and forgets the annotation", async () => {
+        renderBoard();
+
+        await openCard("#11");
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        await waitFor(() =>
+            expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull()
+        );
+        expect(screen.getByText("#11")).toBeTruthy();
+    });
+
+    /**
+     * An order concludes and drops off the card list while the popup is open. Leaving its ranking
+     * on screen would answer a question nobody is asking any more.
+     */
+    it("drops a popup whose card is no longer live", async () => {
+        renderBoard();
+
+        await openCard("#11");
+
+        mockCards.mockResolvedValue([CALM]);
+        const handler = boardFrameHandler();
+        await act(async () => { handler({}); });
+
+        await waitFor(() =>
+            expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull()
+        );
+        expect(screen.getByText("#12")).toBeTruthy();
+    });
 });
 
-/**
- * Reads one `Metric`'s value: the label and the value are sibling `Typography` nodes inside the
- * same Box, so the value is the label node's next sibling — not "some node in the row with that
- * text", which is what makes a paired-number assertion meaningful.
- */
-function metricValue(scope: HTMLElement, label: string): string {
-    const labelNode = within(scope).getByText(label);
-    const value = labelNode.nextElementSibling;
-    if (value === null) throw new Error(`metric "${label}" has no value beside it`);
-    return value.textContent ?? "";
-}
+describe("DeliveryBoardPanel — assigning by hand from the board", () => {
+    /**
+     * `OrderRepository.claimForCourier` only matches a row whose `assigned_courier_id is null`, so
+     * the server's own waiting list — not the card's `courierPhone`, which is also null for a
+     * rider with no number on file — decides whether the picker is offered.
+     */
+    it("offers the picker for an order the server still lists as unassigned", async () => {
+        const { onAssign } = renderBoard({ awaiting: [AWAITING_AT_RISK] });
+
+        await openCard("#11");
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(onAssign).toHaveBeenCalledWith(101, "c1");
+    });
+
+    it("offers no picker on an order a rider already holds, and says why", async () => {
+        const { onAssign } = renderBoard({ awaiting: [AWAITING_AT_RISK] });
+
+        await openCard("#12");
+
+        expect(screen.getByText(/A courier already holds this order/)).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Assign" })).toBeNull();
+        expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
+        // The verdict itself is still there — that is the whole reason the popup opened.
+        expect(screen.getByText("ali")).toBeTruthy();
+        expect(onAssign).not.toHaveBeenCalled();
+    });
+});
 
 describe("DeliveryBoardPanel — live updates", () => {
     it("subscribes to the cross-branch delivery topic", async () => {
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
-        await screen.findByText("ali");
+        await screen.findByText("#11");
         expect(mockSubscribe).toHaveBeenCalledWith("/topic/delivery-board", expect.any(Function));
     });
 
-    it("refetches both panels when the board signals a change", async () => {
-        render(<DeliveryBoardPanel />);
-        await screen.findByText("ali");
+    it("refetches the cards, and the open order's verdict, when the board signals a change", async () => {
+        renderBoard();
+        await openCard("#11");
 
         const cardCallsBefore = mockCards.mock.calls.length;
         const courierCallsBefore = mockCouriers.mock.calls.length;
-        const handler = mockSubscribe.mock.calls.find(
-            (call) => call[0] === "/topic/delivery-board"
-        )?.[1] as (frame: unknown) => void;
+        const handler = boardFrameHandler();
 
         await act(async () => { handler({}); });
 
@@ -312,61 +529,25 @@ describe("DeliveryBoardPanel — live updates", () => {
     it("surfaces a failed request instead of rendering an empty board", async () => {
         mockCards.mockRejectedValue(new Error("Response: 403"));
 
-        render(<DeliveryBoardPanel />);
+        renderBoard();
 
         expect(await screen.findByText(/Response: 403/)).toBeTruthy();
     });
 });
 
-/**
- * Admin item 4: the two panels sat at different heights because the row that holds them set
- * `alignItems: 'flex-start'`. They are meant to be read against each other — the delivery on the
- * left, the riders who could take it on the right — and two ragged cards beside a gap read as two
- * unrelated widgets instead of one board.
- *
- * Asserted through the CSS emotion actually generated for the nodes (see emotionRules.testutil):
- * this repo wires no jest-dom matchers, and getComputedStyle returns empty for every emotion class
- * because the rules are inserted through the CSSOM.
- */
-describe("DeliveryBoardPanel — the two panels line up", () => {
-    it("stretches both columns rather than letting them start ragged", async () => {
-        mockCards.mockResolvedValue([AT_RISK]);
-        mockCouriers.mockResolvedValue([ELIGIBLE]);
-
-        render(<DeliveryBoardPanel />);
-        const columns = await screen.findByTestId("delivery-board-columns");
-
-        expect(emotionRulesFor(columns)).toContain("align-items:stretch");
-        expect(emotionRulesFor(columns)).not.toContain("align-items:flex-start");
-    });
-
+describe("DeliveryBoardPanel — layout", () => {
     /**
-     * The case the floor exists for: an empty list on one side and a populated one on the other.
-     * Without it the empty card collapses to the height of its own one-line empty state and the
-     * board looks broken rather than quiet.
+     * The case the floor exists for: an empty board between the waiting queue above it and the
+     * courier roster below. Without it the card collapses to the height of its own one-line empty
+     * state and the board looks broken rather than quiet.
      */
-    it("gives an empty list a floor instead of letting it collapse", async () => {
+    it("gives an empty board a floor instead of letting it collapse", async () => {
         mockCards.mockResolvedValue([]);
-        mockCouriers.mockResolvedValue([ELIGIBLE, STALE_FIX]);
 
-        render(<DeliveryBoardPanel />);
+        renderBoard();
         const emptyCard = await screen.findByTestId("live-deliveries-card");
 
         expect(await screen.findByText("Nothing is out for delivery right now.")).toBeTruthy();
         expect(emotionRulesFor(emptyCard)).toContain(`min-height:${PANEL_MIN_HEIGHT}px`);
-    });
-
-    // Both cards, not just whichever happens to be shorter today: which one is shorter flips with
-    // the hour, so a floor on one of them is no floor at all.
-    it("floors the courier panel too, and lets each card fill its stretched column", async () => {
-        mockCards.mockResolvedValue([AT_RISK]);
-        mockCouriers.mockResolvedValue([]);
-
-        render(<DeliveryBoardPanel />);
-        const courierCard = await screen.findByTestId("courier-availability-card");
-
-        expect(await screen.findByText("No couriers on the roster.")).toBeTruthy();
-        expect(emotionRulesFor(courierCard)).toContain(`min-height:${PANEL_MIN_HEIGHT}px`);
-        expect(emotionRulesFor(courierCard)).toContain("flex:1");
     });
 });

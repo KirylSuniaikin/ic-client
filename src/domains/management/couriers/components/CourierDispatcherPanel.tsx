@@ -17,7 +17,9 @@ import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
 import { GOOGLE_MAPS_API_KEY } from '../../../branch/utils/mapsConfig';
 import { EntityPhotoViewer } from '../../../../shared/components/EntityPhotoViewer';
 import { formatBahrainClock } from '../../../../shared/utils/timeUtils';
-import type { CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder } from '../types';
+import type {
+    CourierBoardRow, CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder,
+} from '../types';
 import {
     BRAND_RED as brandRed, CHIP_SELF_SX, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState,
     PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX,
@@ -86,6 +88,16 @@ export function CourierDispatcherPanel(): JSX.Element {
         }
     }, []);
 
+    /** The one place the couriers view's three payloads land, so its two loaders cannot drift. */
+    const applyCouriersView = useCallback(
+        ([loadedCouriers, loadedAwaiting, boardRows]: [CourierStats[], UnassignedOrder[], CourierBoardRow[]]): void => {
+            setCouriers(loadedCouriers);
+            setAwaiting(loadedAwaiting);
+            setOrdersInHand(Object.fromEntries(boardRows.map((row) => [row.courierId, row.ordersInHand])));
+        },
+        []
+    );
+
     // One load() call, not two: `load` clears the error as it starts, so a second sequential
     // call would wipe the first one's failure off the screen.
     const loadCouriersView = useCallback(async (): Promise<void> => {
@@ -93,13 +105,9 @@ export function CourierDispatcherPanel(): JSX.Element {
             async () => await Promise.all([
                 fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
             ]),
-            ([loadedCouriers, loadedAwaiting, boardRows]) => {
-                setCouriers(loadedCouriers);
-                setAwaiting(loadedAwaiting);
-                setOrdersInHand(Object.fromEntries(boardRows.map((row) => [row.courierId, row.ordersInHand])));
-            }
+            applyCouriersView
         );
-    }, [load]);
+    }, [load, applyCouriersView]);
 
     const reloadCurrentView = useCallback((): void => {
         if (view.level === 'couriers') {
@@ -118,28 +126,26 @@ export function CourierDispatcherPanel(): JSX.Element {
     useDeliveryBoardEvents(reloadCurrentView);
 
     /**
-     * §2.3's escape hatch. The conflict cases are the point of the reload: another manager (or a
-     * courier finally accepting the offer) can take the order between this list being drawn and
-     * the button being pressed, and the server rejects that with a 409 rather than reassigning.
+     * §2.3's escape hatch, reached from two places now: the waiting-for-a-courier queue and a card
+     * on the board below it. Takes the order id rather than reading `assigning`, so the board's
+     * own dialog does not need a second copy of this.
+     *
+     * The conflict cases are the point of the reload: another manager (or a courier finally
+     * accepting the offer) can take the order between this list being drawn and the button being
+     * pressed, and the server rejects that with a 409 rather than reassigning.
      */
-    async function handleAssign(courierId: string): Promise<void> {
-        const order = assigning;
-        if (order === null) return;
+    async function handleAssign(orderId: number, courierId: string): Promise<void> {
         setAssigning(null);
         // Assign and refresh inside one load() so a 409 stays on screen instead of being cleared
         // by the refetch that follows it.
         await load(
             async () => {
-                await manualAssign(order.orderId, courierId);
+                await manualAssign(orderId, courierId);
                 return await Promise.all([
                     fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
                 ]);
             },
-            ([loadedCouriers, loadedAwaiting, boardRows]) => {
-                setCouriers(loadedCouriers);
-                setAwaiting(loadedAwaiting);
-                setOrdersInHand(Object.fromEntries(boardRows.map((row) => [row.courierId, row.ordersInHand])));
-            }
+            applyCouriersView
         );
     }
 
@@ -235,11 +241,15 @@ export function CourierDispatcherPanel(): JSX.Element {
                         </Box>
                     )}
 
-                    {/* The board proper (DELIVERY_TODO.md): live deliveries linked to the
-                        engine's own courier ranking. It answers "why is this order still
-                        sitting here"; the roster below it stays the drill-down into one
+                    {/* The board proper (DELIVERY_TODO.md): what is in flight. Opening a card
+                        asks "why is this order still sitting here" — the engine's own ranking,
+                        inside the dialog. The roster below stays the drill-down into one
                         courier's history, which is a different question. */}
-                    <DeliveryBoardPanel />
+                    <DeliveryBoardPanel
+                        couriers={couriers}
+                        awaiting={awaiting}
+                        onAssign={(orderId, courierId) => { void handleAssign(orderId, courierId); }}
+                    />
 
                     <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Couriers</Typography>
                     <Box sx={PANEL_CARD_SX}>
@@ -373,7 +383,9 @@ export function CourierDispatcherPanel(): JSX.Element {
                 order={assigning}
                 couriers={couriers}
                 onClose={() => setAssigning(null)}
-                onAssign={(courierId) => { void handleAssign(courierId); }}
+                onAssign={(courierId) => {
+                    if (assigning !== null) void handleAssign(assigning.orderId, courierId);
+                }}
             />
 
             <DispatcherOrderActionDialog

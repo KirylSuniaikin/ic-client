@@ -13,6 +13,19 @@ import type { SxProps, Theme } from "@mui/material";
 
 export const BRAND_RED = "#E44B4C";
 
+/** Muted body text, and the greyer tone reserved for "this value is not usable". */
+export const MUTED = "#8a807a";
+export const FADED = "#b0a79f";
+
+/**
+ * Semantic tones for a figure measured against a target — never the brand accent, which says
+ * "this is IC Pizza", not "this one is late". Green is {@link CourierStatusChip}'s own "can take
+ * work now" and red is {@link PanelNotice}'s error tone, so the surface keeps one vocabulary for
+ * "inside the budget" and "outside it".
+ */
+export const TONE_OK = "#2e7d32";
+export const TONE_BAD = "#b3261e";
+
 /** A block of rows on its own surface, replacing the default table backdrop. */
 export const PANEL_CARD_SX: SxProps<Theme> = {
     backgroundColor: "#fff",
@@ -79,6 +92,21 @@ export const CLICKABLE_ROW_SX: SxProps<Theme> = {
     transition: "background-color 120ms ease",
     "&:hover": { backgroundColor: "#fffaf9" },
 };
+
+/**
+ * A labelled figure. The value is its own text node, and always the label's IMMEDIATE next
+ * sibling, so a test can assert the pairing rather than "some node in this row says 2" — two
+ * figures swapped between their labels would otherwise pass. It is also what keeps "\u2014" legible
+ * on its own when a value could not be derived.
+ */
+export function Metric({ label, value }: { label: string; value: string }): JSX.Element {
+    return (
+        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
+            <Typography variant="caption" sx={{ color: MUTED }}>{label}</Typography>
+            <Typography variant="caption" sx={{ color: "#3b352c", fontWeight: 700 }}>{value}</Typography>
+        </Box>
+    );
+}
 
 /**
  * Courier availability, coloured by what a dispatcher can do with it: green means "can take work

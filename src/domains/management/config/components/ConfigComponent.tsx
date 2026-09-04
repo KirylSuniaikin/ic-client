@@ -61,10 +61,13 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     const [zonesDirty, setZonesDirty] = useState(false);
     const isSaveDisabled = changes.length === 0 && !inventoryDirty;
     const hasUnsavedChanges = changes.length > 0 || inventoryDirty || zonesDirty;
-    // "Schedule" tab is only available to MANAGER and city-level roles.
+    // "Schedule" and "Delivery" are only available to MANAGER and city-level roles. Delivery
+    // shares the gate rather than having one of its own: every control on it calls
+    // /api/management/delivery/**, which requires exactly those roles server-side, so a
+    // separate rule here could only ever be wrong in one direction.
     const showScheduleToggle =
         role === StaffRoles.MANAGER || hasCityAccess(role);
-    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule">("Menu");
+    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule" | "Delivery">("Menu");
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
         M: true,
@@ -311,8 +314,8 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         exclusive
                         value={activeTab}
                         // MUI types ToggleButtonGroup's onChange value as `any`; the buttons only
-                        // emit "Menu" | "Schedule", so we narrow it back at this boundary.
-                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule")}
+                        // emit the three tab names, so we narrow it back at this boundary.
+                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule" | "Delivery")}
                         size="small"
                         sx={{
                             columnGap: 1,
@@ -339,11 +342,12 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                     >
                         <ToggleButton value="Menu">Menu</ToggleButton>
                         <ToggleButton value="Schedule">Schedule</ToggleButton>
+                        <ToggleButton value="Delivery">Delivery</ToggleButton>
                     </ToggleButtonGroup>
                 </Box>
             )}
 
-            {activeTab === "Schedule" ? (
+            {activeTab === "Delivery" ? (
                 <Box
                     sx={{
                         flex: 1,
@@ -353,14 +357,14 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         "&::-webkit-scrollbar": { display: "none" }
                     }}
                 >
+                    {/* Its own tab, not a block under Schedule. The switch answers "is this
+                        kitchen delivering today" and the zones answer "where to" -- neither is a
+                        question about opening hours, and the coverage map was unfindable filed
+                        under a word that means something else. */}
                     <DeliverySwitch
                         branchId={scopedBranch.id}
                         deliveryEnabled={scopedBranch.deliveryEnabled}
                     />
-                    {/* Beside the delivery switch, not on Menu: both answer "what is this one
-                        kitchen delivering today", and both need the same MANAGER-and-up roles
-                        that /api/management/delivery/** requires -- which is exactly the audience
-                        this tab is already gated to. */}
                     <DeliveryZonesSection
                         branchId={scopedBranch.id}
                         branchLatitude={scopedBranch.latitude}
@@ -368,6 +372,17 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         branchRadiusKm={scopedBranch.deliveryRadiusKm ?? null}
                         onDirtyChange={setZonesDirty}
                     />
+                </Box>
+            ) : activeTab === "Schedule" ? (
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflowY: "auto",
+                        p: 2,
+                        pb: 4,
+                        "&::-webkit-scrollbar": { display: "none" }
+                    }}
+                >
                     <ScheduleView branchId={scopedBranch.id} />
                 </Box>
             ) : (

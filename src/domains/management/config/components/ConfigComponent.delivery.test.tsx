@@ -74,9 +74,9 @@ function renderConfig(role: StaffRoles = StaffRoles.SUPER_MANAGER, branches: IBr
     );
 }
 
-async function openScheduleTab(): Promise<void> {
+async function openDeliveryTab(): Promise<void> {
     await waitFor(() => expect(screen.getByText("Menu Availability")).toBeTruthy());
-    await userEvent.click(screen.getByRole("button", { name: "Schedule" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delivery" }));
 }
 
 beforeEach(() => {
@@ -87,13 +87,18 @@ beforeEach(() => {
 
 describe("ConfigComponent — the delivery configuration surface", () => {
     /**
-     * Both live on the Schedule tab rather than on Menu: they answer "what is this one kitchen
+     * Both live on their own Delivery tab. They used to sit under Schedule, which shares their
+     * role gate but not their subject: the switch answers "is this kitchen delivering today" and
+     * the zones answer "where to", and neither is a question about opening hours. The coverage map
+     * was unfindable filed under a word that means something else.
+     *
+     * Originally: they answer "what is this one kitchen
      * delivering today", and they need the MANAGER-and-up roles that `/api/management/delivery/**`
      * requires — which is exactly the audience that tab is already gated to.
      */
-    it("mounts the delivery switch and the zone editor on the Schedule tab", async () => {
+    it("mounts the delivery switch and the zone editor on their own Delivery tab", async () => {
         renderConfig();
-        await openScheduleTab();
+        await openDeliveryTab();
 
         expect(screen.getByText("DeliverySwitchProbe")).toBeTruthy();
         expect(screen.getByText("DeliveryZonesSectionProbe")).toBeTruthy();
@@ -110,7 +115,7 @@ describe("ConfigComponent — the delivery configuration surface", () => {
     /** Both are scoped to whichever branch the selector currently points at, not to a default. */
     it("scopes both to the branch in scope, with that branch's own delivery state", async () => {
         renderConfig();
-        await openScheduleTab();
+        await openDeliveryTab();
 
         expect(mockDeliverySwitch).toHaveBeenLastCalledWith(expect.objectContaining({
             branchId: "branch-a",
@@ -130,7 +135,7 @@ describe("ConfigComponent — the delivery configuration surface", () => {
      */
     it("hands the map the branch's own radius", async () => {
         renderConfig();
-        await openScheduleTab();
+        await openDeliveryTab();
 
         expect(mockZonesSection).toHaveBeenLastCalledWith(
             expect.objectContaining({ branchRadiusKm: 7 }));
@@ -147,19 +152,19 @@ describe("ConfigComponent — the delivery configuration surface", () => {
                                  role={StaffRoles.SUPER_MANAGER} />
             </ManagementBranchScopeProvider>,
         );
-        await openScheduleTab();
+        await openDeliveryTab();
 
         expect(mockZonesSection).toHaveBeenLastCalledWith(
             expect.objectContaining({ branchRadiusKm: null }));
     });
 
     /**
-     * A COOK cannot reach the Schedule tab at all, which is how the delivery surface inherits the
+     * A COOK cannot reach the Delivery tab at all, which is how the delivery surface inherits the
      * backend's own gate on `/api/management/delivery/**` without a second role check of its own.
      * Asserting against a role that HAS the tab and one that does not is what makes this mean
      * something — a gate that merely excluded a role nobody has would prove nothing.
      */
-    it("is unreachable for a role that cannot open the Schedule tab", async () => {
+    it("is unreachable for a role that cannot open the Delivery tab", async () => {
         renderConfig(StaffRoles.COOK);
         await waitFor(() => expect(screen.getByText("Menu Availability")).toBeTruthy());
 
@@ -173,7 +178,7 @@ describe("ConfigComponent — the delivery configuration surface", () => {
      */
     it("warns before a branch switch throws away an unsaved zone", async () => {
         renderConfig();
-        await openScheduleTab();
+        await openDeliveryTab();
 
         // Nothing pending yet: switching goes straight through.
         await userEvent.click(screen.getByRole("combobox"));

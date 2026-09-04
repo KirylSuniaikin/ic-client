@@ -99,6 +99,22 @@ export type CourierPeriodStats = {
 };
 
 /**
+ * The part of an order every dispatcher dialog needs: which order it is and where it is going.
+ *
+ * Both {@link UnassignedOrder} and {@link DeliveryCard} satisfy it structurally, which is what
+ * lets ONE dialog serve the two places a manager opens an order from — the waiting-for-a-courier
+ * queue and the live-deliveries board — instead of a second dialog that would drift from the
+ * first. It is deliberately not a base the other two extend: they mirror two different backend
+ * DTOs, and pretending one is a subtype of the other would invite fields to migrate between them.
+ */
+export type DispatchableOrder = {
+    orderId: number;
+    orderNo: number | null;
+    branchName: string | null;
+    addressLine: string | null;
+};
+
+/**
  * Mirrors backend `UnassignedOrderTO`. §2.3 keeps an order nobody accepted alive — it is not
  * cancelled and does not fall back to Keeta, because the customer has already paid — so this is
  * the dispatcher's work queue and the only place a manual assignment starts from.
@@ -145,6 +161,13 @@ export type DeliveryCard = {
      * risk first, so the board renders cards in the order they arrive and never re-sorts them.
      */
     riskMinutes: number | null;
+    /**
+     * The window `riskMinutes` is meant to stay inside — the backend's
+     * `delivery.freshness.max-minutes-after-ready`, sent with the figure because this client
+     * cannot derive it: `deliveryRadiusKm` is that budget times the average speed after two
+     * clamps, and does not invert. Nullable so a payload from before the field still parses.
+     */
+    freshnessBudgetMinutes: number | null;
 };
 
 /**

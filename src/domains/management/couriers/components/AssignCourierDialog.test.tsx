@@ -2,7 +2,7 @@ import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AssignCourierDialog } from "./AssignCourierDialog";
-import type { CourierStats, UnassignedOrder } from "../types";
+import type { CourierBoardRow, CourierStats, UnassignedOrder } from "../types";
 
 /**
  * Manual assignment (DELIVERY_SPEC.md §2.3, manual §02 "Manual assignment").
@@ -11,6 +11,10 @@ import type { CourierStats, UnassignedOrder } from "../types";
  * or none was free. The customer has already paid, so the order is neither cancelled nor pushed to
  * Keeta — a human puts it on a specific rider. The dialog had no test of its own; only the happy
  * path through `CourierDispatcherPanel` touched it.
+ *
+ * It is now also what a live delivery on the board opens, carrying the engine's per-rider verdict
+ * as a section — so the two optional halves (the verdict, and whether assignment is offered at
+ * all) are covered here as well as through the board.
  */
 
 function courier(overrides: Partial<CourierStats>): CourierStats {
@@ -27,10 +31,34 @@ const ORDER: UnassignedOrder = {
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
 };
 
-function renderDialog(couriers: CourierStats[], order: UnassignedOrder | null = ORDER) {
+const RANKED: CourierBoardRow = {
+    courierId: "c1", name: "Ali", phone: "39001122", status: "FREE",
+    freeAt: "2026-08-08T10:04:00", rank: 0, score: 2.34, noOfferReason: null,
+    declinedCount: 0, missedCount: 0, ordersInHand: 0,
+    onShiftSince: null, positionFixedAt: null, positionStaleAfterMinutes: 10,
+};
+
+const PASSED_OVER: CourierBoardRow = {
+    ...RANKED, courierId: "c2", name: "Sara", phone: null,
+    rank: null, score: null, noOfferReason: "TOO_FAR",
+};
+
+function renderDialog(
+    couriers: CourierStats[],
+    order: UnassignedOrder | null = ORDER,
+    extra: Partial<React.ComponentProps<typeof AssignCourierDialog>> = {}
+) {
     const onAssign = jest.fn<void, [string]>();
     const onClose = jest.fn<void, []>();
-    render(<AssignCourierDialog order={order} couriers={couriers} onAssign={onAssign} onClose={onClose} />);
+    render(
+        <AssignCourierDialog
+            order={order}
+            couriers={couriers}
+            onAssign={onAssign}
+            onClose={onClose}
+            {...extra}
+        />
+    );
     return { onAssign, onClose };
 }
 
@@ -151,5 +179,43 @@ describe("AssignCourierDialog", () => {
 
         expect(onClose).toHaveBeenCalledTimes(1);
         expect(onAssign).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The waiting-for-a-courier queue has no annotated roster to show — the section is omitted
+     * entirely rather than rendered empty, because "no couriers on the roster" would be a claim
+     * this call site never asked the server for.
+     */
+    it("shows no verdict section where nothing was passed", () => {
+        renderDialog([courier({})]);
+
+        expect(screen.getByRole("radio", { name: "Ali" })).toBeTruthy();
+        expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull();
+        expect(screen.queryByText("No couriers on the roster.")).toBeNull();
+    });
+
+    /** The board's call site: the engine's own reasons, beside the picker, for the same order. */
+    it("carries the engine's verdict beside the picker when it is given one", () => {
+        renderDialog([courier({})], ORDER, { availability: [RANKED, PASSED_OVER] });
+
+        expect(screen.getByText("Why this order is with this rider and not another")).toBeTruthy();
+        expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
+        expect(screen.getByText("Too far from the kitchen")).toBeTruthy();
+        expect(screen.getByRole("radio", { name: "Ali" })).toBeTruthy();
+    });
+
+    /**
+     * `claimForCourier` only matches an order nobody holds, so assignment on an order already in a
+     * rider's hands can do nothing but 409. The verdict still shows — that is what the manager
+     * opened the order to read.
+     */
+    it("withholds the picker on an order a rider already holds, and says what to do instead", () => {
+        renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: false });
+
+        expect(screen.getByText(/Release it from that courier's own list first/)).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Assign" })).toBeNull();
+        expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
+        expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
+        expect(screen.getByText(/^Order #4821$/)).toBeTruthy();
     });
 });
