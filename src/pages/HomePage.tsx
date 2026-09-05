@@ -270,6 +270,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     status={activeOrderIsland.status}
                     orderType={activeOrderIsland.activeOrder.type}
                     timeLeft={activeOrderIsland.timeLeft}
+                    arrivalTimeLeft={activeOrderIsland.arrivalTimeLeft}
                     rideProgress={activeOrderIsland.rideProgress}
                     onClick={activeOrderIsland.handleClick}
                 />

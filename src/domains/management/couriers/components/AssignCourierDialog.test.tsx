@@ -43,6 +43,28 @@ const PASSED_OVER: CourierBoardRow = {
     rank: null, score: null, noOfferReason: "TOO_FAR",
 };
 
+
+/**
+ * jsdom has no matchMedia, so MUI's useMediaQuery falls back to `false` and every test would
+ * otherwise exercise the desktop shell only — the phone branch would ship untested.
+ */
+function setNarrowViewport(matches: boolean): void {
+    Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+            matches,
+            media: query,
+            onchange: null,
+            addListener: (): void => {},
+            removeListener: (): void => {},
+            addEventListener: (): void => {},
+            removeEventListener: (): void => {},
+            dispatchEvent: (): boolean => false,
+        }),
+    });
+}
+
 function renderDialog(
     couriers: CourierStats[],
     order: UnassignedOrder | null = ORDER,
@@ -63,6 +85,64 @@ function renderDialog(
 }
 
 describe("AssignCourierDialog", () => {
+    /**
+     * A centred modal is the wrong shape on a phone — it lands mid-screen with its actions away
+     * from the thumb — so below `sm` this is a bottom sheet, like every other sheet in the app.
+     * One body, two shells.
+     */
+    it("is a bottom sheet on a phone and a dialog on a desktop", () => {
+        // Arrange / Act — phone.
+        setNarrowViewport(true);
+        const phone = render(
+            <AssignCourierDialog order={ORDER} couriers={[courier({}), courier({ courierId: "c2", name: "Sara" })]} onAssign={jest.fn()} onClose={jest.fn()} />
+        );
+
+        // Assert
+        expect(document.querySelector(".MuiDrawer-root")).not.toBeNull();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+        phone.unmount();
+
+        // Arrange / Act — desktop.
+        setNarrowViewport(false);
+        renderDialog([courier({}), courier({ courierId: "c2", name: "Sara" })]);
+
+        // Assert
+        expect(document.querySelector(".MuiDialog-root")).not.toBeNull();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+    });
+
+    /**
+     * The bug this pins: on a phone, tapping a board card did nothing at all.
+     *
+     * The whole dispatcher panel is itself a fullScreen MUI `Dialog`, and MUI gives a temporary
+     * `Drawer` `zIndex.drawer` (1200) while a `Dialog` gets `zIndex.modal` (1300). Nested, the
+     * sheet opened *behind* the panel that opened it — no error, nothing in the console, and the
+     * card simply appearing dead to the touch. The desktop branch was never affected because a
+     * Dialog inside a Dialog shares 1300 and wins on DOM order, which is exactly why this went
+     * unnoticed: every test and every developer machine was on the branch that worked.
+     */
+    it("stacks the phone sheet above the panel that opened it", () => {
+        setNarrowViewport(true);
+
+        renderDialog([courier({})]);
+
+        const drawer = document.querySelector(".MuiDrawer-root");
+        const zIndex = Number(window.getComputedStyle(drawer as Element).zIndex);
+        // 1300 is MUI's zIndex.modal, the layer the surrounding fullScreen Dialog sits on.
+        expect(zIndex).toBeGreaterThan(1300);
+    });
+
+    /** The sheet still has to do the job: the same actions, reachable. */
+    it("still assigns from the phone sheet", () => {
+        setNarrowViewport(true);
+        const { onAssign } = renderDialog([courier({}), courier({ courierId: "c2", name: "Sara" })]);
+
+        fireEvent.click(screen.getByText("Sara"));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(onAssign).toHaveBeenCalledWith("c2");
+    });
+
     it("names the order and where it is going, so the manager is not assigning a number", () => {
         renderDialog([courier({})]);
 
@@ -206,8 +286,7 @@ describe("AssignCourierDialog", () => {
 
     /**
      * `claimForCourier` only matches an order nobody holds, so assignment on an order already in a
-     * rider's hands can do nothing but 409. The verdict still shows — that is what the manager
-     * opened the order to read.
+     * rider's hands can do nothing but 409.
      */
     it("withholds the picker on an order a rider already holds, and says what to do instead", () => {
         renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: false });
@@ -215,7 +294,28 @@ describe("AssignCourierDialog", () => {
         expect(screen.getByText(/Release it from that courier's own list first/)).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Assign" })).toBeNull();
         expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
-        expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
         expect(screen.getByText(/^Order #4821$/)).toBeTruthy();
+    });
+
+    /**
+     * The verdict answers "which rider should take this", and that question is settled the moment
+     * one has. On a delivery already in flight it was the first thing in the popup and the order
+     * itself was a single grey line — so a dispatcher who opened a card to ring the customer got a
+     * ranking table instead of a phone number.
+     */
+    it("drops the engine's ranking once a rider holds the order", () => {
+        renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: false });
+
+        expect(screen.queryByText("#1 · score 2.3")).toBeNull();
+        expect(
+            screen.queryByText(/Why this order is with this rider and not another/)
+        ).toBeNull();
+    });
+
+    /** And keeps it exactly where it is the point of the screen. */
+    it("keeps the engine's ranking while the order is still being handed out", () => {
+        renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: true });
+
+        expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
     });
 });

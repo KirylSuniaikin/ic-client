@@ -62,12 +62,13 @@ const ZONE: DeliveryZone = {
 function renderSection(
     onDirtyChange = jest.fn<void, [boolean]>(),
     branchRadiusKm: number | null = 7,
+    coords: { lat: number | null; lng: number | null } = { lat: 26.22, lng: 50.58 },
 ): { onDirtyChange: typeof onDirtyChange } {
     render(
         <DeliveryZonesSection
             branchId="b1"
-            branchLatitude={26.22}
-            branchLongitude={50.58}
+            branchLatitude={coords.lat}
+            branchLongitude={coords.lng}
             branchRadiusKm={branchRadiusKm}
             onDirtyChange={onDirtyChange}
         />
@@ -282,5 +283,30 @@ describe("DeliveryZonesSection", () => {
         fireEvent.click(await screen.findByText("+ New zone"));
 
         expect(screen.getByTestId("map-radius").textContent).toBe("null");
+    });
+
+    /**
+     * The map used to mount only inside the editor, so opening this screen showed a list and no
+     * geography — and the radius, which is the area a zone is drawn INSIDE, stayed invisible until
+     * the manager pressed "New zone". The coverage circle is the default view now.
+     */
+    it("shows the branch's delivery area before any zone is being edited", () => {
+        renderSection(jest.fn<void, [boolean]>(), 3);
+
+        // The stub stands in for the map; its presence is what proves one is mounted at all.
+        expect(screen.getByTestId("map-radius").textContent).toBe("3");
+        expect(screen.getByText(/Delivery radius: 3 km/)).toBeTruthy();
+    });
+
+    /**
+     * A branch with no coordinates cannot have its area drawn at all. Saying so is the difference
+     * between "the feature is broken" and "this branch is not set up yet" — the owner hit exactly
+     * that confusion.
+     */
+    it("says why there is no map when the branch has no coordinates", () => {
+        renderSection(jest.fn<void, [boolean]>(), 7, { lat: null, lng: null });
+
+        expect(screen.getByText(/no coordinates saved/)).toBeTruthy();
+        expect(screen.queryByTestId("map-radius")).toBeNull();
     });
 });

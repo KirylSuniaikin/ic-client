@@ -171,28 +171,6 @@ function handOverLabel(order: Order): string {
     return order.courier_assigned === true ? "HANDED TO COURIER" : "NO COURIER YET";
 }
 
-/**
- * The delivery card's one identity marker, and the only place the "rider is here" signal is
- * spent.
- *
- * Two facts on one badge because they are two states of the same thing — a delivery order before
- * and after its rider turns up — so the card never grows a second element, and a pick-up card
- * renders no badge at all and is pixel-for-pixel what it was. It sits in the header row beside
- * the order number, well inside the 36px the print and delete controls already set, which is why
- * this costs no height.
- *
- * `courier_at_kitchen` is what the removed caption used to say in prose. As a badge it is legible
- * from across a kitchen, which the caption was not, and it is the fact staff cannot get any other
- * way: `courier_assigned` (which the hand-over button already carries) says a rider exists, not
- * that anyone is standing at the pass.
- *
- * History never shows the arrival state — it is a live-board fact, and a finished order's rider
- * is long gone.
- */
-function deliveryBadgeLabel(order: Order, isHistory: boolean): string {
-    return !isHistory && order.courier_at_kitchen === true ? "COURIER HERE" : "DELIVERY";
-}
-
 function isNotKeetaDefaultNotes(notes: string) {
     return !(notes === "Need cutlery"
         || notes === "Need cutlery; Please contact me when the item is out of stock"
@@ -279,7 +257,6 @@ function OrderCard({
 
     const isCritical = timeLeft < 60;
     const isDelivery = order.order_type === "Delivery";
-    const courierIsHere = !isHistory && order.courier_at_kitchen === true;
 
 
     const cardBorderColor = !isHistory
@@ -347,31 +324,6 @@ function OrderCard({
                         >
                             <DeleteIcon sx={{fontSize: 26}}/>
                         </IconButton>
-
-                        {isDelivery && (
-                            <Box
-                                sx={{
-                                    ml: 0.5,
-                                    px: 1.1,
-                                    py: 0.3,
-                                    borderRadius: 2,
-                                    border: `2px solid ${colorRed}`,
-                                    // Filled only once the rider is actually waiting: an outline
-                                    // says "delivery", a solid block says "somebody is standing
-                                    // there". Both boxes are the same size, so the arrival never
-                                    // reflows the header.
-                                    backgroundColor: courierIsHere ? colorRed : "transparent",
-                                    color: courierIsHere ? "#fff" : colorRed,
-                                    fontWeight: 900,
-                                    fontSize: "0.85rem",
-                                    lineHeight: 1.3,
-                                    letterSpacing: "0.05em",
-                                    whiteSpace: "nowrap"
-                                }}
-                            >
-                                {deliveryBadgeLabel(order, isHistory)}
-                            </Box>
-                        )}
                     </Box>
 
                     {!isHistory &&
@@ -392,17 +344,15 @@ function OrderCard({
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                         </Typography>
                     )}
-                    {/* A pick-up order says who is collecting; a delivery order has to say
-                        where it is going as well, or the person packing it cannot tell one
-                        delivery bag from another. Rendered only for delivery — a pick-up card
-                        gains nothing, not even an empty node. `address` is the same free-text
-                        column the aggregators use, which the delivery checkout now fills from the
-                        customer's confirmed pin (DeliveryPaymentService.attachAddress), so this
-                        costs the active-orders query nothing. Guarded because every delivery order
-                        placed before that existed still carries a null one. */}
-                    {isDelivery && Boolean(order.address) && (
+                    {/* The kitchen is told HOW the order leaves, not where it goes: the
+                        address is the courier's business, and this card lives on a wall where a
+                        customer's address has no business being. Delivery is the one fulfilment
+                        fact the kitchen acts on — it changes who the food is handed to — so it is
+                        printed only on a delivery order; a pick-up card gains nothing from a line
+                        saying it is a pick-up. */}
+                    {isDelivery && (
                         <Typography variant="body2">
-                            <strong>Deliver to:</strong> {order.address}
+                            <strong>Type:</strong> Delivery
                         </Typography>
                     )}
                     {order.notes.length > 0 && isNotKeetaDefaultNotes(order.notes) && (

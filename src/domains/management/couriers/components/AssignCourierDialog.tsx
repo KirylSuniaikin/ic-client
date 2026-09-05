@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import {
-    Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Chip, Alert,
-    CircularProgress,
+    Dialog, DialogTitle, DialogContent, DialogActions, Drawer, Button, Box, Typography, Chip, Alert,
+    CircularProgress, useMediaQuery, useTheme,
 } from '@mui/material';
-import type { CourierBoardRow, CourierStats, DispatchableOrder } from '../types';
+import type { CourierBoardRow, CourierStats, DeliveryCard, DispatchableOrder } from '../types';
 import { CourierAvailabilityList } from './CourierAvailabilityList';
-import { BRAND_RED as brandRed, MUTED, PANEL_CARD_SX, PanelNotice, SECTION_TITLE_SX } from './dispatcherStyles';
+import { DeliveryOrderDetails } from './DeliveryOrderDetails';
+import {
+    INK, SHEET_GROUND, BRAND_RED as brandRed, MUTED, PANEL_CARD_SX, PanelNotice, SECTION_TITLE_SX,
+} from './dispatcherStyles';
 
 /**
  * Statuses the server refuses to assign to (DispatcherService.manualAssign returns 409 for both).
@@ -33,6 +36,17 @@ const UNAVAILABLE_STATUSES = ['OFFLINE', 'BLACKLISTED'];
 export interface AssignCourierDialogProps {
     /** The order being opened; null closes the dialog. */
     order: DispatchableOrder | null;
+    /**
+     * The full board card for {@link order}, when the caller has one.
+     *
+     * Present from the live-deliveries board and absent from the waiting-for-a-courier queue,
+     * which is the difference this prop exists to express: a queued order has no rider, no
+     * hand-over and no arrival estimate, so a details block there would be four dashes and a
+     * phone number. Given one, the popup leads with the order rather than with the engine.
+     */
+    card?: DeliveryCard | null;
+    /** The board's fallback freshness budget; only used for a card predating its own field. */
+    freshnessBudgetMinutes?: number | null;
     couriers: CourierStats[];
     onClose: () => void;
     onAssign: (courierId: string) => void;
@@ -55,6 +69,8 @@ export interface AssignCourierDialogProps {
 
 export function AssignCourierDialog({
     order,
+    card = null,
+    freshnessBudgetMinutes = null,
     couriers,
     onClose,
     onAssign,
@@ -68,32 +84,45 @@ export function AssignCourierDialog({
         return !UNAVAILABLE_STATUSES.includes(courier.status);
     }
 
+    const theme = useTheme();
+    // `noSsr` because this app has no server render: without it the first paint is always the
+    // desktop branch and a phone visibly swaps shells a frame later.
+    const compact = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
+
     const selectable = couriers.filter(isAvailable);
     const orderLabel = `#${order?.orderNo ?? order?.orderId ?? ''}`;
 
-    return (
-        <Dialog
-            open={order !== null}
-            onClose={onClose}
-            fullWidth
-            // Wider only when it carries the roster: a picker of four names in a `sm` dialog is a
-            // lot of empty paper, and the availability rows in an `xs` one wrap to shreds.
-            maxWidth={availability === undefined ? 'xs' : 'sm'}
-            TransitionProps={{ onExited: () => setSelected(null) }}
-        >
-            <DialogTitle>
+    const paperSx = {
+        backgroundColor: SHEET_GROUND,
+        border: '1px solid #f1eae4',
+    };
+
+    const body = (
+        <>
+            <DialogTitle sx={{ pb: 0.5, fontWeight: 700, fontSize: 18, color: INK }}>
                 {assignable ? `Assign order ${orderLabel}` : `Order ${orderLabel}`}
             </DialogTitle>
 
-            <DialogContent dividers>
-                {order !== null && (
-                    <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
+            <DialogContent sx={{ pt: 2 }}>
+                {card !== null ? (
+                    <Box sx={{ mb: assignable ? 3 : 0 }}>
+                        <DeliveryOrderDetails
+                            card={card}
+                            freshnessBudgetMinutes={freshnessBudgetMinutes}
+                        />
+                    </Box>
+                ) : order !== null && (
+                    <Typography variant="body2" sx={{ color: MUTED, mb: 2 }}>
                         {order.addressLine ?? 'No address on file'}
                         {order.branchName !== null && ` — from ${order.branchName}`}
                     </Typography>
                 )}
 
-                {availability !== undefined && (
+                {/* The engine's verdict belongs to the decision it explains. On an order still
+                    waiting for a rider it is the whole point of the screen; on one already in
+                    flight it answers a question nobody asked, and it was crowding out the order
+                    details the dispatcher opened the card for. */}
+                {availability !== undefined && assignable && (
                     <Box sx={{ mb: 3 }}>
                         <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 0.5 }}>
                             Why this order is with this rider and not another
@@ -125,11 +154,9 @@ export function AssignCourierDialog({
                     </Alert>
                 ) : (
                     <>
-                        {availability !== undefined && (
-                            <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 1 }}>
-                                Hand it to a rider
-                            </Typography>
-                        )}
+                        <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 1 }}>
+                            Hand it to a rider
+                        </Typography>
                         <Box role="radiogroup" aria-label="Courier">
                             {selectable.map((courier) => {
                                 const isSelected = selected === courier.courierId;
@@ -156,7 +183,7 @@ export function AssignCourierDialog({
                                         <Typography>{courier.name ?? courier.courierId}</Typography>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Chip size="small" label={courier.status} />
-                                            <Typography variant="caption" sx={{ color: '#666' }}>
+                                            <Typography variant="caption" sx={{ color: MUTED }}>
                                                 {courier.nearestBranchName ?? 'location unknown'}
                                             </Typography>
                                         </Box>
@@ -168,21 +195,91 @@ export function AssignCourierDialog({
                 )}
             </DialogContent>
 
-            <DialogActions>
-                <Button onClick={onClose} sx={{ textTransform: 'none', color: '#666' }}>
+            <DialogActions sx={{ px: 3, pb: 3, pt: 1 }}>
+                <Button
+                    onClick={onClose}
+                    sx={{ textTransform: 'none', color: MUTED, borderRadius: 999, px: 2.5 }}
+                >
                     {assignable ? 'Cancel' : 'Close'}
                 </Button>
                 {assignable && (
                     <Button
                         variant="contained"
+                        disableElevation
                         disabled={selected === null}
                         onClick={() => { if (selected !== null) onAssign(selected); }}
-                        sx={{ backgroundColor: brandRed, textTransform: 'none', '&:hover': { backgroundColor: brandRed } }}
+                        sx={{
+                            textTransform: 'none', backgroundColor: brandRed, borderRadius: 999,
+                            px: 3, fontWeight: 700,
+                            boxShadow: '0 6px 16px rgba(228,75,76,0.24)',
+                            '&:hover': {
+                                backgroundColor: brandRed, filter: 'brightness(0.94)',
+                                boxShadow: '0 8px 20px rgba(228,75,76,0.28)',
+                            },
+                        }}
                     >
                         Assign
                     </Button>
                 )}
             </DialogActions>
+        </>
+    );
+
+    /**
+     * A centred modal is the wrong shape on a phone: it lands mid-screen, its actions sit far from
+     * the thumb, and the roster inside it scrolls in a box inside a box. Below `sm` this is a
+     * bottom sheet, which is what every other sheet in the app is (DESIGN.md, "Shape").
+     *
+     * One body, two shells -- deliberately not two components. The two would drift, and this one
+     * carries the assignment action.
+     */
+    if (compact) {
+        return (
+            <Drawer
+                anchor="bottom"
+                open={order !== null}
+                onClose={onClose}
+                // The whole dispatcher panel is itself a fullScreen `Dialog` (AdminPageModals), and
+                // MUI gives a temporary Drawer `zIndex.drawer` (1200) while a Dialog gets
+                // `zIndex.modal` (1300). Nested, the sheet therefore rendered BEHIND the panel that
+                // opened it -- on a phone the card simply did nothing when tapped, with no error and
+                // nothing in the console. The desktop branch never showed it because a Dialog inside
+                // a Dialog shares 1300 and wins on DOM order.
+                sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
+                SlideProps={{ onExited: () => setSelected(null) }}
+                PaperProps={{
+                    elevation: 0,
+                    sx: {
+                        ...paperSx,
+                        // Corner-specific props are literal px, NOT multiplied by the theme's
+                        // shape.borderRadius the way `borderRadius` is (DESIGN.md, the radius trap).
+                        borderTopLeftRadius: 20,
+                        borderTopRightRadius: 20,
+                        maxHeight: '90vh',
+                    },
+                }}
+            >
+                <Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2, mx: 'auto', mt: 1.5 }} />
+                {body}
+            </Drawer>
+        );
+    }
+
+    return (
+        <Dialog
+            open={order !== null}
+            onClose={onClose}
+            fullWidth
+            // Wider only when it carries the roster: a picker of four names in a `sm` dialog is a
+            // lot of empty paper, and the availability rows in an `xs` one wrap to shreds.
+            maxWidth={availability === undefined ? 'xs' : 'sm'}
+            TransitionProps={{ onExited: () => setSelected(null) }}
+            PaperProps={{
+                elevation: 0,
+                sx: { ...paperSx, borderRadius: 3, boxShadow: '0 12px 40px rgba(59,53,44,0.16)' },
+            }}
+        >
+            {body}
         </Dialog>
     );
 }

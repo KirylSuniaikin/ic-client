@@ -249,7 +249,11 @@ export function DeliveryZoneMap({
         if (map === null || !editing) return;
 
         const polygon = new google.maps.Polygon({
-            paths: seedRef.current.map(toLatLng),
+            // ONE ring, wrapped, even when it is empty. A flat array is read as "these are my
+            // vertices" only while it has some: `paths: []` means "no rings at all", and a polygon
+            // with no rings answers getPath() with undefined -- which crashed the editor on the
+            // very first thing anyone does, drawing a zone that does not exist yet.
+            paths: [seedRef.current.map(toLatLng)],
             map,
             editable: true,
             clickable: true,

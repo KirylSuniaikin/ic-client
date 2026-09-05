@@ -235,12 +235,43 @@ export default function DeliveryZonesSection({
             {GOOGLE_MAPS_API_KEY ? (
                 <>
                     {draft === null ? (
-                        <Button
-                            onClick={() => openDraft({ id: null, name: "", polygon: [], active: true })}
-                            sx={{ mt: 2, textTransform: "none", fontWeight: 700, color: BRAND }}
-                        >
-                            + New zone
-                        </Button>
+                        <>
+                            {/* The coverage area, without having to start editing to see it. The map
+                                used to mount only inside the editor, so a manager opening this
+                                screen was shown a list and no geography at all — and the radius,
+                                which is the thing a zone is drawn INSIDE, was invisible until they
+                                pressed New zone. */}
+                            {center === null ? (
+                                <Typography variant="caption" sx={{ display: "block", mt: 2, color: "#8a807a" }}>
+                                    This branch has no coordinates saved, so its delivery area cannot
+                                    be drawn. Set them on the branch first.
+                                </Typography>
+                            ) : (
+                                <Box sx={{ mt: 2 }}>
+                                    <DeliveryZoneMap
+                                        zones={zones}
+                                        editingZoneId={null}
+                                        editing={false}
+                                        sessionKey="overview"
+                                        initialPolygon={[]}
+                                        onPolygonChange={() => undefined}
+                                        center={center}
+                                        radiusKm={branchRadiusKm}
+                                    />
+                                    <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#8a807a" }}>
+                                        {branchRadiusKm === null
+                                            ? "Delivery radius not available for this branch."
+                                            : `Delivery radius: ${branchRadiusKm} km. Zones narrow it; they never extend it.`}
+                                    </Typography>
+                                </Box>
+                            )}
+                            <Button
+                                onClick={() => openDraft({ id: null, name: "", polygon: [], active: true })}
+                                sx={{ mt: 2, textTransform: "none", fontWeight: 700, color: BRAND }}
+                            >
+                                + New zone
+                            </Button>
+                        </>
                     ) : (
                         <Box sx={{ mt: 2 }}>
                             <TextField

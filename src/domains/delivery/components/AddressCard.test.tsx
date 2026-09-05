@@ -11,9 +11,10 @@ const ADDRESS: CustomerAddress = {
     note: null, latitude: 26.2285, longitude: 50.586,
 };
 
-function renderCard(withEdit: boolean, address: CustomerAddress = ADDRESS) {
+function renderCard(withEdit: boolean, address: CustomerAddress = ADDRESS, withDelete = false) {
     const onSelect = jest.fn<void, [CustomerAddress]>();
     const onEdit = jest.fn<void, [CustomerAddress]>();
+    const onDelete = jest.fn<void, [CustomerAddress]>();
     render(
         <I18nextProvider i18n={i18n}>
             <AddressCard
@@ -21,10 +22,11 @@ function renderCard(withEdit: boolean, address: CustomerAddress = ADDRESS) {
                 selected={false}
                 onSelect={onSelect}
                 onEdit={withEdit ? onEdit : undefined}
+                onDelete={withDelete ? onDelete : undefined}
             />
         </I18nextProvider>
     );
-    return { onSelect, onEdit };
+    return { onSelect, onEdit, onDelete };
 }
 
 /**
@@ -122,5 +124,74 @@ describe("AddressCard", () => {
         renderCard(false, { ...ADDRESS, note: "Gate code 1234" });
 
         expect(screen.getByText(/Gate code 1234/)).toBeTruthy();
+    });
+});
+
+/**
+ * The bin.
+ *
+ * A saved address the customer no longer uses had no way off the list — they could correct it or
+ * add another beside it, and that was all. The list only grows, and the one they actually want is
+ * further down every time.
+ *
+ * Confirmation is in the card rather than in a dialog. This list lives inside a bottom sheet, and
+ * a modal opened from inside another modal is how the dispatcher's sheet ended up rendering behind
+ * the panel that opened it; an in-place confirm cannot stack wrong, and it keeps the address the
+ * customer is deleting in front of them while they answer.
+ */
+describe("AddressCard — deleting", () => {
+    it("does not delete on the first tap", () => {
+        const { onDelete } = renderCard(true, ADDRESS, true);
+
+        fireEvent.click(screen.getByLabelText("Delete address"));
+
+        expect(onDelete).not.toHaveBeenCalled();
+    });
+
+    it("deletes once the customer confirms", () => {
+        const { onDelete } = renderCard(true, ADDRESS, true);
+
+        fireEvent.click(screen.getByLabelText("Delete address"));
+        fireEvent.click(screen.getByText("Delete"));
+
+        expect(onDelete).toHaveBeenCalledWith(ADDRESS);
+    });
+
+    it("keeps the address when the customer backs out", () => {
+        const { onDelete } = renderCard(true, ADDRESS, true);
+
+        fireEvent.click(screen.getByLabelText("Delete address"));
+        fireEvent.click(screen.getByText("Keep"));
+
+        expect(onDelete).not.toHaveBeenCalled();
+        expect(screen.getByLabelText("Delete address")).toBeTruthy();
+    });
+
+    /**
+     * Reaching for the bin is not a choice of where to deliver. Without `stopPropagation` the row
+     * underneath would also select the address the customer is in the middle of removing.
+     */
+    it("does not select the address while reaching for the bin", () => {
+        const { onSelect } = renderCard(true, ADDRESS, true);
+
+        fireEvent.click(screen.getByLabelText("Delete address"));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it("neither confirming nor cancelling selects the address", () => {
+        const { onSelect } = renderCard(true, ADDRESS, true);
+
+        fireEvent.click(screen.getByLabelText("Delete address"));
+        fireEvent.click(screen.getByText("Delete"));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    /** The §1.6 confirm sheet lists addresses read-only; nothing on it may remove one. */
+    it("shows no bin where the list is read-only", () => {
+        renderCard(false);
+
+        expect(screen.queryByLabelText("Delete address")).toBeNull();
     });
 });

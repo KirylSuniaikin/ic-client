@@ -120,6 +120,28 @@ export async function updateAddress(
 }
 
 /**
+ * Removes a saved address from the customer's list.
+ *
+ * The server archives rather than deletes: `orders.delivery_address_id` points at the row, so a
+ * hard delete would take the address off a past order's record. The customer sees it gone either
+ * way, and a past delivery keeps knowing where it went.
+ *
+ * Idempotent — a second call on the same address is another 204, so a double tap on a slow
+ * connection cannot surface an error the customer can do nothing about.
+ */
+export async function deleteAddress(accessToken: string, addressId: string): Promise<void> {
+    const response = await fetch(`${BASE_URL}/customer/addresses/${encodeURIComponent(addressId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+        throw new DeliveryApiError(await extractErrorMessage(response), response.status);
+    }
+}
+
+/**
  * Delivery checkout (§1.7): settle payment, then create the order — never the reverse.
  *
  * ⚠️ Backed by a **stub** until EazyPay is integrated; the server returns `stub: true` so the UI

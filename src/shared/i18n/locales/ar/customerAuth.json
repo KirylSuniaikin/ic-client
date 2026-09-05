@@ -80,6 +80,7 @@
   },
   "island": {
     "readyIn": "جاهز خلال",
+    "deliveredIn": "التوصيل المتوقع خلال",
     "ready": "جاهز!",
     "anyMinute": "في أي لحظة",
     "minutes": "{{value}} دقيقة",

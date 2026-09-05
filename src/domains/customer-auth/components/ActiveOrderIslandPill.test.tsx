@@ -12,6 +12,7 @@ type PillOverrides = {
     status?: string | null;
     orderType?: string;
     timeLeft?: number;
+    arrivalTimeLeft?: number | null;
     rideProgress?: RideProgress | null;
     onClick?: () => void;
 };
@@ -24,6 +25,7 @@ function renderPill(overrides: PillOverrides = {}): void {
             status={overrides.status === undefined ? "Kitchen Phase" : overrides.status}
             orderType={overrides.orderType ?? "Pick Up"}
             timeLeft={overrides.timeLeft ?? 300}
+            arrivalTimeLeft={overrides.arrivalTimeLeft ?? null}
             rideProgress={overrides.rideProgress ?? null}
             onClick={overrides.onClick ?? ((): void => undefined)}
         />
@@ -63,7 +65,7 @@ describe("ActiveOrderIslandPill", () => {
 
     it("calls onClick when clicked", () => {
         const onClick = jest.fn<void, []>();
-        renderPill({ timeLeft: 60, onClick });
+        renderPill({ timeLeft: 60, arrivalTimeLeft: null, onClick });
 
         fireEvent.click(screen.getByTestId("active-order-island-pill"));
 
@@ -115,6 +117,7 @@ describe("ActiveOrderIslandPill", () => {
                 <ActiveOrderIslandPill
                     branchName="Downtown" orderNumber={7} status="Out for delivery"
                     orderType="Delivery" timeLeft={0}
+        arrivalTimeLeft={null}
                     rideProgress={{ fraction: 0, minutesLeft: 12, overdue: false }}
                     onClick={(): void => undefined}
                 />
@@ -136,7 +139,7 @@ describe("ActiveOrderIslandPill", () => {
                 orderType: "Delivery",
                 status: "Out for delivery",
                 // A stale, still-positive countdown to Ready that must NOT be what is shown.
-                timeLeft: 9999,
+                timeLeft: 9999, arrivalTimeLeft: null,
                 rideProgress: ONE_THIRD,
             });
 
@@ -178,5 +181,72 @@ describe("ActiveOrderIslandPill", () => {
 
             expect(screen.queryByTestId("island-ride-indeterminate")).toBeNull();
         });
+    });
+});
+
+/**
+ * What a delivery customer is actually waiting for.
+ *
+ * The pill quoted "Estimated Ready in" and counted down to the KITCHEN for every order. For a
+ * pickup that is exactly right — the customer is coming to the counter. For a delivery it counted
+ * to zero while the food had not left the branch, and the caption then said "ready", which was
+ * true of the pizza and useless to the person waiting at a door twenty minutes away.
+ *
+ * The arrival estimate is the midpoint of the window quoted at checkout ("arriving in 25-35 min"),
+ * so the pill and the promise the customer agreed to are the same number rather than two.
+ */
+describe("ActiveOrderIslandPill — a delivery counts to the door", () => {
+    it("counts down to the arrival, not to the kitchen", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Kitchen Phase",
+            timeLeft: 300,
+            arrivalTimeLeft: 1800,
+        });
+
+        expect(screen.getByText("30 min")).toBeTruthy();
+        expect(screen.queryByText("5 min")).toBeNull();
+    });
+
+    it("names what the figure is counting to", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Kitchen Phase",
+            timeLeft: 300,
+            arrivalTimeLeft: 1800,
+        });
+
+        expect(screen.getByText("Estimated Delivered in")).toBeTruthy();
+        expect(screen.queryByText("Estimated Ready in")).toBeNull();
+    });
+
+    /** A pickup customer IS waiting for the kitchen, and must keep counting to it. */
+    it("leaves a pickup order counting to the kitchen", () => {
+        renderPill({
+            orderType: "Pick Up",
+            status: "Kitchen Phase",
+            timeLeft: 300,
+            arrivalTimeLeft: 1800,
+        });
+
+        expect(screen.getByText("5 min")).toBeTruthy();
+        expect(screen.getByText("Estimated Ready in")).toBeTruthy();
+    });
+
+    /**
+     * No arrival estimate is a real state — an address the backend could not place, or a branch
+     * with no coordinates. The kitchen countdown is then the best available answer, and inventing
+     * an arrival would be worse than quoting the wrong leg.
+     */
+    it("falls back to the kitchen countdown when there is no arrival estimate", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Kitchen Phase",
+            timeLeft: 300,
+            arrivalTimeLeft: null,
+        });
+
+        expect(screen.getByText("5 min")).toBeTruthy();
+        expect(screen.getByText("Estimated Ready in")).toBeTruthy();
     });
 });

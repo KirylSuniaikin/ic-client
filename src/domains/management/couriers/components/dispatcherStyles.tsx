@@ -1,5 +1,9 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
+import { formatBahrainClock } from "../../../../shared/utils/timeUtils";
+import {
+    FRESHNESS_LABEL, freshnessFill, freshnessStanding, freshnessText,
+} from "../utils/freshness";
 import type { SxProps, Theme } from "@mui/material";
 
 /**
@@ -15,6 +19,9 @@ export const BRAND_RED = "#E44B4C";
 
 /** Muted body text, and the greyer tone reserved for "this value is not usable". */
 export const MUTED = "#8a807a";
+/** DESIGN.md's sheet palette, so a dialog on this surface stops inheriting MUI's stock greys. */
+export const SHEET_GROUND = "#fffcf8";
+export const INK = "#3b352c";
 export const FADED = "#b0a79f";
 
 /**
@@ -148,6 +155,98 @@ export function EmptyState({ children }: { children: React.ReactNode }): JSX.Ele
     return (
         <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
             <Typography variant="body2" sx={{ color: "#8a807a" }}>{children}</Typography>
+        </Box>
+    );
+}
+
+/**
+ * A dash, never a zero. The backend returns null when a timing could not be derived, and "0 min"
+ * would read as an instant handover — a silently wrong operational number.
+ */
+export function clockOrDash(timestamp: string | null): string {
+    return formatBahrainClock(timestamp) ?? '—';
+}
+
+/**
+ * The card's headline figure: how long the food will have been out of the oven when it arrives,
+ * read against the budget the delivery radius was drawn around.
+ *
+ * Three states, and they must stay three. `unknown` is greyed and says "not known" — never 0, and
+ * never a colour, because an absent figure is not a reassuring one. `no-budget` prints the
+ * minutes in plain text with no verdict, since without the server's own budget any colour here
+ * would be this client's opinion. Only `within`/`over` earn a semantic tone and the bar.
+ */
+export function FreshnessReading({ minutes, budgetMinutes }: {
+    minutes: number | null;
+    budgetMinutes: number | null;
+}): JSX.Element {
+    const standing = freshnessStanding(minutes, budgetMinutes);
+    const tone = standing === 'unknown'
+        ? FADED
+        : standing === 'over'
+            ? TONE_BAD
+            : standing === 'within' ? TONE_OK : '#3b352c';
+
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <Typography variant="caption" sx={{ color: MUTED, whiteSpace: 'nowrap' }}>
+                {FRESHNESS_LABEL}
+            </Typography>
+            {/* The label's immediate next sibling, so the pairing can be asserted rather than the
+                mere presence of a number somewhere on the card. */}
+            <Typography
+                variant="body2"
+                sx={{
+                    fontWeight: 700, color: tone, whiteSpace: 'nowrap',
+                    fontStyle: standing === 'unknown' ? 'italic' : 'normal',
+                }}
+            >
+                {freshnessText(minutes, budgetMinutes)}
+            </Typography>
+            {minutes !== null && budgetMinutes !== null && budgetMinutes > 0 && (
+                <Box
+                    data-testid="freshness-bar"
+                    sx={{ width: 120, height: 4, borderRadius: 999, backgroundColor: '#f1eae4', mt: 0.5 }}
+                >
+                    <Box sx={{
+                        width: `${freshnessFill(minutes, budgetMinutes) * 100}%`,
+                        height: '100%', borderRadius: 999, backgroundColor: tone,
+                    }} />
+                </Box>
+            )}
+        </Box>
+    );
+}
+
+/**
+ * A phone number the manager can actually press. Calling is the next action on nearly every card
+ * here, and a number that has to be copied out by hand while a delivery is stuck is a number
+ * nobody uses.
+ *
+ * `stopPropagation` because the card itself opens the order: dialling must not also open a dialog
+ * behind the call.
+ */
+export function PhoneMetric({ label, phone, absent }: {
+    label: string;
+    phone: string | null;
+    absent: string;
+}): JSX.Element {
+    return (
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+            <Typography variant="caption" sx={{ color: MUTED }}>{label}</Typography>
+            {phone === null ? (
+                <Typography variant="caption" sx={{ color: FADED, fontStyle: 'italic' }}>{absent}</Typography>
+            ) : (
+                <Typography
+                    component="a"
+                    href={`tel:${phone}`}
+                    variant="caption"
+                    onClick={(event: React.MouseEvent) => event.stopPropagation()}
+                    sx={{ color: BRAND_RED, fontWeight: 700, textDecoration: 'none' }}
+                >
+                    {phone}
+                </Typography>
+            )}
         </Box>
     );
 }

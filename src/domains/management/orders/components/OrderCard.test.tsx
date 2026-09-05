@@ -271,124 +271,120 @@ describe("OrderCard — HANDED TO COURIER", () => {
 });
 
 /**
- * The two things the owner asked the card for, both of which have to survive the constraint that
- * killed the previous attempt: the card is dense, it is shared with pick-up, and the caption that
- * said "courier is here" in prose was removed for taking a whole line.
+ * The card is a kitchen document on a wall. It says HOW the order leaves — the one fulfilment
+ * fact the kitchen acts on, because it decides who the bag is handed to — and it says nothing
+ * about where it goes: the address is the courier's business and it is customer data on a screen
+ * a room full of people can read. The dispatcher board (domains/management/couriers) is where the
+ * address is wanted, and it renders its own cards from its own components, so it is untouched.
  *
- * So the delivery identity and the rider's arrival share ONE badge in the header row — two states
- * of the same thing — and a pick-up card renders no badge at all.
+ * Every test here that asserts an ABSENCE also asserts that the rest of the card is still on
+ * screen — otherwise a component that rendered nothing at all would pass them all.
  */
-describe("OrderCard — a delivery order reads as one", () => {
-    it("marks a delivery order DELIVERY", () => {
+describe("OrderCard — how a delivery order reads", () => {
+    // The guard against a blank render: these three are the card's spine and are asserted
+    // alongside every absence below.
+    function expectTheCardIsStillHere(): void {
+        expect(screen.getByText("#4821")).toBeTruthy();
+        expect(screen.getByText(/Test Customer/)).toBeTruthy();
+        expect(screen.getByText("OVEN")).toBeTruthy();
+    }
+
+    // Label and value are asserted together, on one node: a card printing "Type:" beside somebody
+    // else's value, or "Delivery" under the wrong label, is not what was asked for.
+    it("prints the fulfilment type as a detail row, label and value together", () => {
         renderCard(makeOrder({ order_type: "Delivery" }));
 
-        expect(screen.getByText("DELIVERY")).toBeTruthy();
+        const row = screen.getByText("Type:").closest("p");
+        expect(row?.textContent).toBe("Type: Delivery");
     });
 
-    it("puts no badge on a pick-up order", () => {
+    it("says nothing about fulfilment on a pick-up order", () => {
         renderCard(makeOrder({ order_type: "Pick Up" }));
+
+        expect(screen.queryByText("Type:")).toBeNull();
+        expectTheCardIsStillHere();
+    });
+
+    /**
+     * The status badge that used to sit in the header row, in both of its states. It was the one
+     * thing along the top of the card that carried a status, and the kitchen never used either
+     * half of it — the fulfilment row below carries the only part it acts on.
+     */
+    it("carries no status badge along the top of the card", () => {
+        renderCard(makeOrder({ order_type: "Delivery", courier_at_kitchen: true }));
 
         expect(screen.queryByText("DELIVERY")).toBeNull();
         expect(screen.queryByText("COURIER HERE")).toBeNull();
+        expectTheCardIsStillHere();
     });
 
-    it("shows the destination so the packer knows what they are packing for", () => {
-        renderCard(makeOrder({ order_type: "Delivery", address: "Block 338, Road 1707, Building 42" }));
-
-        expect(screen.getByText("Block 338, Road 1707, Building 42")).toBeTruthy();
-    });
-
-    // Every delivery order placed before the checkout denormalised the address carries a null one,
-    // and a stray "Deliver to:" label with nothing after it is worse than no line.
-    it("spends no line on a delivery order with no address recorded", () => {
-        renderCard(makeOrder({ order_type: "Delivery", address: "" }));
+    it("never prints the customer's address, even when the order carries one", () => {
+        renderCard(makeOrder({
+            order_type: "Delivery",
+            address: "Block 338, Road 1707, Building 42",
+        }));
 
         expect(screen.queryByText("Deliver to:")).toBeNull();
+        expect(screen.queryByText(/Block 338/)).toBeNull();
+        expectTheCardIsStillHere();
     });
 
-    // The address is the delivery counterpart of the customer line, not a replacement for it.
-    it("keeps the customer details a pick-up order already showed", () => {
+    // The customer line is not the address line and was never part of this removal: the kitchen
+    // still has to know whose order it is holding.
+    it("keeps the customer details the card already showed", () => {
         renderCard(makeOrder({ order_type: "Delivery", customer_name: "Layla", phone_number: "97312345678" }));
 
         expect(screen.getByText(/Layla/)).toBeTruthy();
         expect(screen.getByText(/97312345678/)).toBeTruthy();
     });
 
-    // A pick-up order never carries the flag, but nothing stops a stale one arriving.
-    it("never turns a pick-up card into a courier badge", () => {
-        renderCard(makeOrder({ order_type: "Pick Up", courier_at_kitchen: true }));
-
-        expect(screen.queryByText("COURIER HERE")).toBeNull();
-    });
-});
-
-/**
- * Requirement A: the rider taps "I am at the kitchen" and, until now, nothing told the kitchen.
- * `courier_assigned` could not stand in for it — a rider can be assigned and still be ten minutes
- * away — so this is the fact the badge exists to carry.
- */
-describe("OrderCard — the rider is at the pass", () => {
-    it("switches the badge the moment the rider arrives", () => {
-        renderCard(makeOrder({ order_type: "Delivery", courier_at_kitchen: true }));
-
-        expect(screen.getByText("COURIER HERE")).toBeTruthy();
-        expect(screen.queryByText("DELIVERY")).toBeNull();
-    });
-
-    // An assigned rider is not an arrived rider — that distinction is the whole point.
-    it("still reads DELIVERY for a rider who is assigned but not here yet", () => {
-        renderCard(makeOrder({
-            order_type: "Delivery",
-            courier_assigned: true,
-            courier_at_kitchen: false,
-        }));
-
-        expect(screen.getByText("DELIVERY")).toBeTruthy();
-        expect(screen.queryByText("COURIER HERE")).toBeNull();
-    });
-
-    // The signal exists from the moment the rider walks in, not only once the food is Ready —
-    // which is exactly the window where the hand-over button does not yet exist to carry it.
-    it("shows before the order is Ready, where no hand-over button exists to say it", () => {
-        renderCard(makeOrder({
-            status: "Kitchen Phase",
-            order_type: "Delivery",
-            courier_at_kitchen: true,
-        }));
-
-        expect(screen.getByText("COURIER HERE")).toBeTruthy();
-        expect(screen.queryByText("HANDED TO COURIER")).toBeNull();
-    });
-
-    // A finished order's rider is long gone; arrival is a live-board fact.
-    it("falls back to DELIVERY in the history view", () => {
+    // History shares this component with the live board, so the same two rules hold there.
+    it("reads the same way in the history view", () => {
         render(
             <MemoryRouter>
                 <OrderCard
-                    order={makeReadyDelivery({ courier_at_kitchen: true })}
+                    order={makeOrder({ order_type: "Delivery", address: "Block 338", courier_at_kitchen: true })}
                     onDeleteClick={jest.fn()}
                     isHistory
                 />
             </MemoryRouter>
         );
 
-        expect(screen.getByText("DELIVERY")).toBeTruthy();
-        expect(screen.queryByText("COURIER HERE")).toBeNull();
+        expect(screen.getByText("Type:").closest("p")?.textContent).toBe("Type: Delivery");
+        expect(screen.queryByText("Deliver to:")).toBeNull();
+        expect(screen.queryByText("DELIVERY")).toBeNull();
+        // The card is still a card: history's own rows are untouched.
+        expect(screen.getByText("#4821")).toBeTruthy();
+        expect(screen.getByText("Payment type:")).toBeTruthy();
     });
+});
 
-    /**
-     * The documented decision the owner made when the caption was removed: the hand-over button's
-     * label is gated on `courier_assigned` alone. The badge must carry the arrival WITHOUT
-     * reopening that — two controls disagreeing about one rider is what the caption cost.
-     */
+/**
+ * The rider's arrival used to be a badge in the header. The badge is gone, but the decision it was
+ * built around is not: the hand-over button is gated on `courier_assigned` alone, and an arrival
+ * must not touch it. Two controls disagreeing about one rider is what the earlier caption cost.
+ */
+describe("OrderCard — a rider arriving changes nothing on the card", () => {
     it("leaves the hand-over button's own label untouched", () => {
         renderCard(makeReadyDelivery({ courier_assigned: true, courier_at_kitchen: true }));
 
         const button = screen.getByText("HANDED TO COURIER").closest("button");
-        // The label is what the title is about, so it is asserted rather than merely used as a
-        // lookup: an arrival must not flip the button to "NO COURIER YET" or to a third wording.
         expect(button?.textContent).toBe("HANDED TO COURIER");
         expect(screen.queryByText("NO COURIER YET")).toBeNull();
         expect(button?.disabled).toBe(false);
+    });
+
+    // The flag is still on the order and still reaches the dispatcher board; it simply has no
+    // rendering of its own here any more.
+    it("adds nothing to a kitchen-phase card when the rider is at the pass", () => {
+        renderCard(makeOrder({
+            status: "Kitchen Phase",
+            order_type: "Delivery",
+            courier_at_kitchen: true,
+        }));
+
+        expect(screen.queryByText("COURIER HERE")).toBeNull();
+        expect(screen.getByText("Type:").closest("p")?.textContent).toBe("Type: Delivery");
+        expect(screen.getByText("OVEN")).toBeTruthy();
     });
 });

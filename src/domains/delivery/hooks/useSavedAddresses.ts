@@ -1,7 +1,7 @@
 // Saved delivery addresses (DELIVERY_SPEC.md §1.4.4). Logged-in customers only — the endpoint
 // requires ROLE_CUSTOMER, and a guest has no address book until they verify.
 import { useCallback, useEffect, useState } from 'react';
-import { createAddress, listAddresses, updateAddress } from '../../../shared/api/delivery';
+import { createAddress, deleteAddress, listAddresses, updateAddress } from '../../../shared/api/delivery';
 import { useCustomerAuth } from '../../customer-auth/context/CustomerAuthProvider';
 import { logger } from '../../../shared/utils/logger';
 import { DeliveryApiError } from '../types';
@@ -22,6 +22,8 @@ export type UseSavedAddressesResult = {
     save: (body: CreateCustomerAddressRequest) => Promise<CustomerAddress | null>;
     /** Returns the edited address, or null when the edit failed (the reason is in `error`). */
     update: (addressId: string, body: UpdateCustomerAddressRequest) => Promise<CustomerAddress | null>;
+    /** Removes a saved address; resolves to whether the server accepted it. */
+    remove: (addressId: string) => Promise<boolean>;
 };
 
 /**
@@ -121,5 +123,36 @@ export function useSavedAddresses(): UseSavedAddressesResult {
         [token]
     );
 
-    return { addresses, loading, error, reload, save, update };
+    /**
+     * The bin.
+     *
+     * Removes the row locally the moment the server confirms, rather than reloading the list: the
+     * customer is standing in a checkout sheet with a selection under their finger, and a list
+     * that blinks out and back would move everything they were looking at.
+     *
+     * Returns whether it worked, because the caller has a selection to clear — deleting the
+     * address the order is currently pointed at has to leave the sheet in a state the customer can
+     * still act on.
+     */
+    const remove = useCallback(
+        async (addressId: string): Promise<boolean> => {
+            if (!token) return false;
+            setLoading(true);
+            try {
+                await deleteAddress(token, addressId);
+                setAddresses((current) => current.filter((address) => address.id !== addressId));
+                setError(null);
+                return true;
+            } catch (err) {
+                logger.error('Failed to delete address:', err);
+                setError(err instanceof Error ? err.message : String(err));
+                return false;
+            } finally {
+                setLoading(false);
+            }
+        },
+        [token]
+    );
+
+    return { addresses, loading, error, reload, save, update, remove };
 }

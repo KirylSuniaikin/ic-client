@@ -80,6 +80,7 @@
   },
   "island": {
     "readyIn": "Estimated Ready in",
+    "deliveredIn": "Estimated Delivered in",
     "ready": "Come In And Pick Up Your Order!",
     "anyMinute": "Short",
     "minutes": "{{value}} min",

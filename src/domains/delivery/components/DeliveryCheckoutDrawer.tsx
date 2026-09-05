@@ -66,7 +66,7 @@ export function DeliveryCheckoutDrawer({
     onUnavailable,
 }: DeliveryCheckoutDrawerProps): JSX.Element {
     const { t } = useTranslation('checkout');
-    const { addresses, loading, error, save, update } = useSavedAddresses();
+    const { addresses, loading, error, save, update, remove } = useSavedAddresses();
     const { availability, checking, check } = useDeliveryAvailability();
 
     const [selected, setSelected] = useState<CustomerAddress | null>(null);
@@ -134,6 +134,20 @@ export function DeliveryCheckoutDrawer({
         setSelected((current) => (current?.id === edited.id ? edited : current));
     }
 
+    /**
+     * Deleting the address the order is currently pointed at has to clear the selection, or the
+     * sheet would go on quoting an ETA — and eventually take a payment — for a destination the
+     * customer just removed. Nothing is re-selected in its place: choosing where the food goes is
+     * the customer's decision, and picking one for them is exactly the surprise the pencil's own
+     * `stopPropagation` exists to avoid.
+     */
+    async function deleteAddress(address: CustomerAddress): Promise<void> {
+        const deleted = await remove(address.id);
+        if (deleted) {
+            setSelected((current) => (current?.id === address.id ? null : current));
+        }
+    }
+
     function openEditor(address: CustomerAddress): void {
         setEditing(address);
         setPickerOpen(true);
@@ -199,6 +213,7 @@ export function DeliveryCheckoutDrawer({
                                     selected={selected?.id === address.id}
                                     onSelect={setSelected}
                                     onEdit={openEditor}
+                                    onDelete={(target) => { void deleteAddress(target); }}
                                 />
                             ))}
                         </Box>

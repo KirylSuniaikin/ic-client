@@ -31,6 +31,11 @@ type ActiveOrderIslandPillProps = {
     orderType: string;
     timeLeft: number;
     /**
+     * Seconds to the estimated arrival, or null when the backend could not derive one. A delivery
+     * order counts down to this rather than to the kitchen; a pickup order ignores it.
+     */
+    arrivalTimeLeft: number | null;
+    /**
      * The ride's live fill from useActiveOrderIsland, or null when it cannot be quantified
      * (no courier yet, no coordinates). Null is rendered as motion without a number — never
      * as 0%, which would claim the courier has not set off.
@@ -39,9 +44,23 @@ type ActiveOrderIslandPillProps = {
     onClick: () => void;
 };
 
-/** The caption above the big figure: what the figure is counting down to, or nothing. */
-function etaCaption(riding: boolean, hideCaption: boolean, t: TFunction): string | null {
+/**
+ * The caption above the big figure: what the figure is counting down to, or nothing.
+ *
+ * A delivery order says "delivered in" from the moment it is placed. It used to say "ready in"
+ * until the ride started — which was true of the kitchen and irrelevant to the customer, who is
+ * waiting for a door rather than for a counter. The two are twenty minutes apart on an average
+ * order, so the pill was counting down to zero while the food had not left the branch.
+ */
+function etaCaption(
+    delivery: boolean,
+    countsToTheDoor: boolean,
+    riding: boolean,
+    hideCaption: boolean,
+    t: TFunction,
+): string | null {
     if (hideCaption) return null;
+    if (delivery && countsToTheDoor) return t("island.deliveredIn");
     return riding ? t("island.arrivingIn") : t("island.readyIn");
 }
 
@@ -57,6 +76,7 @@ function etaLabel(
     status: string | null,
     delivery: boolean,
     timeLeft: number,
+    arrivalTimeLeft: number | null,
     rideProgress: RideProgress | null,
     t: TFunction,
 ): string {
@@ -67,8 +87,15 @@ function etaLabel(
             ? t("island.anyMinute")
             : t("island.minutes", { value: rideProgress.minutesLeft });
     }
+    // Before the ride, a delivery order counts to the door — the estimate the customer was quoted
+    // at checkout, which is the midpoint of the "arriving in 25-35 min" window they agreed to.
+    if (delivery && arrivalTimeLeft !== null) {
+        const arrivalMins = Math.ceil(arrivalTimeLeft / 60);
+        return arrivalMins <= 0 ? t("island.anyMinute") : t("island.minutes", { value: arrivalMins });
+    }
     // A delivery order at Ready is waiting for a courier, not for the customer to walk in —
-    // the same distinction the push notification's Ready copy already draws.
+    // the same distinction the push notification's Ready copy already draws. Only reachable now
+    // when there is no arrival estimate at all.
     if (status === "Ready") return delivery ? t("island.waitingForCourier") : t("island.ready");
 
     const mins = Math.ceil(timeLeft / 60);
@@ -82,6 +109,7 @@ export function ActiveOrderIslandPill({
     status,
     orderType,
     timeLeft,
+    arrivalTimeLeft,
     rideProgress,
     onClick,
 }: ActiveOrderIslandPillProps): React.JSX.Element {
@@ -104,7 +132,10 @@ export function ActiveOrderIslandPill({
     // action. A delivery order's Ready is a waypoint, but its copy is just as long.
     const hideBranchName = status === "Ready";
     const showIndeterminateRide = riding && rideProgress === null;
-    const caption = etaCaption(riding, hideBranchName, t);
+    // Only when there is an arrival to count to: without one the pill falls back to the kitchen
+    // countdown, and the caption has to follow the figure rather than the order type.
+    const countsToTheDoor = arrivalTimeLeft !== null && !riding;
+    const caption = etaCaption(delivery, countsToTheDoor, riding, hideBranchName, t);
 
     return (
         <Box
@@ -152,7 +183,7 @@ export function ActiveOrderIslandPill({
                         </Typography>
                     )}
                     <Typography sx={{ color: brandRed, fontSize: 16, fontWeight: 800, lineHeight: 1.3 }}>
-                        {etaLabel(status, delivery, timeLeft, rideProgress, t)}
+                        {etaLabel(status, delivery, timeLeft, arrivalTimeLeft, rideProgress, t)}
                     </Typography>
                 </Box>
             </Box>

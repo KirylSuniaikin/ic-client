@@ -15,8 +15,15 @@ import type {
 
 const BASE = `${BASE_URL}/management/delivery`;
 
-export async function fetchCouriers(): Promise<CourierStats[]> {
-    const res = await authFetch(`${BASE}/couriers`, {
+/**
+ * The dispatcher's roster.
+ *
+ * Off-shift riders are left out by default — the panel answers "who is working", and it used to
+ * grow with the payroll instead of with the shift. `includeOffShift` asks the other question.
+ */
+export async function fetchCouriers(includeOffShift = false): Promise<CourierStats[]> {
+    const query = includeOffShift ? '?includeOffShift=true' : '';
+    const res = await authFetch(`${BASE}/couriers${query}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
     });

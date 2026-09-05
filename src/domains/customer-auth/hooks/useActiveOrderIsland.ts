@@ -40,6 +40,8 @@ function isTerminalStatus(status: string | null, orderType: string | undefined):
 }
 
 export type UseActiveOrderIslandResult = {
+    /** Seconds until the estimated arrival, or null when there is no arrival estimate. */
+    arrivalTimeLeft: number | null;
     activeOrder: CustomerActiveOrder | null;
     status: string | null;
     timeLeft: number;
@@ -121,6 +123,13 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     // Ticks every second whether or not there is a ride; the hook cannot be called conditionally.
     const msToArrival = usePreciseCountdown(arrivalMs ?? 0, 1000);
     const rideProgress = computeRideProgress(handoverMs, arrivalMs, msToArrival);
+    // Seconds to the door, for the whole life of a delivery order rather than only during the ride.
+    // `timeLeft` above counts to the KITCHEN, which is what a customer collecting is waiting for and
+    // not what a customer being delivered to is: the pill was quoting "ready in ~9 min" to somebody
+    // whose food then still had a twenty-minute drive in front of it. Null when the backend could
+    // not derive an arrival at all (no address coordinates, no branch coordinates), which the pill
+    // renders by falling back to the kitchen countdown rather than by inventing one.
+    const arrivalTimeLeft = arrivalMs === null ? null : Math.ceil(msToArrival / 1000);
 
     const handleClick = useCallback((): void => {
         if (activeOrder) {
@@ -128,5 +137,8 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
         }
     }, [activeOrder, openOrderDetail]);
 
-    return { activeOrder, status: effectiveStatus, timeLeft, totalSec, isVisible, rideProgress, handleClick };
+    return {
+        activeOrder, status: effectiveStatus, timeLeft, arrivalTimeLeft, totalSec, isVisible,
+        rideProgress, handleClick,
+    };
 }

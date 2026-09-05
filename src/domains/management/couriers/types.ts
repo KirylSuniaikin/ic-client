@@ -133,8 +133,11 @@ export type UnassignedOrder = {
 /**
  * Mirrors backend `DeliveryCardTO`. One live delivery on the dispatcher board's card panel.
  *
- * Deliberately carries no item list: the board answers "which delivery is about to be late and
- * who do I phone about it", not "what is in the box". The order board already answers the latter.
+ * It carries the order's items and the customer's name because the card is opened, not just read.
+ * A dispatcher opens one because they are about to ring somebody — a customer whose food is late,
+ * or the rider holding it — and both conversations start with which order this is. Sending it with
+ * the card rather than fetching it on open keeps the popup instant and costs one extra query for
+ * the whole board.
  *
  * Every timestamp below is a naive Bahrain-local `LocalDateTime` string with no zone — parse it
  * through `toEpochMsBahrain`, never `new Date(s)`, which would read it as UTC and land three
@@ -147,6 +150,8 @@ export type DeliveryCard = {
     branchId: string | null;
     branchName: string | null;
     addressLine: string | null;
+    /** PII. Null when the order has no customer, or no name was taken. */
+    customerName: string | null;
     /** PII. Null when the order has no customer. Never `""` — see DeliveryCardTO. */
     customerPhone: string | null;
     /** PII. Null when unassigned or unset. Never `""`. */
@@ -155,6 +160,21 @@ export type DeliveryCard = {
     readyAt: string | null;
     estimatedHandoverAt: string | null;
     estimatedDeliveredAt: string | null;
+    /**
+     * The outer edge of the window quoted at checkout — `createdAt + estimation +
+     * quotedDriveMinutes + etaSpread`. The moment this order becomes a problem, and what the
+     * card's countdown runs to.
+     *
+     * Fixed, not recomputed: every part is stored at creation, so it does not move while the order
+     * is in flight. `estimatedDeliveredAt` above is the opposite by design — re-derived from the
+     * rider's live position — which makes it a forecast rather than a promise, and a countdown to
+     * a moving target is not a countdown.
+     *
+     * Null for every order predating the road quote, which can never be backfilled.
+     */
+    promisedAt: string | null;
+    /** The whole promised journey in minutes — the scale the countdown ring is drawn against. */
+    promisedTotalMinutes: number | null;
     /**
      * `estimatedDeliveredAt − readyAt`, in minutes — how late this order is heading. Null, never
      * zero, whenever it cannot be computed. The server has already sorted the list on it, most at
@@ -168,6 +188,21 @@ export type DeliveryCard = {
      * clamps, and does not invert. Nullable so a payload from before the field still parses.
      */
     freshnessBudgetMinutes: number | null;
+    /**
+     * Name and quantity only — enough to confirm which order is being discussed on a phone call.
+     * Sizes, dough and per-item notes deliberately stay on the kitchen card: repeating the
+     * customisation grammar here would mean a second rendering of it that could disagree.
+     *
+     * Empty rather than null for an order with no items, so the popup can say "no items on file"
+     * instead of quietly dropping the section.
+     */
+    items: DeliveryCardItem[];
+};
+
+/** One line of {@link DeliveryCard.items}; mirrors backend `DeliveryCardItemTO`. */
+export type DeliveryCardItem = {
+    name: string | null;
+    quantity: number | null;
 };
 
 /**

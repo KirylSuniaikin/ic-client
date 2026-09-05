@@ -33,7 +33,11 @@ jest.mock("@react-google-maps/api", () => {
         useJsApiLoader: () => mockLoaderState,
         GoogleMap: ({ onLoad }: MockGoogleMapProps) => {
             useEffect(() => {
-                onLoad?.(mockMapInstance);
+                // A fresh instance per mount. Google builds a new google.maps.Map every time the
+                // container mounts, and markers bound to the previous one keep their listeners but
+                // are attached to a map nobody is looking at -- pins that are visibly there and
+                // dead to the touch. That is what this fake exists to be able to reproduce.
+                onLoad?.(mockMapMounts++ === 0 ? mockMapInstance : mockSecondMapInstance);
                 // eslint-disable-next-line react-hooks/exhaustive-deps
             }, []);
             return <div data-testid="google-map" />;
@@ -70,12 +74,17 @@ class FakeMarker {
     }
 }
 
+let mockMapMounts = 0;
+
 const mockMapInstance = {
     setCenter: (): void => {},
     setZoom: (): void => {},
     getZoom: (): number => 12,
     fitBounds: (): void => {},
 };
+
+/** What the picker gets the second time it is opened. Deliberately a different object. */
+const mockSecondMapInstance = { ...mockMapInstance };
 
 // The component reaches for the `google` global — LatLngBounds to fit the view, Marker/Size/Point
 // to draw the branded pins. In the app that global is guaranteed by the time it renders,
@@ -129,6 +138,7 @@ describe("BranchMapView", () => {
         mockLoaderState.isLoaded = true;
         mockLoaderState.loadError = undefined;
         mockCreatedMarkers.length = 0;
+        mockMapMounts = 0;
     });
 
     it("creates a marker for every branch with coordinates and none for a null-coordinate branch", () => {
@@ -158,6 +168,35 @@ describe("BranchMapView", () => {
         render(<BranchMapView branches={[smichov]} onSelectBranch={onSelectBranch} />);
         mockCreatedMarkers[0].listeners.click();
 
+        expect(onSelectBranch).toHaveBeenCalledWith(expect.objectContaining({ id: "b1" }));
+    });
+
+    /**
+     * The picker is mounted conditionally, so closing and reopening it builds a NEW
+     * google.maps.Map. Markers left bound to the previous one are still drawn — the customer sees
+     * pins — and their click listeners fire against a map nobody is looking at, so tapping a pin
+     * does nothing at all. That is the reported shape exactly: no sheet, no dimmed screen, and a
+     * page reload "fixes" it because a reload is the one thing that clears the leftovers.
+     */
+    it("rebuilds its markers against the new map when the picker is closed and reopened", () => {
+        const smichov = branch();
+        const onSelectBranch = jest.fn<void, [IBranch]>();
+
+        // Arrange — first open, then the picker closes.
+        const first = render(<BranchMapView branches={[smichov]} onSelectBranch={onSelectBranch} />);
+        expect(mockCreatedMarkers[0].map).toBe(mockMapInstance);
+        first.unmount();
+
+        // Act — reopened, which is a fresh map instance.
+        render(<BranchMapView branches={[smichov]} onSelectBranch={onSelectBranch} />);
+
+        // Assert — the pin the customer can now see belongs to the map they can now see, and
+        // tapping it still reaches the caller.
+        const live = mockCreatedMarkers.filter((marker) => marker.map !== null);
+        expect(live).toHaveLength(1);
+        expect(live[0].map).toBe(mockSecondMapInstance);
+
+        live[0].listeners.click();
         expect(onSelectBranch).toHaveBeenCalledWith(expect.objectContaining({ id: "b1" }));
     });
 

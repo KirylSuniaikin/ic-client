@@ -82,7 +82,13 @@ class FakePath {
 
 type FakePolygonOptions = {
     map?: unknown;
-    paths?: LatLng[];
+    /**
+     * RINGS, not vertices — Google's own shape. Modelled faithfully because the forgiving version
+     * of this fake (a flat vertex list, always answering getPath() with something) is what let the
+     * editor ship crashing on an empty new zone: `paths: []` means "no rings", and a polygon with
+     * no rings answers getPath() with undefined.
+     */
+    paths?: LatLng[] | LatLng[][];
     editable?: boolean;
     strokeColor?: string;
     fillOpacity?: number;
@@ -93,16 +99,28 @@ const mockPolygons: FakePolygon[] = [];
 
 class FakePolygon {
     map: unknown;
-    private readonly path: FakePath;
+    private readonly rings: FakePath[];
     readonly handlers = new Map<string, Array<(event: unknown) => void>>();
 
     constructor(public options: FakePolygonOptions) {
         this.map = options.map;
-        this.path = new FakePath((options.paths ?? []).map((p) => fakeLatLng(p.lat, p.lng)));
+        // Google accepts BOTH a flat vertex list (one ring) and a list of rings. What it does
+        // not accept as "one empty ring" is an empty array: that is zero rings, and getPath()
+        // then answers undefined. Modelled exactly, because the forgiving version of this fake is
+        // what let the editor ship crashing on a zone with no points yet.
+        const given = options.paths ?? [];
+        const rings: LatLng[][] =
+            given.length === 0
+                ? []
+                : Array.isArray(given[0])
+                    ? (given as LatLng[][])
+                    : [given as LatLng[]];
+        this.rings = rings.map((ring) => new FakePath(ring.map((p) => fakeLatLng(p.lat, p.lng))));
         mockPolygons.push(this);
     }
 
-    getPath(): FakePath { return this.path; }
+    /** The FIRST ring, and undefined when there is none — exactly what the real API does. */
+    getPath(): FakePath { return this.rings[0]; }
 
     setMap(map: unknown): void { this.map = map; }
 
@@ -244,11 +262,12 @@ describe("DeliveryZoneMap", () => {
         renderMap({ initialPolygon: TRIANGLE });
 
         const editable = mockPolygons.find((polygon) => polygon.options.editable === true);
-        expect(editable?.options.paths).toEqual([
+        // ONE ring, wrapped — see the note on FakePolygonOptions.paths.
+        expect(editable?.options.paths).toEqual([[
             { lat: 26.21, lng: 50.57 },
             { lat: 26.21, lng: 50.59 },
             { lat: 26.24, lng: 50.58 },
-        ]);
+        ]]);
     });
 
     /** Tapping the map is how a zone is drawn at all, with no `drawing` library involved. */
@@ -296,6 +315,27 @@ describe("DeliveryZoneMap", () => {
     });
 
     /** Undo, clear and opening a different zone all go through the session key — and must rebuild. */
+    /**
+     * The crash the owner hit, and the first thing anyone does: open the editor on a branch with
+     * no zone yet. The seed is empty, and an empty `paths` array is ZERO rings to Google, so
+     * getPath() answers undefined and the very next line — attaching the vertex listeners — throws
+     * `Cannot read properties of undefined (reading 'addListener')`, taking the whole Config screen
+     * down to the error boundary.
+     *
+     * The suite could not see it because the old fake always handed back a path, however it was
+     * constructed. It models Google's ring semantics now, so this is a real reproduction.
+     */
+    it("draws an editable overlay with no points at all without crashing", () => {
+        // Arrange / Act
+        renderMap({ initialPolygon: [] });
+
+        // Assert
+        const editable = mockPolygons.find((polygon) => polygon.options.editable === true);
+        expect(editable).toBeDefined();
+        expect(editable?.getPath()).toBeDefined();
+        expect(editable?.getPath().getArray()).toEqual([]);
+    });
+
     it("rebuilds the editable overlay from the polygon when the session changes", () => {
         const { rerender } = renderMap({ initialPolygon: TRIANGLE });
 
@@ -303,7 +343,7 @@ describe("DeliveryZoneMap", () => {
 
         const editables = mockPolygons.filter((polygon) => polygon.options.editable === true);
         expect(editables).toHaveLength(2);
-        expect(editables[1].options.paths).toEqual([{ lat: 26.2, lng: 50.5 }]);
+        expect(editables[1].options.paths).toEqual([[{ lat: 26.2, lng: 50.5 }]]);
         // The abandoned overlay is detached, so the old shape does not linger on the map.
         expect(editables[0].map).toBeNull();
     });

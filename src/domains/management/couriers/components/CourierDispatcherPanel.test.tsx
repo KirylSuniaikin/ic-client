@@ -607,3 +607,53 @@ describe("CourierDispatcherPanel — route rendering", () => {
         expect(screen.getByText(/No GPS samples recorded/)).toBeTruthy();
     });
 });
+
+/**
+ * Who the roster lists.
+ *
+ * It listed every courier ever registered, forever — so the panel a manager reads mid-rush got one
+ * row longer every time somebody was hired, and never shorter. The question it answers is "who is
+ * working"; the payroll is a different question, and the switch is how to ask it.
+ */
+describe("CourierDispatcherPanel — the roster filter", () => {
+    it("asks only for couriers who can be given work", async () => {
+        render(<CourierDispatcherPanel />);
+
+        await waitFor(() => expect(mockCouriers).toHaveBeenCalled());
+        expect(mockCouriers).toHaveBeenCalledWith(false);
+    });
+
+    it("asks for everyone once the manager turns the switch on", async () => {
+        render(<CourierDispatcherPanel />);
+        await waitFor(() => expect(mockCouriers).toHaveBeenCalled());
+
+        fireEvent.click(screen.getByLabelText("Show off shift"));
+
+        await waitFor(() => expect(mockCouriers).toHaveBeenCalledWith(true));
+    });
+
+    /**
+     * An empty roster now has two meanings, and they need different sentences: nobody has ever
+     * signed in, or nobody is on shift right now. Printing the first when the second is true sends
+     * a manager looking for a bug in the app.
+     */
+    it("says nobody is on shift rather than nobody exists", async () => {
+        mockCouriers.mockResolvedValue([]);
+
+        render(<CourierDispatcherPanel />);
+
+        await waitFor(() => expect(screen.getByText(/Nobody is on shift right now/)).toBeTruthy());
+    });
+
+    it("says nobody has signed in when everyone was asked for", async () => {
+        mockCouriers.mockResolvedValue([]);
+        render(<CourierDispatcherPanel />);
+        await waitFor(() => expect(mockCouriers).toHaveBeenCalled());
+
+        fireEvent.click(screen.getByLabelText("Show off shift"));
+
+        await waitFor(() =>
+            expect(screen.getByText(/No couriers have signed in yet/)).toBeTruthy()
+        );
+    });
+});

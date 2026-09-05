@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import {
+    Box, Typography, Button, CircularProgress, FormControlLabel, Switch,
+} from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import {
@@ -22,7 +24,7 @@ import type {
 } from '../types';
 import {
     BRAND_RED as brandRed, CHIP_SELF_SX, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState,
-    PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX,
+    MUTED, PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX,
 } from './dispatcherStyles';
 
 /**
@@ -56,6 +58,13 @@ type PendingOrderAction = { action: DispatcherOrderAction; order: CourierOrderSu
 
 export function CourierDispatcherPanel(): JSX.Element {
     const [view, setView] = useState<View>({ level: 'couriers' });
+    /**
+     * Off by default: the roster answers "who is working", and it used to grow with the payroll
+     * instead of with the shift. Kept in component state rather than persisted — it is a question
+     * a manager asks once ("has Ali signed in yet?"), not a preference, and a filter that silently
+     * survived a reload would eventually have somebody staring at an empty board.
+     */
+    const [showOffShift, setShowOffShift] = useState(false);
     const [couriers, setCouriers] = useState<CourierStats[]>([]);
     /**
      * courierId -> orders the rider is currently holding, from the board's own roster.
@@ -103,11 +112,11 @@ export function CourierDispatcherPanel(): JSX.Element {
     const loadCouriersView = useCallback(async (): Promise<void> => {
         await load(
             async () => await Promise.all([
-                fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
+                fetchCouriers(showOffShift), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
             ]),
             applyCouriersView
         );
-    }, [load, applyCouriersView]);
+    }, [load, applyCouriersView, showOffShift]);
 
     const reloadCurrentView = useCallback((): void => {
         if (view.level === 'couriers') {
@@ -142,7 +151,7 @@ export function CourierDispatcherPanel(): JSX.Element {
             async () => {
                 await manualAssign(orderId, courierId);
                 return await Promise.all([
-                    fetchCouriers(), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
+                    fetchCouriers(showOffShift), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
                 ]);
             },
             applyCouriersView
@@ -251,10 +260,46 @@ export function CourierDispatcherPanel(): JSX.Element {
                         onAssign={(orderId, courierId) => { void handleAssign(orderId, courierId); }}
                     />
 
-                    <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Couriers</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" sx={SECTION_TITLE_SX}>Couriers</Typography>
+                        <Box sx={{ flex: 1 }} />
+                        {/* A switch rather than a second list: the roster is one question with two
+                            scopes, and two lists would be two places for a name to be missing
+                            from. */}
+                        <FormControlLabel
+                            control={(
+                                <Switch
+                                    size="small"
+                                    // Explicit rather than inherited from the label: the visible
+                                    // text is a Typography inside FormControlLabel, and relying on
+                                    // that association leaves the control unnamed to a screen
+                                    // reader on some MUI versions.
+                                    inputProps={{ 'aria-label': 'Show off shift' }}
+                                    checked={showOffShift}
+                                    onChange={(event) => setShowOffShift(event.target.checked)}
+                                    sx={{
+                                        '& .MuiSwitch-switchBase.Mui-checked': { color: brandRed },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                            backgroundColor: brandRed,
+                                        },
+                                    }}
+                                />
+                            )}
+                            label={(
+                                <Typography variant="caption" sx={{ color: MUTED }}>
+                                    Show off shift
+                                </Typography>
+                            )}
+                            sx={{ mr: 0 }}
+                        />
+                    </Box>
                     <Box sx={PANEL_CARD_SX}>
                         {couriers.length === 0 && !loading && (
-                            <EmptyState>No couriers have signed in yet.</EmptyState>
+                            <EmptyState>
+                                {showOffShift
+                                    ? 'No couriers have signed in yet.'
+                                    : 'Nobody is on shift right now. Turn on "Show off shift" to see everyone.'}
+                            </EmptyState>
                         )}
                         {couriers.map((courier) => (
                             <Box
