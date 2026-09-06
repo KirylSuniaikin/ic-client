@@ -491,3 +491,68 @@ describe("AccountingReportPopup", () => {
         });
     });
 });
+
+describe("long reports", () => {
+    function manyEntries(n: number): ReturnType<typeof report>["entries"] {
+        return Array.from({ length: n }, (_, i) => ({
+            id: i + 1,
+            categoryName: "Supplies",
+            type: "DEBIT" as const,
+            amount: 1.5,
+            note: `entry ${i + 1}`,
+            accountType: "CASH" as const,
+            categoryId: 1,
+            occurredAt: `2026-06-${String((i % 28) + 1).padStart(2, "0")}T00:00:00`,
+            contributorName: "dev",
+            runningBalance: null,
+            hasImage: false,
+        }));
+    }
+
+    it("renders only the first page of a long report", async () => {
+        // ~400 editable rows is what makes this popup crawl at month end. The window is on the
+        // RENDER only -- `rows` still holds every entry.
+        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
+
+        renderPopup();
+
+        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
+        expect(screen.queryByDisplayValue("entry 21")).toBeNull();
+        expect(screen.getByTestId("accounting-entries-sentinel")).toBeTruthy();
+    });
+
+    it("still sends every entry on save, not just the rendered page", async () => {
+        // The one that matters: updateReport hard-deletes any stored entry missing from the
+        // payload, so a windowed save would delete the 380 rows nobody scrolled to.
+        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
+        mockUpdateReport.mockResolvedValue(report({ entries: [] }));
+
+        renderPopup();
+        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(mockUpdateReport).toHaveBeenCalled());
+        const payload = mockUpdateReport.mock.calls[0][1] as { entries: unknown[] };
+        expect(payload.entries).toHaveLength(400);
+    });
+
+    it("shows a newly added row even though 380 saved rows are still hidden", async () => {
+        // The row you just added has no id, so it is never windowed. Clicking Add on a 400-row
+        // report has to show something, and revealing all 400 instead would render exactly what
+        // the window exists to avoid.
+        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
+
+        renderPopup();
+        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
+        // querySelectorAll rather than getAllByRole: the a11y tree over a 20-row editable table is
+        // expensive enough that polling it twice blows the 5s test timeout.
+        const bodyRows = (): number => document.querySelectorAll("tbody tr").length;
+        const before = bodyRows();
+
+        fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+        await waitFor(() => expect(bodyRows()).toBe(before + 1));
+        // and the saved rows beyond the window are still not rendered
+        expect(screen.queryByDisplayValue("entry 400")).toBeNull();
+    });
+});

@@ -45,6 +45,8 @@ import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import { dateFormatter } from "../../../../shared/utils/dateFormatter";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
+import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
 
 type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT";
 
@@ -177,6 +179,33 @@ export function AccountingReportPopup({
     const computedRows = useMemo(
         () => (isOwner ? recomputeBalances(rows, baseBalance) : rows),
         [rows, baseBalance, isOwner]
+    );
+
+    // A month-end report runs to ~400 rows, and each one is an editable row of selects and inputs:
+    // rendering them all at once is what makes the popup crawl. This windows the RENDER only --
+    // `rows` stays complete, so save still sends every entry and the running balance is still
+    // computed across the whole list.
+    //
+    // Deliberately not server-side paging. Two things would break: updateReport hard-deletes any
+    // stored entry missing from the payload (so saving a page would delete the other 380 and their
+    // photos), and the running balance accumulates from the first row, so row 21 cannot be computed
+    // without rows 1-20.
+    // Only SAVED rows are windowed. A row you just added has no id yet, and hiding it behind a
+    // scroll is the one thing this must never do -- you would click Add and see nothing. Revealing
+    // the whole list on Add was the other option and it is self-defeating: it renders the 400 rows
+    // this exists to avoid.
+    const savedRows = useMemo(() => computedRows.filter((r) => r.id !== undefined), [computedRows]);
+    const unsavedRows = useMemo(() => computedRows.filter((r) => r.id === undefined), [computedRows]);
+
+    const {
+        visible: visibleSaved,
+        hasMore: hasMoreRows,
+        sentinelRef,
+    } = useIncrementalList(savedRows, { pageSize: 20, resetKey: reportId ?? "new" });
+
+    const visibleRows = useMemo(
+        () => [...visibleSaved, ...unsavedRows],
+        [visibleSaved, unsavedRows]
     );
 
     useEffect(() => {
@@ -508,7 +537,7 @@ export function AccountingReportPopup({
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {computedRows.map((row) => {
+                                {visibleRows.map((row) => {
                                     const isCredit = row.type === "CREDIT";
                                     const pill = isCredit ? amountStyles.credit : amountStyles.debit;
                                     const hasAmount = row.amount !== "" && !isNaN(parseFloat(row.amount));
@@ -760,6 +789,10 @@ export function AccountingReportPopup({
                                 )}
                             </TableBody>
                         </Table>
+                        {/* Outside the table: a Box is not valid inside tbody, and the sentinel has
+                            to sit in normal flow for the observer to see it scroll into view. */}
+                        {hasMoreRows && <InfiniteScrollSentinel sentinelRef={sentinelRef}
+                                                                testId="accounting-entries-sentinel"/>}
                     </TableContainer>
                 )}
             </Box>

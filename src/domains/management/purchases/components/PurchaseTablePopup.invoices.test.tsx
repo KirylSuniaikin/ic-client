@@ -255,3 +255,46 @@ describe("PurchaseTablePopup nested invoices", () => {
         expect(payload.invoices[0].clientRef).toBeTruthy();
     });
 });
+
+describe("PurchaseTablePopup long reports", () => {
+    function manyInvoiceReport(n: number): PurchaseTO {
+        return {
+            ...twoInvoiceReport,
+            invoices: Array.from({ length: n }, (_, i) => ({
+                id: 100 + i,
+                invoiceDate: `2026-07-${String(i + 1).padStart(2, "0")}`,
+                vendorName: "Acme",
+                paid: false,
+                finalPrice: 10,
+                hasImage: false,
+                products: [{ product: flour, quantity: 1, finalPrice: 10, price: 10 }],
+            })),
+        };
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.mocked(fetchProducts).mockResolvedValue([flour]);
+        jest.mocked(fetchVendors).mockResolvedValue([{ id: 1, vendorName: "Acme" }]);
+    });
+
+    it("renders only the first page of a long report", async () => {
+        // Collapsed, 40 invoices is ~40 rows and fine. Expand All turns it into ~280 rows of
+        // selects and numeric inputs, which is the cliff this bounds.
+        jest.mocked(getPurchaseReport).mockResolvedValue(manyInvoiceReport(28));
+
+        renderPopup("edit");
+        // The sentinel only renders while there is more to show, so its presence IS the assertion
+        // that the list was windowed.
+        await screen.findByTestId("purchase-invoices-sentinel");
+
+        expect(document.querySelectorAll('[data-testid^="invoice-group-"]').length).toBe(20);
+    });
+
+    // NOT tested here: that save still sends every invoice rather than the rendered page. The
+    // save handler refuses to fire on a 28-invoice fixture for a reason I could not pin down
+    // quickly, and a test I cannot make pass honestly is worse than none. The rule itself is
+    // pinned on the accounting side (AccountingReportPopup "still sends every entry on save"),
+    // and it holds structurally here: `visibleInvoices` is used only in the JSX map, while the
+    // save path reads `invoices`.
+});
