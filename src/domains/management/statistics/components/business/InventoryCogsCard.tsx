@@ -45,81 +45,81 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
 
     return (
         <>
-                <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                    Opening + purchases − closing stock, across the whole business. Measured from
-                    stock counts, so it will not equal the recipe-costed COGS in the profit statement —
-                    that gap is waste, yield and miscounts.
-                </Typography>
+            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
+                Opening + purchases − closing stock, across the whole business. Measured from
+                stock counts, so it will not equal the recipe-costed COGS in the profit statement —
+                that gap is waste, yield and miscounts.
+            </Typography>
 
-                {actionable.length > 0 && (
-                    <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
-                        {actionable.length} completed month{actionable.length === 1 ? "" : "s"} cannot
-                        be computed. {actionable[0].missingReports.slice(0, 3).join("; ")}
-                        {actionable[0].missingReports.length > 3 ? "; …" : ""}
-                    </Alert>
-                )}
+            {actionable.length > 0 && (
+                <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
+                    {actionable.length} completed month{actionable.length === 1 ? "" : "s"} cannot
+                    be computed. {actionable[0].missingReports.slice(0, 3).join("; ")}
+                    {actionable[0].missingReports.length > 3 ? "; …" : ""}
+                </Alert>
+            )}
 
-                <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{fontWeight: 'bold'}}>Metric</TableCell>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right"
-                                               sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
-                                        {monthLabel(m.period)}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {([
-                                ["Opening inventory", (m: InventoryCogs) => m.openingInventory],
-                                ["Purchases", (m: InventoryCogs) => m.purchases],
-                                ["Available", (m: InventoryCogs) => m.available],
-                                ["Closing inventory", (m: InventoryCogs) => m.endingInventory],
-                            ] as const).map(([label, pick]) => (
-                                <TableRow key={label} hover>
-                                    <TableCell sx={{whiteSpace: 'nowrap'}}>{label}</TableCell>
-                                    {months.map(m => (
-                                        <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                            {pick(m) === null ? "—" : formatBd(pick(m))}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
+            <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={{fontWeight: 'bold'}}>Metric</TableCell>
+                            {months.map(m => (
+                                <TableCell key={m.period} align="right"
+                                           sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                    {monthLabel(m.period)}
+                                </TableCell>
                             ))}
-
-                            <TableRow>
-                                <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS (movement)</TableCell>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right"
-                                               sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
-                                        {m.movementCogs === null ? (
-                                            <Tooltip title={
-                                                m.monthInProgress
-                                                    ? "Month still in progress — the closing count is not due yet."
-                                                    : STATE_MESSAGES[m.state] ?? ""
-                                            }>
-                                                <span data-testid={`cogs-missing-${m.period}`}>—</span>
-                                            </Tooltip>
-                                        ) : formatBd(m.movementCogs)}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-
-                            <TableRow>
-                                <TableCell sx={{whiteSpace: 'nowrap'}}>COGS % of gross revenue</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {([
+                            ["Opening inventory", (m: InventoryCogs) => m.openingInventory],
+                            ["Purchases", (m: InventoryCogs) => m.purchases],
+                            ["Available", (m: InventoryCogs) => m.available],
+                            ["Closing inventory", (m: InventoryCogs) => m.endingInventory],
+                        ] as const).map(([label, pick]) => (
+                            <TableRow key={label} hover>
+                                <TableCell sx={{whiteSpace: 'nowrap'}}>{label}</TableCell>
                                 {months.map(m => (
                                     <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                        {m.cogsPercentOfGrossRevenue === null
-                                            ? "—"
-                                            : `${m.cogsPercentOfGrossRevenue.toFixed(2)}%`}
+                                        {pick(m) === null ? "—" : formatBd(pick(m))}
                                     </TableCell>
                                 ))}
                             </TableRow>
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                        ))}
+
+                        <TableRow>
+                            <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS (movement)</TableCell>
+                            {months.map(m => (
+                                <TableCell key={m.period} align="right"
+                                           sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                    {m.movementCogs === null ? (
+                                        <Tooltip title={
+                                            m.monthInProgress
+                                                ? "Month still in progress — the closing count is not due yet."
+                                                : STATE_MESSAGES[m.state] ?? ""
+                                        }>
+                                            <span data-testid={`cogs-missing-${m.period}`}>—</span>
+                                        </Tooltip>
+                                    ) : formatBd(m.movementCogs)}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+
+                        <TableRow>
+                            <TableCell sx={{whiteSpace: 'nowrap'}}>COGS % of gross revenue</TableCell>
+                            {months.map(m => (
+                                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                                    {m.cogsPercentOfGrossRevenue === null
+                                        ? "—"
+                                        : `${m.cogsPercentOfGrossRevenue.toFixed(2)}%`}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </TableContainer>
         </>
     );
 }

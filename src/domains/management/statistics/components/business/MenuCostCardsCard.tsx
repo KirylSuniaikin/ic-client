@@ -115,47 +115,47 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
 
     return (
         <>
-                {data.costing.componentsResolved < data.costing.componentsUsed && (
-                    <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
-                        {data.costing.componentsUsed - data.costing.componentsResolved} of{" "}
-                        {data.costing.componentsUsed} ingredients have no cost
-                        ({data.costing.coveragePercent}% covered), so these cards understate cost and
-                        overstate margin.
-                    </Alert>
-                )}
+            {data.costing.componentsResolved < data.costing.componentsUsed && (
+                <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
+                    {data.costing.componentsUsed - data.costing.componentsResolved} of{" "}
+                    {data.costing.componentsUsed} ingredients have no cost
+                    ({data.costing.coveragePercent}% covered), so these cards understate cost and
+                    overstate margin.
+                </Alert>
+            )}
 
-                {data.menuItemsWithoutRecipe.length > 0 && (
-                    <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
-                        {data.menuItemsWithoutRecipe.length} menu item
-                        {data.menuItemsWithoutRecipe.length === 1 ? " has" : "s have"} no recipe at
-                        all, so {data.menuItemsWithoutRecipe.length === 1 ? "it cannot" : "they cannot"} be
-                        costed: {data.menuItemsWithoutRecipe.slice(0, 5).map(i => i.name).join(", ")}
-                        {data.menuItemsWithoutRecipe.length > 5 ? "…" : ""}
-                    </Alert>
-                )}
+            {data.menuItemsWithoutRecipe.length > 0 && (
+                <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
+                    {data.menuItemsWithoutRecipe.length} menu item
+                    {data.menuItemsWithoutRecipe.length === 1 ? " has" : "s have"} no recipe at
+                    all, so {data.menuItemsWithoutRecipe.length === 1 ? "it cannot" : "they cannot"} be
+                    costed: {data.menuItemsWithoutRecipe.slice(0, 5).map(i => i.name).join(", ")}
+                    {data.menuItemsWithoutRecipe.length > 5 ? "…" : ""}
+                </Alert>
+            )}
 
-                <Box sx={{display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap'}}>
-                    <Select
-                        size="small"
-                        displayEmpty
-                        value={category}
-                        onChange={e => setCategory(e.target.value)}
-                        sx={{minWidth: 160}}
-                    >
-                        <MenuItem value="">All categories</MenuItem>
-                        {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                    </Select>
-                    <TextField
-                        size="small"
-                        placeholder="Search"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                </Box>
+            <Box sx={{display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap'}}>
+                <Select
+                    size="small"
+                    displayEmpty
+                    value={category}
+                    onChange={e => setCategory(e.target.value)}
+                    sx={{minWidth: 160}}
+                >
+                    <MenuItem value="">All categories</MenuItem>
+                    {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+                <TextField
+                    size="small"
+                    placeholder="Search"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
+            </Box>
 
-                {visible.length === 0 ? (
-                    <Typography variant="body2" sx={{color: '#8a807a'}}>No matching items.</Typography>
-                ) : visible.map(renderCard)}
+            {visible.length === 0 ? (
+                <Typography variant="body2" sx={{color: '#8a807a'}}>No matching items.</Typography>
+            ) : visible.map(renderCard)}
         </>
     );
 }

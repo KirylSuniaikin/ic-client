@@ -143,124 +143,124 @@ export default function ChannelPerformanceCard(
 
     return (
         <>
-                <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1}}>
-                    <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={regenerating ? <CircularProgress size={14}/> : <AutorenewIcon/>}
-                        disabled={regenerating}
-                        onClick={() => setConfirmOpen(true)}
-                        sx={{
-                            ml: 'auto',
-                            textTransform: 'none',
-                            borderRadius: 999,
-                            borderColor: '#e0e0e0',
-                            color: '#3b352c',
-                            '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
-                        }}
-                    >
-                        Refresh channel data
-                    </Button>
-                </Box>
+            <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1}}>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={regenerating ? <CircularProgress size={14}/> : <AutorenewIcon/>}
+                    disabled={regenerating}
+                    onClick={() => setConfirmOpen(true)}
+                    sx={{
+                        ml: 'auto',
+                        textTransform: 'none',
+                        borderRadius: 999,
+                        borderColor: '#e0e0e0',
+                        color: '#3b352c',
+                        '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
+                    }}
+                >
+                    Refresh channel data
+                </Button>
+            </Box>
 
-                <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                    Orders and revenue come from our own order records. App fees have no other
-                    source — they are whatever you enter here.
+            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
+                Orders and revenue come from our own order records. App fees have no other
+                source — they are whatever you enter here.
+            </Typography>
+
+            {months.length > 1 && (
+                <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={month?.period}
+                    onChange={(_, v) => v && setSelected(v)}
+                    sx={{mb: 2, flexWrap: 'wrap', gap: 1}}
+                >
+                    {months.map(m => (
+                        <ToggleButton key={m.period} value={m.period}
+                                      sx={{textTransform: 'none', borderRadius: 999, px: 2}}>
+                            {monthLabel(m.period)}
+                        </ToggleButton>
+                    ))}
+                </ToggleButtonGroup>
+            )}
+
+            {!month || month.rows.length === 0 ? (
+                <Typography variant="body2" sx={{color: '#8a807a'}}>
+                    No channel data for this month yet — use Refresh channel data.
                 </Typography>
-
-                {months.length > 1 && (
-                    <ToggleButtonGroup
-                        exclusive
-                        size="small"
-                        value={month?.period}
-                        onChange={(_, v) => v && setSelected(v)}
-                        sx={{mb: 2, flexWrap: 'wrap', gap: 1}}
-                    >
-                        {months.map(m => (
-                            <ToggleButton key={m.period} value={m.period}
-                                          sx={{textTransform: 'none', borderRadius: 999, px: 2}}>
-                                {monthLabel(m.period)}
-                            </ToggleButton>
-                        ))}
-                    </ToggleButtonGroup>
-                )}
-
-                {!month || month.rows.length === 0 ? (
-                    <Typography variant="body2" sx={{color: '#8a807a'}}>
-                        No channel data for this month yet — use Refresh channel data.
-                    </Typography>
-                ) : (
+            ) : (
                     <>
-                        {month.appFeesMissing && (
-                            <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
-                                A channel has revenue with no app fee entered, which overstates
-                                profit. No channel is fee-free — even pick-up carries a card-gateway cut.
-                            </Alert>
-                        )}
+                    {month.appFeesMissing && (
+                        <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
+                            A channel has revenue with no app fee entered, which overstates
+                            profit. No channel is fee-free — even pick-up carries a card-gateway cut.
+                        </Alert>
+                    )}
 
-                        <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={{fontWeight: 'bold'}}>Channel</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>Orders</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>Gross revenue</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>
-                                            App fees
-                                            <Typography component="span" variant="caption"
-                                                        sx={{display: 'block', color: '#8a807a', fontWeight: 400}}>
-                                                click to edit
-                                            </Typography>
+                    <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{fontWeight: 'bold'}}>Channel</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>Orders</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>Gross revenue</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>
+                                        App fees
+                                        <Typography component="span" variant="caption"
+                                                    sx={{display: 'block', color: '#8a807a', fontWeight: 400}}>
+                                            click to edit
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>Net revenue</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>Commission</TableCell>
+                                    <TableCell/>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {month.rows.map(row => (
+                                    <TableRow key={row.id} hover>
+                                        <TableCell sx={{whiteSpace: 'nowrap'}}>{row.channelLabel}</TableCell>
+                                        {editableCell(row, "orders", row.effectiveOrders, row.generatedOrders, false)}
+                                        {editableCell(row, "grossRevenue", row.effectiveGrossRevenue, row.generatedGrossRevenue, true)}
+                                        {editableCell(row, "appFees", row.effectiveAppFees, null, true)}
+                                        <TableCell align="right" sx={{whiteSpace: 'nowrap'}}>
+                                            {formatBd(row.netRevenue)}
                                         </TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>Net revenue</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>Commission</TableCell>
-                                        <TableCell/>
+                                        <TableCell align="right" sx={{whiteSpace: 'nowrap'}}>
+                                            {row.appCommissionPercent === null
+                                                ? "—" : `${row.appCommissionPercent.toFixed(1)}%`}
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <Tooltip title="Revert to the generated figures">
+                                                <span>
+                                                    <IconButton
+                                                        size="small"
+                                                        aria-label={`Revert ${row.channelLabel}`}
+                                                        disabled={row.overrideOrders === null
+                                                            && row.overrideGrossRevenue === null
+                                                            && row.overrideAppFees === null}
+                                                        onClick={() => void revert(row)}
+                                                    >
+                                                        <RestartAltIcon fontSize="small"/>
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {month.rows.map(row => (
-                                        <TableRow key={row.id} hover>
-                                            <TableCell sx={{whiteSpace: 'nowrap'}}>{row.channelLabel}</TableCell>
-                                            {editableCell(row, "orders", row.effectiveOrders, row.generatedOrders, false)}
-                                            {editableCell(row, "grossRevenue", row.effectiveGrossRevenue, row.generatedGrossRevenue, true)}
-                                            {editableCell(row, "appFees", row.effectiveAppFees, null, true)}
-                                            <TableCell align="right" sx={{whiteSpace: 'nowrap'}}>
-                                                {formatBd(row.netRevenue)}
-                                            </TableCell>
-                                            <TableCell align="right" sx={{whiteSpace: 'nowrap'}}>
-                                                {row.appCommissionPercent === null
-                                                    ? "—" : `${row.appCommissionPercent.toFixed(1)}%`}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Tooltip title="Revert to the generated figures">
-                                                    <span>
-                                                        <IconButton
-                                                            size="small"
-                                                            aria-label={`Revert ${row.channelLabel}`}
-                                                            disabled={row.overrideOrders === null
-                                                                && row.overrideGrossRevenue === null
-                                                                && row.overrideAppFees === null}
-                                                            onClick={() => void revert(row)}
-                                                        >
-                                                            <RestartAltIcon fontSize="small"/>
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    <TableRow>
-                                        <TableCell sx={{fontWeight: 'bold'}}>Total</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>{month.totalOrders}</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalGrossRevenue)}</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalAppFees)}</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalNetRevenue)}</TableCell>
-                                        <TableCell/>
-                                        <TableCell/>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                                ))}
+                                <TableRow>
+                                    <TableCell sx={{fontWeight: 'bold'}}>Total</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>{month.totalOrders}</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalGrossRevenue)}</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalAppFees)}</TableCell>
+                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(month.totalNetRevenue)}</TableCell>
+                                    <TableCell/>
+                                    <TableCell/>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
                     </>
                 )}
             <Dialog

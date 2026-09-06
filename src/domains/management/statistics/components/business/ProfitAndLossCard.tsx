@@ -99,63 +99,63 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
 
     return (
         <>
-                <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{fontWeight: 'bold'}}/>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right"
-                                               sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
-                                        {monthLabel(m.period)}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>{STATEMENT.map(renderRow)}</TableBody>
-                    </Table>
-                </TableContainer>
+            <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={{fontWeight: 'bold'}}/>
+                            {months.map(m => (
+                                <TableCell key={m.period} align="right"
+                                           sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                    {monthLabel(m.period)}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>{STATEMENT.map(renderRow)}</TableBody>
+                </Table>
+            </TableContainer>
 
-                {/* Always shown: this is the one thing about the statement that is genuinely
-                    surprising, and burying it would be the whole problem. */}
-                <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mt: 1}}>
-                    Net profit is a cash view with one exception: COGS is recipe-costed, not cash.
-                    To reconcile to cash see <b>net cash movement</b> below. There is no
-                    depreciation — capital expenditure is expensed in the month of purchase.
-                </Typography>
+            {/* Always shown: this is the one thing about the statement that is genuinely
+                surprising, and burying it would be the whole problem. */}
+            <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mt: 1}}>
+                Net profit is a cash view with one exception: COGS is recipe-costed, not cash.
+                To reconcile to cash see <b>net cash movement</b> below. There is no
+                depreciation — capital expenditure is expensed in the month of purchase.
+            </Typography>
 
-                <Divider sx={{my: 2}}/>
+            <Divider sx={{my: 2}}/>
 
-                <Typography variant="subtitle2" fontWeight="bold" sx={{mb: 1}}>
-                    COGS reconciliation — memo (does not affect net profit)
-                </Typography>
+            <Typography variant="subtitle2" fontWeight="bold" sx={{mb: 1}}>
+                COGS reconciliation — memo (does not affect net profit)
+            </Typography>
 
-                <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-                    <Table size="small">
-                        <TableBody>
-                            {RECONCILIATION.map(renderRow)}
-                            <TableRow>
-                                <TableCell sx={{pl: 4}}>as % of net revenue</TableCell>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                        {m.reconciliation.variancePercentOfNetRevenue === null
-                                            ? "—"
-                                            : `${m.reconciliation.variancePercentOfNetRevenue.toFixed(2)}%`}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+            <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+                <Table size="small">
+                    <TableBody>
+                        {RECONCILIATION.map(renderRow)}
+                        <TableRow>
+                            <TableCell sx={{pl: 4}}>as % of net revenue</TableCell>
+                            {months.map(m => (
+                                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                                    {m.reconciliation.variancePercentOfNetRevenue === null
+                                        ? "—"
+                                        : `${m.reconciliation.variancePercentOfNetRevenue.toFixed(2)}%`}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-                {months.some(m => !m.reconciliation.complete) && (
-                    <Box sx={{mt: 1}}>
-                        <Typography variant="caption" sx={{color: '#8a807a'}}>
-                            Months showing an em dash are missing a stock count or a purchase report.
-                            No variance is computed from an input that does not exist.
-                        </Typography>
-                    </Box>
-                )}
+            {months.some(m => !m.reconciliation.complete) && (
+                <Box sx={{mt: 1}}>
+                    <Typography variant="caption" sx={{color: '#8a807a'}}>
+                        Months showing an em dash are missing a stock count or a purchase report.
+                        No variance is computed from an input that does not exist.
+                    </Typography>
+                </Box>
+            )}
         </>
     );
 }

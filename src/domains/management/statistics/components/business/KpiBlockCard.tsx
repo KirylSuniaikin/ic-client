@@ -42,53 +42,52 @@ export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
 
     return (
         <>
-                <Typography variant="h6" fontWeight="bold">📊 Key metrics</Typography>
-                <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                    {monthLabel(latest.period)}
-                </Typography>
+            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
+                {monthLabel(latest.period)}
+            </Typography>
 
-                <Grid container spacing={2}>
-                    {latest.kpis.map(kpi => (
-                        <Grid key={kpi.key} size={{xs: 6, sm: 4, md: 3}}>
-                            <Box
-                                data-testid={`kpi-${kpi.key}`}
-                                sx={{
-                                    border: '1px solid #f1eae4',
-                                    borderRadius: 3,
-                                    p: 1.5,
-                                    height: '100%',
-                                }}
-                            >
-                                <Typography variant="caption" sx={{color: '#8a807a', display: 'block'}}>
-                                    {kpi.label}
-                                </Typography>
+            <Grid container spacing={2}>
+                {latest.kpis.map(kpi => (
+                    <Grid key={kpi.key} size={{xs: 6, sm: 4, md: 3}}>
+                        <Box
+                            data-testid={`kpi-${kpi.key}`}
+                            sx={{
+                                border: '1px solid #f1eae4',
+                                borderRadius: 3,
+                                p: 1.5,
+                                height: '100%',
+                            }}
+                        >
+                            <Typography variant="caption" sx={{color: '#8a807a', display: 'block'}}>
+                                {kpi.label}
+                            </Typography>
 
-                                <Box sx={{display: 'flex', alignItems: 'baseline', gap: 1}}>
-                                    <Tooltip title={kpi.unavailableReason ?? ""}>
-                                        <Typography
-                                            variant="h5"
-                                            fontWeight="bold"
-                                            sx={{color: kpi.value === null ? '#8a807a' : '#3b352c'}}
-                                        >
-                                            {formatValue(kpi)}
-                                        </Typography>
-                                    </Tooltip>
-                                    {kpi.value !== null && kpi.previousValue !== null && (
-                                        <TrendChip current={kpi.value} previous={kpi.previousValue}/>
-                                    )}
-                                </Box>
-
-                                {/* The divisor lives here so a constant can never hide inside a KPI
-                                    again -- the spreadsheet divided daily orders by a fixed 26. */}
-                                {kpi.detail && (
-                                    <Typography variant="caption" sx={{color: '#8a807a'}}>
-                                        {kpi.detail}
+                            <Box sx={{display: 'flex', alignItems: 'baseline', gap: 1}}>
+                                <Tooltip title={kpi.unavailableReason ?? ""}>
+                                    <Typography
+                                        variant="h5"
+                                        fontWeight="bold"
+                                        sx={{color: kpi.value === null ? '#8a807a' : '#3b352c'}}
+                                    >
+                                        {formatValue(kpi)}
                                     </Typography>
+                                </Tooltip>
+                                {kpi.value !== null && kpi.previousValue !== null && (
+                                    <TrendChip current={kpi.value} previous={kpi.previousValue}/>
                                 )}
                             </Box>
-                        </Grid>
-                    ))}
-                </Grid>
+
+                            {/* The divisor lives here so a constant can never hide inside a KPI
+                                again -- the spreadsheet divided daily orders by a fixed 26. */}
+                            {kpi.detail && (
+                                <Typography variant="caption" sx={{color: '#8a807a'}}>
+                                    {kpi.detail}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Grid>
+                ))}
+            </Grid>
         </>
     );
 }

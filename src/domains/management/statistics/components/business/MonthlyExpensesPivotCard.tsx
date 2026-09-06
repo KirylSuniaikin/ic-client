@@ -90,28 +90,28 @@ export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): Re
 
     return (
         <>
-                {pivot.blocks.length === 0 ? (
-                    <Typography variant="body2" sx={{color: '#8a807a'}}>
-                        No ledger entries in this range.
-                    </Typography>
-                ) : (
-                    <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{fontWeight: 'bold'}}>Category</TableCell>
-                                    {pivot.months.map(m => (
-                                        <TableCell key={m} align="right" sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
-                                            {monthLabel(m)}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell align="right" sx={{fontWeight: 'bold'}}>Total</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>{pivot.blocks.map(renderBlock)}</TableBody>
-                        </Table>
-                    </TableContainer>
-                )}
+            {pivot.blocks.length === 0 ? (
+                <Typography variant="body2" sx={{color: '#8a807a'}}>
+                    No ledger entries in this range.
+                </Typography>
+            ) : (
+                <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{fontWeight: 'bold'}}>Category</TableCell>
+                                {pivot.months.map(m => (
+                                    <TableCell key={m} align="right" sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                        {monthLabel(m)}
+                                    </TableCell>
+                                ))}
+                                <TableCell align="right" sx={{fontWeight: 'bold'}}>Total</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>{pivot.blocks.map(renderBlock)}</TableBody>
+                    </Table>
+                </TableContainer>
+            )}
         </>
     );
 }
