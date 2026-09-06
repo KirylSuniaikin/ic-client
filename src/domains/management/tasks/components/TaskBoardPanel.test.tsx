@@ -48,6 +48,10 @@ function taskBoardValue(overrides: Partial<UseTaskBoardResult> = {}): UseTaskBoa
         loading: false,
         error: null,
         mutating: false,
+        // Default: no fetch has resolved for the current ownerId yet, so the panel's guard
+        // suppresses reporting. Tests that need a count report to fire must set loadedOwnerId
+        // to the same value passed as the ownerId prop.
+        loadedOwnerId: null,
         refetch: jest.fn(async () => undefined),
         createCard: jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true),
         editCard: jest.fn<Promise<boolean>, [number, EditTaskCardPayload, PhotoPatch?]>().mockResolvedValue(true),
@@ -332,6 +336,49 @@ describe("TaskBoardPanel", () => {
         render(<TaskBoardPanel ownerLabel="Riley Super" />);
 
         expect(screen.getByTestId("task-board-owner-header").textContent).toContain("Riley Super");
+    });
+
+    describe("onOpenCardCountChange", () => {
+        it("does not report while cards still belong to a previous owner (loadedOwnerId behind ownerId)", () => {
+            const onOpenCardCountChange = jest.fn<void, [number | null, number]>();
+            // Simulates the moment right after an owner switch: the previous owner's cards are
+            // still in state, loading has already flipped back to false, but the fetch for the
+            // new owner (7) has not resolved yet, so loadedOwnerId still reads the old owner (1).
+            const staleCards = [makeCard({ id: 1, status: "BACKLOG" })];
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({
+                    cards: staleCards,
+                    cardsByStatus: { BACKLOG: staleCards, DOING: [], DONE: [] },
+                    loading: false,
+                    loadedOwnerId: 1,
+                })
+            );
+
+            render(<TaskBoardPanel ownerId={7} onOpenCardCountChange={onOpenCardCountChange} />);
+
+            expect(onOpenCardCountChange).not.toHaveBeenCalled();
+        });
+
+        it("reports once the new fetch resolves and loadedOwnerId catches up to ownerId", () => {
+            const onOpenCardCountChange = jest.fn<void, [number | null, number]>();
+            const ownerBCards = [
+                makeCard({ id: 2, status: "BACKLOG" }),
+                makeCard({ id: 3, status: "DOING" }),
+            ];
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({
+                    cards: ownerBCards,
+                    cardsByStatus: { BACKLOG: [ownerBCards[0]], DOING: [ownerBCards[1]], DONE: [] },
+                    loading: false,
+                    loadedOwnerId: 7,
+                })
+            );
+
+            render(<TaskBoardPanel ownerId={7} onOpenCardCountChange={onOpenCardCountChange} />);
+
+            expect(onOpenCardCountChange).toHaveBeenCalledWith(7, 2);
+            expect(onOpenCardCountChange).toHaveBeenCalledTimes(1);
+        });
     });
 
     it("invoking useCardDrag's captured onDrop calls board.moveCard with matching arguments", async () => {

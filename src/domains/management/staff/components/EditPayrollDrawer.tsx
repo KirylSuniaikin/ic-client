@@ -4,6 +4,7 @@ import { Alert, Box, Button, InputAdornment, TextField } from "@mui/material";
 import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import { BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX, ROUNDED_FIELD_SX } from "../../_shared/components/roundedSelect";
 import { logger } from "../../../../shared/utils/logger";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import type { StaffAdminTO, UpdateStaffPayrollRequest } from "../types";
 
 export interface EditPayrollDrawerProps {
@@ -108,7 +109,7 @@ export default function EditPayrollDrawer({
             open={open}
             onClose={onClose}
             title="Edit payroll"
-            subtitle={`${target?.fullName ?? target?.username} (${target?.username})`}
+            subtitle={`${target ? shortStaffName(staffDisplayName(target)) : undefined} (${target?.username})`}
             testId="edit-payroll-drawer"
         >
             <Box>

@@ -61,6 +61,10 @@ export type StatsResponse = {
     newCustomerOrderedCount: number;
     oldCustomerOrderedCount: number;
     oldCstmrOrderCount: number;
+    // Orders in the Pick Up + Keeta window with no phone at all (masked Keeta number, or a POS
+    // Pick Up rung up without one) -- can't be attributed to New or Returning. Backing the
+    // customer card's third "Unknown / No phone" column.
+    unknownCustomerOrderCount: number;
     arpu: number | null;
     uniqueCustomersAllTime: number;
     repeatCustomersAllTime: number;

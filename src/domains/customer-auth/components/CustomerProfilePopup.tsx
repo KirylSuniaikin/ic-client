@@ -62,13 +62,18 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
     const [isSavingName, setIsSavingName] = useState(false);
     const [nameError, setNameError] = useState<string | null>(null);
 
-    // Shared by both fetches: a 401 here means the in-memory token expired
-    // between opening the popup and this request — clear it and surface a
-    // session-expired message instead of a raw error/crash.
-    const handleSessionExpired = useCallback(async (): Promise<void> => {
-        await logout();
+    // Shared by all three fetches below. Each goes through customerAuthFetch
+    // (task-spec.md §6), which already retries once after a silent refresh —
+    // so a 401 reaching this catch means that retry (or the refresh itself)
+    // failed. Never call the context logout() here: that additionally POSTs
+    // /auth/logout and permanently ends the customer's session on every
+    // device (including their phone's) over what may be a single failed
+    // request. customerAuthFetch already clears the in-memory access token
+    // itself when a refresh genuinely fails, so only a failed refresh — never
+    // this handler — ends the session; this just surfaces that to the UI.
+    const handleSessionExpired = useCallback((): void => {
         setError(t("errors.sessionExpired"));
-    }, [logout, t]);
+    }, [t]);
 
     const loadProfile = useCallback(async (): Promise<void> => {
         if (!token) return;
@@ -77,7 +82,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
             setProfile(me);
         } catch (err) {
             if (err instanceof CustomerAuthApiError && err.status === 401) {
-                await handleSessionExpired();
+                handleSessionExpired();
             } else {
                 setError(t("errors.profileLoadFailed"));
             }
@@ -94,7 +99,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
             setPage(targetPage);
         } catch (err) {
             if (err instanceof CustomerAuthApiError && err.status === 401) {
-                await handleSessionExpired();
+                handleSessionExpired();
             } else {
                 setError(t("errors.ordersLoadFailed"));
             }
@@ -113,7 +118,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
             setSuggestedFallback(suggestions.fallback);
         } catch (err) {
             if (err instanceof CustomerAuthApiError && err.status === 401) {
-                await handleSessionExpired();
+                handleSessionExpired();
             }
             // Non-401 failures silently leave the block hidden (empty items) —
             // it's a convenience shortcut, not core profile data worth an error banner.
@@ -121,10 +126,10 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
     }, [token, handleSessionExpired]);
 
     // loadProfile/loadOrders/loadSuggestedItems identity changes whenever `token`
-    // changes (e.g. cleared to null by handleSessionExpired's logout()) — routed
-    // through refs so the open-reset effect below fires only on an actual open
-    // transition, never as a side effect of the in-flight request that
-    // triggered it clearing the token.
+    // changes (e.g. cleared to null by customerAuthFetch after a failed refresh,
+    // or by the explicit Logout button) — routed through refs so the open-reset
+    // effect below fires only on an actual open transition, never as a side
+    // effect of the in-flight request that triggered the token clearing.
     const loadProfileRef = useRef(loadProfile);
     loadProfileRef.current = loadProfile;
     const loadOrdersRef = useRef(loadOrders);
@@ -207,7 +212,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
         } catch (err) {
             if (err instanceof CustomerAuthApiError && err.status === 401) {
                 setIsEditingName(false);
-                await handleSessionExpired();
+                handleSessionExpired();
             } else {
                 setNameError(t("errors.nameSaveFailed"));
             }

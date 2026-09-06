@@ -299,30 +299,51 @@ describe("CustomerProfilePopup", () => {
         await waitFor(() => expect(onClose).toHaveBeenCalled());
     });
 
-    it("on a 401 from /customer/me, logs out and shows a session-expired message instead of crashing", async () => {
+    // task-spec.md §6: fetchCustomerMe/fetchMyOrders/fetchSuggestedItems all route through
+    // customerAuthFetch, which already retries once after a silent refresh — so a 401
+    // reaching this popup means that retry (or the refresh itself) already failed.
+    // The handler must not call the destructive context logout() (POST /auth/logout) on
+    // top of that: only a failed refresh, handled internally by customerAuthFetch, ends
+    // the session.
+    it("on a 401 from /customer/me, shows a session-expired message without calling logout()", async () => {
         const { CustomerAuthApiError } = await import("../types");
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
         mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
-        mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
         await renderOpenPopup();
 
         expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
-        expect(mockLogoutCustomer).toHaveBeenCalled();
+        expect(mockLogoutCustomer).not.toHaveBeenCalled();
     });
 
-    it("on a 401 from /customer/orders, logs out and shows a session-expired message instead of crashing", async () => {
+    it("on a 401 from /customer/orders, shows a session-expired message without calling logout()", async () => {
         const { CustomerAuthApiError } = await import("../types");
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(profile);
         mockFetchMyOrders.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
-        mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
         await renderOpenPopup();
 
         expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
-        expect(mockLogoutCustomer).toHaveBeenCalled();
+        expect(mockLogoutCustomer).not.toHaveBeenCalled();
+    });
+
+    // Complements the two 401 tests above: when customerAuthFetch's internal silent
+    // refresh-and-retry succeeds, the caller (fetchCustomerMe) never rejects at all — the
+    // popup just renders normally, with no session-expired message and no logout() call.
+    // The retry itself is covered at the transport level in shared/api/customerAuth.test.ts
+    // ("silently refreshes and retries the original request on a 401").
+    it("a successful silent refresh-and-retry renders normally, with no session-expired message or logout() call", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(profile);
+        mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+        await renderOpenPopup();
+
+        expect(await screen.findByText("Jane")).toBeTruthy();
+        expect(screen.queryByText("Your session has expired. Please log in again.")).toBeNull();
+        expect(mockLogoutCustomer).not.toHaveBeenCalled();
     });
 
     it("tapping an order card opens CustomerOrderDetailPopup for that orderId, and closing it returns to the profile list without closing the profile popup", async () => {
@@ -569,13 +590,12 @@ describe("CustomerProfilePopup", () => {
             expect(mockLogoutCustomer).not.toHaveBeenCalled();
         });
 
-        it("a 401 failure exits edit mode, logs out, and shows errors.sessionExpired", async () => {
+        it("a 401 failure exits edit mode and shows errors.sessionExpired, without calling logout()", async () => {
             const { CustomerAuthApiError } = await import("../types");
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
             mockFetchCustomerMe.mockResolvedValueOnce(profile);
             mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
             mockUpdateCustomerName.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
-            mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
             await renderOpenPopup();
             await screen.findByText("Jane");
@@ -585,7 +605,7 @@ describe("CustomerProfilePopup", () => {
             fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
             expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
-            expect(mockLogoutCustomer).toHaveBeenCalled();
+            expect(mockLogoutCustomer).not.toHaveBeenCalled();
             expect(screen.queryByRole("textbox", { name: "Full name" })).toBeNull();
         });
 

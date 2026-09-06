@@ -20,6 +20,7 @@ const baseStats: StatsResponse = {
     newCustomerOrderedCount: 1,
     oldCustomerOrderedCount: 4,
     oldCstmrOrderCount: 4,
+    unknownCustomerOrderCount: 0,
     arpu: 20,
     uniqueCustomersAllTime: 10,
     repeatCustomersAllTime: 4,

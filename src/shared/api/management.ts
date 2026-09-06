@@ -499,11 +499,21 @@ export async function downloadSalarySlip(
 // The caller's own identity. The JWT carries a branchId claim, but it is frozen at login and a
 // staff member can now be moved between branches -- so the claim is only a starting value and
 // this is the truth.
+//
+// task-spec.md Extra defect 1: AuthProvider fires this on every mount purely to refresh those
+// claims, and its own catch is meant to leave the staff member signed in on any failure -- but
+// authFetch's global 401 handler used to already wipe the token and redirect before that catch
+// ever ran, turning a stale/racy identity check into a tripwire. skipAuthRedirectOn401 opts this
+// one call out; a genuinely revoked account still signs out on its next real (non-identity) call.
 export async function getCurrentStaff(): Promise<CurrentStaffTO> {
-    const res = await authFetch(BASE_URL + `/staff/me`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-    });
+    const res = await authFetch(
+        BASE_URL + `/staff/me`,
+        {
+            method: "GET",
+            headers: { Accept: "application/json" },
+        },
+        { skipAuthRedirectOn401: true }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }

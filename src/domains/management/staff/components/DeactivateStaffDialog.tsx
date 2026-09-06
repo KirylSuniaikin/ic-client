@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Typography } from "@mui/material";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import type { StaffAdminTO } from "../types";
 
 export interface DeactivateStaffDialogProps {

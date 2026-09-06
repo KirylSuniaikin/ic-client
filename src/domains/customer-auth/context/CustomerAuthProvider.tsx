@@ -126,10 +126,26 @@ export function useCustomerAuth(): CustomerAuthContextType {
     return context;
 }
 
+// Module-level single-flight guard, mirroring the established pattern in
+// ic-pizza-mobile/services/api.ts: at most one /auth/refresh call is ever in
+// flight, and every 401 that arrives while it is pending awaits the same
+// promise instead of starting a second refresh. CustomerProfilePopup fires
+// loadProfile/loadOrders/loadSuggestedItems in parallel on every open, so
+// without this dedupe an expired access token would race the single-slot,
+// rotating refresh token against itself.
+let refreshPromise: Promise<string> | null = null;
+
+async function performRefresh(): Promise<string> {
+    const refreshed = await refreshCustomerToken();
+    setAccessToken(refreshed.accessToken);
+    return refreshed.accessToken;
+}
+
 // Interceptor-style wrapper: attaches the in-memory bearer token, and on a
-// 401 calls /auth/refresh exactly once before retrying. If the refresh also
-// fails, the in-memory token is cleared and the original error is rethrown —
-// callers decide the UX (customer auth is ambient/optional, no redirect here).
+// 401 calls /auth/refresh exactly once (single-flight, shared across
+// concurrent callers) before retrying. If the refresh also fails, the
+// in-memory token is cleared and the original error is rethrown — callers
+// decide the UX (customer auth is ambient/optional, no redirect here).
 export async function customerAuthFetch(url: string, init: RequestInit = {}): Promise<Response> {
     const buildInit = (token: string | null): RequestInit => {
         const headers = new Headers(init.headers);
@@ -147,9 +163,13 @@ export async function customerAuthFetch(url: string, init: RequestInit = {}): Pr
     }
 
     try {
-        const refreshed = await refreshCustomerToken();
-        setAccessToken(refreshed.accessToken);
-        return await fetch(url, buildInit(refreshed.accessToken));
+        if (!refreshPromise) {
+            refreshPromise = performRefresh().finally(() => {
+                refreshPromise = null;
+            });
+        }
+        const newAccessToken = await refreshPromise;
+        return await fetch(url, buildInit(newAccessToken));
     } catch (error) {
         setAccessToken(null);
         throw error;

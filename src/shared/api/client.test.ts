@@ -142,6 +142,52 @@ describe("authFetch", () => {
         expect(localStorage.getItem("jwt_token")).toBeNull();
     });
 
+    // task-spec.md Extra defect 1: skipAuthRedirectOn401 lets a caller (the staff identity
+    // call) treat a 401 as an ordinary rejected request, without the global sign-out side effect.
+    describe("skipAuthRedirectOn401", () => {
+        it("still rejects with an Unauthorized error on a 401 response", async () => {
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow("Unauthorized");
+        });
+
+        it("leaves the JWT token in localStorage on a 401 response", async () => {
+            localStorage.setItem("jwt_token", "still-valid-elsewhere");
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow();
+
+            expect(localStorage.getItem("jwt_token")).toBe("still-valid-elsewhere");
+        });
+
+        it("does not redirect to /auth on a 401 response", async () => {
+            window.location.href = "";
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow();
+
+            expect(window.location.href).toBe("");
+        });
+    });
+
     it("sets X-Client-Platform: web on every request", async () => {
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
 
