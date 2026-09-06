@@ -7,11 +7,16 @@ import {GlobalStatsCard} from "../performance/GlobalStatsCard";
 import {countPercentage} from "../performance/statsFormat";
 import type {SellsByHourStat, StatsResponse} from "../../types";
 
-// Decodes the raw customer counts into the labeled two-column shape the card renders.
+// Decodes the raw customer counts into the labeled column shape the card renders. A third
+// "Unknown / No phone" column is appended only when there are any such orders, so ordinary days
+// -- where every order carries a phone -- keep the original two-column layout.
 function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
     const newOrders = stats.newCustomerOrderedCount;
     const returningOrders = stats.oldCstmrOrderCount;
-    const totalOrders = newOrders + returningOrders;
+    const unknownOrders = stats.unknownCustomerOrderCount;
+    // Share of 89 (Pick Up + Keeta), not 88 (New + Returning) -- unknownOrders is part of the
+    // same platform total, so it must be in the percentage denominator too.
+    const totalOrders = newOrders + returningOrders + unknownOrders;
     const returningCustomers = stats.oldCustomerOrderedCount;
 
     const share = (orders: number): string => String(Math.round(Number(countPercentage(totalOrders, orders))));
@@ -19,7 +24,7 @@ function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
         ? (returningOrders / returningCustomers).toFixed(1)
         : "0.0";
 
-    return [
+    const columns: CustomerColumn[] = [
         {heading: "New", orders: newOrders, sharePct: share(newOrders)},
         {
             heading: "Returning",
@@ -29,6 +34,12 @@ function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
             ordersPerCustomer,
         },
     ];
+
+    if (unknownOrders > 0) {
+        columns.push({heading: "Unknown / No phone", orders: unknownOrders, sharePct: share(unknownOrders)});
+    }
+
+    return columns;
 }
 
 type Props = {

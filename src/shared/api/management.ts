@@ -15,6 +15,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
+import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -56,6 +57,7 @@ import type {
     HireStaffRequest,
     HiredStaffTO,
     StaffAdminTO,
+    UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../domains/management/staff/types';
 
@@ -446,6 +448,19 @@ export async function updateStaffPayroll(id: number, body: UpdateStaffPayrollReq
     return res.json();
 }
 
+// Sparse patch: fullName/role are gated the same as setBranch/setEnabled, pricePerHour is
+// OWNER-only. Returns the updated row so callers can reconcile in place, matching
+// setStaffEnabled/setStaffBranch/updateStaffPayroll.
+export async function updateStaffDetails(id: number, body: UpdateStaffDetailsRequest): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/details`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
 // The generated file name, so the caller can name the downloaded blob without re-deriving it
 // client-side. `Content-Disposition` is only readable cross-origin because SecurityConfig
 // explicitly exposes it (setExposedHeaders) -- fall back to a deterministic name if that header
@@ -498,11 +513,21 @@ export async function downloadSalarySlip(
 // The caller's own identity. The JWT carries a branchId claim, but it is frozen at login and a
 // staff member can now be moved between branches -- so the claim is only a starting value and
 // this is the truth.
+//
+// task-spec.md Extra defect 1: AuthProvider fires this on every mount purely to refresh those
+// claims, and its own catch is meant to leave the staff member signed in on any failure -- but
+// authFetch's global 401 handler used to already wipe the token and redirect before that catch
+// ever ran, turning a stale/racy identity check into a tripwire. skipAuthRedirectOn401 opts this
+// one call out; a genuinely revoked account still signs out on its next real (non-identity) call.
 export async function getCurrentStaff(): Promise<CurrentStaffTO> {
-    const res = await authFetch(BASE_URL + `/staff/me`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-    });
+    const res = await authFetch(
+        BASE_URL + `/staff/me`,
+        {
+            method: "GET",
+            headers: { Accept: "application/json" },
+        },
+        { skipAuthRedirectOn401: true }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
@@ -783,4 +808,106 @@ export async function putWorkingHours(payload: WorkingHoursRequest): Promise<Wor
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+// --- Business Stats -----------------------------------------------------------------------
+// Every path here is OWNER-only server-side; the UI gate mirrors it but does not replace it.
+
+export async function getBusinessCategories(): Promise<CategoryClassification[]> {
+    const res = await authFetch(BASE_URL + `/business-stats/categories`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function updateCategoryClassification(
+    id: number,
+    payload: UpdateCategoryClassification
+): Promise<CategoryClassification> {
+    const res = await authFetch(BASE_URL + `/business-stats/categories/${id}/classification`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getBusinessStats(from: string, to: string): Promise<BusinessStatsResponse> {
+    const params = new URLSearchParams({ from, to });
+
+    const res = await authFetch(BASE_URL + `/business-stats?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function regenerateChannelPerformance(
+    from: string,
+    to: string
+): Promise<ChannelRegenerateResponse> {
+    const params = new URLSearchParams({ from, to });
+
+    const res = await authFetch(BASE_URL + `/business-stats/channels/regenerate?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function patchChannelPerformance(
+    id: number,
+    payload: ChannelOverridePatch
+): Promise<ChannelPerformanceRow> {
+    const res = await authFetch(BASE_URL + `/business-stats/channels/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getMenuCostCards(): Promise<MenuCostCardsResponse> {
+    const res = await authFetch(BASE_URL + `/business-stats/cost-cards`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function getComponentCosts(): Promise<ComponentCost[]> {
+    const res = await authFetch(BASE_URL + `/business-stats/components`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
+}
+
+export async function updateComponentCost(
+    id: number,
+    payload: UpdateComponentCost
+): Promise<ComponentCost> {
+    const res = await authFetch(BASE_URL + `/business-stats/components/${id}/cost`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return await res.json();
 }

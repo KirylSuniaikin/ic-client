@@ -240,16 +240,19 @@ describe("CustomerOrderDetailPopup", () => {
         expect(screen.queryByText("Picked Up")).toBeNull();
     });
 
-    it("on a 401 from fetchOrderDetail, logs out and shows a session-expired message instead of crashing", async () => {
+    // task-spec.md §6: fetchOrderDetail routes through customerAuthFetch, which already
+    // retried a silent refresh before this 401 ever reached the popup — so the handler
+    // must not call the destructive context logout() (POST /auth/logout) on top of that;
+    // only a failed refresh (handled internally by customerAuthFetch) ends the session.
+    it("on a 401 from fetchOrderDetail, shows a session-expired message without calling logout()", async () => {
         const { CustomerAuthApiError } = await import("../types");
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
         mockFetchOrderDetail.mockRejectedValueOnce(new CustomerAuthApiError("expired", 401));
-        mockLogoutCustomer.mockResolvedValueOnce(undefined);
 
         await renderPopup();
 
         expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
-        expect(mockLogoutCustomer).toHaveBeenCalled();
+        expect(mockLogoutCustomer).not.toHaveBeenCalled();
     });
 
     it("shows an inline error message on a non-401 error and keeps the popup usable", async () => {

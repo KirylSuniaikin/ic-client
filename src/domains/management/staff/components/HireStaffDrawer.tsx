@@ -11,6 +11,7 @@ import {
     Select,
     SelectChangeEvent,
     TextField,
+    Typography,
 } from "@mui/material";
 import { logger } from "../../../../shared/utils/logger";
 import { fetchAllBranches } from "../../../../shared/api/management";
@@ -37,12 +38,15 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
     const { role, branchId: ownBranchId } = useAuth();
     const cityAccess = hasCityAccess(role);
     const hireableRoles = getHireableRoles(role);
+    const isOwner = role === StaffRoles.OWNER;
 
     const [fullName, setFullName] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [selectedRole, setSelectedRole] = useState<StaffRoles | "">("");
     const [pricePerHourStr, setPricePerHourStr] = useState("");
+    const [basicSalaryStr, setBasicSalaryStr] = useState("");
+    const [hoursStr, setHoursStr] = useState("208");
     const [cprNumber, setCprNumber] = useState("");
     const [branches, setBranches] = useState<IBranch[]>([]);
     const [branchesLoaded, setBranchesLoaded] = useState(false);
@@ -86,6 +90,8 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
         setPassword("");
         setSelectedRole("");
         setPricePerHourStr("");
+        setBasicSalaryStr("");
+        setHoursStr("208");
         setCprNumber("");
         setSelectedBranchId("");
         setBranchesLoaded(false);
@@ -93,6 +99,22 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
         setCredentials(null);
         setSubmitting(false);
     }, [open]);
+
+    const basicSalary = Number(basicSalaryStr);
+    const hours = Number(hoursStr);
+    const suggestedRate =
+        basicSalaryStr.trim() !== "" && hoursStr.trim() !== "" &&
+        !Number.isNaN(basicSalary) && !Number.isNaN(hours) && hours > 0
+            ? basicSalary / hours
+            : null;
+
+    // Only fills an empty field; never fights the admin's own typing once Price/hour has a value,
+    // whether that value came from them or from this same auto-fill on a previous keystroke.
+    useEffect(() => {
+        if (suggestedRate === null || pricePerHourStr !== "") return;
+        setPricePerHourStr(suggestedRate.toFixed(3));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [basicSalaryStr, hoursStr]);
 
     const pricePerHour = Number(pricePerHourStr);
     const canSubmit =
@@ -135,6 +157,9 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
             pricePerHour,
             cprNumber: cprNumber.trim() === "" ? null : cprNumber.trim(),
             branchId,
+            basicSalary: isOwner && basicSalaryStr.trim() !== "" && !Number.isNaN(basicSalary) && basicSalary >= 0
+                ? basicSalary
+                : undefined,
         };
 
         try {
@@ -223,18 +248,53 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                         </Select>
                     </FormControl>
 
-                    <TextField
-                        label="Price/hour"
-                        fullWidth
-                        value={pricePerHourStr}
-                        onChange={e => {
-                            const val = e.target.value;
-                            if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) setPricePerHourStr(val);
-                        }}
-                        inputProps={{ inputMode: "decimal" }}
-                        InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
-                        sx={{ mb: 2 }}
-                    />
+                    {isOwner && (
+                        <TextField
+                            label="Basic Salary"
+                            fullWidth
+                            value={basicSalaryStr}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === "" || /^\d*\.?\d{0,3}$/.test(val)) setBasicSalaryStr(val);
+                            }}
+                            inputProps={{ inputMode: "decimal" }}
+                            InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
+                            sx={{ mb: 2 }}
+                            data-testid="hire-staff-basic-salary"
+                        />
+                    )}
+
+                    <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+                        <TextField
+                            label="Hours"
+                            value={hoursStr}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === "" || /^\d*$/.test(val)) setHoursStr(val);
+                            }}
+                            inputProps={{ inputMode: "numeric" }}
+                            sx={{ flex: 1 }}
+                            data-testid="hire-staff-hours"
+                        />
+                        <TextField
+                            label="Price/hour"
+                            value={pricePerHourStr}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === "" || /^\d*\.?\d{0,3}$/.test(val)) setPricePerHourStr(val);
+                            }}
+                            inputProps={{ inputMode: "decimal" }}
+                            InputProps={{ startAdornment: <InputAdornment position="start">BD</InputAdornment> }}
+                            helperText={
+                                suggestedRate !== null && pricePerHourStr !== "" ? (
+                                    <Typography component="span" variant="caption" sx={{ color: "text.secondary" }}>
+                                        {`Suggested from salary: ${suggestedRate.toFixed(3)} BD/hr`}
+                                    </Typography>
+                                ) : undefined
+                            }
+                            sx={{ flex: 2 }}
+                        />
+                    </Box>
 
                     <TextField
                         label="CPR No. (optional)"

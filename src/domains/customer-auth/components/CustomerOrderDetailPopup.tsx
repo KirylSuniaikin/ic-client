@@ -131,7 +131,7 @@ function formatTime12Hour(dateTime: string): string {
 
 export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): React.JSX.Element {
     const { t, i18n } = useTranslation(["customerAuth", "common"]);
-    const { token, logout } = useCustomerAuth();
+    const { token } = useCustomerAuth();
     const { menuLocalizationData } = useCustomerAuthUi();
     const optionLabel = useOptionLabel();
     const isArabic = i18n.language.startsWith("ar");
@@ -152,10 +152,17 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
         doughLabels,
     };
 
-    const handleSessionExpired = useCallback(async (): Promise<void> => {
-        await logout();
+    // fetchOrderDetail routes through customerAuthFetch (task-spec.md §6), which already
+    // retries once after a silent refresh — so a 401 reaching this catch means that retry
+    // (or the refresh itself) failed. Never call the context logout() here: that additionally
+    // POSTs /auth/logout and permanently ends the customer's session on every device
+    // (including their phone's) over what may be a single failed request. customerAuthFetch
+    // already clears the in-memory access token itself when a refresh genuinely fails, so
+    // only a failed refresh — never this handler — ends the session; this just surfaces
+    // that to the UI.
+    const handleSessionExpired = useCallback((): void => {
         setError(t("errors.sessionExpired"));
-    }, [logout, t]);
+    }, [t]);
 
     const loadDetail = useCallback(async (id: number): Promise<void> => {
         if (!token) return;
@@ -165,7 +172,7 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
             setDetail(result);
         } catch (err) {
             if (err instanceof CustomerAuthApiError && err.status === 401) {
-                await handleSessionExpired();
+                handleSessionExpired();
             } else {
                 setError(t("errors.orderDetailLoadFailed"));
             }

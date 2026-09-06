@@ -15,7 +15,7 @@ import type {
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
@@ -33,6 +33,7 @@ import type {
     HireStaffRequest,
     HiredStaffTO,
     StaffAdminTO,
+    UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../../domains/management/staff/types';
 import type {
@@ -136,5 +137,19 @@ export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
 
 // Salary slip PDF (Phase F6/F7/F8).
 export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();
+export const updateStaffDetails = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffDetailsRequest]>();
 export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string]>();
 export const downloadSalarySlip = jest.fn<Promise<SalarySlipDownload>, [number, string, SalarySlipForm]>();
+
+// Business Stats (Statistics -> Business tab).
+export const getBusinessCategories = jest.fn<Promise<CategoryClassification[]>, []>();
+export const updateCategoryClassification =
+    jest.fn<Promise<CategoryClassification>, [number, UpdateCategoryClassification]>();
+export const getBusinessStats = jest.fn<Promise<BusinessStatsResponse>, [string, string]>();
+export const regenerateChannelPerformance =
+    jest.fn<Promise<ChannelRegenerateResponse>, [string, string]>();
+export const patchChannelPerformance =
+    jest.fn<Promise<ChannelPerformanceRow>, [number, ChannelOverridePatch]>();
+export const getMenuCostCards = jest.fn<Promise<MenuCostCardsResponse>, []>();
+export const getComponentCosts = jest.fn<Promise<ComponentCost[]>, []>();
+export const updateComponentCost = jest.fn<Promise<ComponentCost>, [number, UpdateComponentCost]>();

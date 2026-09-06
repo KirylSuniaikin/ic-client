@@ -14,6 +14,11 @@ import {
 } from "./customerAuth";
 import { CustomerAuthApiError } from "../../domains/customer-auth/types";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
+// The Bearer-token endpoints below now route through the real (unmocked) customerAuthFetch —
+// task-spec.md §6 — which keeps its own in-memory access-token store at module scope. Reset it
+// between tests so a refresh triggered by one test's mocked 401 can't leak a truthy token into
+// the next test's Authorization-header assertions.
+import { __resetCustomerAuthStoreForTests } from "../../domains/customer-auth/context/CustomerAuthProvider";
 
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
@@ -29,6 +34,7 @@ beforeEach(() => {
     // Cast: jest.Mock is a superset of the fetch signature; the extra mock
     // methods do not affect runtime compatibility as a fetch replacement.
     global.fetch = mockFetch as typeof fetch;
+    __resetCustomerAuthStoreForTests();
 });
 
 afterEach(() => {
@@ -198,8 +204,13 @@ describe("updateCustomerName", () => {
         await expect(updateCustomerName("my-access-token", "")).rejects.toThrow(CustomerAuthApiError);
     });
 
-    it("rejects with status: 401 on an expired token", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    // task-spec.md §6: an expired access token now triggers a silent refresh-and-retry
+    // (via customerAuthFetch) before the caller ever sees an error — only a refresh
+    // that itself fails still surfaces as a 401 here.
+    it("rejects with status: 401 when the silent refresh also fails", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original PUT
+            .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(updateCustomerName("bad-token", "Janet")).rejects.toMatchObject({ status: 401 });
     });
@@ -229,8 +240,41 @@ describe("fetchCustomerMe", () => {
         expect(result).toEqual(profile);
     });
 
-    it("throws a CustomerAuthApiError on a 401", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    // task-spec.md §6: fetchCustomerMe now routes through customerAuthFetch, which
+    // silently refreshes-and-retries a 401 before the caller ever sees an error.
+    it("silently refreshes and retries the original request on a 401, returning the retried result", async () => {
+        const profile = {
+            id: "acct-1",
+            phone: "97333607710",
+            preferredBranchId: null,
+            name: null,
+            address: null,
+            amountOfOrders: null,
+            lastOrderDate: null,
+        };
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ accessToken: "refreshed-token" }), { status: 200 })
+            ) // POST /auth/refresh
+            .mockResolvedValueOnce(new Response(JSON.stringify(profile), { status: 200 })); // retried GET
+
+        const result = await fetchCustomerMe("expired-token");
+
+        expect(result).toEqual(profile);
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        const [refreshUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
+        expect(refreshUrl).toBe(`${BASE_URL}/auth/refresh`);
+        const [retryUrl, retryInit] = mockFetch.mock.calls[2] as [string, RequestInit];
+        expect(retryUrl).toBe(`${BASE_URL}/customer/me`);
+        const retryHeaders = new Headers(retryInit.headers);
+        expect(retryHeaders.get("Authorization")).toBe("Bearer refreshed-token");
+    });
+
+    it("still throws a CustomerAuthApiError on a 401 when the silent refresh also fails", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET
+            .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchCustomerMe("bad-token")).rejects.toThrow(CustomerAuthApiError);
     });
@@ -268,10 +312,61 @@ describe("fetchMyOrders", () => {
         expect(result).toEqual(page);
     });
 
-    it("throws a CustomerAuthApiError on a 401", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    it("still throws a CustomerAuthApiError on a 401 when the silent refresh also fails", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET
+            .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchMyOrders("bad-token", 0, 3)).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+// task-spec.md §6 review follow-up: CustomerProfilePopup fires loadProfile/loadOrders/
+// loadSuggestedItems in parallel on every open, all now routed through customerAuthFetch.
+// Without a single-flight guard, an expired access token would cause every one of them to
+// call POST /auth/refresh independently, racing the single-slot, rotating refresh token
+// against itself. customerAuthFetch dedupes concurrent refreshes (mirrors the established
+// refreshPromise pattern in ic-pizza-mobile/services/api.ts).
+describe("concurrent 401s (single-flight refresh)", () => {
+    it("two concurrent Bearer calls that both 401 share exactly one POST /auth/refresh call, and both retry with the refreshed token", async () => {
+        const meProfile = {
+            id: "acct-1",
+            phone: "97333607710",
+            preferredBranchId: null,
+            name: null,
+            address: null,
+            amountOfOrders: null,
+            lastOrderDate: null,
+        };
+        const page = {
+            orders: [],
+            page: 0,
+            size: 3,
+            totalElements: 0,
+            totalPages: 0,
+            hasNext: false,
+        };
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET /customer/me
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET /customer/orders
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ accessToken: "refreshed-token" }), { status: 200 })
+            ) // the single shared POST /auth/refresh
+            .mockResolvedValueOnce(new Response(JSON.stringify(meProfile), { status: 200 })) // retried GET /customer/me
+            .mockResolvedValueOnce(new Response(JSON.stringify(page), { status: 200 })); // retried GET /customer/orders
+
+        const [meResult, ordersResult] = await Promise.all([
+            fetchCustomerMe("expired-token"),
+            fetchMyOrders("expired-token", 0, 3),
+        ]);
+
+        expect(meResult).toEqual(meProfile);
+        expect(ordersResult).toEqual(page);
+        expect(mockFetch).toHaveBeenCalledTimes(5);
+        const refreshCalls = mockFetch.mock.calls.filter(
+            (call) => (call as [string, RequestInit])[0] === `${BASE_URL}/auth/refresh`
+        );
+        expect(refreshCalls).toHaveLength(1);
     });
 });
 
@@ -307,8 +402,10 @@ describe("fetchActiveOrder", () => {
         expect(result).toBeNull();
     });
 
-    it("throws a CustomerAuthApiError on a 401", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    it("still throws a CustomerAuthApiError on a 401 when the silent refresh also fails", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET
+            .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchActiveOrder("bad-token")).rejects.toThrow(CustomerAuthApiError);
     });
@@ -345,8 +442,10 @@ describe("fetchSuggestedItems", () => {
         expect(result).toEqual(suggested);
     });
 
-    it("throws a CustomerAuthApiError on a 401", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    it("still throws a CustomerAuthApiError on a 401 when the silent refresh also fails", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 })) // original GET
+            .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchSuggestedItems("bad-token")).rejects.toThrow(CustomerAuthApiError);
     });

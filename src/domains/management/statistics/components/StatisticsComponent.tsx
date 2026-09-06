@@ -8,6 +8,9 @@ import {VatReportCard} from "./VatReportCard";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
+import BusinessTab from "./business/BusinessTab";
+import MonthRangePickerPopover from "./business/MonthRangePickerPopover";
+import {useBusinessStats} from "../hooks/useBusinessStats";
 import {PerformanceTab} from "./tabs/PerformanceTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
@@ -26,7 +29,7 @@ interface StatisticsComponentProps {
     role: StaffRoles | null;
 }
 
-type StatsMode = "Performance" | "Consumption" | "Pricing" | "Reports" | "Shifts";
+type StatsMode = "Performance" | "Business" | "Consumption" | "Pricing" | "Reports" | "Shifts";
 
 export default function StatisticsComponent({onClose, branchId, role}: StatisticsComponentProps): JSX.Element {
     // StatisticsComponent only receives a raw branchId string (not the full IBranch the
@@ -58,15 +61,31 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     // Performance and Shifts share the same audience: a branch manager sees their own branch's
     // figures, a city-level role sees whichever branches they select.
     const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
+
+    // Business Stats is the consolidated company P&L, owner withdrawals included, and it has no
+    // branch dimension to scope it by -- so there is no version of it a branch manager could see
+    // that is not the owner's full picture. Mirrors the OWNER-only SecurityConfig matcher; the
+    // server is the real gate, this only keeps a tab nobody can use off the strip.
+    const canSeeBusiness = role === StaffRoles.OWNER;
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
+    const [monthRangeAnchorEl, setMonthRangeAnchorEl] = useState<HTMLElement | null>(null);
+
+    // Fetches on mount rather than on tab selection: the tab strip is cheap to switch and a
+    // report that reloads every time the owner glances away is worse than one extra request.
+    const businessStats = useBusinessStats();
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
 
     const showMultiBranchControl = (mode === "Performance" || mode === "Consumption") && multiScope.canSwitch;
     const showSingleBranchControl = (mode === "Reports" || mode === "Shifts") && singleScope.canSwitch;
     const showDateRangeButton = mode === "Performance";
-    const showFilterRow = showMultiBranchControl || showSingleBranchControl || showDateRangeButton;
+    // Business Stats deliberately opts into NO branch control: it is a business-level report, and a
+    // branch selector on it would be a lie. It takes a MONTH range instead of the day-grained
+    // picker, because the report has no day grain at all.
+    const showMonthRangeButton = mode === "Business";
+    const showFilterRow = showMultiBranchControl || showSingleBranchControl
+        || showDateRangeButton || showMonthRangeButton;
 
     return (
         <Box sx={{display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden'}}>
@@ -125,6 +144,9 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     >
                         {canSeePerformance && (
                             <ToggleButton value="Performance">Performance</ToggleButton>
+                        )}
+                        {canSeeBusiness && (
+                            <ToggleButton value="Business">Business</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
@@ -196,6 +218,42 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                                 />
                             </>
                         )}
+                        {showMonthRangeButton && (
+                            <>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CalendarTodayRoundedIcon sx={{fontSize: 16}}/>}
+                                    onClick={(e) => setMonthRangeAnchorEl(e.currentTarget)}
+                                    sx={{
+                                        borderRadius: "9999px",
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        px: 1.75,
+                                        height: 40,
+                                        color: "text.primary",
+                                        backgroundColor: "#fff",
+                                        borderColor: "#e0e0e0",
+                                        "&:hover": {borderColor: BRAND, backgroundColor: "#fff"},
+                                    }}
+                                >
+                                    {businessStats.rangeLabel}
+                                </Button>
+                                <MonthRangePickerPopover
+                                    open={Boolean(monthRangeAnchorEl)}
+                                    anchorEl={monthRangeAnchorEl}
+                                    range={businessStats.range}
+                                    onRangeChange={businessStats.setRange}
+                                    onClose={() => setMonthRangeAnchorEl(null)}
+                                    onApply={() => {
+                                        // No explicit refresh call: the hook refetches when the
+                                        // yyyy-MM keys change, so applying an unchanged range
+                                        // correctly does nothing.
+                                        setMonthRangeAnchorEl(null);
+                                    }}
+                                />
+                            </>
+                        )}
                     </Box>
                 )}
 
@@ -216,6 +274,16 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             selectedDate={selectedDate}
                             onSelectedDateChange={setSelectedDate}
                             onRefresh={refresh}
+                        />
+                    )}
+                    {mode === "Business" && canSeeBusiness && (
+                        <BusinessTab
+                            data={businessStats.data}
+                            loading={businessStats.loading}
+                            rangeLabel={businessStats.rangeLabel}
+                            onRefresh={businessStats.refresh}
+                            onPatchChannel={businessStats.patchChannel}
+                            onRegenerateChannels={businessStats.regenerateChannels}
                         />
                     )}
                     {mode === "Consumption" && (

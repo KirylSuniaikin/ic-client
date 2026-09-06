@@ -4,7 +4,7 @@ import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@j
 // regardless of telemetry's own prod-only gate.
 jest.mock("./telemetry");
 
-import { authFetch, BASE_URL, WS_URL } from "./client";
+import { authFetch, BASE_URL, PreResponseNetworkError, WS_URL } from "./client";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 import { reportClientError } from "./telemetry";
 import type { ClientErrorPayload } from "./telemetry";
@@ -142,6 +142,52 @@ describe("authFetch", () => {
         expect(localStorage.getItem("jwt_token")).toBeNull();
     });
 
+    // task-spec.md Extra defect 1: skipAuthRedirectOn401 lets a caller (the staff identity
+    // call) treat a 401 as an ordinary rejected request, without the global sign-out side effect.
+    describe("skipAuthRedirectOn401", () => {
+        it("still rejects with an Unauthorized error on a 401 response", async () => {
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow("Unauthorized");
+        });
+
+        it("leaves the JWT token in localStorage on a 401 response", async () => {
+            localStorage.setItem("jwt_token", "still-valid-elsewhere");
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow();
+
+            expect(localStorage.getItem("jwt_token")).toBe("still-valid-elsewhere");
+        });
+
+        it("does not redirect to /auth on a 401 response", async () => {
+            window.location.href = "";
+            mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+            await expect(
+                authFetch(
+                    "https://example.com/api/secret",
+                    { method: "GET" },
+                    { skipAuthRedirectOn401: true }
+                )
+            ).rejects.toThrow();
+
+            expect(window.location.href).toBe("");
+        });
+    });
+
     it("sets X-Client-Platform: web on every request", async () => {
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
 
@@ -202,13 +248,13 @@ describe("authFetch", () => {
         expect(mockReportClientError).not.toHaveBeenCalled();
     });
 
-    it("reports source: api-network and re-throws on a fetch rejection", async () => {
+    it("reports source: api-network and rejects with a PreResponseNetworkError on a fetch rejection", async () => {
         const networkError = new Error("network down");
         mockFetch.mockRejectedValueOnce(networkError);
 
-        await expect(
-            authFetch("https://example.com/api/test", { method: "GET" })
-        ).rejects.toBe(networkError);
+        const rejection = authFetch("https://example.com/api/test", { method: "GET" });
+        await expect(rejection).rejects.toBeInstanceOf(PreResponseNetworkError);
+        await expect(rejection).rejects.toThrow("network down");
 
         expect(mockReportClientError).toHaveBeenCalledTimes(1);
         const [payload] = mockReportClientError.mock.calls[0] as [ClientErrorPayload];

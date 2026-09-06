@@ -40,6 +40,10 @@ export interface UseTaskBoardResult {
     loading: boolean;
     error: string | null;
     mutating: boolean;
+    // The ownerId whose cards `cards` actually holds. Lags `ownerId` until a fetch for the new
+    // owner resolves, so callers can tell "stale cards from the previous owner" apart from
+    // "fresh cards for this owner" without relying on `loading`, which is false in both states.
+    loadedOwnerId: number | null;
     refetch: () => Promise<void>;
     createCard: (input: CreateTaskCardPayload, pendingImage?: Blob | null) => Promise<boolean>;
     editCard: (id: number, input: EditTaskCardPayload, photo?: PhotoPatch) => Promise<boolean>;
@@ -57,6 +61,7 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mutating, setMutating] = useState(false);
+    const [loadedOwnerId, setLoadedOwnerId] = useState<number | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -69,6 +74,7 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
                 const response = await fetchTaskBoard(ownerId ?? undefined);
                 if (!cancelled) {
                     setCards(response);
+                    setLoadedOwnerId(ownerId ?? null);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -226,6 +232,7 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
         loading,
         error,
         mutating,
+        loadedOwnerId,
         refetch,
         createCard,
         editCard,

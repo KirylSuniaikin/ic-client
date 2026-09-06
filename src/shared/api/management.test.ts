@@ -22,6 +22,7 @@ import {
     putWorkingHours,
     updateStaffPayroll,
     downloadSalarySlip,
+    getCurrentStaff,
 } from "./management";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
@@ -208,6 +209,35 @@ describe("getReports", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(getReports({ branchId: "b1", reportType: "INVENTORY" })).rejects.toThrow();
+    });
+});
+
+// ── getCurrentStaff ───────────────────────────────────────────────────────────
+
+// task-spec.md Extra defect 1: this identity call opts out of authFetch's global 401
+// sign-out redirect, so a stale/racy identity check on mount can never itself sign a
+// staff member out -- only a real API call rejecting with 401 still does that.
+describe("getCurrentStaff", () => {
+    it("calls authFetch for GET /staff/me with the skipAuthRedirectOn401 opt-out", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(
+                JSON.stringify({ id: 7, username: "casey.cook", fullName: "Casey Cook", role: StaffRoles.MANAGER, branchId: "branch-1" }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+        );
+
+        await getCurrentStaff();
+
+        const [url, init, options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { skipAuthRedirectOn401?: boolean }];
+        expect(url).toContain("/staff/me");
+        expect(init.method).toBe("GET");
+        expect(options).toEqual({ skipAuthRedirectOn401: true });
+    });
+
+    it("throws on a non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(getCurrentStaff()).rejects.toThrow();
     });
 });
 

@@ -61,6 +61,10 @@ export type StatsResponse = {
     newCustomerOrderedCount: number;
     oldCustomerOrderedCount: number;
     oldCstmrOrderCount: number;
+    // Orders in the Pick Up + Keeta window with no phone at all (masked Keeta number, or a POS
+    // Pick Up rung up without one) -- can't be attributed to New or Returning. Backing the
+    // customer card's third "Unknown / No phone" column.
+    unknownCustomerOrderCount: number;
     arpu: number | null;
     uniqueCustomersAllTime: number;
     repeatCustomersAllTime: number;
@@ -95,4 +99,310 @@ export type ProductStatRow = {
     name: string;
     price: number;
     targetPrice: number;
+};
+
+// --- Business Stats -----------------------------------------------------------------------
+// Mirrors the backend records in domain/businessstats/dto field-for-field.
+
+/** Mirrors backend PnlClass. null on the wire means Unclassified — a real state, not missing data. */
+export type PnlClass =
+    | "REVENUE"
+    | "COGS_PURCHASES"
+    | "OPEX"
+    | "CAPEX"
+    | "OWNER_WITHDRAWAL"
+    | "FINANCING"
+    | "ADJUSTMENT"
+    | "EXCLUDED";
+
+/** Mirrors backend KpiTag. Orthogonal to PnlClass — Marketing is OPEX *and* MARKETING. */
+export type KpiTag = "MARKETING" | "LABOUR" | "RENT" | "UTILITIES";
+
+// Mirrors backend CategoryClassificationTO. The server returns these already ordered
+// (unclassified first, then heaviest lifetime spend first) — do not re-sort on the client.
+export type CategoryClassification = {
+    id: number;
+    name: string;
+    type: "DEBIT" | "CREDIT";
+    pnlClass: PnlClass | null;
+    kpiTag: KpiTag | null;
+    entryCount: number;
+    lifetimeTotal: number;
+};
+
+// Mirrors backend UpdateCategoryClassificationTO. null clears the field: "unclassified" is a
+// legitimate resting state a misclassified category must be returnable to.
+export type UpdateCategoryClassification = {
+    pnlClass: PnlClass | null;
+    kpiTag: KpiTag | null;
+};
+
+export type ExpenseRow = {
+    categoryId: number;
+    categoryName: string;
+    kpiTag: KpiTag | null;
+    // Positionally aligned to BusinessStatsResponse.months — an unused month is 0, never a gap.
+    amounts: number[];
+    total: number;
+};
+
+export type ExpenseBlock = {
+    // "UNCLASSIFIED" for the null bucket — a real block, not an omission.
+    pnlClass: PnlClass | "UNCLASSIFIED";
+    label: string;
+    note: string | null;
+    // False for COGS_PURCHASES, CAPEX and others. Carried so the screen can say WHY a visible
+    // block is outside the Operating Expenses total.
+    includedInOperatingExpenses: boolean;
+    rows: ExpenseRow[];
+    totals: number[];
+    grandTotal: number;
+};
+
+export type ExpensePivot = {
+    months: string[];
+    blocks: ExpenseBlock[];
+    unclassifiedCategoryCount: number;
+    unclassifiedTotal: number;
+};
+
+export type MonthlyRevenue = {
+    period: string;
+    orders: number;
+    grossRevenue: number;
+    operatingDays: number;
+    // Null, not 0, when there were no orders: "no orders" is not "a basket worth nothing".
+    averageBasketSize: number | null;
+    dailyOrdersAverage: number | null;
+};
+
+export type InventoryCogsState =
+    | "OK"
+    | "PARTIAL_BRANCHES"
+    | "MISSING_OPENING"
+    | "MISSING_ENDING"
+    | "MISSING_PURCHASES"
+    | "NO_DATA";
+
+export type InventoryCogs = {
+    period: string;
+    state: InventoryCogsState;
+    // When true a missing closing count is expected, not a failure — do not nag.
+    monthInProgress: boolean;
+    openingInventory: number | null;
+    purchases: number | null;
+    available: number | null;
+    endingInventory: number | null;
+    // Null, NEVER 0, when an input is missing. Zero is a claim; absence is not.
+    movementCogs: number | null;
+    cogsPercentOfGrossRevenue: number | null;
+    contributingBranches: string[];
+    missingBranches: string[];
+    missingReports: string[];
+};
+
+export type BusinessStatsResponse = {
+    months: string[];
+    expensePivot: ExpensePivot;
+    revenue: MonthlyRevenue[];
+    inventoryCogs: InventoryCogs[];
+    channels: ChannelPerformanceMonth[];
+    profitAndLoss: ProfitAndLoss[];
+    kpi: KpiBlock[];
+    costing: CostingCoverage;
+    notices: string[];
+};
+
+export type ChannelPerformanceRow = {
+    id: number;
+    period: string;
+    channelKey: string;
+    channelLabel: string;
+    generatedOrders: number | null;
+    generatedGrossRevenue: number | null;
+    overrideOrders: number | null;
+    overrideGrossRevenue: number | null;
+    overrideAppFees: number | null;
+    effectiveOrders: number | null;
+    effectiveGrossRevenue: number | null;
+    effectiveAppFees: number | null;
+    // False when nobody has entered a fee. Distinct from a fee of zero — there is no fee-free
+    // channel, so an absent fee overstates profit rather than merely leaving a blank.
+    appFeesEntered: boolean;
+    netRevenue: number | null;
+    appCommissionPercent: number | null;
+    note: string | null;
+    generatedAt: string | null;
+    updatedAt: string | null;
+    updatedByName: string | null;
+    version: number;
+};
+
+export type ChannelPerformanceMonth = {
+    period: string;
+    rows: ChannelPerformanceRow[];
+    totalOrders: number;
+    totalGrossRevenue: number;
+    totalAppFees: number;
+    totalNetRevenue: number;
+    appFeesMissing: boolean;
+};
+
+// The clear* flags exist because in a PATCH a JSON null is indistinguishable from an absent field,
+// so "revert this cell to the generated figure" would otherwise be inexpressible.
+export type ChannelOverridePatch = {
+    orders?: number | null;
+    grossRevenue?: number | null;
+    appFees?: number | null;
+    note?: string | null;
+    clearOrders?: boolean;
+    clearGrossRevenue?: boolean;
+    clearAppFees?: boolean;
+    version: number;
+};
+
+export type ChannelRegenerateResponse = {
+    succeeded: number;
+    failed: number;
+    failedPeriods: string[];
+};
+
+export type CostSource = "BATCH" | "PRODUCT" | "MANUAL" | "MISSING";
+
+export type CostingWarning = {
+    code: string;
+    componentId: number;
+    componentName: string;
+    detail: string;
+};
+
+export type CostingCoverage = {
+    componentsUsed: number;
+    componentsResolved: number;
+    coveragePercent: number;
+    warnings: CostingWarning[];
+};
+
+export type CogsReconciliation = {
+    ledgerCogsPurchases: number | null;
+    invoicePurchases: number | null;
+    ledgerVsInvoices: number | null;
+    openingInventory: number | null;
+    endingInventory: number | null;
+    inventoryDelta: number | null;
+    movementCogs: number | null;
+    recipeCogs: number | null;
+    // Positive means more was consumed than the recipes predict: waste, over-portioning or theft.
+    unexplainedVariance: number | null;
+    variancePercentOfNetRevenue: number | null;
+    // netProfit + recipeCogs − invoicePurchases: what the bank balance actually moved by.
+    netCashMovement: number | null;
+    complete: boolean;
+};
+
+export type ProfitAndLoss = {
+    period: string;
+    grossRevenue: number;
+    appFees: number;
+    netRevenue: number;
+    recipeCogs: number;
+    grossProfit: number;
+    operatingExpenses: number;
+    operatingProfit: number;
+    capex: number;
+    financing: number;
+    ownerWithdrawals: number;
+    adjustments: number;
+    netProfit: number;
+    unclassified: number;
+    reconciliation: CogsReconciliation;
+    flags: string[];
+};
+
+export type Kpi = {
+    key: string;
+    label: string;
+    // Null whenever it could not be computed. NEVER rendered as 0 in that case.
+    value: number | null;
+    unit: string;
+    previousValue: number | null;
+    unavailableReason: string | null;
+    detail: string | null;
+};
+
+export type KpiBlock = {
+    period: string;
+    kpis: Kpi[];
+};
+
+export type CostCardLine = {
+    componentId: number;
+    componentName: string;
+    unit: string | null;
+    amount: number;
+    // Printed on screen: a per-kilogram price mistaken for a per-gram one is invisible in a total.
+    unitCost: number;
+    costSource: CostSource;
+    lineCost: number;
+};
+
+export type MenuItemCostCard = {
+    menuItemId: number;
+    category: string | null;
+    name: string;
+    size: string | null;
+    salePrice: number | null;
+    lines: CostCardLine[];
+    totalCost: number;
+    grossProfit: number | null;
+    foodCostPercent: number | null;
+    // False when a line resolved to nothing — the card understates cost and overstates margin.
+    complete: boolean;
+};
+
+export type UncostedMenuItem = {
+    menuItemId: number;
+    category: string | null;
+    name: string;
+    size: string | null;
+};
+
+export type MenuCostCardsResponse = {
+    cards: MenuItemCostCard[];
+    menuItemsWithoutRecipe: UncostedMenuItem[];
+    costing: CostingCoverage;
+};
+
+export type ComponentIngredientLine = {
+    id: number;
+    ingredientProductId: number | null;
+    ingredientProductName: string | null;
+    ingredientComponentId: number | null;
+    ingredientComponentName: string | null;
+    amount: number;
+};
+
+export type ComponentCost = {
+    id: number;
+    name: string;
+    unit: string | null;
+    productId: number | null;
+    productName: string | null;
+    productPrice: number | null;
+    // Per kg / litre / piece — the basis the owner works in.
+    cost: number | null;
+    batchYield: number | null;
+    ingredients: ComponentIngredientLine[];
+    // Per gram / ml / piece, after resolution.
+    resolvedUnitCost: number;
+    costSource: CostSource;
+};
+
+export type UpdateComponentCost = {
+    productId?: number | null;
+    cost?: number | null;
+    batchYield?: number | null;
+    clearProduct?: boolean;
+    clearCost?: boolean;
+    clearBatchYield?: boolean;
 };

@@ -58,6 +58,8 @@ import { NumericField } from "./PurchaseTableRow";
 import { PurchaseInvoiceGroup } from "./PurchaseInvoiceGroup";
 import { PRODUCT_COLUMN_COUNT } from "./cellChrome";
 import Decimal from "decimal.js-light";
+import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
+import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
 
 type Props = {
     open: boolean;
@@ -251,6 +253,22 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     }, []);
 
     const expandAll = useCallback(() => setCollapsed(new Set()), []);
+
+    // Collapsed, a report is ~40 strip rows and needs no help. Expand All turns that into ~280
+    // rows of selects and numeric inputs, which is the cliff. Windowing the INVOICE list bounds
+    // both cases; `invoices` itself stays whole, so save still sends every invoice and the unpaid
+    // banner still sums all of them.
+    //
+    // Keyed on the sort as well as the report: changing the order is a new order, and leaving the
+    // window 200 rows deep into the old one would show an arbitrary slice of the new.
+    const {
+        visible: visibleInvoices,
+        hasMore: hasMoreInvoices,
+        sentinelRef,
+    } = useIncrementalList(invoices, {
+        pageSize: 20,
+        resetKey: `${purchaseId ?? "new"}-${sort ? `${sort.key}-${sort.dir}` : "none"}`,
+    });
 
     const addLine = useCallback((invoiceId: string) => {
         setInvoices(prev => prev.map(inv => inv.id === invoiceId
@@ -549,7 +567,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                         >
                             <Table size="small" aria-label="purchases" sx={{ minWidth: 860 }}>
                                 <TableBody>
-                                    {invoices.map((invoice) => (
+                                    {visibleInvoices.map((invoice) => (
                                         <PurchaseInvoiceGroup
                                             key={invoice.id}
                                             invoice={invoice}
@@ -578,6 +596,12 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                     )}
                                 </TableBody>
                             </Table>
+                            {/* Outside the table: a Box is not valid inside tbody, and the sentinel
+                                has to sit in normal flow for the observer to see it. */}
+                            {hasMoreInvoices && (
+                                <InfiniteScrollSentinel sentinelRef={sentinelRef}
+                                                        testId="purchase-invoices-sentinel"/>
+                            )}
                         </TableContainer>
                     </Stack>
                 )}

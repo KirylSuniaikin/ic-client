@@ -36,11 +36,15 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
 
     const openCardCount = board.cards.filter(card => card.status !== "DONE").length;
     useEffect(() => {
-        // Not while the board is still loading: `cards` is empty then, and reporting 0 would blank
-        // the badge on every board switch before the real number arrives.
-        if (board.loading) return;
+        // Not while the board is still loading, and not while `cards` still belongs to a
+        // previous owner: on an owner switch this effect can run before the new fetch's
+        // setLoading(true)/setCards have landed, with `loading === false` and `cards` left over
+        // from the old owner. Gating on `loadedOwnerId` (only advances alongside a successful
+        // fetch's setCards) rather than `loading` prevents reporting the old owner's count under
+        // the new owner's id and clobbering their correct server-seeded value.
+        if (board.loading || board.loadedOwnerId !== (ownerId ?? null)) return;
         onOpenCardCountChange?.(ownerId ?? null, openCardCount);
-    }, [board.loading, openCardCount, ownerId, onOpenCardCountChange]);
+    }, [board.loading, board.loadedOwnerId, openCardCount, ownerId, onOpenCardCountChange]);
 
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<TaskCardDrawerMode>("view");

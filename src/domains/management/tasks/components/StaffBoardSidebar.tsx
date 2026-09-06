@@ -2,6 +2,7 @@ import React from "react";
 import { Avatar, Badge, Box, CircularProgress, Divider, IconButton, List, ListItemButton, Tooltip, Typography } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 import type { BoardOwner } from "../types";
 
 export interface StaffBoardSidebarProps {
@@ -96,7 +97,7 @@ export default function StaffBoardSidebar({
                             backgroundColor: selected ? ACCENT : "rgba(15,23,42,0.08)",
                         }}
                     >
-                        {initials(owner.fullName ?? owner.username)}
+                        {initials(staffDisplayName(owner))}
                     </Avatar>
                 </Badge>
                 {open && (
@@ -110,7 +111,7 @@ export default function StaffBoardSidebar({
                                 textOverflow: "ellipsis",
                             }}
                         >
-                            {owner.fullName ?? owner.username}
+                            {shortStaffName(staffDisplayName(owner))}
                         </Typography>
                         <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "capitalize" }}>
                             {isOwn ? "My board" : roleLabel(owner.role)}
@@ -123,7 +124,7 @@ export default function StaffBoardSidebar({
         // Collapsed to the icon rail, the name is gone — the tooltip is the only way to tell the
         // avatars apart.
         return open ? row : (
-            <Tooltip key={owner.id} title={owner.fullName ?? owner.username} placement="right">
+            <Tooltip key={owner.id} title={staffDisplayName(owner)} placement="right">
                 <Box>{row}</Box>
             </Tooltip>
         );

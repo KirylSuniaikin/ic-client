@@ -34,7 +34,7 @@ export function GlobalStatsCard({stats}: Props): JSX.Element {
                     <Grid container spacing={2} sx={{mt: 1}}>
                         <Grid size={{xs: 6}}>
                             <Box textAlign="center">
-                                <StatLabel label="ARPU" info="Average Revenue Per User — total revenue ÷ unique customers (all time)."/>
+                                <StatLabel label="ARPU" info="Average Revenue Per User — total revenue ÷ customers who have ordered and paid at the selected branch(es), all time. Deliberately not divided by Unique Customers below, which counts the whole contact list."/>
                                 <Typography variant="h5" fontWeight="bold">
                                     {stats.arpu?.toFixed(2) ?? "-"}{" "}
                                     <Typography component="span" variant="caption">BD</Typography>
@@ -52,7 +52,7 @@ export function GlobalStatsCard({stats}: Props): JSX.Element {
                         </Grid>
                         <Grid size={{xs: 6}}>
                             <Box textAlign="center">
-                                <Typography variant="body2" color="text.secondary">Unique Customers</Typography>
+                                <StatLabel label="Unique Customers" info="Everyone whose phone number we hold — all branches, all time, including contacts who have not ordered yet (a WhatsApp message or an app sign-up adds one). Orders taken without a phone, such as Talabat, cannot create a contact and are not counted here."/>
                                 <Typography variant="h5" fontWeight="bold">
                                     {stats.uniqueCustomersAllTime}
                                 </Typography>
@@ -60,7 +60,7 @@ export function GlobalStatsCard({stats}: Props): JSX.Element {
                         </Grid>
                         <Grid size={{xs: 6}}>
                             <Box textAlign="center">
-                                <Typography variant="body2" color="text.secondary">Repeat Customers</Typography>
+                                <StatLabel label="Repeat Customers" info="Customers with more than one paid order at the selected branch(es). A smaller population than Unique Customers above, so the two are not a ratio."/>
                                 <Typography variant="h5" fontWeight="bold">
                                     {stats.repeatCustomersAllTime}
                                 </Typography>
