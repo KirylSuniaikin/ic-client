@@ -54,12 +54,14 @@ const report: BusinessStatsResponse = {
         {
             period: "2026-06", state: "OK", monthInProgress: false,
             openingInventory: 553.679, purchases: 808.69, available: 1362.369,
+            purchasesGroceries: 640.19, purchasesPackaging: 168.5, purchasesUnclassified: 0,
             endingInventory: 522.673, movementCogs: 839.696, cogsPercentOfGrossRevenue: 25.7,
             contributingBranches: ["Adliya"], missingBranches: [], missingReports: [],
         },
         {
             period: "2026-07", state: "MISSING_PURCHASES", monthInProgress: false,
             openingInventory: 522.673, purchases: null, available: null,
+            purchasesGroceries: null, purchasesPackaging: null, purchasesUnclassified: null,
             endingInventory: 896.003, movementCogs: null, cogsPercentOfGrossRevenue: null,
             contributingBranches: [], missingBranches: ["Adliya"],
             missingReports: ["PURCHASE jul-26 @ Adliya"],
@@ -227,18 +229,25 @@ describe("BusinessTab", () => {
             expect(await screen.findByText(/1 unclassified · 4,102.500 BHD/)).toBeTruthy();
         });
 
-        it("reports success when everything is classified", async () => {
+        it("says nothing at all when everything is classified", async () => {
+            // The old screen carried a permanent "All N categories classified" card. Reassurance is
+            // not a report: a clean month should look clean, not carry a green banner about data
+            // entry. The warning still appears when there IS something wrong -- see the pivot badge
+            // test below.
             mockGet.mockResolvedValue([rent]);
 
             renderTab();
 
-            expect(await screen.findByText(/All 1 categories classified/)).toBeTruthy();
+            await screen.findByText("📊 Key metrics");
+            expect(screen.queryByText(/categories classified/)).toBeNull();
         });
 
         it("patches only the chosen category and refetches when a class is picked", async () => {
+            // The drawer is now reached from the warning badge on the Monthly expenses card, which
+            // is the report the classification actually distorts.
             renderTab();
-            await screen.findByRole("button", { name: "Classify categories" });
-            await userEvent.click(screen.getByRole("button", { name: "Classify categories" }));
+            const badge = await screen.findByText(/1 unclassified/);
+            await userEvent.click(badge);
 
             const row = await screen.findByTestId("category-row-1");
             await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
@@ -256,7 +265,7 @@ describe("BusinessTab", () => {
 
             renderTab();
 
-            expect(await screen.findByText(/All 0 categories classified/)).toBeTruthy();
+            expect(await screen.findByText("📊 Key metrics")).toBeTruthy();
         });
     });
 
@@ -439,10 +448,11 @@ describe("BusinessTab", () => {
     });
 
     describe("ingredient costs", () => {
-        it("reports full coverage when every ingredient is costed", async () => {
+        it("says nothing at all when every ingredient is costed", async () => {
             renderTab();
 
-            expect(await screen.findByText(/All 0 ingredients costed/)).toBeTruthy();
+            await screen.findByText("📊 Key metrics");
+            expect(screen.queryByText(/ingredients costed/)).toBeNull();
         });
 
         it("warns with the count when ingredients have no cost", async () => {
@@ -456,6 +466,8 @@ describe("BusinessTab", () => {
 
             renderTab();
 
+            // Rides as a badge on the Menu cost cards header now, not a card of its own above
+            // the report.
             expect(await screen.findByText(/1 ingredients with no cost/)).toBeTruthy();
         });
     });

@@ -191,6 +191,11 @@ export type InventoryCogs = {
     monthInProgress: boolean;
     openingInventory: number | null;
     purchases: number | null;
+    // The Purchases figure split by what was bought. The three always sum to `purchases`;
+    // unclassified is its own line rather than being folded into groceries.
+    purchasesGroceries: number | null;
+    purchasesPackaging: number | null;
+    purchasesUnclassified: number | null;
     available: number | null;
     endingInventory: number | null;
     // Null, NEVER 0, when an input is missing. Zero is a claim; absence is not.

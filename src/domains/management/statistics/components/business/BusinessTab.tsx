@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import {Alert, Box, Button, Card, CardContent, Chip, Typography} from "@mui/material";
+import {Alert, Box, Card, CardContent, Chip, Typography} from "@mui/material";
 import CategoryClassificationDrawer from "./CategoryClassificationDrawer";
 import MonthlyExpensesPivotCard from "./MonthlyExpensesPivotCard";
 import InventoryCogsCard from "./InventoryCogsCard";
@@ -46,7 +46,7 @@ function monthLabel(period: string | undefined): string {
 export default function BusinessTab(
     {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
 ): React.JSX.Element {
-    const {categories, unclassifiedCount, classify} = useBusinessCategories();
+    const {categories, classify} = useBusinessCategories();
     const costCards = useCostCards();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
     const [costDrawerOpen, setCostDrawerOpen] = useState<boolean>(false);
@@ -68,9 +68,9 @@ export default function BusinessTab(
         ? `${blockedMonths} month${blockedMonths === 1 ? "" : "s"} missing a count`
         : "complete";
 
-    const unclassifiedTotal = categories
-        .filter(c => c.pnlClass === null)
-        .reduce((sum, c) => sum + c.lifetimeTotal, 0);
+    // The unclassified count and total used to be computed here for the setup card at the top.
+    // The badge that replaced it takes both straight from the report's own pivot, which is the
+    // figure that actually matters -- spend in the months on screen, not lifetime.
 
     // A classification change rewrites every month of the report, so the figures below have to be
     // refetched -- the server evicts its cache on the write, but this client still holds the old
@@ -92,93 +92,15 @@ export default function BusinessTab(
 
     return (
         <Box sx={{mt: 1}}>
-            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-                <CardContent>
-                    <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>
-                        🧾 Category classification
-                    </Typography>
-                    <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                        Every accounting category needs a P&L class before the profit statement can be
-                        computed. Spend in an unclassified category is shown in the report but counted
-                        in no total.
-                    </Typography>
+            {/* The two setup cards that used to sit here -- "Category classification" and
+                "Ingredient costs" -- are gone on purpose. They were a permanent banner about data
+                entry on a screen whose job is to report, and they said "all good" far more often
+                than they said anything useful.
 
-                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
-                        {unclassifiedCount > 0 ? (
-                            <Chip
-                                label={`⚠ ${unclassifiedCount} unclassified · ${formatBd(unclassifiedTotal)} BHD`}
-                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}
-                                onClick={() => setDrawerOpen(true)}
-                            />
-                        ) : (
-                            <Chip
-                                label={`✓ All ${categories.length} categories classified`}
-                                sx={{backgroundColor: '#4CAF50', color: '#fff', fontWeight: 'bold'}}
-                            />
-                        )}
-
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setDrawerOpen(true)}
-                            sx={{
-                                ml: 'auto',
-                                textTransform: 'none',
-                                borderRadius: 999,
-                                borderColor: '#e0e0e0',
-                                color: '#3b352c',
-                                '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
-                            }}
-                        >
-                            Classify categories
-                        </Button>
-                    </Box>
-                </CardContent>
-            </Card>
-
-            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-                <CardContent>
-                    <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>
-                        🍕 Ingredient costs
-                    </Typography>
-                    <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                        Every ingredient needs a cost before the profit statement means anything.
-                        An uncosted ingredient contributes nothing, which understates cost and
-                        overstates margin on every recipe that uses it.
-                    </Typography>
-
-                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
-                        {costCards.uncostedCount > 0 ? (
-                            <Chip
-                                label={`⚠ ${costCards.uncostedCount} ingredients with no cost`}
-                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}
-                                onClick={() => setCostDrawerOpen(true)}
-                            />
-                        ) : (
-                            <Chip
-                                label={`✓ All ${costCards.components.length} ingredients costed`}
-                                sx={{backgroundColor: '#4CAF50', color: '#fff', fontWeight: 'bold'}}
-                            />
-                        )}
-
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setCostDrawerOpen(true)}
-                            sx={{
-                                ml: 'auto',
-                                textTransform: 'none',
-                                borderRadius: 999,
-                                borderColor: '#e0e0e0',
-                                color: '#3b352c',
-                                '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
-                            }}
-                        >
-                            Set ingredient costs
-                        </Button>
-                    </Box>
-                </CardContent>
-            </Card>
+                Nothing was lost: each warning now rides as a badge on the report it actually
+                affects (unclassified spend on Monthly expenses, uncosted ingredients on Menu cost
+                cards), where it is next to the number it distorts, and each badge opens the same
+                drawer. A clean report now means there is nothing to say. */}
 
             {loading && data === null ? (
                 <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
@@ -251,9 +173,21 @@ export default function BusinessTab(
                         <InventoryCogsCard months={data.inventoryCogs}/>
                     </CollapsibleCard>
 
-                    <CollapsibleCard title="🍕 Menu cost cards"
-                                     summary={costCards.cards ? `${costCards.cards.cards.length} items` : undefined}>
-                        <MenuCostCardsCard data={costCards.cards} loading={costCards.loading}/>
+                    <CollapsibleCard
+                        title="🍕 Menu cost cards"
+                        summary={costCards.cards ? `${costCards.cards.cards.length} items` : undefined}
+                        badge={costCards.uncostedCount > 0
+                            ? <Chip
+                                label={`⚠ ${costCards.uncostedCount} ingredients with no cost`}
+                                onClick={() => setCostDrawerOpen(true)}
+                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
+                            : undefined}
+                    >
+                        <MenuCostCardsCard
+                            data={costCards.cards}
+                            loading={costCards.loading}
+                            onSetCosts={() => setCostDrawerOpen(true)}
+                        />
                     </CollapsibleCard>
                 </>
             )}

@@ -1,16 +1,19 @@
 import React, {useState} from "react";
 import {
     Accordion, AccordionDetails, AccordionSummary, Alert, Box, Card, CardContent, Chip, MenuItem,
-    Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
+    Button, Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import type {MenuCostCardsResponse, MenuItemCostCard} from "../../types";
 import {formatBd} from "./businessFormat";
+import {BRAND_RED} from "../../../../../shared/utils/theme";
 import {StatSkeleton} from "../performance/statPlaceholders";
 
 type Props = {
     data: MenuCostCardsResponse | null;
     loading: boolean;
+    /** Opens the ingredient-cost drawer. The only route to it now that the setup cards are gone. */
+    onSetCosts: () => void;
 };
 
 /**
@@ -23,7 +26,7 @@ type Props = {
  * per-kilogram price mistakenly read as per-gram becomes visible: in a total it is just a number,
  * but a gram of mozzarella at 2.500 BD is obviously wrong.
  */
-export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Element {
+export default function MenuCostCardsCard({data, loading, onSetCosts}: Props): React.JSX.Element {
     const [category, setCategory] = useState<string>("");
     const [search, setSearch] = useState<string>("");
 
@@ -151,6 +154,24 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                 />
+
+                {/* The only route to the ingredient-cost drawer now that the setup card above the
+                    report is gone. It sits here because this is the card the costs feed. */}
+                <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={onSetCosts}
+                    sx={{
+                        ml: 'auto',
+                        textTransform: 'none',
+                        borderRadius: 999,
+                        borderColor: '#e0e0e0',
+                        color: '#3b352c',
+                        '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
+                    }}
+                >
+                    Set ingredient costs
+                </Button>
             </Box>
 
             {visible.length === 0 ? (

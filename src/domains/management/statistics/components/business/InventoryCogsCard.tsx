@@ -73,14 +73,33 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableRow>
                     </TableHead>
                     <TableBody>
+                        {/* Purchases is split into what the money was actually spent on, which is
+                            how the Backoffice sheet reads it. The two indented rows plus the
+                            unclassified one always add back up to Purchases -- an unclassified
+                            product gets its own line rather than being quietly added to groceries,
+                            because that would make both rows wrong and neither look wrong.
+
+                            The unclassified row is hidden when it is zero, so a fully classified
+                            product list gives the clean two-row split and nothing else. */}
                         {([
-                            ["Opening inventory", (m: InventoryCogs) => m.openingInventory],
-                            ["Purchases", (m: InventoryCogs) => m.purchases],
-                            ["Available", (m: InventoryCogs) => m.available],
-                            ["Closing inventory", (m: InventoryCogs) => m.endingInventory],
-                        ] as const).map(([label, pick]) => (
+                            ["Opening inventory", (m: InventoryCogs) => m.openingInventory, 0, false],
+                            ["Purchases", (m: InventoryCogs) => m.purchases, 0, false],
+                            ["Groceries", (m: InventoryCogs) => m.purchasesGroceries, 1, false],
+                            ["Packaging", (m: InventoryCogs) => m.purchasesPackaging, 1, false],
+                            ["Unclassified", (m: InventoryCogs) => m.purchasesUnclassified, 1, true],
+                            ["Available", (m: InventoryCogs) => m.available, 0, false],
+                            ["Closing inventory", (m: InventoryCogs) => m.endingInventory, 0, false],
+                        ] as const)
+                            .filter(([, pick, , hideWhenEmpty]) =>
+                                !hideWhenEmpty || months.some(m => (pick(m) ?? 0) !== 0))
+                            .map(([label, pick, indent, hideWhenEmpty]) => (
                             <TableRow key={label} hover>
-                                <TableCell sx={{whiteSpace: 'nowrap'}}>{label}</TableCell>
+                                <TableCell sx={{
+                                    whiteSpace: 'nowrap',
+                                    pl: indent ? 4 : undefined,
+                                    color: indent ? '#8a807a' : undefined,
+                                    fontWeight: hideWhenEmpty ? 'bold' : undefined,
+                                }}>{label}</TableCell>
                                 {months.map(m => (
                                     <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
                                         {pick(m) === null ? "—" : formatBd(pick(m))}

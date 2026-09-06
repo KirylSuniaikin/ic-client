@@ -113,11 +113,16 @@ export default function ChannelPerformanceCard(
                 }}
             >
                 {isEditing ? (
+                    // Enter and Escape have always worked here; nothing said so, so nobody used
+                    // them and the only discoverable way to save was to click elsewhere and hope.
+                    // helperText costs one line and removes the guesswork.
                     <TextField
                         autoFocus
                         size="small"
                         variant="standard"
                         value={draft}
+                        helperText="Enter to save · Esc to cancel"
+                        FormHelperTextProps={{sx: {fontSize: 10, textAlign: 'right', m: 0, whiteSpace: 'nowrap'}}}
                         inputProps={{style: {textAlign: 'right'}, 'aria-label': `${field} ${row.channelLabel}`}}
                         onChange={e => setDraft(e.target.value)}
                         onBlur={() => void commit(row, field)}
@@ -197,6 +202,14 @@ export default function ChannelPerformanceCard(
                             profit. No channel is fee-free — even pick-up carries a card-gateway cut.
                         </Alert>
                     )}
+
+                    {/* Said once, above the table, rather than relying on the dashed underline on
+                        each cell to imply it. The dashes say "you can type here"; they do not say
+                        how to keep what you typed. */}
+                    <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mb: 1}}>
+                        Click any underlined figure to edit it, then press <strong>Enter</strong> to save.
+                        Your edits survive a refresh.
+                    </Typography>
 
                     <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
                         <Table size="small">
