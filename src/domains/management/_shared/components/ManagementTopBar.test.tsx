@@ -77,6 +77,34 @@ describe("ManagementTopBar", () => {
         });
     });
 
+    describe("titleSlot prop", () => {
+        it("renders titleSlot instead of the default title Typography when provided", () => {
+            render(
+                <ManagementTopBar
+                    title="Accounting Report"
+                    titleSlot={<input aria-label="report title" defaultValue="july-adl" />}
+                />
+            );
+
+            expect(screen.getByLabelText("report title")).toBeTruthy();
+            // The plain title string must not also render as a separate Typography node —
+            // titleSlot REPLACES the default, it doesn't sit alongside it.
+            expect(screen.queryByText("Accounting Report")).toBeNull();
+        });
+
+        it("falls back to the default title Typography when titleSlot is omitted", () => {
+            render(<ManagementTopBar title="Accounting Report" />);
+
+            expect(screen.getByText("Accounting Report")).toBeTruthy();
+        });
+
+        it("falls back to the default title Typography when titleSlot is explicitly undefined", () => {
+            render(<ManagementTopBar title="Accounting Report" titleSlot={undefined} />);
+
+            expect(screen.getByText("Accounting Report")).toBeTruthy();
+        });
+    });
+
     describe("branchSelector prop", () => {
         it("renders the branchSelector node when provided", () => {
             render(<ManagementTopBar title="Orders" branchSelector={<button>Branch Picker</button>} />);

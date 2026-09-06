@@ -83,6 +83,9 @@ export type StaffShiftSummary = {
     regularCost: number | null;
     overtimeCost: number | null;
     totalCost: number | null;
+    basicSalary: number | null;
+    allowance: number | null;
+    totalSalary: number | null;
 };
 
 export type MonthlyShiftReport = {

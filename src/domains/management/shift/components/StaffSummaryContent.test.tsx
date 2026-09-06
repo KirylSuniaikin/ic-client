@@ -68,6 +68,9 @@ function makeSummary(overrides: Partial<StaffShiftSummary> = {}): StaffShiftSumm
         regularCost: 30,
         overtimeCost: 0,
         totalCost: 30,
+        basicSalary: 240,
+        allowance: 40,
+        totalSalary: 280,
         ...overrides,
     };
 }
@@ -130,6 +133,75 @@ describe("StaffSummaryContent", () => {
         render(<StaffSummaryContent branchId="branch-1" role={null} />);
 
         await waitFor(() => expect(screen.getAllByText("zara.manager").length).toBeGreaterThan(0));
+    });
+
+    // Total Salary replaced Total Cost: the header label and the pill breakdown must reflect
+    // Basic Salary + Allowance + OT, not the old hourly-rate total.
+    it("renders the Total Salary header and the headline + breakdown numbers from payroll fields", async () => {
+        mockGetMonthlyShiftReport.mockResolvedValue(
+            makeReport([makeSummary({
+                staffId: 10,
+                username: "payroll.set",
+                basicSalary: 240,
+                allowance: 40,
+                overtimeHours: 2,
+                totalHours: 12,
+                overtimeCost: 6,
+                totalSalary: 286,
+            })])
+        );
+
+        render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+        await waitFor(() => expect(screen.getByText("Total(Basic Salary + Allowance + OT)")).toBeTruthy());
+        expect(screen.queryByText("Total Cost")).toBeNull();
+        expect(screen.getByText("286.000")).toBeTruthy();
+        expect(screen.getByText("(240.000 + 40.000 + 6.000 OT)")).toBeTruthy();
+    });
+
+    // A monthly-salaried staff member can have no hourly rate at all, which is a different null
+    // condition than "no payroll configured": the backend gates basicSalary/allowance/totalSalary
+    // together on basicSalary != null, but gates overtimeCost independently on pricePerHour != null.
+    // So totalSalary can be non-null while overtimeCost is null -- the breakdown must still print
+    // "0.000" for the OT term (matching the backend's own nz() treatment), not leave it blank.
+    it("renders 0.000 for the OT term when overtimeCost is null but totalSalary is not", async () => {
+        mockGetMonthlyShiftReport.mockResolvedValue(
+            makeReport([makeSummary({
+                staffId: 12,
+                username: "salaried.no.hourly",
+                pricePerHour: null,
+                basicSalary: 240,
+                allowance: 40,
+                overtimeCost: null,
+                totalSalary: 280,
+            })])
+        );
+
+        render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+        await waitFor(() => expect(screen.getByText("280.000")).toBeTruthy());
+        expect(screen.getByText("(240.000 + 40.000 + 0.000 OT)")).toBeTruthy();
+    });
+
+    // Non-OWNER viewers (or staff with no payroll configured yet) get null payroll fields from
+    // the backend -- the pill must fall back to "—" with no breakdown, same as the old totalCost gate.
+    it("shows a dash and no breakdown when payroll fields are null", async () => {
+        mockGetMonthlyShiftReport.mockResolvedValue(
+            makeReport([makeSummary({
+                staffId: 11,
+                username: "payroll.unset",
+                basicSalary: null,
+                allowance: null,
+                totalSalary: null,
+            })])
+        );
+
+        render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+        await waitFor(() => expect(screen.getAllByText("—").length).toBeGreaterThan(0));
+        // Distinguish from the "Total(Basic Salary + Allowance + OT)" header, which also ends in
+        // "OT)" but has no formatted numbers -- the breakdown pill would read e.g. "(0.000 + ... OT)".
+        expect(screen.queryByText(/\d\.\d{3}.*OT\)/)).toBeNull();
     });
 
     it("renders the salary slip button for OWNER", async () => {

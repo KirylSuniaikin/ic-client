@@ -102,6 +102,48 @@ describe("dateFormatter", () => {
         });
     });
 
+    describe("rollbackNearMonthStart param (Accounting vs Inventory)", () => {
+        it("defaults to true — omitting the 3rd arg still rolls back on day <= 3 (Inventory's call site)", () => {
+            jest.setSystemTime(new Date("2025-06-02"));
+
+            const result = dateFormatter("-", "en");
+
+            expect(result.toLowerCase()).toMatch(/may/);
+        });
+
+        it("rolls back when explicitly passed true, on day <= 3", () => {
+            jest.setSystemTime(new Date("2025-06-02"));
+
+            const result = dateFormatter("-", "en", true);
+
+            expect(result.toLowerCase()).toMatch(/may/);
+        });
+
+        it("does NOT roll back when passed false, even on day <= 3 (Accounting's call site)", () => {
+            jest.setSystemTime(new Date("2025-06-02"));
+
+            const result = dateFormatter("-", "en", false);
+
+            expect(result.toLowerCase()).toMatch(/jun/);
+        });
+
+        it("does not roll back when passed false on day 1, across a January→December year boundary", () => {
+            jest.setSystemTime(new Date("2025-01-01"));
+
+            const result = dateFormatter("-", "en", false);
+
+            expect(result.toLowerCase()).toMatch(/jan/);
+            expect(result).toMatch(/25$/);
+        });
+
+        it("still behaves normally on mid-month days regardless of the flag's value", () => {
+            jest.setSystemTime(new Date("2025-06-15"));
+
+            expect(dateFormatter("-", "en", false).toLowerCase()).toMatch(/jun/);
+            expect(dateFormatter("-", "en", true).toLowerCase()).toMatch(/jun/);
+        });
+    });
+
     describe("year in output", () => {
         it("includes the two-digit year for 2025", () => {
             jest.setSystemTime(new Date("2025-06-15"));

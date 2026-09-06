@@ -265,4 +265,109 @@ describe("HireStaffDrawer", () => {
         await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
         expect(createMock.mock.calls[0][0].cprNumber).toBeNull();
     });
+
+    // OWNER-only, mirroring EditPayrollDrawer's payroll gate elsewhere in this domain.
+    it("renders the Basic Salary field for an OWNER caller", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        expect(screen.getByTestId("hire-staff-basic-salary")).toBeTruthy();
+    });
+
+    it("does not render the Basic Salary field for a non-owner caller", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.SUPER_MANAGER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        expect(screen.queryByTestId("hire-staff-basic-salary")).toBeNull();
+    });
+
+    it("auto-fills Price/hour from Basic Salary and Hours when Price/hour was empty", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        fireEvent.change(screen.getByLabelText("Basic Salary"), {
+            target: { value: "832" },
+        });
+
+        const priceInput = screen.getByLabelText("Price/hour") as HTMLInputElement;
+        expect(priceInput.value).toBe((832 / 208).toFixed(3));
+    });
+
+    it("does not overwrite a manually-typed Price/hour once Basic Salary and Hours are entered", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        fireEvent.change(screen.getByLabelText("Price/hour"), { target: { value: "5" } });
+        fireEvent.change(screen.getByLabelText("Basic Salary"), {
+            target: { value: "832" },
+        });
+
+        expect((screen.getByLabelText("Price/hour") as HTMLInputElement).value).toBe("5");
+    });
+
+    it("includes basicSalary in the create(...) call when filled in as OWNER", async () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+        mockFetchAllBranches.mockResolvedValue([BRANCH_1, BRANCH_2]);
+        const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
+
+        // OWNER has city access, so a branch must finish auto-selecting before Add is enabled.
+        await waitFor(() => expect(screen.getByTestId("hire-staff-branch-select").textContent).toContain("Adliya"));
+
+        fillRequiredFields("COOK");
+        fireEvent.change(screen.getByLabelText("Basic Salary"), {
+            target: { value: "600" },
+        });
+        fireEvent.click(screen.getByText("Add"));
+
+        await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+        expect(createMock.mock.calls[0][0].basicSalary).toBe(600);
+    });
+
+    it("omits basicSalary from the create(...) call when left empty", async () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+        mockFetchAllBranches.mockResolvedValue([BRANCH_1, BRANCH_2]);
+        const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
+
+        await waitFor(() => expect(screen.getByTestId("hire-staff-branch-select").textContent).toContain("Adliya"));
+
+        fillRequiredFields("COOK");
+        fireEvent.click(screen.getByText("Add"));
+
+        await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+        expect(createMock.mock.calls[0][0].basicSalary).toBeUndefined();
+    });
+
+    // The calculator is meant to work out-of-the-box for a standard month without the admin
+    // having to touch the Hours field at all -- so 208 must be there on open, not just as a
+    // fallback once the field is cleared.
+    it("defaults the Hours field to 208 when the drawer opens", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        expect((screen.getByLabelText("Hours") as HTMLInputElement).value).toBe("208");
+    });
+
+    // Uses a non-round quotient (2.667, not an exact whole-BD number) so a formula bug that
+    // happened to line up on whole-number inputs elsewhere in this file can't hide here.
+    it("auto-fills Price/hour with a rounded, non-integer quotient from a typed Basic Salary and Hours", () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.OWNER, branchId: "branch-1" });
+
+        render(<HireStaffDrawer open onClose={jest.fn()} create={jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>()} />);
+
+        fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "150" } });
+        fireEvent.change(screen.getByLabelText("Basic Salary"), { target: { value: "400" } });
+
+        const priceInput = screen.getByLabelText("Price/hour") as HTMLInputElement;
+        expect(priceInput.value).toBe((400 / 150).toFixed(3));
+        expect(priceInput.value).toBe("2.667");
+    });
 });

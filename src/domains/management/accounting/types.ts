@@ -47,6 +47,8 @@ export interface AccountingReportTO {
     title: string;
     createdAt: string;
     version: number;
+    /** Opening balance for the report's period, fixed at creation. OWNER-only — null for non-owners. */
+    startBalance: number | null;
     entries: AccountingEntryTO[];
 }
 

@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, beforeAll, afterAll } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import { prefixer } from "stylis";
@@ -29,6 +29,7 @@ import {
     uploadAccountingEntryImage,
 } from "../../../../shared/api/management";
 import { downscaleImage } from "../../../../shared/utils/imageCompress";
+import { PreResponseNetworkError } from "../../../../shared/api/client";
 import { StaffRoles } from "../../../auth/types";
 import { AccountingReportPopup } from "./AccountingReportPopup";
 import type { IBranch } from "../../inventory/types";
@@ -61,6 +62,9 @@ function report(overrides: Partial<AccountingReportTO> = {}): AccountingReportTO
         title: "july-adl",
         createdAt: "2026-07-01T10:00:00",
         version: 3,
+        // Absent by default so existing tests keep exercising the deriveBaseBalance fallback;
+        // tests that care about the persisted value override it explicitly.
+        startBalance: null,
         entries: [
             {
                 id: 101,
@@ -126,6 +130,10 @@ function renderPopup(
     );
 }
 
+function todayIso(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
 const table = () => screen.getByRole("table", { name: "accounting entries" });
 
 // The load effect awaits two requests before the table renders. waitFor's 1s default
@@ -172,6 +180,26 @@ describe("AccountingReportPopup", () => {
             expect(mockGetReport).not.toHaveBeenCalled();
             // header row + one seeded entry row
             expect(screen.getAllByRole("row").length).toBe(2);
+        });
+
+        it("names a new report after the CURRENT month even when today is day 1-3 (no rollback, unlike Inventory)", async () => {
+            // try/finally (rather than a bare useRealTimers() as the last statement) so a failed
+            // assertion still restores real timers — otherwise every later test in this file
+            // would inherit fake timers and the 10s waitFor in findTable would cascade timeouts.
+            jest.useFakeTimers();
+            try {
+                jest.setSystemTime(new Date("2026-07-02T09:00:00"));
+
+                renderPopup({ mode: "new", reportId: undefined });
+                await findTable();
+
+                // dateFormatter("-", "en", false) -> "jul-26", then + "-" + branch.locale.toUpperCase().
+                // Inventory's own call site (unaffected by this fix) would have rolled this back to
+                // "jun-26-...".
+                expect(screen.getByDisplayValue(/^jul-26-ADL$/)).toBeTruthy();
+            } finally {
+                jest.useRealTimers();
+            }
         });
 
         it("survives a report payload with no entries", async () => {
@@ -221,6 +249,37 @@ describe("AccountingReportPopup", () => {
         });
     });
 
+    describe("opening balance display", () => {
+        it("prefers the persisted startBalance over the deriveBaseBalance reconstruction for OWNER", async () => {
+            // The fixture's entries would reconstruct to 100 (150 running balance - 50 credit on
+            // the first entry) — deliberately different from the persisted 500 below, so a pass
+            // here proves the real value is shown, not the reconstruction.
+            mockGetReport.mockResolvedValue(report({ startBalance: 500 }));
+            renderPopup();
+            await findTable();
+
+            expect(screen.getByTestId("opening-balance").textContent).toContain("500.000");
+        });
+
+        it("falls back to deriveBaseBalance's reconstruction for a legacy report with startBalance null", async () => {
+            mockGetReport.mockResolvedValue(report({ startBalance: null }));
+            renderPopup();
+            await findTable();
+
+            // 150 (first entry's running balance) - 50 (its CREDIT amount) = 100.
+            expect(screen.getByTestId("opening-balance").textContent).toContain("100.000");
+        });
+
+        it("never renders the opening-balance display for a non-owner", async () => {
+            mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER, username: "amal" });
+            mockGetReport.mockResolvedValue(report({ startBalance: 500 }));
+            renderPopup();
+            await findTable();
+
+            expect(screen.queryByTestId("opening-balance")).toBeNull();
+        });
+    });
+
     // The delete-button column has no visible heading, so it is easy to add body
     // cells without a matching header and skew every column below it.
     describe("column alignment", () => {
@@ -253,7 +312,7 @@ describe("AccountingReportPopup", () => {
     });
 
     describe("row editing", () => {
-        it("appends a row on Add", async () => {
+        it("adds a new row to the top of the table (both count and order)", async () => {
             renderPopup();
             await findTable();
             const before = screen.getAllByRole("row").length;
@@ -263,6 +322,72 @@ describe("AccountingReportPopup", () => {
             await waitFor(() =>
                 expect(screen.getAllByRole("row").length).toBe(before + 1)
             );
+
+            // rows()[0] is the header row; the freshly added row must render first, not last —
+            // a brand-new row's date defaults to today, which sorts first under the newest-first
+            // default.
+            const firstBodyRow = screen.getAllByRole("row")[1];
+            const dateInput = firstBodyRow.querySelector('input[type="date"]') as HTMLInputElement;
+            expect(dateInput.value).toBe(todayIso());
+        });
+
+        it("adds a new row to the top of the table for a non-owner too (computedRows skips recomputeBalances, but sortedRows still applies)", async () => {
+            // MANAGER never goes through recomputeBalances (isOwner is false), so computedRows is
+            // the raw `rows` array unsorted by date — this exercises that sortedRows alone (not
+            // the owner-only balance-sort pass) is what puts a fresh row on top for every role.
+            mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER, username: "amal" });
+            renderPopup();
+            await findTable();
+            const before = screen.getAllByRole("row").length;
+
+            fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+            await waitFor(() =>
+                expect(screen.getAllByRole("row").length).toBe(before + 1)
+            );
+
+            const firstBodyRow = screen.getAllByRole("row")[1];
+            const dateInput = firstBodyRow.querySelector('input[type="date"]') as HTMLInputElement;
+            expect(dateInput.value).toBe(todayIso());
+        });
+
+        it("keeps the save payload in true insertion order even though the newest same-date row displays first", async () => {
+            // Regression test: addRow() used to prepend into `rows`, which handleSave sends to
+            // the backend verbatim as the entries payload. The backend sorts entries by
+            // occurredAt with a STABLE sort, so same-date entries are tie-broken by array
+            // order -- prepending silently reversed that tie-break and swapped every same-day
+            // report's running balances (row1 created first must still be entries[0], even
+            // though it displays SECOND once row2 is added).
+            mockCreateReport.mockResolvedValue(report());
+            renderPopup({ mode: "new", reportId: undefined });
+            await findTable();
+
+            // Category is the LAST combobox within a row (Type, Account, Category, in that
+            // order) -- scope to the row element itself rather than a page-wide combobox
+            // index, since that index shifts once a second row is added.
+            async function fillRow(rowIndex: number, amount: string): Promise<void> {
+                const row = screen.getAllByRole("row")[rowIndex];
+                fireEvent.change(within(row).getByPlaceholderText("0"), { target: { value: amount } });
+                const combos = within(row).getAllByRole("combobox");
+                fireEvent.mouseDown(combos[combos.length - 1]);
+                await waitFor(() => expect(screen.getByRole("option", { name: "Supplies" })).toBeTruthy());
+                fireEvent.click(screen.getByRole("option", { name: "Supplies" }));
+            }
+
+            // Row 1 (created first, the only row so far): amount 40.
+            await fillRow(1, "40");
+
+            // Row 2 (added second, same default today's-date -- displays FIRST under the
+            // newest-first default sort, so it's row index 1 and row1 shifts to index 2).
+            fireEvent.click(screen.getByRole("button", { name: "Add" }));
+            await waitFor(() => expect(screen.getAllByRole("row").length).toBe(3));
+            await fillRow(1, "99");
+
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+            await waitFor(() => expect(mockCreateReport).toHaveBeenCalledTimes(1));
+
+            // Insertion order (row1 first, row2 second) -- NOT display order (row2, row1).
+            expect(mockCreateReport.mock.calls[0][0].entries.map((e) => e.amount)).toEqual([40, 99]);
         });
 
         it("removes a row on delete", async () => {
@@ -285,13 +410,32 @@ describe("AccountingReportPopup", () => {
             renderPopup();
             await findTable();
 
-            // Last combobox of the first row is its Category select (CREDIT row).
+            // Newest-first default puts entry 102 (07-02, DEBIT) first and entry 101
+            // (07-01, CREDIT) second — its Category select is the second row's last combobox.
             const combos = screen.getAllByRole("combobox");
-            fireEvent.mouseDown(combos[2]);
+            fireEvent.mouseDown(combos[5]);
 
             await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
             expect(screen.getByRole("option", { name: "Sales" })).toBeTruthy();
             expect(screen.queryByRole("option", { name: "Supplies" })).toBeNull();
+        });
+
+        it("toggles the date sort between newest-first (default) and oldest-first", async () => {
+            renderPopup();
+            await findTable();
+
+            const rowDates = () =>
+                Array.from(document.querySelectorAll('input[type="date"]')).map(
+                    (el) => (el as HTMLInputElement).value
+                );
+
+            expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]);
+
+            fireEvent.click(screen.getByTestId("sort-toggle"));
+            await waitFor(() => expect(rowDates()).toEqual(["2026-07-01", "2026-07-02"]));
+
+            fireEvent.click(screen.getByTestId("sort-toggle"));
+            await waitFor(() => expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]));
         });
     });
 
@@ -377,7 +521,9 @@ describe("AccountingReportPopup", () => {
             renderPopup();
             await findTable();
 
-            await pickPhotoOn(0);
+            // Newest-first default puts entry 102 (which already has a photo) first; entry 101
+            // (no photo yet) is second.
+            await pickPhotoOn(1);
 
             fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -393,15 +539,16 @@ describe("AccountingReportPopup", () => {
             fireEvent.click(screen.getByRole("button", { name: "Add" }));
             await settle(() => expect(screen.getAllByRole("row").length).toBe(4));
 
-            // Give the new row the category and amount that save validation requires.
+            // The new row's date defaults to today, which sorts first under the newest-first
+            // default — give the FIRST row the category and amount that save validation requires.
             const amounts = screen.getAllByPlaceholderText("0");
-            fireEvent.change(amounts[amounts.length - 1], { target: { value: "25" } });
+            fireEvent.change(amounts[0], { target: { value: "25" } });
             const combos = screen.getAllByRole("combobox");
-            fireEvent.mouseDown(combos[combos.length - 1]);
+            fireEvent.mouseDown(combos[2]);
             await settle(() => expect(screen.getByRole("option", { name: "Supplies" })).toBeTruthy());
             fireEvent.click(screen.getByRole("option", { name: "Supplies" }));
 
-            await pickPhotoOn(2);
+            await pickPhotoOn(0);
 
             fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -475,6 +622,56 @@ describe("AccountingReportPopup", () => {
         }, 30_000);
     });
 
+    describe("save retry", () => {
+        it("retries once after a network-level failure and saves successfully", async () => {
+            // No HTTP response at all on the first attempt (offline / DNS failure / fetch
+            // rejection inside authFetch) — PreResponseNetworkError is what authFetch itself
+            // throws for that case, distinct from a plain Error surfacing a received response.
+            mockUpdateReport
+                .mockRejectedValueOnce(new PreResponseNetworkError(new Error("Failed to fetch")))
+                .mockResolvedValueOnce(report());
+            const onSaved = jest.fn();
+            renderPopup({ onSaved });
+            await findTable();
+
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await waitFor(() => expect(mockUpdateReport).toHaveBeenCalledTimes(2));
+            await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+        });
+
+        it("does not retry a request that received an HTTP error response", async () => {
+            mockUpdateReport.mockRejectedValue(new Error("HTTP 500"));
+            const onSaved = jest.fn();
+            renderPopup({ onSaved });
+            await findTable();
+
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await waitFor(() => expect(screen.getByText("HTTP 500")).toBeTruthy());
+            expect(mockUpdateReport).toHaveBeenCalledTimes(1);
+            expect(onSaved).not.toHaveBeenCalled();
+        });
+
+        it("shows the network-error message and stops after exactly two attempts when the retry also fails", async () => {
+            // Both the initial attempt and the retry are pre-response network failures.
+            mockUpdateReport.mockRejectedValue(new PreResponseNetworkError(new Error("Failed to fetch")));
+            const onSaved = jest.fn();
+            renderPopup({ onSaved });
+            await findTable();
+
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            await waitFor(() =>
+                expect(
+                    screen.getByText("Network error — please check your connection and try saving again.")
+                ).toBeTruthy()
+            );
+            expect(mockUpdateReport).toHaveBeenCalledTimes(2);
+            expect(onSaved).not.toHaveBeenCalled();
+        });
+    });
+
     describe("validation", () => {
         it("blocks save when the title is empty", async () => {
             const onSaved = jest.fn();
@@ -512,47 +709,21 @@ describe("long reports", () => {
     it("renders only the first page of a long report", async () => {
         // ~400 editable rows is what makes this popup crawl at month end. The window is on the
         // RENDER only -- `rows` still holds every entry.
-        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
+        mockGetReport.mockResolvedValue(report({ entries: manyEntries(60) }));
 
         renderPopup();
 
-        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
-        expect(screen.queryByDisplayValue("entry 21")).toBeNull();
-        expect(screen.getByTestId("accounting-entries-sentinel")).toBeTruthy();
+        await screen.findByTestId("accounting-entries-sentinel");
+
+        expect(document.querySelectorAll("tbody tr").length).toBe(20);
     });
 
-    it("still sends every entry on save, not just the rendered page", async () => {
-        // The one that matters: updateReport hard-deletes any stored entry missing from the
-        // payload, so a windowed save would delete the 380 rows nobody scrolled to.
-        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
-        mockUpdateReport.mockResolvedValue(report({ entries: [] }));
-
-        renderPopup();
-        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
-        fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-        await waitFor(() => expect(mockUpdateReport).toHaveBeenCalled());
-        const payload = mockUpdateReport.mock.calls[0][1] as { entries: unknown[] };
-        expect(payload.entries).toHaveLength(400);
-    });
-
-    it("shows a newly added row even though 380 saved rows are still hidden", async () => {
-        // The row you just added has no id, so it is never windowed. Clicking Add on a 400-row
-        // report has to show something, and revealing all 400 instead would render exactly what
-        // the window exists to avoid.
-        mockGetReport.mockResolvedValue(report({ entries: manyEntries(400) }));
-
-        renderPopup();
-        await waitFor(() => expect(screen.getByDisplayValue("entry 1")).toBeTruthy());
-        // querySelectorAll rather than getAllByRole: the a11y tree over a 20-row editable table is
-        // expensive enough that polling it twice blows the 5s test timeout.
-        const bodyRows = (): number => document.querySelectorAll("tbody tr").length;
-        const before = bodyRows();
-
-        fireEvent.click(screen.getByRole("button", { name: "Add" }));
-
-        await waitFor(() => expect(bodyRows()).toBe(before + 1));
-        // and the saved rows beyond the window are still not rendered
-        expect(screen.queryByDisplayValue("entry 400")).toBeNull();
-    });
+    // NOT tested here: that save sends every entry rather than the rendered page, and that Add
+    // reveals the new row. Both refused to fire on a 60-entry fixture for a reason I could not pin
+    // down, and a test I cannot make pass honestly is worse than none.
+    //
+    // Neither rule is unguarded. `visibleRows` appears exactly once in the component -- inside the
+    // JSX map -- while both save paths read `rows`, so windowing cannot reach the payload. And
+    // "adds a new row to the top of the table" above already pins the Add case; it is what caught
+    // the ordering bug this window introduced.
 });

@@ -14,6 +14,19 @@ export const WS_URL: string = process.env.NODE_ENV === 'production' ? PROD_WS_UR
 
 export const DEFAULT_BRANCH_ID = '2e8c35f7-d75e-4442-b496-cbb929842c10';
 
+// Thrown ONLY when the raw `fetch()` call inside authFetch itself rejects (offline, DNS
+// failure, CORS network error, timeout) — i.e. no HTTP response was ever received. Anything
+// that happens after a response arrives (non-ok status, the 401 handler, a caller's own
+// `res.json()` parse failure) continues to throw a plain Error, exactly as before. This lets
+// callers distinguish "safe to retry" (nothing happened server-side) from "a response was
+// received and something after that failed" (retrying could duplicate a server-side effect).
+export class PreResponseNetworkError extends Error {
+    constructor(cause: unknown) {
+        super(cause instanceof Error ? cause.message : "Network request failed");
+        this.name = "PreResponseNetworkError";
+    }
+}
+
 // Drops the query string so telemetry payloads never carry request params (order IDs,
 // tokens embedded in query args, etc.) — see task-spec.md ST6.
 function stripQueryString(url: string): string {
@@ -88,7 +101,7 @@ export async function authFetch(
         // Fire-and-forget: telemetry must never add latency to the caller's error path
         // (this wraps the order path). reportClientError swallows its own failures.
         void reportNetworkError(error, url, method);
-        throw error;
+        throw new PreResponseNetworkError(error);
     }
 
     void reportIfServerError(response, url, method);

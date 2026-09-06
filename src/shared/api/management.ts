@@ -57,6 +57,7 @@ import type {
     HireStaffRequest,
     HiredStaffTO,
     StaffAdminTO,
+    UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../domains/management/staff/types';
 
@@ -439,6 +440,19 @@ export async function setStaffBranch(id: number, branchId: string): Promise<Staf
 // in place, matching setStaffEnabled/setStaffBranch.
 export async function updateStaffPayroll(id: number, body: UpdateStaffPayrollRequest): Promise<StaffAdminTO> {
     const res = await authFetch(BASE_URL + `/staff/${id}/payroll`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// Sparse patch: fullName/role are gated the same as setBranch/setEnabled, pricePerHour is
+// OWNER-only. Returns the updated row so callers can reconcile in place, matching
+// setStaffEnabled/setStaffBranch/updateStaffPayroll.
+export async function updateStaffDetails(id: number, body: UpdateStaffDetailsRequest): Promise<StaffAdminTO> {
+    const res = await authFetch(BASE_URL + `/staff/${id}/details`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
