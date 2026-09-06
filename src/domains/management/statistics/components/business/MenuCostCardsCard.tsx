@@ -28,23 +28,14 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
     const [search, setSearch] = useState<string>("");
 
     if (loading && data === null) {
-        return (
-            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-                <CardContent><StatSkeleton lines={5}/></CardContent>
-            </Card>
-        );
+        return <StatSkeleton lines={5}/>;
     }
 
     if (data === null) {
         return (
-            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-                <CardContent>
-                    <Typography variant="h6" fontWeight="bold">🍕 Menu cost cards</Typography>
-                    <Typography variant="body2" sx={{color: '#8a807a', mt: 1}}>
-                        Cost cards could not be loaded.
-                    </Typography>
-                </CardContent>
-            </Card>
+            <Typography variant="body2" sx={{color: '#8a807a'}}>
+                Cost cards could not be loaded.
+            </Typography>
         );
     }
 
@@ -123,10 +114,7 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
     );
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
-                <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>🍕 Menu cost cards</Typography>
-
+        <>
                 {data.costing.componentsResolved < data.costing.componentsUsed && (
                     <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
                         {data.costing.componentsUsed - data.costing.componentsResolved} of{" "}
@@ -168,7 +156,6 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
                 {visible.length === 0 ? (
                     <Typography variant="body2" sx={{color: '#8a807a'}}>No matching items.</Typography>
                 ) : visible.map(renderCard)}
-            </CardContent>
-        </Card>
+        </>
     );
 }

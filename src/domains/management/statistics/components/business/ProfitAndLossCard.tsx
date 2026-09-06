@@ -98,12 +98,7 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
     );
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
-                <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>
-                    📈 Profit &amp; loss
-                </Typography>
-
+        <>
                 <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
                     <Table size="small">
                         <TableHead>
@@ -161,7 +156,6 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
                         </Typography>
                     </Box>
                 )}
-            </CardContent>
-        </Card>
+        </>
     );
 }

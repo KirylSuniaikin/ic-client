@@ -105,8 +105,11 @@ export default function ChannelPerformanceCard(
                 }}
                 sx={{
                     whiteSpace: 'nowrap',
-                    cursor: 'pointer',
+                    cursor: 'text',
                     backgroundColor: overridden ? OVERRIDDEN_BG : undefined,
+                    // Nothing else on the row is editable, so the cells that are have to say so.
+                    // Without this an empty app-fee cell is an em dash that looks like a dead end.
+                    '&:hover': {backgroundColor: overridden ? OVERRIDDEN_BG : '#fbfaf6'},
                 }}
             >
                 {isEditing ? (
@@ -129,7 +132,7 @@ export default function ChannelPerformanceCard(
                             ? `Overridden — generated was ${generated === null ? "—" : (decimals ? formatBd(generated) : generated)}`
                             : ""}
                     >
-                        <span>
+                        <span style={{borderBottom: '1px dashed #c9bfb6', paddingBottom: 1}}>
                             {value === null ? "—" : (decimals ? formatBd(value) : value)}
                         </span>
                     </Tooltip>
@@ -139,10 +142,8 @@ export default function ChannelPerformanceCard(
     };
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
+        <>
                 <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1}}>
-                    <Typography variant="h6" fontWeight="bold">🛵 Channel performance</Typography>
                     <Button
                         variant="outlined"
                         size="small"
@@ -204,7 +205,13 @@ export default function ChannelPerformanceCard(
                                         <TableCell sx={{fontWeight: 'bold'}}>Channel</TableCell>
                                         <TableCell align="right" sx={{fontWeight: 'bold'}}>Orders</TableCell>
                                         <TableCell align="right" sx={{fontWeight: 'bold'}}>Gross revenue</TableCell>
-                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>App fees</TableCell>
+                                        <TableCell align="right" sx={{fontWeight: 'bold'}}>
+                                            App fees
+                                            <Typography component="span" variant="caption"
+                                                        sx={{display: 'block', color: '#8a807a', fontWeight: 400}}>
+                                                click to edit
+                                            </Typography>
+                                        </TableCell>
                                         <TableCell align="right" sx={{fontWeight: 'bold'}}>Net revenue</TableCell>
                                         <TableCell align="right" sx={{fontWeight: 'bold'}}>Commission</TableCell>
                                         <TableCell/>
@@ -256,8 +263,6 @@ export default function ChannelPerformanceCard(
                         </TableContainer>
                     </>
                 )}
-            </CardContent>
-
             <Dialog
                 open={confirmOpen}
                 onClose={() => setConfirmOpen(false)}
@@ -295,7 +300,7 @@ export default function ChannelPerformanceCard(
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Card>
+        </>
     );
 }
 

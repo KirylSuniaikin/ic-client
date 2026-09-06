@@ -34,20 +34,14 @@ export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
 
     if (!latest) {
         return (
-            <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-                <CardContent>
-                    <Typography variant="h6" fontWeight="bold">📊 Key metrics</Typography>
-                    <Typography variant="body2" sx={{color: '#8a807a', mt: 1}}>
-                        No months in this range.
-                    </Typography>
-                </CardContent>
-            </Card>
+            <Typography variant="body2" sx={{color: '#8a807a'}}>
+                No months in this range.
+            </Typography>
         );
     }
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
+        <>
                 <Typography variant="h6" fontWeight="bold">📊 Key metrics</Typography>
                 <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
                     {monthLabel(latest.period)}
@@ -95,7 +89,6 @@ export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
                         </Grid>
                     ))}
                 </Grid>
-            </CardContent>
-        </Card>
+        </>
     );
 }

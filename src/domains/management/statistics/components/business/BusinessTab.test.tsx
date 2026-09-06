@@ -199,6 +199,13 @@ function renderTab(data: BusinessStatsResponse | null = report): ReturnType<type
     );
 }
 
+
+// Cards are collapsed by default now, and CollapsibleCard unmounts hidden content, so a test that
+// asserts on a card's contents has to open it first.
+async function openCard(title: string): Promise<void> {
+    await userEvent.click(await screen.findByRole("button", { name: `Expand ${title}` }));
+}
+
 describe("BusinessTab", () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -256,6 +263,7 @@ describe("BusinessTab", () => {
     describe("expense pivot", () => {
         it("renders a column per month and a row per category", async () => {
             renderTab();
+            await openCard("🧾 Monthly expenses");
 
             expect(await screen.findByText("Rent")).toBeTruthy();
             expect(screen.getByText("Groceries")).toBeTruthy();
@@ -266,6 +274,7 @@ describe("BusinessTab", () => {
             // Groceries and packaging are visible but deliberately outside the Operating Expenses
             // total; without the label a reader would assume the total was simply wrong.
             renderTab();
+            await openCard("🧾 Monthly expenses");
 
             expect(await screen.findByText(/not in Operating Expenses/)).toBeTruthy();
         });
@@ -276,28 +285,55 @@ describe("BusinessTab", () => {
             // Zero is a claim about the business; absence is a claim about the paperwork. Printing
             // the first when you mean the second turns unfiled invoices into a brilliant margin.
             renderTab();
+            await openCard("📦 Inventory COGS");
 
             expect((await screen.findByTestId("cogs-missing-2026-07")).textContent).toBe("—");
         });
 
         it("names the missing document for a completed month", async () => {
             renderTab();
+            await openCard("📦 Inventory COGS");
 
             expect(await screen.findByText(/PURCHASE jul-26 @ Adliya/)).toBeTruthy();
         });
     });
 
     describe("channel performance", () => {
+        it("opens an input when an empty app fees cell is clicked", async () => {
+            // Keeta's fee is unset, so the cell reads "—". It must still be editable: there is no
+            // other way into that number, and nothing computes it.
+            renderTab();
+            await openCard("🛵 Channel performance");
+
+            await userEvent.click(screen.getByTestId("cell-appFees-11"));
+
+            expect(screen.queryByLabelText("appFees Keeta")).toBeTruthy();
+        });
+
+        it("patches the fee when one is typed", async () => {
+            renderTab();
+            await openCard("🛵 Channel performance");
+            await userEvent.click(screen.getByTestId("cell-appFees-11"));
+
+            await userEvent.type(screen.getByLabelText("appFees Keeta"), "88.5{Enter}");
+
+            await waitFor(() => expect(mockPatchChannel).toHaveBeenCalled());
+            expect(mockPatchChannel).toHaveBeenCalledWith(11,
+                expect.objectContaining({ appFees: 88.5 }));
+        });
+
         it("warns when a channel has revenue but no app fee", async () => {
             // No channel is genuinely fee-free -- even pick-up carries a card-gateway cut -- so a
             // blank fee overstates profit rather than merely leaving a gap.
             renderTab();
+            await openCard("🛵 Channel performance");
 
             expect(await screen.findByText(/no app fee entered/)).toBeTruthy();
         });
 
         it("marks an overridden cell so an edited figure cannot pass for a measured one", async () => {
             renderTab();
+            await openCard("🛵 Channel performance");
 
             const cell = await screen.findByTestId("cell-grossRevenue-11");
             expect(cell.textContent).toContain("530.000");
@@ -307,6 +343,7 @@ describe("BusinessTab", () => {
             // Without them an override could be changed forever but never removed, because a JSON
             // null in a PATCH is indistinguishable from an absent field.
             renderTab();
+            await openCard("🛵 Channel performance");
 
             await userEvent.click(await screen.findByRole("button", { name: "Revert Keeta" }));
 
@@ -319,6 +356,7 @@ describe("BusinessTab", () => {
             // Talabat's fee is hand-entered, so its revert is live. A row with nothing overridden
             // has nothing to revert TO, and offering the action would imply otherwise.
             renderTab();
+            await openCard("🛵 Channel performance");
 
             expect((await screen.findByRole("button", { name: "Revert Talabat" })).hasAttribute("disabled"))
                 .toBe(false);
@@ -326,6 +364,7 @@ describe("BusinessTab", () => {
 
         it("only regenerates after the confirm is accepted", async () => {
             renderTab();
+            await openCard("🛵 Channel performance");
 
             await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
             expect(mockRegenerateChannels).not.toHaveBeenCalled();
@@ -338,6 +377,7 @@ describe("BusinessTab", () => {
             // Prep-plan's "this will replace the current plan" would be a lie here and would make
             // the owner afraid to press the button.
             renderTab();
+            await openCard("🛵 Channel performance");
 
             await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
 
@@ -350,6 +390,7 @@ describe("BusinessTab", () => {
             // Beside it in its own card it would be scrolled past -- which matters, because with
             // recipe-costed COGS the net profit line above is no longer a cash figure.
             renderTab();
+            await openCard("📈 Profit & loss");
 
             expect(await screen.findByText(/COGS reconciliation/)).toBeTruthy();
             expect(screen.getByText(/Unexplained variance/)).toBeTruthy();
@@ -357,6 +398,7 @@ describe("BusinessTab", () => {
 
         it("says that net profit is not a cash figure", async () => {
             renderTab();
+            await openCard("📈 Profit & loss");
 
             expect(await screen.findByText(/COGS is recipe-costed, not cash/)).toBeTruthy();
         });
@@ -364,6 +406,7 @@ describe("BusinessTab", () => {
         it("shows an em dash rather than a variance when a stock count is missing", async () => {
             // Computing one anyway would invent a waste figure out of missing paperwork.
             renderTab();
+            await openCard("📈 Profit & loss");
 
             expect(await screen.findByText(/No variance is computed from an input that does not exist/))
                 .toBeTruthy();

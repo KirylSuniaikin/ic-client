@@ -44,11 +44,7 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
-                <Typography variant="h6" fontWeight="bold" sx={{mb: 1}}>
-                    📦 Inventory COGS
-                </Typography>
+        <>
                 <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
                     Opening + purchases − closing stock, across the whole business. Measured from
                     stock counts, so it will not equal the recipe-costed COGS in the profit statement —
@@ -124,7 +120,6 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableBody>
                     </Table>
                 </TableContainer>
-            </CardContent>
-        </Card>
+        </>
     );
 }

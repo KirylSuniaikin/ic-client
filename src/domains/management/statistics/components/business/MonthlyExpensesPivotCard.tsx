@@ -89,19 +89,7 @@ export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): Re
     };
 
     return (
-        <Card sx={{borderRadius: 3, boxShadow: 3, mb: 2}}>
-            <CardContent>
-                <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 2}}>
-                    <Typography variant="h6" fontWeight="bold">🧾 Monthly expenses</Typography>
-                    {pivot.unclassifiedCategoryCount > 0 && (
-                        <Chip
-                            label={`⚠ ${pivot.unclassifiedCategoryCount} unclassified · ${formatBd(pivot.unclassifiedTotal)} BHD`}
-                            onClick={onClassify}
-                            sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}
-                        />
-                    )}
-                </Box>
-
+        <>
                 {pivot.blocks.length === 0 ? (
                     <Typography variant="body2" sx={{color: '#8a807a'}}>
                         No ledger entries in this range.
@@ -124,7 +112,6 @@ export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): Re
                         </Table>
                     </TableContainer>
                 )}
-            </CardContent>
-        </Card>
+        </>
     );
 }

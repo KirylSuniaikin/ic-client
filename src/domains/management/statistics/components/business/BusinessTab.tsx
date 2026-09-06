@@ -8,6 +8,7 @@ import KpiBlockCard from "./KpiBlockCard";
 import ProfitAndLossCard from "./ProfitAndLossCard";
 import MenuCostCardsCard from "./MenuCostCardsCard";
 import ComponentCostDrawer from "./ComponentCostDrawer";
+import CollapsibleCard from "./CollapsibleCard";
 import {useCostCards} from "../../hooks/useCostCards";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
 import {formatBd} from "./businessFormat";
@@ -34,6 +35,14 @@ type Props = {
  * <p>The month range lives in {@code StatisticsComponent}'s filter row rather than here, so it sits
  * alongside the other tabs' controls instead of inventing a second place to change scope.
  */
+
+function monthLabel(period: string | undefined): string {
+    if (!period) return "";
+    const [y, m] = period.split("-");
+    return new Date(Number(y), Number(m) - 1, 1)
+        .toLocaleDateString("en-US", {month: "long", year: "numeric"});
+}
+
 export default function BusinessTab(
     {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
 ): React.JSX.Element {
@@ -41,6 +50,23 @@ export default function BusinessTab(
     const costCards = useCostCards();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
     const [costDrawerOpen, setCostDrawerOpen] = useState<boolean>(false);
+
+    // A card that shows nothing while shut just forces you to open all six, so each carries the
+    // one number you would have opened it for.
+    const latestPnl = data?.profitAndLoss[data.profitAndLoss.length - 1];
+    const pnlSummary = latestPnl
+        ? `net profit ${formatBd(latestPnl.netProfit)} BHD in ${monthLabel(latestPnl.period)}`
+        : undefined;
+    const needsChannels = (data?.channels ?? []).every(m => m.rows.length === 0);
+    const feesMissing = (data?.channels ?? []).some(m => m.appFeesMissing);
+    const channelSummary = needsChannels
+        ? "press Refresh channel data — the profit statement reads zero until you do"
+        : `${data?.channels[data.channels.length - 1]?.rows.length ?? 0} channels`;
+    const blockedMonths = (data?.inventoryCogs ?? [])
+        .filter(m => m.movementCogs === null && !m.monthInProgress).length;
+    const inventorySummary = blockedMonths > 0
+        ? `${blockedMonths} month${blockedMonths === 1 ? "" : "s"} missing a count`
+        : "complete";
 
     const unclassifiedTotal = categories
         .filter(c => c.pnlClass === null)
@@ -174,20 +200,61 @@ export default function BusinessTab(
                         </Alert>
                     ))}
 
-                    <KpiBlockCard blocks={data.kpi}/>
-                    <ProfitAndLossCard months={data.profitAndLoss}/>
-                    <MonthlyExpensesPivotCard
-                        pivot={data.expensePivot}
-                        onClassify={() => setDrawerOpen(true)}
-                    />
-                    <ChannelPerformanceCard
-                        months={data.channels}
-                        rangeLabel={rangeLabel}
-                        onPatch={onPatchChannel}
-                        onRegenerate={onRegenerateChannels}
-                    />
-                    <InventoryCogsCard months={data.inventoryCogs}/>
-                    <MenuCostCardsCard data={costCards.cards} loading={costCards.loading}/>
+                    <CollapsibleCard title="📊 Key metrics" defaultExpanded
+                                     summary={monthLabel(data.months[data.months.length - 1])}>
+                        <KpiBlockCard blocks={data.kpi}/>
+                    </CollapsibleCard>
+
+                    {/* Above the profit statement on purpose: the P&L takes its revenue from here,
+                        so until this card has been refreshed the statement below reads zeros. The
+                        button that fixes it must not sit underneath the thing it fixes. */}
+                    <CollapsibleCard
+                        title="🛵 Channel performance"
+                        summary={channelSummary}
+                        badge={needsChannels
+                            ? <Chip label="⚠ not generated yet"
+                                    sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
+                            : feesMissing
+                                ? <Chip label="⚠ app fees missing" color="warning"/>
+                                : undefined}
+                        defaultExpanded={needsChannels}
+                    >
+                        <ChannelPerformanceCard
+                            months={data.channels}
+                            rangeLabel={rangeLabel}
+                            onPatch={onPatchChannel}
+                            onRegenerate={onRegenerateChannels}
+                        />
+                    </CollapsibleCard>
+
+                    <CollapsibleCard title="📈 Profit &amp; loss" summary={pnlSummary}>
+                        <ProfitAndLossCard months={data.profitAndLoss}/>
+                    </CollapsibleCard>
+
+                    <CollapsibleCard
+                        title="🧾 Monthly expenses"
+                        summary={`${data.expensePivot.blocks.length} blocks`}
+                        badge={data.expensePivot.unclassifiedCategoryCount > 0
+                            ? <Chip
+                                label={`⚠ ${data.expensePivot.unclassifiedCategoryCount} unclassified · ${formatBd(data.expensePivot.unclassifiedTotal)} BHD`}
+                                onClick={() => setDrawerOpen(true)}
+                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
+                            : undefined}
+                    >
+                        <MonthlyExpensesPivotCard
+                            pivot={data.expensePivot}
+                            onClassify={() => setDrawerOpen(true)}
+                        />
+                    </CollapsibleCard>
+
+                    <CollapsibleCard title="📦 Inventory COGS" summary={inventorySummary}>
+                        <InventoryCogsCard months={data.inventoryCogs}/>
+                    </CollapsibleCard>
+
+                    <CollapsibleCard title="🍕 Menu cost cards"
+                                     summary={costCards.cards ? `${costCards.cards.cards.length} items` : undefined}>
+                        <MenuCostCardsCard data={costCards.cards} loading={costCards.loading}/>
+                    </CollapsibleCard>
                 </>
             )}
 
