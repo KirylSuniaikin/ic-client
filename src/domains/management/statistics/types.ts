@@ -184,18 +184,26 @@ export type InventoryCogsState =
     | "MISSING_PURCHASES"
     | "NO_DATA";
 
+export type PurchaseCategory = {
+    categoryName: string;
+    amount: number;
+};
+
 export type InventoryCogs = {
     period: string;
     state: InventoryCogsState;
     // When true a missing closing count is expected, not a failure — do not nag.
     monthInProgress: boolean;
     openingInventory: number | null;
+    // Spend on goods and packaging, from the ledger — every accounting category classified
+    // COGS_PURCHASES. Not from the purchase invoices, which record the same money a second time.
     purchases: number | null;
-    // The Purchases figure split by what was bought. The three always sum to `purchases`;
-    // unclassified is its own line rather than being folded into groceries.
-    purchasesGroceries: number | null;
-    purchasesPackaging: number | null;
-    purchasesUnclassified: number | null;
+    // `purchases` broken down by category. Always sums back to it. Category names rather than a
+    // fixed pair, so classifying a new category as COGS_PURCHASES adds a row on its own.
+    purchaseBreakdown: PurchaseCategory[];
+    // The same month per the purchase invoices. Not shown here — it feeds the P&L memo's
+    // ledger-vs-invoices row, which is what would notice the two entry paths drifting apart.
+    invoicePurchases: number | null;
     available: number | null;
     endingInventory: number | null;
     // Null, NEVER 0, when an input is missing. Zero is a claim; absence is not.

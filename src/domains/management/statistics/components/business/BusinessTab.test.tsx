@@ -54,14 +54,19 @@ const report: BusinessStatsResponse = {
         {
             period: "2026-06", state: "OK", monthInProgress: false,
             openingInventory: 553.679, purchases: 808.69, available: 1362.369,
-            purchasesGroceries: 640.19, purchasesPackaging: 168.5, purchasesUnclassified: 0,
+            purchaseBreakdown: [
+                { categoryName: "Groceries", amount: 640.19 },
+                { categoryName: "Packaging", amount: 168.5 },
+            ],
+            invoicePurchases: 805.2,
             endingInventory: 522.673, movementCogs: 839.696, cogsPercentOfGrossRevenue: 25.7,
             contributingBranches: ["Adliya"], missingBranches: [], missingReports: [],
         },
         {
             period: "2026-07", state: "MISSING_PURCHASES", monthInProgress: false,
             openingInventory: 522.673, purchases: null, available: null,
-            purchasesGroceries: null, purchasesPackaging: null, purchasesUnclassified: null,
+            purchaseBreakdown: [],
+            invoicePurchases: null,
             endingInventory: 896.003, movementCogs: null, cogsPercentOfGrossRevenue: null,
             contributingBranches: [], missingBranches: ["Adliya"],
             missingReports: ["PURCHASE jul-26 @ Adliya"],

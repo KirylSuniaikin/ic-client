@@ -20,8 +20,8 @@ const STATE_MESSAGES: Record<InventoryCogsState, string | null> = {
     PARTIAL_BRANCHES: "Covers only part of the business",
     MISSING_OPENING: "No closing stock count for the previous month — there is no opening balance to work from",
     MISSING_ENDING: "No stock count for this month",
-    MISSING_PURCHASES: "No purchase report — COGS would be understated by a month of invoices",
-    NO_DATA: "No stock or purchase data filed for this month",
+    MISSING_PURCHASES: "Nothing booked to Groceries or Packaging in the ledger this month",
+    NO_DATA: "No stock counts and no goods spend recorded for this month",
 };
 
 function monthLabel(period: string): string {
@@ -40,7 +40,43 @@ function monthLabel(period: string): string {
  * shows a zero: zero is a claim about the business, absence is a claim about the paperwork, and
  * printing the first when you mean the second turns unfiled invoices into a brilliant margin.
  */
+/**
+ * One labelled row of the statement, one cell per month.
+ *
+ * <p>Extracted because the rows are no longer a fixed list — the purchases breakdown is whatever
+ * categories the ledger has — so they cannot all come out of one array literal any more.
+ */
+function SimpleRow(
+    {label, pick, months, indent = false}: {
+        label: string;
+        pick: (m: InventoryCogs) => number | null;
+        months: InventoryCogs[];
+        indent?: boolean;
+    }
+): React.JSX.Element {
+    return (
+        <TableRow hover>
+            <TableCell sx={{
+                whiteSpace: 'nowrap',
+                pl: indent ? 4 : undefined,
+                color: indent ? '#8a807a' : undefined,
+            }}>{label}</TableCell>
+            {months.map(m => (
+                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                    {pick(m) === null ? "—" : formatBd(pick(m))}
+                </TableCell>
+            ))}
+        </TableRow>
+    );
+}
+
 export default function InventoryCogsCard({months}: Props): React.JSX.Element {
+    // Every category that appears in any month on screen, so a category bought in June but not in
+    // July still gets a row (showing an em dash) rather than the two months having different shapes.
+    const breakdownCategories = Array.from(new Set(
+        months.flatMap(m => m.purchaseBreakdown.map(l => l.categoryName))
+    )).sort();
+
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
 
     return (
@@ -68,46 +104,28 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                     </TableHead>
                     <TableBody>
                         {/* The +/=/− prefixes carry the arithmetic, because without them the
-                            indented split reads as though Available were built from Groceries and
-                            Packaging. It is not: Available is Opening + the WHOLE Purchases row,
-                            and the three indented lines are a breakdown of that row. Summing only
-                            the two named classes drops everything unclassified — and null is the
-                            default class for every new product.
+                            indented breakdown reads as though Available were built from it.
+                            Available is Opening + the WHOLE Purchases row; the indented lines are
+                            a breakdown of that row and always add back up to it. */}
+                        <SimpleRow label="Opening inventory" pick={m => m.openingInventory} months={months}/>
+                        <SimpleRow label="+ Purchases" pick={m => m.purchases} months={months}/>
 
-                            Purchases is split into what the money was actually spent on, which is
-                            how the Backoffice sheet reads it. The two indented rows plus the
-                            unclassified one always add back up to Purchases -- an unclassified
-                            product gets its own line rather than being quietly added to groceries,
-                            because that would make both rows wrong and neither look wrong.
-
-                            The unclassified row is hidden when it is zero, so a fully classified
-                            product list gives the clean two-row split and nothing else. */}
-                        {([
-                            ["Opening inventory", (m: InventoryCogs) => m.openingInventory, 0, false],
-                            ["+ Purchases", (m: InventoryCogs) => m.purchases, 0, false],
-                            ["Groceries", (m: InventoryCogs) => m.purchasesGroceries, 1, false],
-                            ["Packaging", (m: InventoryCogs) => m.purchasesPackaging, 1, false],
-                            ["Unclassified", (m: InventoryCogs) => m.purchasesUnclassified, 1, true],
-                            ["= Available", (m: InventoryCogs) => m.available, 0, false],
-                            ["− Ending inventory", (m: InventoryCogs) => m.endingInventory, 0, false],
-                        ] as const)
-                            .filter(([, pick, , hideWhenEmpty]) =>
-                                !hideWhenEmpty || months.some(m => (pick(m) ?? 0) !== 0))
-                            .map(([label, pick, indent, hideWhenEmpty]) => (
-                            <TableRow key={label} hover>
-                                <TableCell sx={{
-                                    whiteSpace: 'nowrap',
-                                    pl: indent ? 4 : undefined,
-                                    color: indent ? '#8a807a' : undefined,
-                                    fontWeight: hideWhenEmpty ? 'bold' : undefined,
-                                }}>{label}</TableCell>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                        {pick(m) === null ? "—" : formatBd(pick(m))}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
+                        {/* Driven by the data, not a fixed Groceries/Packaging pair: these are
+                            whatever accounting categories are classified COGS_PURCHASES. Classify a
+                            new one that way and it appears here with no code change — and nothing
+                            can fall between two hardcoded names and vanish. */}
+                        {breakdownCategories.map(name => (
+                            <SimpleRow
+                                key={name}
+                                label={name}
+                                indent
+                                months={months}
+                                pick={m => m.purchaseBreakdown.find(l => l.categoryName === name)?.amount ?? null}
+                            />
                         ))}
+
+                        <SimpleRow label="= Available" pick={m => m.available} months={months}/>
+                        <SimpleRow label="− Ending inventory" pick={m => m.endingInventory} months={months}/>
 
                         <TableRow>
                             <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS</TableCell>
