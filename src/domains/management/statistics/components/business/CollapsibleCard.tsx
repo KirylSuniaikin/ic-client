@@ -1,6 +1,7 @@
 import React, {useState} from "react";
 import {Box, Card, CardContent, Chip, Collapse, IconButton, Typography} from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import InfoHint from "./InfoHint";
 
 type Props = {
     title: string;
@@ -8,6 +9,8 @@ type Props = {
     summary?: React.ReactNode;
     /** Draws attention when something inside needs doing — an unclassified chip, a missing fee. */
     badge?: React.ReactNode;
+    /** The card's explanation, behind an ⓘ rather than as a paragraph above the figures. */
+    info?: React.ReactNode;
     defaultExpanded?: boolean;
     children: React.ReactNode;
 };
@@ -20,7 +23,7 @@ type Props = {
  * open all six to find the one you wanted, which is the problem restated rather than solved.
  */
 export default function CollapsibleCard(
-    {title, summary, badge, defaultExpanded = false, children}: Props
+    {title, summary, badge, info, defaultExpanded = false, children}: Props
 ): React.JSX.Element {
     const [open, setOpen] = useState<boolean>(defaultExpanded);
 
@@ -35,6 +38,7 @@ export default function CollapsibleCard(
                 }}
             >
                 <Typography variant="h6" fontWeight="bold">{title}</Typography>
+                {info && <InfoHint text={info} label={title}/>}
                 {badge}
                 {!open && summary && (
                     <Typography variant="body2" sx={{color: '#8a807a', ml: 1}}>

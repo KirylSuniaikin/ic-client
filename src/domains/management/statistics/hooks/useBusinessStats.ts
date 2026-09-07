@@ -7,8 +7,15 @@ import type {BusinessStatsResponse, ChannelOverridePatch} from "../types";
 import {logger} from "../../../../shared/utils/logger";
 import type {MonthRange} from "../components/business/MonthRangePickerPopover";
 
-/** Seven columns is the widest a P&L stays readable on a POS tablet. */
-const DEFAULT_MONTHS_BACK = 6;
+/**
+ * The report opens on the CURRENT month only.
+ *
+ * <p>It used to open on the last seven, which meant every visit paid for seven months of pivot,
+ * P&L, KPI and inventory computation before anyone had said what they wanted to look at — and the
+ * answer to "how are we doing" is almost always this month. History is one click away in the picker,
+ * and the presets there still reach back 3, 6 and 12 months.
+ */
+const DEFAULT_MONTHS_BACK = 0;
 
 /** Mirrors the server's own limit, so an over-long range is refused here rather than as a 400. */
 const MAX_MONTHS = 24;

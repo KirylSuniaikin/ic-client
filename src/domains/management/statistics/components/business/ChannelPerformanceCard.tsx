@@ -113,11 +113,16 @@ export default function ChannelPerformanceCard(
                 }}
             >
                 {isEditing ? (
+                    // Enter and Escape have always worked here; nothing said so, so nobody used
+                    // them and the only discoverable way to save was to click elsewhere and hope.
+                    // helperText costs one line and removes the guesswork.
                     <TextField
                         autoFocus
                         size="small"
                         variant="standard"
                         value={draft}
+                        helperText="Enter to save · Esc to cancel"
+                        FormHelperTextProps={{sx: {fontSize: 10, textAlign: 'right', m: 0, whiteSpace: 'nowrap'}}}
                         inputProps={{style: {textAlign: 'right'}, 'aria-label': `${field} ${row.channelLabel}`}}
                         onChange={e => setDraft(e.target.value)}
                         onBlur={() => void commit(row, field)}
@@ -162,11 +167,6 @@ export default function ChannelPerformanceCard(
                     Refresh channel data
                 </Button>
             </Box>
-
-            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                Orders and revenue come from our own order records. App fees have no other
-                source — they are whatever you enter here.
-            </Typography>
 
             {months.length > 1 && (
                 <ToggleButtonGroup

@@ -1,9 +1,16 @@
-import React, {useState} from "react";
-import {Box, Button, Chip, Popover, Stack, Typography} from "@mui/material";
-import {DateCalendar, LocalizationProvider} from "@mui/x-date-pickers";
-import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs, {Dayjs} from "dayjs";
+import React, {useEffect, useState} from "react";
+import {Box, Button, Chip, IconButton, Popover, Stack, Typography} from "@mui/material";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Month index since year 0, so two months compare and subtract as plain numbers. */
+function ordinal(d: Date): number {
+    return d.getFullYear() * 12 + d.getMonth();
+}
 
 export type MonthRange = { from: Date; to: Date };
 
@@ -32,23 +39,50 @@ export function presetRange(months: number, today: Date = new Date()): MonthRang
     return {from: new Date(to.getFullYear(), to.getMonth() - (months - 1), 1), to};
 }
 
+/** Where one month sits in the selected range, which decides how its pill is drawn. */
+export type RangePosition = "single" | "start" | "end" | "inside" | "none";
+
+/**
+ * Pure so the rule can be tested without the popover.
+ *
+ * <p>The single case is checked FIRST and is the reason this exists: a one-month range has
+ * {@code lo === hi}, so testing for the start before the single case matched it and drew a pill
+ * rounded on the left and square on the right. That does not read as "one month selected" — it
+ * reads as a month clipped by the edge of the popover, which is exactly how it was reported.
+ */
+export function rangePosition(ordinal: number, lo: number, hi: number): RangePosition {
+    if (ordinal < lo || ordinal > hi) return "none";
+    if (ordinal === lo && ordinal === hi) return "single";
+    if (ordinal === lo) return "start";
+    if (ordinal === hi) return "end";
+    return "inside";
+}
+
 const PRESETS: { label: string; months: number }[] = [
     {label: "3 months", months: 3},
     {label: "6 months", months: 6},
     {label: "12 months", months: 12},
 ];
 
-function startOfThisMonth(): Dayjs {
-    return dayjs().startOf("month");
-}
-
 /**
- * Picks a range of MONTHS from a single calendar.
+ * Picks a range of MONTHS from a grid of twelve.
  *
- * <p>One calendar, clicked twice — first click sets the start and arms the end, second click closes
- * the range. Two side-by-side calendars was the obvious way to build it and the wrong way to use it:
- * the day-range picker next to it on the same filter row is a single calendar, so two was
- * inconsistent as well as twice the width on a POS tablet.
+ * <p>One grid, clicked twice — first click sets the start and arms the end, second click closes the
+ * range. Two side-by-side calendars was the obvious way to build it and the wrong way to use it: the
+ * day-range picker next to it on the same filter row is a single calendar, so two was inconsistent
+ * as well as twice the width on a POS tablet.
+ *
+ * <p>A hand-rolled grid rather than {@code DateCalendar}, for two reasons the picker cannot give us:
+ * <ul>
+ *   <li><strong>It fits.</strong> DateCalendar reserves a fixed ~336px for a day grid it never shows
+ *       in month view, so the popover ran off the bottom of a tablet and clipped its own Apply
+ *       button. Twelve buttons are about half that and the popover is capped to the viewport as
+ *       well, so it can no longer be cut off however low the trigger sits.</li>
+ *   <li><strong>It can show the range.</strong> Highlighting a span of months needs per-month
+ *       rendering; the free DateCalendar has no slot for it (that is DateRangeCalendar, which is
+ *       Pro). Selecting Mar and Sep with nothing in between looking selected is the single most
+ *       confusing thing about the old picker.</li>
+ * </ul>
  *
  * <p>Most of the time nobody wants a custom range at all, so the presets sit above and end the job
  * in one click.
@@ -57,11 +91,17 @@ export default function MonthRangePickerPopover(
     {open, anchorEl, range, onRangeChange, onClose, onApply}: Props
 ): React.JSX.Element {
     // Null = the next click starts a new range. Set = we are waiting for the closing click.
-    const [pendingFrom, setPendingFrom] = useState<Dayjs | null>(null);
+    const [pendingFrom, setPendingFrom] = useState<Date | null>(null);
+    const [year, setYear] = useState<number>(() => range.to.getFullYear());
 
-    const pick = (value: Dayjs | null): void => {
-        if (!value) return;
-        const picked = value.startOf("month");
+    // Reopening after picking a different range should land on that range's year, not on whatever
+    // year was last paged to.
+    useEffect(() => {
+        if (open) setYear(range.to.getFullYear());
+    }, [open, range.to]);
+
+    const pick = (monthIndex: number): void => {
+        const picked = new Date(year, monthIndex, 1);
 
         if (pendingFrom === null) {
             setPendingFrom(picked);
@@ -69,7 +109,7 @@ export default function MonthRangePickerPopover(
         }
 
         setPendingFrom(null);
-        onRangeChange(closeRange(pendingFrom.toDate(), picked.toDate()));
+        onRangeChange(closeRange(pendingFrom, picked));
     };
 
     const applyPreset = (months: number): void => {
@@ -80,6 +120,15 @@ export default function MonthRangePickerPopover(
     const label = (d: Date): string =>
         d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
 
+    // While a range is half-picked, the armed month is the only thing highlighted -- showing the
+    // old range underneath it would make the click that is about to happen look like it has already
+    // happened.
+    const lo = pendingFrom ? ordinal(pendingFrom) : ordinal(range.from);
+    const hi = pendingFrom ? ordinal(pendingFrom) : ordinal(range.to);
+
+    const monthState = (monthIndex: number): RangePosition =>
+        rangePosition(year * 12 + monthIndex, lo, hi);
+
     return (
         <Popover
             open={open}
@@ -89,14 +138,30 @@ export default function MonthRangePickerPopover(
                 onClose();
             }}
             anchorOrigin={{vertical: "bottom", horizontal: "left"}}
-            slotProps={{paper: {sx: {borderRadius: 3, mt: 0.5, boxShadow: 6}}}}
+            slotProps={{
+                paper: {
+                    sx: {
+                        borderRadius: 3,
+                        mt: 0.5,
+                        boxShadow: 6,
+                        // Belt and braces with the shorter body above: however low on the screen the
+                        // trigger sits, the popover scrolls rather than losing its Apply button.
+                        maxHeight: "calc(100vh - 24px)",
+                        overflowY: "auto",
+                    },
+                },
+            }}
         >
             <Box sx={{p: 2, width: 320}}>
-                <Stack direction="row" spacing={1} sx={{mb: 1.5}}>
+                {/* Wraps rather than overflowing. Three chips reading "Last 12 months" are wider
+                    than the 288px of content this popover has, and the paper clipped the third
+                    instead of the row moving. flexWrap makes that impossible whatever the labels
+                    later say; the shorter labels mean it does not have to. */}
+                <Stack direction="row" useFlexGap sx={{mb: 1.5, gap: 1, flexWrap: 'wrap'}}>
                     {PRESETS.map(p => (
                         <Chip
                             key={p.label}
-                            label={`Last ${p.label}`}
+                            label={p.label}
                             size="small"
                             onClick={() => applyPreset(p.months)}
                             sx={{borderRadius: 999}}
@@ -106,7 +171,7 @@ export default function MonthRangePickerPopover(
 
                 <Typography variant="body2" fontWeight="bold" sx={{color: '#3b352c'}}>
                     {pendingFrom
-                        ? `${pendingFrom.format("MMM YYYY")} — pick the end month`
+                        ? `${label(pendingFrom)} — pick the end month`
                         : `${label(range.from)} — ${label(range.to)}`}
                 </Typography>
                 <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mb: 1}}>
@@ -114,15 +179,56 @@ export default function MonthRangePickerPopover(
                                  : "Click a month to start a new range."}
                 </Typography>
 
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DateCalendar
-                        views={['year', 'month']}
-                        openTo="month"
-                        value={pendingFrom ?? dayjs(range.to)}
-                        onChange={pick}
-                        sx={{width: '100%', m: 0}}
-                    />
-                </LocalizationProvider>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.5}}>
+                    <IconButton size="small" aria-label="Previous year" onClick={() => setYear(y => y - 1)}>
+                        <ChevronLeftIcon fontSize="small"/>
+                    </IconButton>
+                    <Typography variant="body2" fontWeight="bold">{year}</Typography>
+                    <IconButton size="small" aria-label="Next year" onClick={() => setYear(y => y + 1)}>
+                        <ChevronRightIcon fontSize="small"/>
+                    </IconButton>
+                </Stack>
+
+                <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5}}>
+                    {MONTHS.map((name, i) => {
+                        const state = monthState(i);
+                        const isEnd = state === "single" || state === "start" || state === "end";
+                        return (
+                            <Box
+                                key={name}
+                                component="button"
+                                type="button"
+                                aria-label={`${name} ${year}`}
+                                aria-pressed={state !== "none"}
+                                onClick={() => pick(i)}
+                                sx={{
+                                    py: 1,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: 14,
+                                    fontWeight: isEnd ? 700 : 500,
+                                    fontFamily: 'inherit',
+                                    // The ends are solid brand red, the months between are a tint of
+                                    // it -- so a six-month range reads as one bar, not two dots.
+                                    borderRadius: state === "start" ? '999px 0 0 999px'
+                                                : state === "end" ? '0 999px 999px 0'
+                                                : state === "inside" ? 0 : '999px',
+                                    backgroundColor: isEnd ? BRAND_RED
+                                                   : state === "inside" ? 'rgba(228, 75, 76, 0.14)'
+                                                   : 'transparent',
+                                    color: isEnd ? '#fff' : '#3b352c',
+                                    '&:hover': {
+                                        backgroundColor: isEnd ? '#c73c3d'
+                                                       : state === "inside" ? 'rgba(228, 75, 76, 0.22)'
+                                                       : '#f3efe9',
+                                    },
+                                }}
+                            >
+                                {name}
+                            </Box>
+                        );
+                    })}
+                </Box>
 
                 <Button
                     variant="contained"
@@ -133,7 +239,7 @@ export default function MonthRangePickerPopover(
                         onApply();
                     }}
                     sx={{
-                        mt: 1,
+                        mt: 2,
                         borderRadius: "9999px",
                         textTransform: "none",
                         fontWeight: 700,

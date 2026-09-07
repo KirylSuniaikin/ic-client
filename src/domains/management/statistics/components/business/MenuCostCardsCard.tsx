@@ -1,17 +1,29 @@
 import React, {useState} from "react";
 import {
-    Accordion, AccordionDetails, AccordionSummary, Alert, Box, Card, CardContent, Chip, MenuItem,
-    Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
+    Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, MenuItem, Select,
+    Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup,
+    Typography
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import type {MenuCostCardsResponse, MenuItemCostCard} from "../../types";
+import type {ComponentCost, MenuCostCardsResponse, MenuItemCostCard} from "../../types";
 import {formatBd} from "./businessFormat";
+import {BRAND_RED} from "../../../../../shared/utils/theme";
 import {StatSkeleton} from "../performance/statPlaceholders";
 
 type Props = {
     data: MenuCostCardsResponse | null;
     loading: boolean;
+    /**
+     * Every component with its resolved cost. Carries the batch recipes — doughs, sauces, sauce
+     * cups — which have no menu item of their own and so appear on no cost card, despite being
+     * where a good deal of the cost actually is.
+     */
+    components: ComponentCost[];
+    /** Opens the ingredient-cost drawer. The only route to it now that the setup cards are gone. */
+    onSetCosts: () => void;
 };
+
+type Mode = "menu" | "batch";
 
 /**
  * What each menu item costs to make.
@@ -23,7 +35,10 @@ type Props = {
  * per-kilogram price mistakenly read as per-gram becomes visible: in a total it is just a number,
  * but a gram of mozzarella at 2.500 BD is obviously wrong.
  */
-export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Element {
+export default function MenuCostCardsCard(
+    {data, loading, components, onSetCosts}: Props
+): React.JSX.Element {
+    const [mode, setMode] = useState<Mode>("menu");
     const [category, setCategory] = useState<string>("");
     const [search, setSearch] = useState<string>("");
 
@@ -113,6 +128,80 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
         </Accordion>
     );
 
+    /**
+     * A batch recipe, laid out exactly like a cost card so the two read the same way.
+     *
+     * <p>No sale price and so no food-cost %: a dough is not sold, it is consumed by the items that
+     * are. What it does have is a YIELD, and the cost per kg that falls out of it — which is the
+     * number that actually reaches every pizza on the other tab.
+     */
+    const renderBatch = (c: ComponentCost): React.JSX.Element => {
+        const perKg = c.unit === "GRAMS" || c.unit === "ML";
+        const batchCost = c.ingredients.reduce((sum, l) => sum + l.lineCost, 0);
+
+        return (
+            <Accordion key={c.id} disableGutters
+                       sx={{boxShadow: 'none', border: '1px solid #f1eae4', borderRadius: 2, mb: 1, '&:before': {display: 'none'}}}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon/>}>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', width: '100%'}}>
+                        <Typography fontWeight="bold">{c.name}</Typography>
+                        {c.batchYield !== null && (
+                            <Chip size="small" label={`yields ${c.batchYield} ${c.unit?.toLowerCase() ?? ""}`}
+                                  sx={{backgroundColor: '#f1eae4'}}/>
+                        )}
+                        {c.ingredients.some(l => l.lineCost === 0) && (
+                            // A zero line means an ingredient with no cost, which drags the whole
+                            // batch down and every recipe that uses it with it.
+                            <Chip size="small" label="Incomplete" color="warning"/>
+                        )}
+                        <Typography variant="body2" sx={{color: '#8a807a', ml: 'auto', whiteSpace: 'nowrap'}}>
+                            {formatBd(perKg ? c.resolvedUnitCost * 1000 : c.resolvedUnitCost)}
+                            {perKg ? " per kg" : " each"}
+                        </Typography>
+                    </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{fontWeight: 'bold'}}>Ingredient</TableCell>
+                                <TableCell align="right" sx={{fontWeight: 'bold'}}>Amount</TableCell>
+                                <TableCell align="right" sx={{fontWeight: 'bold'}}>Cost</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {c.ingredients.map(line => (
+                                <TableRow key={line.id}>
+                                    <TableCell>
+                                        {line.ingredientProductName ?? line.ingredientComponentName}
+                                        {line.ingredientComponentName && (
+                                            // A batch inside a batch. Worth marking: it is the one
+                                            // place a cost can move without this recipe changing.
+                                            <Chip size="small" label="batch" sx={{ml: 1, backgroundColor: '#f1eae4'}}/>
+                                        )}
+                                    </TableCell>
+                                    <TableCell align="right">{line.amount}</TableCell>
+                                    <TableCell align="right">{formatBd(line.lineCost)}</TableCell>
+                                </TableRow>
+                            ))}
+                            <TableRow>
+                                <TableCell sx={{fontWeight: 'bold'}}>Batch cost</TableCell>
+                                <TableCell/>
+                                <TableCell align="right" sx={{fontWeight: 'bold'}}>{formatBd(batchCost)}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </AccordionDetails>
+            </Accordion>
+        );
+    };
+
+    // Only components that are actually made from something. A component linked straight to a
+    // purchased product is not a recipe, it is a price.
+    const batches = components
+        .filter(c => c.ingredients.length > 0)
+        .filter(c => search === "" || c.name.toLowerCase().includes(search.toLowerCase()));
+
     return (
         <>
             {data.costing.componentsResolved < data.costing.componentsUsed && (
@@ -134,26 +223,97 @@ export default function MenuCostCardsCard({data, loading}: Props): React.JSX.Ele
                 </Alert>
             )}
 
-            <Box sx={{display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap'}}>
-                <Select
+            <Box sx={{display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center'}}>
+                {/* Same pill group as the Statistics tab strip above, so the two read as one
+                    control system rather than two. */}
+                <ToggleButtonGroup
+                    exclusive
                     size="small"
-                    displayEmpty
-                    value={category}
-                    onChange={e => setCategory(e.target.value)}
-                    sx={{minWidth: 160}}
+                    value={mode}
+                    onChange={(_, v: Mode | null) => v && setMode(v)}
+                    sx={{
+                        columnGap: 1,
+                        '& .MuiToggleButtonGroup-grouped': {
+                            border: '1px solid #e0e0e0',
+                            borderRadius: 999,
+                            margin: 0,
+                            '&:not(:first-of-type)': {marginLeft: 0, borderLeft: '1px solid #e0e0e0'},
+                        },
+                        '& .MuiToggleButton-root': {textTransform: 'none', px: 2},
+                        '& .MuiToggleButton-root.Mui-selected': {
+                            backgroundColor: BRAND_RED,
+                            color: '#fff',
+                            borderColor: BRAND_RED,
+                            '&:hover': {backgroundColor: '#d23c3d', borderColor: '#d23c3d'},
+                        },
+                    }}
                 >
-                    <MenuItem value="">All categories</MenuItem>
-                    {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                </Select>
+                    <ToggleButton value="menu">Menu items</ToggleButton>
+                    <ToggleButton value="batch">Batch recipes</ToggleButton>
+                </ToggleButtonGroup>
+
+                {/* Categories only exist for menu items; a dough has none. */}
+                {mode === "menu" && (
+                    <Select
+                        size="small"
+                        displayEmpty
+                        value={category}
+                        onChange={e => setCategory(e.target.value)}
+                        sx={{
+                            minWidth: 160,
+                            borderRadius: 999,
+                            '& .MuiOutlinedInput-notchedOutline': {borderColor: '#e0e0e0'},
+                            '&:hover .MuiOutlinedInput-notchedOutline': {borderColor: BRAND_RED},
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {borderColor: BRAND_RED},
+                            '& .MuiSelect-select': {py: 0.75},
+                        }}
+                        MenuProps={{PaperProps: {sx: {borderRadius: 2, mt: 0.5, boxShadow: 6}}}}
+                    >
+                        <MenuItem value="">All categories</MenuItem>
+                        {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                    </Select>
+                )}
+
                 <TextField
                     size="small"
                     placeholder="Search"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
+                    sx={{
+                        '& .MuiOutlinedInput-root': {
+                            borderRadius: 999,
+                            '& fieldset': {borderColor: '#e0e0e0'},
+                            '&:hover fieldset': {borderColor: BRAND_RED},
+                            '&.Mui-focused fieldset': {borderColor: BRAND_RED},
+                        },
+                    }}
                 />
+
+                <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={onSetCosts}
+                    sx={{
+                        ml: 'auto',
+                        textTransform: 'none',
+                        borderRadius: 999,
+                        borderColor: '#e0e0e0',
+                        color: '#3b352c',
+                        '&:hover': {borderColor: BRAND_RED, color: BRAND_RED},
+                    }}
+                >
+                    Set ingredient costs
+                </Button>
             </Box>
 
-            {visible.length === 0 ? (
+            {mode === "batch" ? (
+                batches.length === 0
+                    ? <Typography variant="body2" sx={{color: '#8a807a'}}>
+                        No batch recipes yet. A dough or a sauce becomes one as soon as it is given
+                        ingredients and a yield in Set ingredient costs.
+                      </Typography>
+                    : <>{batches.map(renderBatch)}</>
+            ) : visible.length === 0 ? (
                 <Typography variant="body2" sx={{color: '#8a807a'}}>No matching items.</Typography>
             ) : visible.map(renderCard)}
         </>

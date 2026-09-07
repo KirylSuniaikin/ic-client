@@ -25,6 +25,7 @@ function reports(n: number): AccountingReportSummary[] {
         title: `report-${i + 1}`,
         createdAt: "2026-07-14T10:00:00",
         version: 0,
+        startBalance: null,
         totalIncome: 10,
         totalExpense: 5,
     }));

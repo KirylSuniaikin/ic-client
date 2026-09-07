@@ -3,7 +3,7 @@ import React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BusinessTab from "./BusinessTab";
-import type { BusinessStatsResponse, CategoryClassification } from "../../types";
+import type { BusinessStatsResponse, CategoryClassification, ComponentCost } from "../../types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts. useBusinessCategories
 // runs for real, so the fetch -> classify -> refetch wiring is genuine.
@@ -54,12 +54,19 @@ const report: BusinessStatsResponse = {
         {
             period: "2026-06", state: "OK", monthInProgress: false,
             openingInventory: 553.679, purchases: 808.69, available: 1362.369,
+            purchaseBreakdown: [
+                { categoryName: "Groceries", amount: 640.19 },
+                { categoryName: "Packaging", amount: 168.5 },
+            ],
+            invoicePurchases: 805.2,
             endingInventory: 522.673, movementCogs: 839.696, cogsPercentOfGrossRevenue: 25.7,
             contributingBranches: ["Adliya"], missingBranches: [], missingReports: [],
         },
         {
             period: "2026-07", state: "MISSING_PURCHASES", monthInProgress: false,
             openingInventory: 522.673, purchases: null, available: null,
+            purchaseBreakdown: [],
+            invoicePurchases: null,
             endingInventory: 896.003, movementCogs: null, cogsPercentOfGrossRevenue: null,
             contributingBranches: [], missingBranches: ["Adliya"],
             missingReports: ["PURCHASE jul-26 @ Adliya"],
@@ -227,18 +234,25 @@ describe("BusinessTab", () => {
             expect(await screen.findByText(/1 unclassified · 4,102.500 BHD/)).toBeTruthy();
         });
 
-        it("reports success when everything is classified", async () => {
+        it("says nothing at all when everything is classified", async () => {
+            // The old screen carried a permanent "All N categories classified" card. Reassurance is
+            // not a report: a clean month should look clean, not carry a green banner about data
+            // entry. The warning still appears when there IS something wrong -- see the pivot badge
+            // test below.
             mockGet.mockResolvedValue([rent]);
 
             renderTab();
 
-            expect(await screen.findByText(/All 1 categories classified/)).toBeTruthy();
+            await screen.findByText("📊 Key metrics");
+            expect(screen.queryByText(/categories classified/)).toBeNull();
         });
 
         it("patches only the chosen category and refetches when a class is picked", async () => {
+            // The drawer is now reached from the warning badge on the Monthly expenses card, which
+            // is the report the classification actually distorts.
             renderTab();
-            await screen.findByRole("button", { name: "Classify categories" });
-            await userEvent.click(screen.getByRole("button", { name: "Classify categories" }));
+            const badge = await screen.findByText(/1 unclassified/);
+            await userEvent.click(badge);
 
             const row = await screen.findByTestId("category-row-1");
             await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
@@ -256,7 +270,7 @@ describe("BusinessTab", () => {
 
             renderTab();
 
-            expect(await screen.findByText(/All 0 categories classified/)).toBeTruthy();
+            expect(await screen.findByText("📊 Key metrics")).toBeTruthy();
         });
     });
 
@@ -397,8 +411,13 @@ describe("BusinessTab", () => {
         });
 
         it("says that net profit is not a cash figure", async () => {
+            // The explanation moved out of the page body and behind the card's ⓘ -- six paragraphs
+            // of it pushed the actual figures off a tablet screen. It still has to be REACHABLE,
+            // which is what this asserts; where it lives is a layout decision, whether it exists
+            // at all is not.
             renderTab();
-            await openCard("📈 Profit & loss");
+
+            await userEvent.hover(await screen.findByRole("img", {name: /About .*Profit/}));
 
             expect(await screen.findByText(/COGS is recipe-costed, not cash/)).toBeTruthy();
         });
@@ -407,6 +426,8 @@ describe("BusinessTab", () => {
             // Computing one anyway would invent a waste figure out of missing paperwork.
             renderTab();
             await openCard("📈 Profit & loss");
+
+            await userEvent.hover(await screen.findByRole("img", {name: "About incomplete months"}));
 
             expect(await screen.findByText(/No variance is computed from an input that does not exist/))
                 .toBeTruthy();
@@ -438,11 +459,103 @@ describe("BusinessTab", () => {
         });
     });
 
-    describe("ingredient costs", () => {
-        it("reports full coverage when every ingredient is costed", async () => {
+    describe("inventory COGS", () => {
+        it("gives each ledger category its own purchases row", async () => {
+            // Groceries and Packaging are separate rows, not one combined purchases figure — that
+            // split is the whole reason the breakdown exists.
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            expect(await screen.findByText("Groceries Purchases")).toBeTruthy();
+            expect(await screen.findByText("Packaging Purchases")).toBeTruthy();
+        });
+
+        it("spells out the arithmetic so the breakdown cannot be read as the total", () => {
+            // Without the operators the indented rows read as though Available were built from
+            // them. It is Opening + the whole Purchases row.
             renderTab();
 
-            expect(await screen.findByText(/All 0 ingredients costed/)).toBeTruthy();
+            return screen.findByText("📦 Inventory COGS").then(async () => {
+                await openCard("📦 Inventory COGS");
+                expect(screen.getByText("+ Purchases")).toBeTruthy();
+                expect(screen.getByText("= Available")).toBeTruthy();
+                expect(screen.getByText("− Ending inventory")).toBeTruthy();
+            });
+        });
+    });
+
+    describe("batch recipes", () => {
+        // Doughs and sauces are not menu items, so they appear on no cost card -- and they are
+        // where a good deal of the cost actually is.
+        const dough: ComponentCost = {
+            id: 9, name: "Dough", unit: "GRAMS", productId: null, productName: null,
+            productPrice: null, cost: null, batchYield: 4854, resolvedUnitCost: 0.000117,
+            costSource: "BATCH",
+            ingredients: [
+                {
+                    id: 1, ingredientProductId: 26, ingredientProductName: "Pizza Flour",
+                    ingredientComponentId: null, ingredientComponentName: null,
+                    amount: 3000, lineCost: 0.39,
+                },
+            ],
+        };
+        const mozzarella: ComponentCost = {
+            id: 10, name: "Mozarella", unit: "GRAMS", productId: 7, productName: "Mozarella",
+            productPrice: 3, cost: null, batchYield: null, resolvedUnitCost: 0.003,
+            costSource: "PRODUCT", ingredients: [],
+        };
+
+        const openBatches = async (): Promise<void> => {
+            await openCard("🍕 Menu cost cards");
+            await userEvent.click(await screen.findByRole("button", {name: "Batch recipes"}));
+        };
+
+        it("lists a component that is made from something", async () => {
+            mockComponents.mockResolvedValue([dough, mozzarella]);
+
+            renderTab();
+            await openBatches();
+
+            expect(await screen.findByText("Dough")).toBeTruthy();
+        });
+
+        it("leaves out a component that is just a purchased price", async () => {
+            // Mozzarella is bought, not made. Listing it under "recipes" would say it has one.
+            mockComponents.mockResolvedValue([dough, mozzarella]);
+
+            renderTab();
+            await openBatches();
+
+            expect(screen.queryByText("Mozarella")).toBeNull();
+        });
+
+        it("shows the yield and the cost per kg rather than a per-gram figure", async () => {
+            // 0.000117 per gram is unreadable; 0.117 per kg is the number the owner works in.
+            mockComponents.mockResolvedValue([dough]);
+
+            renderTab();
+            await openBatches();
+
+            expect(await screen.findByText(/yields 4854 grams/)).toBeTruthy();
+            expect(await screen.findByText(/0\.117 per kg/)).toBeTruthy();
+        });
+
+        it("says so plainly when nothing has a batch recipe yet", async () => {
+            mockComponents.mockResolvedValue([mozzarella]);
+
+            renderTab();
+            await openBatches();
+
+            expect(await screen.findByText(/No batch recipes yet/)).toBeTruthy();
+        });
+    });
+
+    describe("ingredient costs", () => {
+        it("says nothing at all when every ingredient is costed", async () => {
+            renderTab();
+
+            await screen.findByText("📊 Key metrics");
+            expect(screen.queryByText(/ingredients costed/)).toBeNull();
         });
 
         it("warns with the count when ingredients have no cost", async () => {
@@ -456,6 +569,8 @@ describe("BusinessTab", () => {
 
             renderTab();
 
+            // Rides as a badge on the Menu cost cards header now, not a card of its own above
+            // the report.
             expect(await screen.findByText(/1 ingredients with no cost/)).toBeTruthy();
         });
     });

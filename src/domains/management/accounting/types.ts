@@ -38,6 +38,12 @@ export interface AccountingReportSummary {
     title: string;
     createdAt: string;
     version: number;
+    /**
+     * Opening balance for the report's period. Null for anyone but an OWNER, and null on reports
+     * created before the column existed — the card shows the creation date instead in both cases.
+     * The server does the nulling, so this being non-null is itself the permission check.
+     */
+    startBalance: number | null;
     totalIncome: number;
     totalExpense: number;
 }

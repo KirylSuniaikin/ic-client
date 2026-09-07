@@ -20,8 +20,8 @@ const STATE_MESSAGES: Record<InventoryCogsState, string | null> = {
     PARTIAL_BRANCHES: "Covers only part of the business",
     MISSING_OPENING: "No closing stock count for the previous month — there is no opening balance to work from",
     MISSING_ENDING: "No stock count for this month",
-    MISSING_PURCHASES: "No purchase report — COGS would be understated by a month of invoices",
-    NO_DATA: "No stock or purchase data filed for this month",
+    MISSING_PURCHASES: "Nothing booked to Groceries or Packaging in the ledger this month",
+    NO_DATA: "No stock counts and no goods spend recorded for this month",
 };
 
 function monthLabel(period: string): string {
@@ -40,17 +40,59 @@ function monthLabel(period: string): string {
  * shows a zero: zero is a claim about the business, absence is a claim about the paperwork, and
  * printing the first when you mean the second turns unfiled invoices into a brilliant margin.
  */
+/**
+ * One labelled row of the statement, one cell per month.
+ *
+ * <p>Extracted because the rows are no longer a fixed list — the purchases breakdown is whatever
+ * categories the ledger has — so they cannot all come out of one array literal any more.
+ */
+function SimpleRow(
+    {label, pick, months, indent = false}: {
+        label: string;
+        pick: (m: InventoryCogs) => number | null;
+        months: InventoryCogs[];
+        indent?: boolean;
+    }
+): React.JSX.Element {
+    return (
+        <TableRow hover>
+            <TableCell sx={{
+                whiteSpace: 'nowrap',
+                pl: indent ? 4 : undefined,
+                color: indent ? '#8a807a' : undefined,
+            }}>{label}</TableCell>
+            {months.map(m => (
+                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                    {pick(m) === null ? "—" : formatBd(pick(m))}
+                </TableCell>
+            ))}
+        </TableRow>
+    );
+}
+
 export default function InventoryCogsCard({months}: Props): React.JSX.Element {
+    // Every category the server sent, in every month on screen — no filtering on the amount.
+    //
+    // Hiding a category because it happened to be zero this month was wrong twice over: a month
+    // with no packaging spend is a fact worth printing, and when every category was zero the rows
+    // vanished entirely and the card showed a bare "Purchases" with nothing under it, which reads
+    // as though the split were broken rather than as though nothing had been bought.
+    //
+    // The server has already decided what belongs here: only categories classified COGS_PURCHASES
+    // reach this list at all, so anything in it has earned its row.
+    //
+    // `?? []` is not defensive noise: a backend that predates this field returns no
+    // purchaseBreakdown at all, and reading .map off undefined takes the whole tab down with a
+    // white screen. A card that quietly shows no breakdown against an old server is a much better
+    // failure than one that removes the five cards next to it.
+    const breakdownCategories = Array.from(new Set(
+        months.flatMap(m => (m.purchaseBreakdown ?? []).map(l => l.categoryName))
+    )).sort();
+
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
 
     return (
         <>
-            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                Opening + purchases − closing stock, across the whole business. Measured from
-                stock counts, so it will not equal the recipe-costed COGS in the profit statement —
-                that gap is waste, yield and miscounts.
-            </Typography>
-
             {actionable.length > 0 && (
                 <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
                     {actionable.length} completed month{actionable.length === 1 ? "" : "s"} cannot
@@ -73,24 +115,39 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {([
-                            ["Opening inventory", (m: InventoryCogs) => m.openingInventory],
-                            ["Purchases", (m: InventoryCogs) => m.purchases],
-                            ["Available", (m: InventoryCogs) => m.available],
-                            ["Closing inventory", (m: InventoryCogs) => m.endingInventory],
-                        ] as const).map(([label, pick]) => (
-                            <TableRow key={label} hover>
-                                <TableCell sx={{whiteSpace: 'nowrap'}}>{label}</TableCell>
-                                {months.map(m => (
-                                    <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                        {pick(m) === null ? "—" : formatBd(pick(m))}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
+                        {/* The +/=/− prefixes carry the arithmetic, because without them the
+                            indented breakdown reads as though Available were built from it.
+                            Available is Opening + the WHOLE Purchases row; the indented lines are
+                            a breakdown of that row and always add back up to it. */}
+                        <SimpleRow label="Opening inventory" pick={m => m.openingInventory} months={months}/>
+                        <SimpleRow label="+ Purchases" pick={m => m.purchases} months={months}/>
+
+                        {/* Driven by the data, not a fixed Groceries/Packaging pair: these are
+                            whatever accounting categories are classified COGS_PURCHASES. Classify a
+                            new one that way and it appears here with no code change — and nothing
+                            can fall between two hardcoded names and vanish. */}
+                        {breakdownCategories.map(name => (
+                            <SimpleRow
+                                key={name}
+                                // "Groceries Purchases", not "Groceries": the row is money spent on
+                                // groceries this month, not a stock of them, and one word of
+                                // context stops it reading as an inventory line next to the two
+                                // that genuinely are.
+                                label={`${name} Purchases`}
+                                indent
+                                months={months}
+                                // ?? null covers both "no such line" and an explicit null amount
+                                // (the category does not exist), and both print an em dash.
+                                pick={m => (m.purchaseBreakdown ?? [])
+                                    .find(l => l.categoryName === name)?.amount ?? null}
+                            />
                         ))}
 
+                        <SimpleRow label="= Available" pick={m => m.available} months={months}/>
+                        <SimpleRow label="− Ending inventory" pick={m => m.endingInventory} months={months}/>
+
                         <TableRow>
-                            <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS (movement)</TableCell>
+                            <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS</TableCell>
                             {months.map(m => (
                                 <TableCell key={m.period} align="right"
                                            sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
@@ -108,7 +165,7 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableRow>
 
                         <TableRow>
-                            <TableCell sx={{whiteSpace: 'nowrap'}}>COGS % of gross revenue</TableCell>
+                            <TableCell sx={{whiteSpace: 'nowrap'}}>COGS%</TableCell>
                             {months.map(m => (
                                 <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
                                     {m.cogsPercentOfGrossRevenue === null
