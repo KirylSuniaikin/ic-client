@@ -39,6 +39,25 @@ export function presetRange(months: number, today: Date = new Date()): MonthRang
     return {from: new Date(to.getFullYear(), to.getMonth() - (months - 1), 1), to};
 }
 
+/** Where one month sits in the selected range, which decides how its pill is drawn. */
+export type RangePosition = "single" | "start" | "end" | "inside" | "none";
+
+/**
+ * Pure so the rule can be tested without the popover.
+ *
+ * <p>The single case is checked FIRST and is the reason this exists: a one-month range has
+ * {@code lo === hi}, so testing for the start before the single case matched it and drew a pill
+ * rounded on the left and square on the right. That does not read as "one month selected" — it
+ * reads as a month clipped by the edge of the popover, which is exactly how it was reported.
+ */
+export function rangePosition(ordinal: number, lo: number, hi: number): RangePosition {
+    if (ordinal < lo || ordinal > hi) return "none";
+    if (ordinal === lo && ordinal === hi) return "single";
+    if (ordinal === lo) return "start";
+    if (ordinal === hi) return "end";
+    return "inside";
+}
+
 const PRESETS: { label: string; months: number }[] = [
     {label: "3 months", months: 3},
     {label: "6 months", months: 6},
@@ -107,13 +126,8 @@ export default function MonthRangePickerPopover(
     const lo = pendingFrom ? ordinal(pendingFrom) : ordinal(range.from);
     const hi = pendingFrom ? ordinal(pendingFrom) : ordinal(range.to);
 
-    const monthState = (monthIndex: number): "start" | "end" | "inside" | "none" => {
-        const o = year * 12 + monthIndex;
-        if (o < lo || o > hi) return "none";
-        if (o === lo) return "start";
-        if (o === hi) return "end";
-        return "inside";
-    };
+    const monthState = (monthIndex: number): RangePosition =>
+        rangePosition(year * 12 + monthIndex, lo, hi);
 
     return (
         <Popover
@@ -139,11 +153,15 @@ export default function MonthRangePickerPopover(
             }}
         >
             <Box sx={{p: 2, width: 320}}>
-                <Stack direction="row" spacing={1} sx={{mb: 1.5}}>
+                {/* Wraps rather than overflowing. Three chips reading "Last 12 months" are wider
+                    than the 288px of content this popover has, and the paper clipped the third
+                    instead of the row moving. flexWrap makes that impossible whatever the labels
+                    later say; the shorter labels mean it does not have to. */}
+                <Stack direction="row" useFlexGap sx={{mb: 1.5, gap: 1, flexWrap: 'wrap'}}>
                     {PRESETS.map(p => (
                         <Chip
                             key={p.label}
-                            label={`Last ${p.label}`}
+                            label={p.label}
                             size="small"
                             onClick={() => applyPreset(p.months)}
                             sx={{borderRadius: 999}}
@@ -174,7 +192,7 @@ export default function MonthRangePickerPopover(
                 <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5}}>
                     {MONTHS.map((name, i) => {
                         const state = monthState(i);
-                        const isEnd = state === "start" || state === "end";
+                        const isEnd = state === "single" || state === "start" || state === "end";
                         return (
                             <Box
                                 key={name}
