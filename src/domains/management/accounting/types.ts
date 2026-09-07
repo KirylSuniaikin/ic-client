@@ -12,7 +12,9 @@ export interface AccountingEntryTO {
     categoryName: string;
     type: AccountingType;
     amount: number;
-    accountType: string;
+    // Null when the entry did not move through any account — an adjustment or a correction.
+
+    accountType: string | null;
     occurredAt: string;
     note: string | null;
     contributorName: string;
@@ -62,7 +64,9 @@ export interface CreateEntryPayload {
     categoryId: number;
     amount: number;
     occurredAt: string;
-    accountType: string;
+    // Null when the entry did not move through any account — an adjustment or a correction.
+
+    accountType: string | null;
     note?: string;
     /** Opaque row key echoed back on the saved entry, so a pending photo can find its new id. */
     clientRef?: string;
@@ -73,7 +77,9 @@ export interface UpdateEntryPayload {
     id?: number;
     categoryId: number;
     amount: number;
-    accountType: string;
+    // Null when the entry did not move through any account — an adjustment or a correction.
+
+    accountType: string | null;
     occurredAt: string;
     note?: string;
     clientRef?: string;

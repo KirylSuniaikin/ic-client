@@ -50,15 +50,23 @@ import { PreResponseNetworkError } from "../../../../shared/api/client";
 import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
 import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
 
-type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT";
+/**
+ * Null is a real fourth answer, not a missing value: an adjustment or a correction did not move
+ * through any account, and picking one anyway puts money into a cash or card total it never touched.
+ * The column is nullable on the server for the same reason.
+ */
+type AccountSource = "DEBIT_CARD" | "CASH" | "CORPORATE_ACCOUNT" | null;
 
-const ACCOUNT_LABELS: Record<AccountSource, string> = {
+/** MUI Select cannot hold null, so blank is "" in the widget and null on the wire. */
+const NO_ACCOUNT = "";
+
+const ACCOUNT_LABELS: Record<NonNullable<AccountSource>, string> = {
     DEBIT_CARD: "Debit Card",
     CASH: "Cash",
     CORPORATE_ACCOUNT: "Corporate Account",
 };
 
-const ACCOUNT_OPTIONS: AccountSource[] = ["DEBIT_CARD", "CASH", "CORPORATE_ACCOUNT"];
+const ACCOUNT_OPTIONS: NonNullable<AccountSource>[] = ["DEBIT_CARD", "CASH", "CORPORATE_ACCOUNT"];
 
 // Pill styles mirroring TransactionDetailsTable
 const amountStyles = {
@@ -100,18 +108,40 @@ type EntryRow = {
     removeImage: boolean;
 };
 
-function todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+/**
+ * Now, as a `datetime-local` value — "2026-09-07T14:30".
+ *
+ * <p>Built from the LOCAL clock, not `toISOString()`, which converts to UTC first: in Bahrain that
+ * is three hours earlier, so a 01:00 entry would default to the previous day and land in the wrong
+ * month's report.
+ */
+function nowIsoMinutes(): string {
+    const d = new Date();
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        + `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * `datetime-local` yields minutes; the API takes a LocalDateTime. Older rows may already carry
+ * seconds, so this normalises rather than blindly appending.
+ */
+function withSeconds(value: string): string {
+    if (!value) return value;
+    if (value.length === 10) return `${value}T00:00:00`;
+    return value.length === 16 ? `${value}:00` : value;
 }
 
 function newRow(): EntryRow {
     return {
         _key: `new-${Date.now()}-${Math.random()}`,
-        date: todayIso(),
+        date: nowIsoMinutes(),
         type: "DEBIT",
         amount: "",
         note: "",
-        account: "CASH",
+        // No account until someone picks one. Defaulting to CASH quietly asserted that every new
+        // entry was cash, which is the assertion this change exists to stop making.
+        account: null,
         categoryId: null,
         contributorName: null,
         runningBalance: null,
@@ -260,11 +290,15 @@ export function AccountingReportPopup({
                             .map((e) => ({
                                 _key: `loaded-${e.id}`,
                                 id: e.id,
-                                date: e.occurredAt.slice(0, 10),
+                                // 16 chars, not 10: "2026-09-07T14:30". Truncating to the date threw
+                                // the time away on load and wrote it back as midnight on save, so
+                                // every entry in a report collapsed to the same instant and their
+                                // order became whatever the array happened to be.
+                                date: e.occurredAt.slice(0, 16),
                                 type: e.type,
                                 amount: String(e.amount),
                                 note: e.note ?? "",
-                                account: e.accountType as AccountSource,
+                                account: (e.accountType ?? null) as AccountSource,
                                 categoryId: e.categoryId,
                                 contributorName: e.contributorName,
                                 runningBalance: e.runningBalance ?? null,
@@ -410,7 +444,7 @@ export function AccountingReportPopup({
                     entries: rows.map((r) => ({
                         categoryId: r.categoryId as number,
                         amount: parseFloat(r.amount),
-                        occurredAt: r.date + "T00:00:00",
+                        occurredAt: withSeconds(r.date),
                         accountType: r.account,
                         note: r.note || undefined,
                         clientRef: r._key,
@@ -425,7 +459,7 @@ export function AccountingReportPopup({
                     categoryId: r.categoryId as number,
                     accountType: r.account,
                     amount: parseFloat(r.amount),
-                    occurredAt: r.date + "T00:00:00",
+                    occurredAt: withSeconds(r.date),
                     note: r.note || undefined,
                     clientRef: r._key,
                 })),
@@ -642,16 +676,21 @@ export function AccountingReportPopup({
                                                 sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                                             >
                                                 {/* Date */}
-                                                <TableCell sx={{ minWidth: 130 }}>
+                                                <TableCell sx={{ minWidth: 190 }}>
+                                                    {/* datetime-local, not date: entries are filtered
+                                                        and ordered on occurred_at, and a date-only
+                                                        value wrote every entry to midnight — so a
+                                                        day's entries all shared one instant and
+                                                        their order came down to array position. */}
                                                     <TextField
-                                                        type="date"
+                                                        type="datetime-local"
                                                         value={row.date}
                                                         onChange={(e) =>
                                                             updateRow(row._key, { date: e.target.value })
                                                         }
                                                         size="small"
                                                         variant="standard"
-                                                        sx={{ width: 130, ...noUnderlineSx }}
+                                                        sx={{ width: 185, ...noUnderlineSx }}
                                                     />
                                                 </TableCell>
 
@@ -739,10 +778,23 @@ export function AccountingReportPopup({
                                                         px: 1.5,
                                                         borderRadius: 2,
                                                         display: "inline-flex",
-                                                        alignItems: "center",
+                                                        // flex-start, not center: once the note wraps,
+                                                        // centring pushes the first line off the top
+                                                        // of the pill.
+                                                        alignItems: "flex-start",
                                                         fontWeight: "bold",
                                                         fontSize: "0.9rem",
                                                     }}>
+                                                        {/* multiline: the description carries the
+                                                            only account of WHY an entry exists, and
+                                                            a single-line input scrolled it out of
+                                                            sight the moment it ran past the column.
+                                                            maxRows caps the growth so one essay
+                                                            cannot stretch every other row's height.
+                                                            The styling moves from "& input" to
+                                                            "& textarea" — multiline renders a
+                                                            textarea, and the old selector would
+                                                            simply stop matching. */}
                                                         <TextField
                                                             value={row.note}
                                                             onChange={(e) =>
@@ -751,11 +803,19 @@ export function AccountingReportPopup({
                                                             size="small"
                                                             variant="standard"
                                                             placeholder="—"
+                                                            multiline
+                                                            maxRows={4}
                                                             sx={{
                                                                 width: 160,
                                                                 ...noUnderlineSx,
-                                                                "& input": { fontSize: "0.85rem", color: pill.text, fontWeight: "bold", padding: 0 },
-                                                                "& input::placeholder": { color: pill.text, opacity: 0.5 },
+                                                                "& textarea": {
+                                                                    fontSize: "0.85rem",
+                                                                    color: pill.text,
+                                                                    fontWeight: "bold",
+                                                                    padding: 0,
+                                                                    lineHeight: 1.35,
+                                                                },
+                                                                "& textarea::placeholder": { color: pill.text, opacity: 0.5 },
                                                             }}
                                                         />
                                                     </Box>
@@ -775,16 +835,28 @@ export function AccountingReportPopup({
                                                         fontSize: "0.9rem",
                                                     }}>
                                                         <Select
-                                                            value={row.account}
+                                                            displayEmpty
+                                                            data-testid="account-select"
+                                                            inputProps={{ "aria-label": "account" }}
+                                                            value={row.account ?? NO_ACCOUNT}
                                                             onChange={(e: SelectChangeEvent) =>
                                                                 updateRow(row._key, {
-                                                                    account: e.target.value as AccountSource,
+                                                                    // "" is the blank option; it goes
+                                                                    // to the server as null, not as
+                                                                    // an empty string it would then
+                                                                    // fail to parse into the enum.
+                                                                    account: e.target.value === NO_ACCOUNT
+                                                                        ? null
+                                                                        : (e.target.value as AccountSource),
                                                                 })
                                                             }
                                                             size="small"
                                                             variant="standard"
                                                             sx={{ fontSize: "0.9rem", color: pill.text, fontWeight: "bold", ...noUnderlineSx }}
                                                         >
+                                                            <MenuItem value={NO_ACCOUNT}>
+                                                                <em>—</em>
+                                                            </MenuItem>
                                                             {ACCOUNT_OPTIONS.map((opt) => (
                                                                 <MenuItem key={opt} value={opt}>
                                                                     {ACCOUNT_LABELS[opt]}

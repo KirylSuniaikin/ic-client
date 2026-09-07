@@ -164,6 +164,10 @@ const report: BusinessStatsResponse = {
             period: "2026-07",
             kpis: [
                 {
+                    key: "tradingDays", label: "Trading days", value: 23, unit: "days",
+                    previousValue: null, unavailableReason: null, detail: "shifts opened",
+                },
+                {
                     key: "grossProfitMargin", label: "Gross profit margin", value: 67.5, unit: "%",
                     previousValue: 69.1, unavailableReason: null, detail: "of net revenue",
                 },
@@ -443,6 +447,17 @@ describe("BusinessTab", () => {
             const tile = await screen.findByTestId("kpi-debtEquity");
             expect(tile.textContent).toContain("—");
             expect(tile.textContent).not.toContain("0.00");
+        });
+
+        it("shows how many days the business actually opened", async () => {
+            // Counted from shift openings, not from orders: a day the kitchen opened and sold
+            // nothing is still a day that was paid for, and it is the divisor every per-day figure
+            // rests on.
+            renderTab();
+
+            const tile = await screen.findByTestId("kpi-tradingDays");
+            expect(tile.textContent).toContain("23");
+            expect(tile.textContent).toContain("shifts opened");
         });
 
         it("prints the divisor beside a KPI that has one", async () => {
