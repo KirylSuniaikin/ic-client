@@ -186,7 +186,9 @@ export type InventoryCogsState =
 
 export type PurchaseCategory = {
     categoryName: string;
-    amount: number;
+    // Null when the category does not exist in the ledger at all — a rename, most likely. Rendered
+    // as an em dash, not a zero: a zero would quietly shrink COGS and read as a cheap month.
+    amount: number | null;
 };
 
 export type InventoryCogs = {

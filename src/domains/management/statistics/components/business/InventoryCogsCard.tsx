@@ -136,6 +136,8 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                                 label={`${name} Purchases`}
                                 indent
                                 months={months}
+                                // ?? null covers both "no such line" and an explicit null amount
+                                // (the category does not exist), and both print an em dash.
                                 pick={m => (m.purchaseBreakdown ?? [])
                                     .find(l => l.categoryName === name)?.amount ?? null}
                             />
