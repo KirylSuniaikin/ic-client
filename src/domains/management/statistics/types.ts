@@ -385,6 +385,8 @@ export type ComponentIngredientLine = {
     ingredientComponentId: number | null;
     ingredientComponentName: string | null;
     amount: number;
+    // What this line contributes to the batch, in BD. Zero when the ingredient has no cost.
+    lineCost: number;
 };
 
 export type ComponentCost = {

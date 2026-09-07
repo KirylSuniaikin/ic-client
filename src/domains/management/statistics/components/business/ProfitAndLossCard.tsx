@@ -5,6 +5,7 @@ import {
 } from "@mui/material";
 import type {ProfitAndLoss} from "../../types";
 import {formatBd} from "./businessFormat";
+import InfoHint from "./InfoHint";
 
 type Props = {
     months: ProfitAndLoss[];
@@ -116,14 +117,6 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
                 </Table>
             </TableContainer>
 
-            {/* Always shown: this is the one thing about the statement that is genuinely
-                surprising, and burying it would be the whole problem. */}
-            <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mt: 1}}>
-                Net profit is a cash view with one exception: COGS is recipe-costed, not cash.
-                To reconcile to cash see <b>net cash movement</b> below. There is no
-                depreciation — capital expenditure is expensed in the month of purchase.
-            </Typography>
-
             <Divider sx={{my: 2}}/>
 
             <Typography variant="subtitle2" fontWeight="bold" sx={{mb: 1}}>
@@ -148,11 +141,13 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
                 </Table>
             </TableContainer>
 
+            {/* Kept as an icon rather than dropped: an em dash with no explanation reads as a
+                bug. It only appears when there IS an em dash to explain. */}
             {months.some(m => !m.reconciliation.complete) && (
-                <Box sx={{mt: 1}}>
+                <Box sx={{mt: 1, display: 'flex', alignItems: 'center', gap: 0.5}}>
+                    <InfoHint label="incomplete months" text="Months showing an em dash are missing a stock count or a purchase report. No variance is computed from an input that does not exist."/>
                     <Typography variant="caption" sx={{color: '#8a807a'}}>
-                        Months showing an em dash are missing a stock count or a purchase report.
-                        No variance is computed from an input that does not exist.
+                        Some months are incomplete
                     </Typography>
                 </Box>
             )}

@@ -45,12 +45,6 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
 
     return (
         <>
-            <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
-                Opening + purchases − closing stock, across the whole business. Measured from
-                stock counts, so it will not equal the recipe-costed COGS in the profit statement —
-                that gap is waste, yield and miscounts.
-            </Typography>
-
             {actionable.length > 0 && (
                 <Alert severity="warning" sx={{mb: 2, borderRadius: 2}}>
                     {actionable.length} completed month{actionable.length === 1 ? "" : "s"} cannot

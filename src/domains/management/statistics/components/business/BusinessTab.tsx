@@ -123,6 +123,7 @@ export default function BusinessTab(
                     ))}
 
                     <CollapsibleCard title="📊 Key metrics" defaultExpanded
+                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees), and trading days are counted from the orders themselves, not assumed."
                                      summary={monthLabel(data.months[data.months.length - 1])}>
                         <KpiBlockCard blocks={data.kpi}/>
                     </CollapsibleCard>
@@ -133,6 +134,14 @@ export default function BusinessTab(
                     <CollapsibleCard
                         title="🛵 Channel performance"
                         summary={channelSummary}
+                        info={<>
+                            Orders and revenue come from our own order records. App fees have no
+                            other source — they are whatever you enter here.
+                            <br/><br/>
+                            Click any underlined figure to edit it, then press Enter to save. Your
+                            edits survive a refresh: regenerating rewrites the generated figures and
+                            never touches yours.
+                        </>}
                         badge={needsChannels
                             ? <Chip label="⚠ not generated yet"
                                     sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
@@ -149,13 +158,18 @@ export default function BusinessTab(
                         />
                     </CollapsibleCard>
 
-                    <CollapsibleCard title="📈 Profit &amp; loss" summary={pnlSummary}>
+                    <CollapsibleCard
+                        title="📈 Profit &amp; loss"
+                        summary={pnlSummary}
+                        info="Net profit is a cash view with one exception: COGS is recipe-costed, not cash. To reconcile to cash see net cash movement in the memo below the statement. There is no depreciation — capital expenditure is expensed in the month of purchase."
+                    >
                         <ProfitAndLossCard months={data.profitAndLoss}/>
                     </CollapsibleCard>
 
                     <CollapsibleCard
                         title="🧾 Monthly expenses"
                         summary={`${data.expensePivot.blocks.length} blocks`}
+                        info="Every ledger entry in the range, grouped by its category's P&L class. Groceries and packaging appear here but are deliberately kept out of operating expenses — they reach the statement through COGS. Spend in an unclassified category is shown and counted in no total."
                         badge={data.expensePivot.unclassifiedCategoryCount > 0
                             ? <Chip
                                 label={`⚠ ${data.expensePivot.unclassifiedCategoryCount} unclassified · ${formatBd(data.expensePivot.unclassifiedTotal)} BHD`}
@@ -169,13 +183,18 @@ export default function BusinessTab(
                         />
                     </CollapsibleCard>
 
-                    <CollapsibleCard title="📦 Inventory COGS" summary={inventorySummary}>
+                    <CollapsibleCard
+                        title="📦 Inventory COGS"
+                        summary={inventorySummary}
+                        info="Opening + purchases − closing stock, across the whole business. Measured from stock counts, so it will not equal the recipe-costed COGS in the profit statement — that gap is waste, yield and miscounts. Purchases is split by what was bought; the split always adds back up to the total."
+                    >
                         <InventoryCogsCard months={data.inventoryCogs}/>
                     </CollapsibleCard>
 
                     <CollapsibleCard
                         title="🍕 Menu cost cards"
                         summary={costCards.cards ? `${costCards.cards.cards.length} items` : undefined}
+                        info="What each item costs to make, at the latest price paid for every ingredient. Each line prints its resolved unit cost, which is the only place a per-kg price applied to a per-gram amount becomes visible. Batch recipes — doughs and sauces, which are not menu items — are on the second tab."
                         badge={costCards.uncostedCount > 0
                             ? <Chip
                                 label={`⚠ ${costCards.uncostedCount} ingredients with no cost`}
@@ -186,6 +205,7 @@ export default function BusinessTab(
                         <MenuCostCardsCard
                             data={costCards.cards}
                             loading={costCards.loading}
+                            components={costCards.components}
                             onSetCosts={() => setCostDrawerOpen(true)}
                         />
                     </CollapsibleCard>
