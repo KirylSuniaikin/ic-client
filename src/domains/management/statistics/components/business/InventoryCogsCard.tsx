@@ -75,8 +75,15 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
     // so a category bought in June but not in July keeps its row and shows a real 0.000 for July
     // rather than the two columns having different shapes. A category with nothing anywhere gets no
     // row at all, which is why the check is on the range and not on the presence of the line.
+    //
+    // `?? []` is not defensive noise: a backend that predates this field returns no
+    // purchaseBreakdown at all, and reading .filter off undefined takes the whole tab down with a
+    // white screen. A card that quietly shows no breakdown against an old server is a much better
+    // failure than one that removes the five cards next to it.
     const breakdownCategories = Array.from(new Set(
-        months.flatMap(m => m.purchaseBreakdown.filter(l => l.amount !== 0).map(l => l.categoryName))
+        months.flatMap(m => (m.purchaseBreakdown ?? [])
+            .filter(l => l.amount !== 0)
+            .map(l => l.categoryName))
     )).sort();
 
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
@@ -126,7 +133,8 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                                 label={`${name} Purchases`}
                                 indent
                                 months={months}
-                                pick={m => m.purchaseBreakdown.find(l => l.categoryName === name)?.amount ?? null}
+                                pick={m => (m.purchaseBreakdown ?? [])
+                                    .find(l => l.categoryName === name)?.amount ?? null}
                             />
                         ))}
 
