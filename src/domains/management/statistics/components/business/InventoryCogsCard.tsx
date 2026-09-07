@@ -67,7 +67,14 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {/* Purchases is split into what the money was actually spent on, which is
+                        {/* The +/=/− prefixes carry the arithmetic, because without them the
+                            indented split reads as though Available were built from Groceries and
+                            Packaging. It is not: Available is Opening + the WHOLE Purchases row,
+                            and the three indented lines are a breakdown of that row. Summing only
+                            the two named classes drops everything unclassified — and null is the
+                            default class for every new product.
+
+                            Purchases is split into what the money was actually spent on, which is
                             how the Backoffice sheet reads it. The two indented rows plus the
                             unclassified one always add back up to Purchases -- an unclassified
                             product gets its own line rather than being quietly added to groceries,
@@ -77,12 +84,12 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                             product list gives the clean two-row split and nothing else. */}
                         {([
                             ["Opening inventory", (m: InventoryCogs) => m.openingInventory, 0, false],
-                            ["Purchases", (m: InventoryCogs) => m.purchases, 0, false],
+                            ["+ Purchases", (m: InventoryCogs) => m.purchases, 0, false],
                             ["Groceries", (m: InventoryCogs) => m.purchasesGroceries, 1, false],
                             ["Packaging", (m: InventoryCogs) => m.purchasesPackaging, 1, false],
                             ["Unclassified", (m: InventoryCogs) => m.purchasesUnclassified, 1, true],
-                            ["Available", (m: InventoryCogs) => m.available, 0, false],
-                            ["Closing inventory", (m: InventoryCogs) => m.endingInventory, 0, false],
+                            ["= Available", (m: InventoryCogs) => m.available, 0, false],
+                            ["− Ending inventory", (m: InventoryCogs) => m.endingInventory, 0, false],
                         ] as const)
                             .filter(([, pick, , hideWhenEmpty]) =>
                                 !hideWhenEmpty || months.some(m => (pick(m) ?? 0) !== 0))
@@ -103,7 +110,7 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         ))}
 
                         <TableRow>
-                            <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS (movement)</TableCell>
+                            <TableCell sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>COGS</TableCell>
                             {months.map(m => (
                                 <TableCell key={m.period} align="right"
                                            sx={{fontWeight: 'bold', whiteSpace: 'nowrap'}}>
@@ -121,7 +128,7 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         </TableRow>
 
                         <TableRow>
-                            <TableCell sx={{whiteSpace: 'nowrap'}}>COGS % of gross revenue</TableCell>
+                            <TableCell sx={{whiteSpace: 'nowrap'}}>COGS%</TableCell>
                             {months.map(m => (
                                 <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
                                     {m.cogsPercentOfGrossRevenue === null
