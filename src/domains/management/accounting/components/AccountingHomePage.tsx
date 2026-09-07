@@ -77,6 +77,10 @@ export function AccountingHomePage({ open, onClose, branch }: Props): JSX.Elemen
             title: next.title,
             createdAt: next.createdAt,
             version: next.version,
+            // Carried over from the saved report rather than left null: the detail response applies
+            // the same OWNER gate, so a card that has just been saved shows its opening balance
+            // straight away instead of flipping back to the creation date until the next reload.
+            startBalance: next.startBalance,
             totalIncome: next.entries.filter(e => e.type === "CREDIT").reduce((s, e) => s + e.amount, 0),
             totalExpense: next.entries.filter(e => e.type === "DEBIT").reduce((s, e) => s + e.amount, 0),
         };

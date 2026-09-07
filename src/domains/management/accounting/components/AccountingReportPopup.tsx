@@ -508,6 +508,27 @@ export function AccountingReportPopup({
                 }
                 actions={
                     <>
+                        {/* In the bar rather than above the table: it is the figure every other
+                            number on this screen is measured from, and it used to scroll away with
+                            the rows. Left of the actions, so the two buttons stay where the thumb
+                            expects them. Owners only -- baseBalance is null for anyone else. */}
+                        {isOwner && (
+                            <Typography
+                                variant="body2"
+                                data-testid="opening-balance"
+                                sx={{
+                                    color: "text.secondary",
+                                    fontWeight: 700,
+                                    mr: 2,
+                                    whiteSpace: "nowrap",
+                                    display: { xs: "none", sm: "block" },
+                                }}
+                            >
+                                Opening balance:{" "}
+                                {baseBalance != null ? baseBalance.toFixed(3) : "—"}
+                            </Typography>
+                        )}
+
                         <Button
                             onClick={addRow}
                             sx={{
@@ -553,19 +574,7 @@ export function AccountingReportPopup({
                     </Box>
                 ) : (
                     <>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                            {isOwner ? (
-                                <Typography
-                                    variant="body2"
-                                    data-testid="opening-balance"
-                                    sx={{ color: "text.secondary", fontWeight: 700 }}
-                                >
-                                    Opening balance:{" "}
-                                    {baseBalance != null ? baseBalance.toFixed(3) : "—"}
-                                </Typography>
-                            ) : (
-                                <span />
-                            )}
+                        <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mb: 1 }}>
                             {/* Labelled toggle matching PurchaseTablePopup's SortButton shape (brand
                                 outline, direction icon as startIcon) rather than a naked IconButton. */}
                             <Button

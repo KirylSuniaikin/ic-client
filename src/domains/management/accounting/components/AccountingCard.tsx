@@ -9,7 +9,15 @@ export type AccountingCardProps = {
 };
 
 export function AccountingCard({ report, onEditClick }: AccountingCardProps): JSX.Element {
+    // What an owner wants off this card is where the month started, not when somebody pressed
+    // "create" — the creation date is an audit detail nobody reads. The server sends startBalance
+    // only to an OWNER, and only reports created since the column exists have one, so a null here
+    // means either "not yours to see" or "never recorded"; both fall back to the date rather than
+    // to a zero, which would be a claim.
     const created = new Date(report.createdAt).toLocaleDateString();
+    const subtitle = report.startBalance !== null
+        ? `Opening balance: ${report.startBalance} BHD`
+        : created;
 
     return (
         <Card key={report.id} variant="outlined" sx={{ borderRadius: 4, borderColor: "snow" }}>
@@ -22,7 +30,7 @@ export function AccountingCard({ report, onEditClick }: AccountingCardProps): JS
                 subheader={
                     <Stack direction="column" gap={0.25}>
                         <Typography variant="body2" color="text.secondary">
-                            {created}
+                            {subtitle}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                             Income: {report.totalIncome} BHD · Expense: {report.totalExpense} BHD
