@@ -71,19 +71,22 @@ function SimpleRow(
 }
 
 export default function InventoryCogsCard({months}: Props): React.JSX.Element {
-    // Every category with spend in ANY month on screen — decided across the range, not per month,
-    // so a category bought in June but not in July keeps its row and shows a real 0.000 for July
-    // rather than the two columns having different shapes. A category with nothing anywhere gets no
-    // row at all, which is why the check is on the range and not on the presence of the line.
+    // Every category the server sent, in every month on screen — no filtering on the amount.
+    //
+    // Hiding a category because it happened to be zero this month was wrong twice over: a month
+    // with no packaging spend is a fact worth printing, and when every category was zero the rows
+    // vanished entirely and the card showed a bare "Purchases" with nothing under it, which reads
+    // as though the split were broken rather than as though nothing had been bought.
+    //
+    // The server has already decided what belongs here: only categories classified COGS_PURCHASES
+    // reach this list at all, so anything in it has earned its row.
     //
     // `?? []` is not defensive noise: a backend that predates this field returns no
-    // purchaseBreakdown at all, and reading .filter off undefined takes the whole tab down with a
+    // purchaseBreakdown at all, and reading .map off undefined takes the whole tab down with a
     // white screen. A card that quietly shows no breakdown against an old server is a much better
     // failure than one that removes the five cards next to it.
     const breakdownCategories = Array.from(new Set(
-        months.flatMap(m => (m.purchaseBreakdown ?? [])
-            .filter(l => l.amount !== 0)
-            .map(l => l.categoryName))
+        months.flatMap(m => (m.purchaseBreakdown ?? []).map(l => l.categoryName))
     )).sort();
 
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
