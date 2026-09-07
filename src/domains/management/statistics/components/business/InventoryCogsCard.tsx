@@ -71,10 +71,12 @@ function SimpleRow(
 }
 
 export default function InventoryCogsCard({months}: Props): React.JSX.Element {
-    // Every category that appears in any month on screen, so a category bought in June but not in
-    // July still gets a row (showing an em dash) rather than the two months having different shapes.
+    // Every category with spend in ANY month on screen — decided across the range, not per month,
+    // so a category bought in June but not in July keeps its row and shows a real 0.000 for July
+    // rather than the two columns having different shapes. A category with nothing anywhere gets no
+    // row at all, which is why the check is on the range and not on the presence of the line.
     const breakdownCategories = Array.from(new Set(
-        months.flatMap(m => m.purchaseBreakdown.map(l => l.categoryName))
+        months.flatMap(m => m.purchaseBreakdown.filter(l => l.amount !== 0).map(l => l.categoryName))
     )).sort();
 
     const actionable = months.filter(m => m.movementCogs === null && !m.monthInProgress);
@@ -117,7 +119,11 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                         {breakdownCategories.map(name => (
                             <SimpleRow
                                 key={name}
-                                label={name}
+                                // "Groceries Purchases", not "Groceries": the row is money spent on
+                                // groceries this month, not a stock of them, and one word of
+                                // context stops it reading as an inventory line next to the two
+                                // that genuinely are.
+                                label={`${name} Purchases`}
                                 indent
                                 months={months}
                                 pick={m => m.purchaseBreakdown.find(l => l.categoryName === name)?.amount ?? null}

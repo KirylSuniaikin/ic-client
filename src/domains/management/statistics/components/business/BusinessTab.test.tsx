@@ -459,6 +459,31 @@ describe("BusinessTab", () => {
         });
     });
 
+    describe("inventory COGS", () => {
+        it("gives each ledger category its own purchases row", async () => {
+            // Groceries and Packaging are separate rows, not one combined purchases figure — that
+            // split is the whole reason the breakdown exists.
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            expect(await screen.findByText("Groceries Purchases")).toBeTruthy();
+            expect(await screen.findByText("Packaging Purchases")).toBeTruthy();
+        });
+
+        it("spells out the arithmetic so the breakdown cannot be read as the total", () => {
+            // Without the operators the indented rows read as though Available were built from
+            // them. It is Opening + the whole Purchases row.
+            renderTab();
+
+            return screen.findByText("📦 Inventory COGS").then(async () => {
+                await openCard("📦 Inventory COGS");
+                expect(screen.getByText("+ Purchases")).toBeTruthy();
+                expect(screen.getByText("= Available")).toBeTruthy();
+                expect(screen.getByText("− Ending inventory")).toBeTruthy();
+            });
+        });
+    });
+
     describe("batch recipes", () => {
         // Doughs and sauces are not menu items, so they appear on no cost card -- and they are
         // where a good deal of the cost actually is.
