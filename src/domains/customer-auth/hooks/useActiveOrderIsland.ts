@@ -16,6 +16,14 @@ import { logger } from "../../../shared/utils/logger";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerActiveOrder } from "../types";
 
+/**
+ * Statuses that mean the customer never paid. The API already excludes them, but the pill is the
+ * one surface that told a customer their unpaid order was live — so it refuses them here too. A
+ * pill for an order no kitchen has seen sends someone to the counter to ask about food nobody is
+ * making.
+ */
+const NEVER_PAID_STATUSES: ReadonlySet<string> = new Set(["Pending Payment", "Payment Failed"]);
+
 // An order leaves the island once it reaches a terminal status — and the two order types end
 // differently.
 //
@@ -64,6 +72,10 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     const loadActiveOrder = useCallback(async (accessToken: string): Promise<void> => {
         try {
             const result = await fetchActiveOrder(accessToken);
+            if (result !== null && NEVER_PAID_STATUSES.has(result.status)) {
+                setActiveOrder(null);
+                return;
+            }
             setActiveOrder(result);
         } catch (err) {
             // A 401 is treated like a logged-out state for this hook only — session-expiry

@@ -23,6 +23,8 @@ import type {BenefitPaySession} from "./types";
 const SDK_SRC = "/vendor/InApp.min.js";
 
 type InAppGlobal = {
+    /** The checkout host the SDK talks to; also the host that serves its dynamic links. */
+    endpoint?: string;
     open: (
         params: Record<string, string | number>,
         onSuccess: (result: unknown) => void,
@@ -110,11 +112,19 @@ export async function openBenefitPayWidget(session: BenefitPaySession): Promise<
                 transactionCurrency: session.currency,
                 referenceNumber: session.reference,
                 secure_hash: session.secureHash,
+                // Sent explicitly, and empty rather than absent. The SDK interpolates whatever it
+                // is given straight into its iframe URL, so an omitted parameter arrives at
+                // BenefitPay as the literal text "undefined" — which then travels on into the
+                // app-handoff link. What this field should actually contain is a question for
+                // BENEFIT; an empty value is at least not a wrong one.
+                hashedString: "",
                 // 0 keeps the outcome off the customer's wallet app: our own result page is the
                 // one that tells them, after the server has confirmed it.
                 showResult: 0,
-                // The QR is the point on a desktop browser, so it stays visible on mobile too.
-                hideMobileQR: 0,
+                // Nobody can scan a QR with the phone that is displaying it. On a phone the page
+                // must offer the app hand-off instead, and this is the flag that asks for it.
+                // Ignored on desktop, where the SDK keeps showing the QR — which is the point there.
+                hideMobileQR: 1,
                 qr_timeout: session.qrTimeoutMs,
                 // Undocumented in the parameter table but read by the SDK, which defaults it to
                 // "web". Passed explicitly so the value is visible here rather than implied.

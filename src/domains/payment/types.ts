@@ -120,4 +120,9 @@ export type BenefitPaySession = {
     currency: string;
     secureHash: string;
     qrTimeoutMs: number;
+    /**
+     * Where to send a customer to pay. The server decides whether that is BenefitPay's own page or
+     * our bridge page, so no client ever builds a payment URL.
+     */
+    redirectUrl?: string;
 };

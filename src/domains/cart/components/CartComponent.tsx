@@ -4,7 +4,7 @@ import { Modal, Box, Typography, IconButton, Button, ToggleButtonGroup, ToggleBu
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
-import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
+import { PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 
 const brandRed = "#E44B4C";
@@ -20,8 +20,11 @@ const brandGray = "#f3f3f3";
 //                 literals, and historic stats group by them. Only the label collapsed.
 //   Benefit     — BPG's hosted card page. Card number and PIN on BENEFIT's own domain.
 //   BenefitPay  — the wallet. A QR the customer scans with their phone, on our page.
+// Online-only by product decision: every customer order is paid before it reaches the kitchen,
+// so there is no pay-at-counter option here. DEFAULT_PAYMENT_METHOD still exists and is still the
+// kiosk's tender (useKioskCheckout) — it is the customer-facing CHOICE that was removed, not the
+// tender string, so historic orders and the admin dropdown are unaffected.
 const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
-    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.atCounter" },
     { value: PAY_ONLINE_METHOD, labelKey: "payment.benefit" },
     { value: WALLET_METHOD, labelKey: "payment.benefitPay" },
 ];
