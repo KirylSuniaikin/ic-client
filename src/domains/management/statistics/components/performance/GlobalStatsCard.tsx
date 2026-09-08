@@ -60,7 +60,7 @@ export function GlobalStatsCard({stats}: Props): JSX.Element {
                         </Grid>
                         <Grid size={{xs: 6}}>
                             <Box textAlign="center">
-                                <StatLabel label="Repeat Customers" info="Customers with more than one paid order at the selected branch(es). A smaller population than Unique Customers above, so the two are not a ratio."/>
+                                <StatLabel label="Repeat Customers" info="Customers who have ordered more than once, across the whole business. A customer record has no branch — the same phone orders from whichever shop is nearer — so this one figure does NOT follow the branch selector, unlike every other number on this card. A smaller population than Unique Customers above, so the two are not a ratio."/>
                                 <Typography variant="h5" fontWeight="bold">
                                     {stats.repeatCustomersAllTime}
                                 </Typography>
