@@ -112,12 +112,20 @@ export async function openBenefitPayWidget(session: BenefitPaySession): Promise<
                 transactionCurrency: session.currency,
                 referenceNumber: session.reference,
                 secure_hash: session.secureHash,
-                // Sent explicitly, and empty rather than absent. The SDK interpolates whatever it
-                // is given straight into its iframe URL, so an omitted parameter arrives at
-                // BenefitPay as the literal text "undefined" — which then travels on into the
-                // app-handoff link. What this field should actually contain is a question for
-                // BENEFIT; an empty value is at least not a wrong one.
-                hashedString: "",
+                // The wallet's integrity check, computed by our server.
+                //
+                // BENEFIT never documented it, but the Android SDK builds it in
+                // hashingUsingSecretKey(): HMAC-SHA256 over five fixed parameters with the
+                // ALPHABETIC currency. The web SDK cannot compute it — it holds no secret — so an
+                // unsupplied value reached the wallet as the literal text "undefined" and the
+                // payment was rejected as though the merchant credentials were wrong.
+                //
+                // Omitted, not blanked, when the server has not sent one: an empty string reads to
+                // their page as supplied-but-invalid and stops the QR rendering at all, whereas an
+                // absent parameter merely degrades.
+                ...(session.hashedString !== undefined && session.hashedString.length > 0
+                    ? { hashedString: session.hashedString }
+                    : {}),
                 // 0 keeps the outcome off the customer's wallet app: our own result page is the
                 // one that tells them, after the server has confirmed it.
                 showResult: 0,
