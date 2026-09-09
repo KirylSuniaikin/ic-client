@@ -312,6 +312,48 @@ describe("AccountingReportPopup", () => {
     });
 
     describe("row editing", () => {
+        it("keeps the time of day on an entry rather than flattening it to midnight", async () => {
+            // Entries are filtered and ordered on occurred_at. A date-only field wrote every one of
+            // them to midnight, so a day's entries shared a single instant and their order came down
+            // to array position.
+            renderPopup();
+            await findTable();
+
+            const inputs = Array.from(
+                document.querySelectorAll('input[type="datetime-local"]')
+            ) as HTMLInputElement[];
+
+            expect(inputs.length).toBeGreaterThan(0);
+            expect(inputs[0].value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+        });
+
+        it("starts a new row with no account rather than presuming cash", async () => {
+            // An adjustment did not move through any account. Defaulting to Cash asserted that it
+            // did, and put money into a cash total it never touched.
+            renderPopup();
+            await findTable();
+            const before = screen.getAllByRole("row").length;
+
+            fireEvent.click(screen.getByRole("button", { name: "Add" }));
+            await waitFor(() =>
+                expect(screen.getAllByRole("row").length).toBe(before + 1)
+            );
+
+            const firstBodyRow = screen.getAllByRole("row")[1];
+            const account = within(firstBodyRow).getByTestId("account-select")
+                .querySelector("input") as HTMLInputElement;
+
+            expect(account.value).toBe("");
+        });
+
+        it("lets a long description wrap instead of scrolling out of sight", async () => {
+            // The description is the only account of WHY an entry exists.
+            renderPopup();
+            await findTable();
+
+            expect(document.querySelector("textarea")).not.toBeNull();
+        });
+
         it("adds a new row to the top of the table (both count and order)", async () => {
             renderPopup();
             await findTable();
@@ -327,8 +369,11 @@ describe("AccountingReportPopup", () => {
             // a brand-new row's date defaults to today, which sorts first under the newest-first
             // default.
             const firstBodyRow = screen.getAllByRole("row")[1];
-            const dateInput = firstBodyRow.querySelector('input[type="date"]') as HTMLInputElement;
-            expect(dateInput.value).toBe(todayIso());
+            // The input is datetime-local now, so the value carries a time. Only the DATE part is
+            // asserted: a new row defaults to "now", and pinning the minute would make this test
+            // fail whenever it ran across a minute boundary.
+            const dateInput = firstBodyRow.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+            expect(dateInput.value.slice(0, 10)).toBe(todayIso());
         });
 
         it("adds a new row to the top of the table for a non-owner too (computedRows skips recomputeBalances, but sortedRows still applies)", async () => {
@@ -347,8 +392,11 @@ describe("AccountingReportPopup", () => {
             );
 
             const firstBodyRow = screen.getAllByRole("row")[1];
-            const dateInput = firstBodyRow.querySelector('input[type="date"]') as HTMLInputElement;
-            expect(dateInput.value).toBe(todayIso());
+            // The input is datetime-local now, so the value carries a time. Only the DATE part is
+            // asserted: a new row defaults to "now", and pinning the minute would make this test
+            // fail whenever it ran across a minute boundary.
+            const dateInput = firstBodyRow.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+            expect(dateInput.value.slice(0, 10)).toBe(todayIso());
         });
 
         it("keeps the save payload in true insertion order even though the newest same-date row displays first", async () => {
@@ -424,9 +472,11 @@ describe("AccountingReportPopup", () => {
             renderPopup();
             await findTable();
 
+            // Dates only: this test is about the ORDER the rows come out in, and the times the
+            // entries now carry would just make the expectations noisier without testing more.
             const rowDates = () =>
-                Array.from(document.querySelectorAll('input[type="date"]')).map(
-                    (el) => (el as HTMLInputElement).value
+                Array.from(document.querySelectorAll('input[type="datetime-local"]')).map(
+                    (el) => (el as HTMLInputElement).value.slice(0, 10)
                 );
 
             expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]);
