@@ -3,7 +3,9 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TaskCardDrawer from "./TaskCardDrawer";
 import type { TaskCard } from "../types";
+import { TASK_DESCRIPTION_MAX_LENGTH } from "../types";
 import { fetchTaskCardImage } from "../../../../shared/api/management";
+import { composeTaskDescription } from "../descriptionBlocks";
 
 // Only ViewModePhoto (view mode, hasImage: true) reaches this module at all — create/edit mode
 // mounts TaskCardImageField, which does not fetch until its viewer is opened.
@@ -139,6 +141,40 @@ describe("TaskCardDrawer", () => {
         expect(screen.getByText("Delete")).toBeTruthy();
     });
 
+    it("'view' mode renders four separate labeled sections for a structured description", () => {
+        const card = makeCard({
+            description: composeTaskDescription({
+                goal: "Sell more pizza",
+                doneCriteria: "Revenue up 10%",
+                progressComments: "Reached out to two new suppliers",
+                blocker: "No delivery drivers",
+            }),
+        });
+        render(
+            <TaskCardDrawer
+                open
+                mode="view"
+                card={card}
+                submitting={false}
+                onClose={jest.fn()}
+                onRequestEdit={jest.fn()}
+                onRequestDelete={jest.fn()}
+                onCreate={jest.fn()}
+                onEdit={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText("Goal & Description")).toBeTruthy();
+        expect(screen.getByText("Sell more pizza")).toBeTruthy();
+        expect(screen.getByText("Done Criteria")).toBeTruthy();
+        expect(screen.getByText("Revenue up 10%")).toBeTruthy();
+        expect(screen.getByText("Progress Comments")).toBeTruthy();
+        expect(screen.getByText("Reached out to two new suppliers")).toBeTruthy();
+        expect(screen.getByText("Blocker")).toBeTruthy();
+        expect(screen.getByText("No delivery drivers")).toBeTruthy();
+        expect(screen.queryByText("Description")).toBeNull();
+    });
+
     it("'view' mode shows a placeholder when description is null", () => {
         const card = makeCard({ description: null });
         render(
@@ -174,7 +210,10 @@ describe("TaskCardDrawer", () => {
         );
 
         expect(screen.getByLabelText("Title")).toHaveProperty("value", "");
-        expect(screen.getByLabelText("Description")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Goal & Description")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Done Criteria")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Progress Comments")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Blocker")).toHaveProperty("value", "");
         expect(screen.getByTestId("task-card-priority-GREEN").className).toMatch(/Mui-selected/);
     });
 
@@ -218,7 +257,7 @@ describe("TaskCardDrawer", () => {
         expect(screen.getByText("Save").closest("button")?.hasAttribute("disabled")).toBe(false);
     });
 
-    it("submitting in 'create' mode calls onCreate with trimmed values", () => {
+    it("submitting in 'create' mode calls onCreate with four separate trimmed block values (not a composed string)", () => {
         const onCreate = jest.fn();
         render(
             <TaskCardDrawer
@@ -235,13 +274,19 @@ describe("TaskCardDrawer", () => {
         );
 
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  New task  " } });
-        fireEvent.change(screen.getByLabelText("Description"), { target: { value: "  details  " } });
+        fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "  Sell more pizza  " } });
+        fireEvent.change(screen.getByLabelText("Done Criteria"), { target: { value: "  Revenue up 10%  " } });
+        fireEvent.change(screen.getByLabelText("Progress Comments"), { target: { value: "  Reached out to two new suppliers  " } });
+        fireEvent.change(screen.getByLabelText("Blocker"), { target: { value: "  No delivery drivers  " } });
         fireEvent.click(screen.getByTestId("task-card-priority-RED"));
         fireEvent.click(screen.getByText("Save"));
 
         expect(onCreate).toHaveBeenCalledWith({
             title: "New task",
-            description: "details",
+            goal: "Sell more pizza",
+            doneCriteria: "Revenue up 10%",
+            progressComments: "Reached out to two new suppliers",
+            blocker: "No delivery drivers",
             priority: "RED",
             deadline: null,
             pendingImage: null,
@@ -249,7 +294,7 @@ describe("TaskCardDrawer", () => {
         });
     });
 
-    it("submitting in 'edit' mode calls onEdit(card.id, values)", () => {
+    it("submitting in 'edit' mode calls onEdit(card.id, values), seeding a legacy card's raw text into goal", () => {
         const onEdit = jest.fn();
         const card = makeCard();
         render(
@@ -266,12 +311,22 @@ describe("TaskCardDrawer", () => {
             />
         );
 
+        // Legacy fixture (0 delimiters): the full raw text must have seeded into Goal & Description,
+        // leaving Done Criteria/Progress Comments/Blocker empty.
+        expect(screen.getByLabelText("Goal & Description")).toHaveProperty("value", card.description);
+        expect(screen.getByLabelText("Done Criteria")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Progress Comments")).toHaveProperty("value", "");
+        expect(screen.getByLabelText("Blocker")).toHaveProperty("value", "");
+
         fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Updated title" } });
         fireEvent.click(screen.getByText("Save"));
 
         expect(onEdit).toHaveBeenCalledWith(card.id, {
             title: "Updated title",
-            description: card.description,
+            goal: card.description,
+            doneCriteria: "",
+            progressComments: "",
+            blocker: "",
             priority: card.priority,
             deadline: card.deadline,
             pendingImage: null,
@@ -540,6 +595,87 @@ describe("TaskCardDrawer", () => {
 
             expect(mockFetchTaskCardImage).not.toHaveBeenCalled();
             expect(screen.queryByTestId("task-image-view-1")).toBeNull();
+        });
+    });
+
+    describe("combined description length budget", () => {
+        it("shows a live 'composed / max' counter under the four fields", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "abc" } });
+
+            // Composed length = "abc" + 3 delimiters = 6 chars.
+            expect(screen.getByText(`6 / ${TASK_DESCRIPTION_MAX_LENGTH}`)).toBeTruthy();
+        });
+
+        it("disables Save and shows the counter in an error state when the combined length exceeds the budget", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+
+            // Captured within budget (composed length 0), before the overflow change below, so the
+            // error-state assertion compares against the component's own within-budget color rather
+            // than restating MUI's default error hex.
+            const withinBudgetCounter = screen.getByText(`0 / ${TASK_DESCRIPTION_MAX_LENGTH}`);
+            const withinBudgetColor = window.getComputedStyle(withinBudgetCounter).color;
+
+            // Three delimiters plus this overflows TASK_DESCRIPTION_MAX_LENGTH (4000) by design.
+            fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "a".repeat(TASK_DESCRIPTION_MAX_LENGTH) } });
+
+            const composedLength = TASK_DESCRIPTION_MAX_LENGTH + 3; // 3 delimiter chars added on top
+            const counter = screen.getByText(`${composedLength} / ${TASK_DESCRIPTION_MAX_LENGTH}`);
+
+            expect(counter).toBeTruthy();
+            expect(window.getComputedStyle(counter).color).not.toBe(withinBudgetColor);
+            expect(screen.getByText("Save").closest("button")?.hasAttribute("disabled")).toBe(true);
+        });
+
+        it("re-enables Save once the combined length is trimmed back within budget", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+            fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "a".repeat(TASK_DESCRIPTION_MAX_LENGTH) } });
+            expect(screen.getByText("Save").closest("button")?.hasAttribute("disabled")).toBe(true);
+
+            fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "short goal" } });
+
+            expect(screen.getByText("Save").closest("button")?.hasAttribute("disabled")).toBe(false);
         });
     });
 });

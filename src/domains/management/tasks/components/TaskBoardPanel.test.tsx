@@ -20,6 +20,7 @@ import { useTaskBoard } from "../hooks/useTaskBoard";
 import { useCardDrag } from "../hooks/useCardDrag";
 import type { UseCardDragOptions } from "../hooks/useCardDrag";
 import TaskBoardPanel from "./TaskBoardPanel";
+import { composeTaskDescription } from "../descriptionBlocks";
 
 const mockUseTaskBoard = jest.mocked(useTaskBoard);
 const mockUseCardDrag = jest.mocked(useCardDrag);
@@ -155,6 +156,83 @@ describe("TaskBoardPanel", () => {
 
         await waitFor(() => {
             expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }), null);
+        });
+    });
+
+    it("filling the four-block description form composes them into one string via composeTaskDescription for createCard", async () => {
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+        fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "Sell more pizza" } });
+        fireEvent.change(screen.getByLabelText("Done Criteria"), { target: { value: "Revenue up 10%" } });
+        fireEvent.change(screen.getByLabelText("Progress Comments"), { target: { value: "Reached out to two new suppliers" } });
+        fireEvent.change(screen.getByLabelText("Blocker"), { target: { value: "No delivery drivers" } });
+        fireEvent.click(screen.getByText("Save"));
+
+        const expectedDescription = composeTaskDescription({
+            goal: "Sell more pizza",
+            doneCriteria: "Revenue up 10%",
+            progressComments: "Reached out to two new suppliers",
+            blocker: "No delivery drivers",
+        });
+
+        await waitFor(() => {
+            expect(createCard).toHaveBeenCalledWith(
+                expect.objectContaining({ title: "New task", description: expectedDescription }),
+                null
+            );
+        });
+    });
+
+    it("submits description: null when all four blocks are left blank", async () => {
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+        fireEvent.click(screen.getByText("Save"));
+
+        await waitFor(() => {
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ description: null }), null);
+        });
+    });
+
+    it("filling the four-block description form composes them into one string via composeTaskDescription for editCard", async () => {
+        const card = makeCard();
+        const editCard = jest.fn<Promise<boolean>, [number, EditTaskCardPayload, PhotoPatch?]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] }, editCard })
+        );
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByText("Restock mozzarella"));
+        fireEvent.click(screen.getByText("Edit"));
+        fireEvent.change(screen.getByLabelText("Goal & Description"), { target: { value: "Sell more pizza" } });
+        fireEvent.change(screen.getByLabelText("Done Criteria"), { target: { value: "Revenue up 10%" } });
+        fireEvent.change(screen.getByLabelText("Progress Comments"), { target: { value: "Reached out to two new suppliers" } });
+        fireEvent.change(screen.getByLabelText("Blocker"), { target: { value: "No delivery drivers" } });
+        fireEvent.click(screen.getByText("Save"));
+
+        const expectedDescription = composeTaskDescription({
+            goal: "Sell more pizza",
+            doneCriteria: "Revenue up 10%",
+            progressComments: "Reached out to two new suppliers",
+            blocker: "No delivery drivers",
+        });
+
+        await waitFor(() => {
+            expect(editCard).toHaveBeenCalledWith(
+                card.id,
+                expect.objectContaining({ description: expectedDescription }),
+                expect.anything()
+            );
         });
     });
 
@@ -336,6 +414,56 @@ describe("TaskBoardPanel", () => {
         render(<TaskBoardPanel ownerLabel="Riley Super" />);
 
         expect(screen.getByTestId("task-board-owner-header").textContent).toContain("Riley Super");
+    });
+
+    describe("descriptions expand/collapse toggle", () => {
+        it("defaults to expanded, showing description text and a 'Collapse all' label", () => {
+            const card = makeCard({ description: "Buy more cheese" });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+            );
+
+            render(<TaskBoardPanel />);
+
+            expect(screen.getByTestId("task-board-descriptions-toggle").textContent).toContain("Collapse all");
+            expect(screen.getByText("Buy more cheese")).toBeTruthy();
+        });
+
+        it("clicking the toggle collapses descriptions and flips the label to 'Expand all'", () => {
+            const card = makeCard({ description: "Buy more cheese" });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+            );
+
+            render(<TaskBoardPanel />);
+
+            fireEvent.click(screen.getByTestId("task-board-descriptions-toggle"));
+
+            expect(screen.getByTestId("task-board-descriptions-toggle").textContent).toContain("Expand all");
+            expect(screen.queryByText("Buy more cheese")).toBeNull();
+        });
+
+        it("clicking the toggle twice returns to expanded, showing 'Collapse all' and the description text again", () => {
+            const card = makeCard({ description: "Buy more cheese" });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+            );
+
+            render(<TaskBoardPanel />);
+
+            const toggle = screen.getByTestId("task-board-descriptions-toggle");
+            fireEvent.click(toggle);
+            fireEvent.click(toggle);
+
+            expect(toggle.textContent).toContain("Collapse all");
+            expect(screen.getByText("Buy more cheese")).toBeTruthy();
+        });
+
+        it("renders the toggle regardless of whether ownerLabel is provided", () => {
+            render(<TaskBoardPanel ownerLabel="Riley Super" />);
+
+            expect(screen.getByTestId("task-board-descriptions-toggle")).toBeTruthy();
+        });
     });
 
     describe("onOpenCardCountChange", () => {

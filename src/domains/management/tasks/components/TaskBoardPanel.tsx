@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
+import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
+import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import TaskColumn from "./TaskColumn";
@@ -11,6 +13,7 @@ import { useCardDrag } from "../hooks/useCardDrag";
 import { TASK_CARD_STATUSES } from "../types";
 import type { TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
 import { todayIsoBahrain } from "../../../../shared/utils/timeUtils";
+import { composeTaskDescription } from "../descriptionBlocks";
 
 // A board left open on a tablet across midnight must repaint overdue cards without waiting for
 // the next mutation-triggered refetch.
@@ -55,6 +58,7 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
     const [priorityMutatingId, setPriorityMutatingId] = useState<number | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [today, setToday] = useState<string>(() => todayIsoBahrain());
+    const [descriptionsExpanded, setDescriptionsExpanded] = useState(true);
 
     useEffect(() => {
         const interval = setInterval(() => setToday(todayIsoBahrain()), TODAY_REFRESH_INTERVAL_MS);
@@ -111,10 +115,15 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
     };
 
     const handleCreate = async (values: TaskCardFormValues): Promise<void> => {
-        const trimmedDescription = values.description.trim();
+        const composedDescription = composeTaskDescription({
+            goal: values.goal,
+            doneCriteria: values.doneCriteria,
+            progressComments: values.progressComments,
+            blocker: values.blocker,
+        });
         const ok = await board.createCard({
             title: values.title,
-            description: trimmedDescription.length > 0 ? trimmedDescription : null,
+            description: composedDescription.length > 0 ? composedDescription : null,
             priority: values.priority,
             status: createStatus,
             assigneeId: ownerId ?? undefined,
@@ -127,10 +136,15 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
     };
 
     const handleEdit = async (cardId: number, values: TaskCardFormValues): Promise<void> => {
-        const trimmedDescription = values.description.trim();
+        const composedDescription = composeTaskDescription({
+            goal: values.goal,
+            doneCriteria: values.doneCriteria,
+            progressComments: values.progressComments,
+            blocker: values.blocker,
+        });
         const ok = await board.editCard(cardId, {
             title: values.title,
-            description: trimmedDescription.length > 0 ? trimmedDescription : null,
+            description: composedDescription.length > 0 ? composedDescription : null,
             priority: values.priority,
             // EditTaskCardRequest is a full replace on the backend — a null deadline in the
             // request clears the stored one, so the current value must always be echoed back.
@@ -164,15 +178,31 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
 
     return (
         <>
-            {ownerLabel !== undefined && (
-                <Typography
-                    data-testid="task-board-owner-header"
-                    variant="subtitle1"
-                    sx={{ fontWeight: 700, px: { xs: 1.5, sm: 2 }, pt: { xs: 1.5, sm: 2 }, backgroundColor: "#fbfaf6" }}
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: ownerLabel !== undefined ? "space-between" : "flex-end",
+                    px: { xs: 1.5, sm: 2 },
+                    pt: { xs: 1.5, sm: 2 },
+                    backgroundColor: "#fbfaf6",
+                }}
+            >
+                {ownerLabel !== undefined && (
+                    <Typography data-testid="task-board-owner-header" variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Board of {ownerLabel}
+                    </Typography>
+                )}
+                <Button
+                    data-testid="task-board-descriptions-toggle"
+                    size="small"
+                    onClick={(): void => setDescriptionsExpanded(v => !v)}
+                    startIcon={descriptionsExpanded ? <UnfoldLessIcon fontSize="small" /> : <UnfoldMoreIcon fontSize="small" />}
+                    sx={{ textTransform: "none", fontWeight: 700, color: "text.secondary" }}
                 >
-                    Board of {ownerLabel}
-                </Typography>
-            )}
+                    {descriptionsExpanded ? "Collapse all" : "Expand all"}
+                </Button>
+            </Box>
             <Box
                 data-board-scroller
                 data-testid="task-board-scroller"
@@ -212,6 +242,7 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
                         mutatingCardId={priorityMutatingId}
                         getDragHandlers={getDragHandlers}
                         today={today}
+                        isExpanded={descriptionsExpanded}
                     />
                 ))}
                 <TaskCardDrawer
