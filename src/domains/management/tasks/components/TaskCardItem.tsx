@@ -3,6 +3,8 @@ import { Box, Card, CardContent, Typography } from "@mui/material";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import TaskCardMenu from "./TaskCardMenu";
 import { TaskCardImageThumb } from "./TaskCardImageThumb";
+import TaskDescriptionBlocks from "./TaskDescriptionBlocks";
+import { hasDescriptionContent } from "../descriptionBlocks";
 import type { CardDragHandlers } from "../hooks/useCardDrag";
 import type { TaskCard, TaskCardPriority } from "../types";
 import { TASK_CARD_OVERDUE_BG, TASK_CARD_OVERDUE_TEXT, TASK_CARD_PRIORITY_COLORS } from "../types";
@@ -15,6 +17,7 @@ export interface TaskCardItemProps {
     disabled?: boolean;
     getDragHandlers?: (card: TaskCard, onCardClick: (card: TaskCard) => void) => CardDragHandlers;
     today: string; // ISO Bahrain date (YYYY-MM-DD), threaded from TaskBoardPanel via TaskColumn
+    isExpanded: boolean; // board-wide expand/collapse toggle, threaded from TaskBoardPanel via TaskColumn
 }
 
 function formatDeadline(deadlineIso: string): string {
@@ -39,8 +42,8 @@ export default function TaskCardItem({
     disabled,
     getDragHandlers,
     today,
+    isExpanded,
 }: TaskCardItemProps): JSX.Element {
-    const hasDescription = card.description !== null && card.description.trim().length > 0;
     const dragHandlers = getDragHandlers?.(card, onClick);
     const isDragging = dragHandlers?.isDragging ?? false;
     const isOverdue = card.deadline !== null && card.deadline < today;
@@ -129,15 +132,10 @@ export default function TaskCardItem({
                         {card.title}
                     </Typography>
                 )}
-                {hasDescription && (
-                    <Typography
-                        data-testid={`task-card-description-${card.id}`}
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: "-webkit-box", mt: 0.5, lineHeight: 1.4, ...CLAMP_TWO_LINES }}
-                    >
-                        {card.description}
-                    </Typography>
+                {isExpanded && hasDescriptionContent(card.description) && (
+                    <Box sx={{ mt: 0.5 }}>
+                        <TaskDescriptionBlocks description={card.description} size="card" />
+                    </Box>
                 )}
             </CardContent>
         </Card>

@@ -16,6 +16,7 @@ export interface TaskColumnProps {
     mutatingCardId?: number | null; // disables that one card's menu while its own mutation is in flight
     getDragHandlers?: TaskCardItemProps["getDragHandlers"];
     today: string; // ISO Bahrain date (YYYY-MM-DD), threaded down to each TaskCardItem for overdue paint
+    isExpanded: boolean; // board-wide expand/collapse toggle, threaded down to each TaskCardItem
 }
 
 export default function TaskColumn({
@@ -28,6 +29,7 @@ export default function TaskColumn({
     mutatingCardId,
     getDragHandlers,
     today,
+    isExpanded,
 }: TaskColumnProps): JSX.Element {
     return (
         <Box
@@ -101,6 +103,7 @@ export default function TaskColumn({
                     disabled={mutatingCardId === card.id}
                     getDragHandlers={getDragHandlers}
                     today={today}
+                    isExpanded={isExpanded}
                 />
             ))}
         </Box>

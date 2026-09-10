@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import TaskCardItem from "./TaskCardItem";
 import { useCardDrag } from "../hooks/useCardDrag";
 import type { TaskCard, TaskCardPriority } from "../types";
+import { composeTaskDescription } from "../descriptionBlocks";
 
 // TaskCardItem's own concern is whether it decides to mount the thumb (card.hasImage), not the
 // thumb's own fetch/objectURL/revoke plumbing — that already has its own TaskCardImageThumb.test.tsx.
@@ -65,30 +66,118 @@ describe("TaskCardItem", () => {
     });
 
     it("always renders the title", () => {
-        render(<TaskCardItem card={makeCard()} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={makeCard()} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         expect(screen.getByText("Restock mozzarella")).toBeTruthy();
     });
 
-    it("renders the description block when description is present", () => {
-        render(
-            <TaskCardItem
-                card={makeCard({ description: "Buy more cheese" })}
-                onClick={jest.fn()}
-                onChangePriority={jest.fn()}
-                today={TODAY}
-            />
-        );
+    describe("description (board-wide expand/collapse)", () => {
+        it("collapsed (isExpanded=false) never renders description text, regardless of content", () => {
+            render(
+                <TaskCardItem
+                    card={makeCard({ description: "Buy more cheese" })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={false}
+                />
+            );
 
-        expect(screen.getByText("Buy more cheese")).toBeTruthy();
-    });
+            expect(screen.queryByText("Buy more cheese")).toBeNull();
+            expect(screen.queryByText("Description")).toBeNull();
+        });
 
-    it("omits the description block when description is null", () => {
-        render(
-            <TaskCardItem card={makeCard({ description: null })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
-        );
+        it("collapsed with a structured description still renders no description text", () => {
+            const description = composeTaskDescription({
+                goal: "Sell more pizza",
+                doneCriteria: "Revenue up 10%",
+                progressComments: "Reached out to two new suppliers",
+                blocker: "No delivery drivers",
+            });
+            render(
+                <TaskCardItem
+                    card={makeCard({ description })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={false}
+                />
+            );
 
-        expect(screen.queryByTestId("task-card-description-1")).toBeNull();
+            expect(screen.queryByText("Sell more pizza")).toBeNull();
+            expect(screen.queryByText("Goal & Description")).toBeNull();
+        });
+
+        it("expanded (isExpanded=true) with a structured description renders four labeled blocks", () => {
+            const description = composeTaskDescription({
+                goal: "Sell more pizza",
+                doneCriteria: "Revenue up 10%",
+                progressComments: "Reached out to two new suppliers",
+                blocker: "No delivery drivers",
+            });
+            render(
+                <TaskCardItem
+                    card={makeCard({ description })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={true}
+                />
+            );
+
+            expect(screen.getByText("Goal & Description")).toBeTruthy();
+            expect(screen.getByText("Sell more pizza")).toBeTruthy();
+            expect(screen.getByText("Done Criteria")).toBeTruthy();
+            expect(screen.getByText("Revenue up 10%")).toBeTruthy();
+            expect(screen.getByText("Progress Comments")).toBeTruthy();
+            expect(screen.getByText("Reached out to two new suppliers")).toBeTruthy();
+            expect(screen.getByText("Blocker")).toBeTruthy();
+            expect(screen.getByText("No delivery drivers")).toBeTruthy();
+        });
+
+        it("expanded with a legacy description renders one 'Description'-headed block", () => {
+            render(
+                <TaskCardItem
+                    card={makeCard({ description: "Buy more cheese" })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={true}
+                />
+            );
+
+            expect(screen.getByText("Description")).toBeTruthy();
+            expect(screen.getByText("Buy more cheese")).toBeTruthy();
+        });
+
+        it("expanded with a null description renders nothing", () => {
+            render(
+                <TaskCardItem
+                    card={makeCard({ description: null })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={true}
+                />
+            );
+
+            expect(screen.queryByText("Description")).toBeNull();
+            expect(screen.queryByTestId("task-card-description-1")).toBeNull();
+        });
+
+        it("expanded with an empty-string description renders nothing", () => {
+            render(
+                <TaskCardItem
+                    card={makeCard({ description: "" })}
+                    onClick={jest.fn()}
+                    onChangePriority={jest.fn()}
+                    today={TODAY}
+                    isExpanded={true}
+                />
+            );
+
+            expect(screen.queryByText("Description")).toBeNull();
+        });
     });
 
     it.each([
@@ -96,7 +185,7 @@ describe("TaskCardItem", () => {
         ["YELLOW", "#e4b11b"],
         ["RED", "#e44b4c"],
     ] as [TaskCardPriority, string][])("renders the %s priority as the card's left edge color", (priority, expected) => {
-        render(<TaskCardItem card={makeCard({ priority })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={makeCard({ priority })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         const card = screen.getByTestId("task-card-1");
         // jsdom echoes the hex back verbatim rather than normalising it, so compare case-insensitively.
@@ -106,7 +195,7 @@ describe("TaskCardItem", () => {
     it("clicking the card body calls onClick with the card", () => {
         const onClick = jest.fn();
         const card = makeCard();
-        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByText("Restock mozzarella"));
 
@@ -116,7 +205,7 @@ describe("TaskCardItem", () => {
 
     it("clicking the three-dots icon does not call onClick", () => {
         const onClick = jest.fn();
-        render(<TaskCardItem card={makeCard()} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={makeCard()} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
 
@@ -126,7 +215,7 @@ describe("TaskCardItem", () => {
     it("with no getDragHandlers prop supplied, clicking the card body is byte-identical to ST4's click behavior", () => {
         const onClick = jest.fn();
         const card = makeCard();
-        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         const cardEl = screen.getByTestId("task-card-1");
         // MUI's Paper always emits its own `--Paper-shadow` custom property inline, so the whole
@@ -163,6 +252,7 @@ describe("TaskCardItem", () => {
                     onChangePriority={onChangePriority}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
         }
@@ -205,6 +295,7 @@ describe("TaskCardItem", () => {
                     onChangePriority={onChangePriority}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
         }
@@ -248,6 +339,7 @@ describe("TaskCardItem", () => {
                     onChangePriority={onChangePriority}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
         }
@@ -279,6 +371,7 @@ describe("TaskCardItem", () => {
                 onClick={jest.fn()}
                 onChangePriority={jest.fn()}
                 today={TODAY}
+                isExpanded={true}
             />
         );
 
@@ -286,7 +379,7 @@ describe("TaskCardItem", () => {
     });
 
     it("omits the deadline line when the card has none", () => {
-        render(<TaskCardItem card={makeCard({ deadline: null })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskCardItem card={makeCard({ deadline: null })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         expect(screen.queryByTestId("task-card-deadline-1")).toBeNull();
     });
@@ -298,6 +391,7 @@ describe("TaskCardItem", () => {
                 onClick={jest.fn()}
                 onChangePriority={jest.fn()}
                 today={TODAY}
+                isExpanded={true}
             />
         );
 
@@ -307,7 +401,7 @@ describe("TaskCardItem", () => {
 
     it("does not paint the overdue background when the deadline is today", () => {
         render(
-            <TaskCardItem card={makeCard({ deadline: TODAY })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
+            <TaskCardItem card={makeCard({ deadline: TODAY })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
         );
 
         const card = screen.getByTestId("task-card-1");
@@ -316,12 +410,12 @@ describe("TaskCardItem", () => {
 
     it("renders the photo thumb only when the card has an image", () => {
         const { rerender } = render(
-            <TaskCardItem card={makeCard({ hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
+            <TaskCardItem card={makeCard({ hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
         );
         expect(screen.queryByTestId("task-image-thumb-1")).toBeNull();
 
         rerender(
-            <TaskCardItem card={makeCard({ hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
+            <TaskCardItem card={makeCard({ hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
         );
         expect(screen.getByTestId("task-image-thumb-1")).toBeTruthy();
     });
@@ -344,6 +438,7 @@ describe("TaskCardItem", () => {
                     onClick={jest.fn()}
                     onChangePriority={jest.fn()}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
 
@@ -357,6 +452,7 @@ describe("TaskCardItem", () => {
                     onClick={jest.fn()}
                     onChangePriority={jest.fn()}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
 
@@ -371,6 +467,7 @@ describe("TaskCardItem", () => {
                     onClick={jest.fn()}
                     onChangePriority={jest.fn()}
                     today={TODAY}
+                    isExpanded={true}
                 />
             );
 
@@ -379,12 +476,12 @@ describe("TaskCardItem", () => {
 
         it("renders the title exactly once in either layout", () => {
             const { rerender } = render(
-                <TaskCardItem card={makeCard({ deadline: null, hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
+                <TaskCardItem card={makeCard({ deadline: null, hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
             );
             expect(screen.getAllByText("Restock mozzarella")).toHaveLength(1);
 
             rerender(
-                <TaskCardItem card={makeCard({ deadline: "2026-08-25", hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />
+                <TaskCardItem card={makeCard({ deadline: "2026-08-25", hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
             );
             expect(screen.getAllByText("Restock mozzarella")).toHaveLength(1);
         });

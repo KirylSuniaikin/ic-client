@@ -26,7 +26,7 @@ const TODAY = "2026-08-19";
 describe("TaskColumn", () => {
     it("renders only the cards passed to it", () => {
         const cards = [makeCard({ id: 1, title: "Card One" }), makeCard({ id: 2, title: "Card Two" })];
-        render(<TaskColumn status="BACKLOG" cards={cards} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskColumn status="BACKLOG" cards={cards} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         expect(screen.getByText("Card One")).toBeTruthy();
         expect(screen.getByText("Card Two")).toBeTruthy();
@@ -42,18 +42,19 @@ describe("TaskColumn", () => {
                 onChangePriority={jest.fn()}
                 onAddClick={jest.fn()}
                 today={TODAY}
+                isExpanded={true}
             />
         );
         expect(screen.getByTestId("task-board-add-button-BACKLOG")).toBeTruthy();
 
-        rerender(<TaskColumn status="DOING" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} />);
+        rerender(<TaskColumn status="DOING" cards={[]} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
         expect(screen.queryByTestId("task-board-add-button-BACKLOG")).toBeNull();
     });
 
     it("clicking a card forwards to onCardClick", () => {
         const onCardClick = jest.fn();
         const card = makeCard();
-        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByText("Restock mozzarella"));
 
@@ -63,11 +64,24 @@ describe("TaskColumn", () => {
     it("with no getDragHandlers prop supplied, rendering and click behavior stay identical to ST4", () => {
         const onCardClick = jest.fn();
         const card = makeCard();
-        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} />);
+        render(<TaskColumn status="BACKLOG" cards={[card]} onCardClick={onCardClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByTestId("task-card-1"));
 
         expect(onCardClick).toHaveBeenCalledWith(card);
+    });
+
+    it("forwards isExpanded through to each TaskCardItem, controlling whether description text renders", () => {
+        const card = makeCard({ description: "Buy more cheese" });
+        const { rerender } = render(
+            <TaskColumn status="BACKLOG" cards={[card]} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={false} />
+        );
+        expect(screen.queryByText("Buy more cheese")).toBeNull();
+
+        rerender(
+            <TaskColumn status="BACKLOG" cards={[card]} onCardClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+        );
+        expect(screen.getByText("Buy more cheese")).toBeTruthy();
     });
 
     it("forwards getDragHandlers verbatim to each TaskCardItem", () => {
@@ -90,6 +104,7 @@ describe("TaskColumn", () => {
                 onChangePriority={jest.fn()}
                 getDragHandlers={getDragHandlers}
                 today={TODAY}
+                isExpanded={true}
             />
         );
 

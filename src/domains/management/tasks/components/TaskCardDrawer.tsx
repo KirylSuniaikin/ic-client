@@ -14,6 +14,8 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import type { TaskCard, TaskCardPriority } from "../types";
 import { TASK_CARD_PRIORITY_COLORS, TASK_DESCRIPTION_MAX_LENGTH, TASK_TITLE_MAX_LENGTH } from "../types";
+import { composeTaskDescription, hasDescriptionContent, parseTaskDescription } from "../descriptionBlocks";
+import TaskDescriptionBlocks from "./TaskDescriptionBlocks";
 import { TaskCardImageField } from "./TaskCardImageField";
 import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
 import { EntityPhotoViewer } from "../../../../shared/components/EntityPhotoViewer";
@@ -24,7 +26,10 @@ export type TaskCardDrawerMode = "view" | "create" | "edit";
 
 export interface TaskCardFormValues {
     title: string;
-    description: string;
+    goal: string;
+    doneCriteria: string;
+    progressComments: string;
+    blocker: string;
     priority: TaskCardPriority;
     deadline: string | null; // ISO YYYY-MM-DD
     pendingImage: Blob | null;
@@ -45,7 +50,10 @@ export interface TaskCardDrawerProps {
 
 const EMPTY_FORM_VALUES: TaskCardFormValues = {
     title: "",
-    description: "",
+    goal: "",
+    doneCriteria: "",
+    progressComments: "",
+    blocker: "",
     priority: "GREEN",
     deadline: null,
     pendingImage: null,
@@ -81,9 +89,13 @@ const ROUNDED_FIELD = {
 
 function seedValues(mode: TaskCardDrawerMode, card: TaskCard | null): TaskCardFormValues {
     if (mode === "create" || !card) return EMPTY_FORM_VALUES;
+    const parsed = parseTaskDescription(card.description);
     return {
         title: card.title,
-        description: card.description ?? "",
+        goal: parsed.goal,
+        doneCriteria: parsed.doneCriteria,
+        progressComments: parsed.progressComments,
+        blocker: parsed.blocker,
         priority: card.priority,
         deadline: card.deadline,
         // Always reset on (re)open — a brand-new blob/removal flag never survives a re-seed.
@@ -152,13 +164,27 @@ export default function TaskCardDrawer({
     }, [mode, card, open]);
 
     const trimmedTitle = values.title.trim();
-    const saveEnabled = trimmedTitle.length > 0 && trimmedTitle.length <= TASK_TITLE_MAX_LENGTH && !submitting;
+    const composedLength = composeTaskDescription({
+        goal: values.goal,
+        doneCriteria: values.doneCriteria,
+        progressComments: values.progressComments,
+        blocker: values.blocker,
+    }).length;
+    const withinDescriptionBudget = composedLength <= TASK_DESCRIPTION_MAX_LENGTH;
+    const saveEnabled =
+        trimmedTitle.length > 0 &&
+        trimmedTitle.length <= TASK_TITLE_MAX_LENGTH &&
+        withinDescriptionBudget &&
+        !submitting;
 
     const handleSave = (): void => {
         if (!saveEnabled) return;
         const submitValues: TaskCardFormValues = {
             title: trimmedTitle,
-            description: values.description.trim(),
+            goal: values.goal.trim(),
+            doneCriteria: values.doneCriteria.trim(),
+            progressComments: values.progressComments.trim(),
+            blocker: values.blocker.trim(),
             priority: values.priority,
             deadline: values.deadline,
             pendingImage: values.pendingImage,
@@ -170,8 +196,6 @@ export default function TaskCardDrawer({
             onEdit(card.id, submitValues);
         }
     };
-
-    const hasDescription = card?.description !== null && card?.description !== undefined && card.description.trim().length > 0;
 
     const content = (
         <Box data-testid="task-card-drawer" sx={{ px: 3, pt: isMobile ? 1.5 : 2.5, pb: isMobile ? 4 : 3 }}>
@@ -236,17 +260,13 @@ export default function TaskCardDrawer({
                             overflowY: "auto",
                         }}
                     >
-                        <Typography
-                            variant="body2"
-                            color={hasDescription ? "text.primary" : "text.secondary"}
-                            sx={{
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-word",
-                                fontStyle: hasDescription ? "normal" : "italic",
-                            }}
-                        >
-                            {hasDescription ? card.description : "No description"}
-                        </Typography>
+                        {hasDescriptionContent(card.description) ? (
+                            <TaskDescriptionBlocks description={card.description} size="drawer" />
+                        ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                                No description
+                            </Typography>
+                        )}
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1.5 }}>
@@ -303,17 +323,61 @@ export default function TaskCardDrawer({
                         sx={{ mb: 2, ...ROUNDED_FIELD }}
                     />
                     <TextField
-                        label="Description"
+                        label="Goal & Description"
                         fullWidth
                         multiline
-                        minRows={3}
-                        maxRows={10}
+                        minRows={2}
+                        maxRows={6}
                         variant="outlined"
-                        value={values.description}
-                        onChange={(e): void => setValues(prev => ({ ...prev, description: e.target.value }))}
-                        inputProps={{ maxLength: TASK_DESCRIPTION_MAX_LENGTH }}
-                        sx={{ mb: 2.5, ...ROUNDED_FIELD }}
+                        value={values.goal}
+                        onChange={(e): void => setValues(prev => ({ ...prev, goal: e.target.value }))}
+                        sx={{ mb: 1.5, ...ROUNDED_FIELD }}
                     />
+                    <TextField
+                        label="Done Criteria"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        variant="outlined"
+                        value={values.doneCriteria}
+                        onChange={(e): void => setValues(prev => ({ ...prev, doneCriteria: e.target.value }))}
+                        sx={{ mb: 1.5, ...ROUNDED_FIELD }}
+                    />
+                    <TextField
+                        label="Progress Comments"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        variant="outlined"
+                        value={values.progressComments}
+                        onChange={(e): void => setValues(prev => ({ ...prev, progressComments: e.target.value }))}
+                        sx={{ mb: 1.5, ...ROUNDED_FIELD }}
+                    />
+                    <TextField
+                        label="Blocker"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        variant="outlined"
+                        value={values.blocker}
+                        onChange={(e): void => setValues(prev => ({ ...prev, blocker: e.target.value }))}
+                        sx={{ mb: 0.5, ...ROUNDED_FIELD }}
+                    />
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            display: "block",
+                            mb: 2,
+                            textAlign: "right",
+                            color: withinDescriptionBudget ? "text.secondary" : "error.main",
+                            fontWeight: withinDescriptionBudget ? 400 : 700,
+                        }}
+                    >
+                        {composedLength} / {TASK_DESCRIPTION_MAX_LENGTH}
+                    </Typography>
                     {/* No global LocalizationProvider exists in app/providers.tsx — the field wraps
                         its own, copying purchases/components/PurchaseInvoiceGroup.tsx:160-173. */}
                     <LocalizationProvider dateAdapter={AdapterDayjs}>
