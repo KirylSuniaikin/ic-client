@@ -4,7 +4,6 @@ import { useSearchParams } from "react-router-dom";
 
 import { fetchBenefitPaySession } from "../shared/api/public";
 import { openBenefitPayWidget } from "../domains/payment/openBenefitPayWidget";
-import { buildAppLink, isAppHandoff } from "../domains/payment/benefitPayAppLink";
 import { BASE_URL } from "../shared/api/client";
 import { logger } from "../shared/utils/logger";
 
@@ -43,24 +42,15 @@ export default function BenefitPayBridgePage(): JSX.Element {
 
         let cancelled = false;
 
-        // The SDK answers this same message by clicking an anchor with target="_blank", which a
-        // browser blocks because a message handler carries no user activation — that is the
-        // about:blank#blocked the customer sees. A top-level navigation has no such restriction,
-        // so we take the message ourselves and go. Both handlers run; whoever navigates first wins.
-        const onMessage = (event: MessageEvent): void => {
-            if (!isAppHandoff(event.data)) return;
-            const link = buildAppLink(event.data, window.location.href, window.InApp?.endpoint);
-            // Kept on screen as a real button too: if this navigation is refused for any reason,
-            // a tap is a genuine user gesture and can never be blocked.
-            setAppLink(link);
-            window.location.assign(link);
-        };
-        window.addEventListener("message", onMessage);
+
 
         void (async () => {
             try {
                 const session = await fetchBenefitPaySession(reference);
-                await openBenefitPayWidget(session);
+                // The hand-off interception now lives in openBenefitPayWidget, so every surface
+                // that opens the widget gets it. This page keeps the visible button as a
+                // fallback: a tap is user activation and can never be blocked.
+                await openBenefitPayWidget(session, setAppLink);
             } catch (e: unknown) {
                 logger.error("BenefitPay bridge failed:", e);
                 // Fall through to the hand-back regardless: the attempt exists server-side, and the
@@ -76,7 +66,6 @@ export default function BenefitPayBridgePage(): JSX.Element {
 
         return () => {
             cancelled = true;
-            window.removeEventListener("message", onMessage);
         };
     }, [reference]);
 

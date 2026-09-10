@@ -62,9 +62,9 @@ describe("CartPopup — payment toggle", () => {
     it("renders the payment options and preselects the passed method (customer)", () => {
         renderCart({ paymentMethod: PAY_ONLINE_METHOD });
 
-        expect(screen.getByRole("button", { name: "Benefit (Online)" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Benefit" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "BenefitPay" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Benefit (Online)" }).getAttribute("aria-pressed")).toBe("true");
+        expect(screen.getByRole("button", { name: "Benefit" }).getAttribute("aria-pressed")).toBe("true");
     });
 
     // Customer orders are paid before they reach the kitchen, so there is no pay-at-counter
@@ -79,7 +79,7 @@ describe("CartPopup — payment toggle", () => {
         const onPaymentChange = jest.fn<void, [string]>();
         renderCart({ onPaymentChange, paymentMethod: WALLET_METHOD });
 
-        fireEvent.click(screen.getByRole("button", { name: "Benefit (Online)" }));
+        fireEvent.click(screen.getByRole("button", { name: "Benefit" }));
 
         expect(onPaymentChange).toHaveBeenCalledWith(PAY_ONLINE_METHOD);
     });
@@ -96,7 +96,7 @@ describe("CartPopup — payment toggle", () => {
     it("hides the payment toggle for admin", () => {
         renderCart({ isAdmin: true });
 
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
     });
 });
@@ -141,18 +141,18 @@ describe("CartPopup — delivery-type toggle", () => {
         renderCart({ orderType: "Delivery" });
 
         expect(screen.getByRole("button", { name: /delivery/i })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
     });
 
     it("hides both the delivery-type and payment-method toggles on kiosk (always Pickup + Card)", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByText(/payment method/i)).toBeNull();
     });
 

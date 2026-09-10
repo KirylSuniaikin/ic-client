@@ -144,7 +144,7 @@ export function PaymentResultContent(props: PaymentResultContentProps): JSX.Elem
  *
  * <p>Its own component so the countdown hook is unconditional: a successful payment is the one
  * outcome where staying put has no value, because the menu's active-order pill is the live surface
- * from here on. The CTA is the way out for anyone who does not want to wait the ten seconds.
+ * from here on. The CTA is the way out for anyone who does not want to wait.
  */
 function ApprovedView({result, reduced, onBackToMenu}: {
     result: BpgPaymentResult;

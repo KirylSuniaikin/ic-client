@@ -82,7 +82,7 @@ describe("useReturnCountdown", () => {
         expect(onElapsed).not.toHaveBeenCalled();
     });
 
-    it("agrees with the mobile screen on how long ten seconds is", () => {
-        expect(RETURN_DELAY_SECONDS).toBe(10);
+    it("agrees with the mobile screen on how long the wait is", () => {
+        expect(RETURN_DELAY_SECONDS).toBe(5);
     });
 });

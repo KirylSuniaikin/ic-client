@@ -7,7 +7,7 @@ import {useEffect, useRef, useState} from "react";
  * The same constant exists in `ic-pizza-mobile` — the two screens are siblings and must count the
  * same.
  */
-export const RETURN_DELAY_SECONDS = 10;
+export const RETURN_DELAY_SECONDS = 5;
 
 /**
  * Counts down to an automatic hand-off, and reports the seconds left so the screen can show them.

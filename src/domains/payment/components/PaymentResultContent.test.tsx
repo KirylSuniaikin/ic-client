@@ -173,7 +173,7 @@ describe("PaymentResultContent", () => {
      * outcome stays put: it is the only screen explaining what happened, and navigating away from
      * an explanation the customer has not read yet is a trapdoor, not a timer.
      */
-    describe("the ten-second return to the menu", () => {
+    describe("the five-second return to the menu", () => {
         beforeEach(() => {
             jest.useFakeTimers();
         });
@@ -185,25 +185,25 @@ describe("PaymentResultContent", () => {
         it("says out loud that it is about to leave", () => {
             renderContent({ result: resultWith("APPROVED") });
 
-            expect(screen.getByText("Back to the menu in 10s")).toBeTruthy();
+            expect(screen.getByText("Back to the menu in 5s")).toBeTruthy();
         });
 
         it("counts the seconds down where the customer can see them", () => {
             renderContent({ result: resultWith("APPROVED") });
 
             act(() => {
-                jest.advanceTimersByTime(4000);
+                jest.advanceTimersByTime(3000);
             });
 
-            expect(screen.getByText("Back to the menu in 6s")).toBeTruthy();
+            expect(screen.getByText("Back to the menu in 2s")).toBeTruthy();
         });
 
-        it("returns to the menu once the ten seconds are up", () => {
+        it("returns to the menu once the five seconds are up", () => {
             const onBackToMenu = jest.fn();
             renderContent({ result: resultWith("APPROVED"), onBackToMenu });
 
             act(() => {
-                jest.advanceTimersByTime(10_000);
+                jest.advanceTimersByTime(5_000);
             });
 
             expect(onBackToMenu).toHaveBeenCalledTimes(1);

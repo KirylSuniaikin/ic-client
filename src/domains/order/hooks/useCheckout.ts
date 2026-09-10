@@ -297,16 +297,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         return me && me.phone === tel ? me.amountOfOrders ?? null : null;
     }
 
-    // Extracted terminal step shared by the logged-in-from-the-start path and the
-    // freshly-verified-guest path (completeVerifiedCheckout below) -- a customer who has
-    // never completed an order goes through the Pick-Up reminder first; everyone else
-    // has their order created straight away.
     async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
-        // DELIVERY_SPEC.md §1.7: a delivery order must not exist until payment succeeds, so the
-        // funnel stops here and hands the built order to the delivery checkout instead of
-        // creating it. Everything before this point still runs — cross-sell, identity, the
-        // blacklist check and, for a guest, OTP verification, which is also what guarantees a
-        // token by the time the (account-scoped) address book is opened.
         if (order.type === "Delivery") {
             setCartOpen(false);
             setPendingDeliveryOrder(order);
