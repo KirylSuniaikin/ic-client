@@ -16,6 +16,7 @@ function staff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         basicSalary: null,
         housingAllowance: null,
         transportAllowance: null,
+        telegramConnected: false,
         ...overrides,
     };
 }

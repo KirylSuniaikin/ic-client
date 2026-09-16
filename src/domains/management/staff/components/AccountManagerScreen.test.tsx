@@ -1,6 +1,6 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { UseStaffAccountsResult } from "../hooks/useStaffAccounts";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffDetailsRequest, UpdateStaffPayrollRequest } from "../types";
@@ -16,6 +16,10 @@ jest.mock("../../../auth/context/AuthProvider", () => ({
 // Isolates AccountManagerScreen's own composition (list rendering, OWNER-only price column,
 // Hire button wiring) from the hook's own internals, which have their own useStaffAccounts.test.ts.
 jest.mock("../hooks/useStaffAccounts");
+
+// Manual mock at shared/api/__mocks__/management.ts. The screen fetches the Telegram bot
+// username directly (not through useStaffAccounts), so it needs its own mock here.
+jest.mock("../../../../shared/api/management");
 
 // useBranchScope reads this context; canSwitch is branches.length > 1, so the fixture decides
 // whether a selector renders. Mirrors HireStaffDrawer.test.tsx's stub.
@@ -57,9 +61,12 @@ jest.mock("./EditStaffDrawer", () => ({
 }));
 
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
+import { fetchTelegramBotUsername, generateTelegramConnectToken } from "../../../../shared/api/management";
 import AccountManagerScreen from "./AccountManagerScreen";
 
 const mockUseStaffAccounts = jest.mocked(useStaffAccounts);
+const mockFetchTelegramBotUsername = jest.mocked(fetchTelegramBotUsername);
+const mockGenerateTelegramConnectToken = jest.mocked(generateTelegramConnectToken);
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {
@@ -74,6 +81,7 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         basicSalary: null,
         housingAllowance: null,
         transportAllowance: null,
+        telegramConnected: false,
         ...overrides,
     };
 }
@@ -95,11 +103,32 @@ function staffAccountsValue(overrides: Partial<UseStaffAccountsResult> = {}): Us
 }
 
 describe("AccountManagerScreen", () => {
+    // review-feedback-D.md Issue 7 (hygiene): restore the original descriptor rather than leaving
+    // the redefined `navigator.clipboard` in place for tests outside this file/run order.
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
     beforeEach(() => {
         jest.clearAllMocks();
         mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 99 });
         mockUseManagementBranchScope.mockReturnValue({ branches: [homeBranch], homeBranch });
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue());
+        mockFetchTelegramBotUsername.mockResolvedValue({ botUsername: "icpizza_bot" });
+        mockGenerateTelegramConnectToken.mockResolvedValue({ token: "server-issued-token" });
+        Object.defineProperty(navigator, "clipboard", {
+            value: { writeText: jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined) },
+            configurable: true,
+        });
+    });
+
+    afterEach(() => {
+        if (originalClipboard) {
+            Object.defineProperty(navigator, "clipboard", originalClipboard);
+        } else {
+            // jsdom defines no `clipboard` property at all by default, so there is nothing to
+            // restore -- `Reflect.deleteProperty` (unlike `delete navigator.clipboard`) needs no
+            // type assertion, since lib.dom's `Navigator.clipboard` is typed as non-optional.
+            Reflect.deleteProperty(navigator, "clipboard");
+        }
     });
 
     it("renders fullName with username fallback for staff whose fullName is null", () => {
@@ -358,6 +387,94 @@ describe("AccountManagerScreen", () => {
             fireEvent.click(screen.getByTestId("staff-filter-all"));
 
             expect(screen.getByTestId("staff-row-2")).toBeTruthy();
+        });
+    });
+
+    describe("Telegram status", () => {
+        it("shows a connected indicator and no copy button for a row with telegramConnected true", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 1, telegramConnected: true })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            await waitFor(() => expect(mockFetchTelegramBotUsername).toHaveBeenCalled());
+
+            expect(screen.getByTestId("staff-telegram-connected-1")).toBeTruthy();
+            expect(screen.queryByTestId("staff-telegram-copy-1")).toBeNull();
+        });
+
+        it("generates a connect token before copying, and copies a link built from the returned token, never the staff id", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            expect(screen.queryByTestId("staff-telegram-connected-2")).toBeNull();
+
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+                "https://t.me/icpizza_bot?start=server-issued-token"
+            ));
+
+            // The security property under test: the raw staff id must never reach the clipboard,
+            // and the token fetch must happen strictly before the clipboard write, not just
+            // eventually -- mock call order proves the URL was built from the awaited response.
+            expect(mockGenerateTelegramConnectToken).toHaveBeenCalledWith(2);
+            const clipboardWriteText = jest.mocked(navigator.clipboard.writeText);
+            const tokenCallOrder = mockGenerateTelegramConnectToken.mock.invocationCallOrder[0];
+            const clipboardCallOrder = clipboardWriteText.mock.invocationCallOrder[0];
+            expect(tokenCallOrder).toBeLessThan(clipboardCallOrder);
+            expect(clipboardWriteText).not.toHaveBeenCalledWith(expect.stringContaining("?start=2"));
+        });
+
+        it("shows a spinner and disables the copy button while the token request is in flight, per row", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+            let resolveToken: (value: { token: string }) => void = () => {};
+            mockGenerateTelegramConnectToken.mockReturnValue(
+                new Promise<{ token: string }>(resolve => { resolveToken = resolve; })
+            );
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(true));
+            // The copy icon swaps for a spinner while in flight (mirrors ChannelPerformanceCard's
+            // regenerate button), not just a disabled attribute with the same icon still showing.
+            expect(within(screen.getByTestId("staff-telegram-copy-2")).getByRole("progressbar")).toBeTruthy();
+
+            resolveToken({ token: "server-issued-token" });
+
+            await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+                "https://t.me/icpizza_bot?start=server-issued-token"
+            ));
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            expect(within(screen.getByTestId("staff-telegram-copy-2")).queryByRole("progressbar")).toBeNull();
+        });
+
+        it("surfaces a token-fetch failure via the ErrorSnackbar and clears the in-flight state", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+            mockGenerateTelegramConnectToken.mockRejectedValue(new Error("HTTP 500"));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            expect(await screen.findByText("HTTP 500")).toBeTruthy();
+            expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
         });
     });
 });

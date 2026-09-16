@@ -29,6 +29,7 @@ function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
         basicSalary: null,
         housingAllowance: null,
         transportAllowance: null,
+        telegramConnected: false,
         ...overrides,
     };
 }
@@ -114,6 +115,7 @@ describe("useStaffAccounts", () => {
                 id: 2, username: "new.cook", fullName: "New Cook", role: StaffRoles.COOK, branchId: "branch-1",
                 pricePerHour: 3, enabled: true,
                 cprNumber: null, basicSalary: null, housingAllowance: null, transportAllowance: null,
+                telegramConnected: false,
             },
         ]);
     });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
@@ -11,7 +11,7 @@ import DeleteTaskCardDialog from "./DeleteTaskCardDialog";
 import { useTaskBoard } from "../hooks/useTaskBoard";
 import { useCardDrag } from "../hooks/useCardDrag";
 import { TASK_CARD_STATUSES } from "../types";
-import type { TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
+import type { TaskCard, TaskCardStatus } from "../types";
 import { todayIsoBahrain } from "../../../../shared/utils/timeUtils";
 import { composeTaskDescription } from "../descriptionBlocks";
 
@@ -32,9 +32,21 @@ export interface TaskBoardPanelProps {
      * viewer may be looking at someone else's board — a MANAGER's own board stays headerless.
      */
     ownerLabel?: string;
+    /**
+     * One-shot deep-link target from a Telegram-clicked link (task-spec.md Sub-task D3). Opened
+     * the moment a matching card appears in `board.cards`, then never consulted again -- see
+     * `hasAutoOpenedRef` below.
+     */
+    autoOpenCardId?: number;
+    /**
+     * Fired once the deep-link target has been opened (or the id never resolved), so the caller
+     * can strip `taskCardId`/`assigneeId` from the URL. This component has no router access of
+     * its own -- callers own clearing the params they handed down.
+     */
+    onAutoOpenHandled?: () => void;
 }
 
-export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel }: TaskBoardPanelProps = {}): JSX.Element {
+export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel, autoOpenCardId, onAutoOpenHandled }: TaskBoardPanelProps = {}): JSX.Element {
     const board = useTaskBoard(ownerId);
 
     const openCardCount = board.cards.filter(card => card.status !== "DONE").length;
@@ -55,7 +67,6 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     // Which column the "+" was pressed in, so the new card lands there rather than always in Backlog.
     const [createStatus, setCreateStatus] = useState<TaskCardStatus>("BACKLOG");
-    const [priorityMutatingId, setPriorityMutatingId] = useState<number | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [today, setToday] = useState<string>(() => todayIsoBahrain());
     const [descriptionsExpanded, setDescriptionsExpanded] = useState(true);
@@ -75,19 +86,47 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
         await board.moveCard(cardId, targetStatus, targetIndex);
     };
 
-    const { getDragHandlers } = useCardDrag({
+    const { getDragHandlers, dropTarget } = useCardDrag({
         onDrop: ({ cardId, targetStatus, targetIndex }): void => {
             void handleMoveCard(cardId, targetStatus, targetIndex);
         },
     });
-
-    if (board.loading) return <LoadingIndicator />;
 
     const handleCardClick = (card: TaskCard): void => {
         setActiveCard(card);
         setDrawerMode("view");
         setDrawerOpen(true);
     };
+
+    // One-shot: guarded by a ref (not just `autoOpenCardId` being defined) so this never re-fires
+    // once it has settled on an outcome for the target card, even if `board.cards` updates again
+    // later (e.g. after an unrelated edit) or the user has since closed the drawer.
+    const hasAutoOpenedRef = useRef(false);
+    useEffect(() => {
+        if (hasAutoOpenedRef.current) return;
+        if (autoOpenCardId === undefined) return;
+        if (board.loading) return;
+        // Cards can still belong to a previous owner for one commit right after an owner switch:
+        // `loading` has already flipped back to false but the fetch for the NEW owner hasn't
+        // resolved yet, so `loadedOwnerId` still lags `ownerId` -- the exact same race
+        // `onOpenCardCountChange` above guards against. Deciding "unresolved" off a stale board
+        // would wrongly fire `onAutoOpenHandled` (and strip the URL params) before the correct
+        // owner's board has even loaded.
+        if (board.loadedOwnerId !== (ownerId ?? null)) return;
+        // The board has now genuinely loaded for the right owner: whether or not the id
+        // resolved, this is the one and only outcome -- `onAutoOpenHandled`'s own contract is
+        // "opened, OR the id never resolved" (review-feedback-D.md Issue 3), so both branches
+        // report it, or an unresolvable id would leave `taskCardId`/`assigneeId` in the URL
+        // forever and re-force the board tab on every refresh.
+        hasAutoOpenedRef.current = true;
+        const card = board.cards.find(c => c.id === autoOpenCardId);
+        if (card) handleCardClick(card);
+        onAutoOpenHandled?.();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCardClick is a plain
+        // closure recreated every render, not a stable dep; the ref above is what makes this safe.
+    }, [board.cards, board.loading, board.loadedOwnerId, autoOpenCardId, ownerId, onAutoOpenHandled]);
+
+    if (board.loading) return <LoadingIndicator />;
 
     const handleAddClick = (status: TaskCardStatus): void => {
         setCreateStatus(status);
@@ -114,6 +153,14 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
         setDeleteDialogOpen(true);
     };
 
+    // Edit straight from a card's three-dots menu, without opening the view-mode popup first —
+    // drawerMode/activeCard are independent state, so this is safe (no view-mode prerequisite).
+    const handleRequestEditFromCard = (card: TaskCard): void => {
+        setActiveCard(card);
+        setDrawerMode("edit");
+        setDrawerOpen(true);
+    };
+
     const handleCreate = async (values: TaskCardFormValues): Promise<void> => {
         const composedDescription = composeTaskDescription({
             goal: values.goal,
@@ -128,7 +175,7 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
             status: createStatus,
             assigneeId: ownerId ?? undefined,
             deadline: values.deadline,
-        }, values.pendingImage);
+        }, values.pendingImage, values.pendingAttachments);
         if (ok) {
             setDrawerOpen(false);
             setActiveCard(null);
@@ -154,12 +201,6 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
             setDrawerOpen(false);
             setActiveCard(null);
         }
-    };
-
-    const handleChangePriority = async (cardId: number, priority: TaskCardPriority): Promise<void> => {
-        setPriorityMutatingId(cardId);
-        await board.changePriority(cardId, priority);
-        setPriorityMutatingId(null);
     };
 
     const handleConfirmDelete = async (): Promise<void> => {
@@ -216,8 +257,8 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
                     // Matches the order desk's page treatment so switching tabs doesn't change the canvas.
                     backgroundColor: "#fbfaf6",
                     minHeight: "100vh",
-                    // Three columns cannot fit a phone, so the board scrolls sideways and snaps one
-                    // column at a time. Vertical scrolling is left to the page — nesting a second
+                    // The full column set cannot fit a phone, so the board scrolls sideways and snaps
+                    // one column at a time. Vertical scrolling is left to the page — nesting a second
                     // scroll axis here is what made the board feel stuck on touch.
                     overflowX: "auto",
                     overflowY: "visible",
@@ -234,12 +275,10 @@ export default function TaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLa
                         status={status}
                         cards={board.cardsByStatus[status]}
                         onCardClick={handleCardClick}
-                        onChangePriority={(cardId, priority): void => {
-                            void handleChangePriority(cardId, priority);
-                        }}
+                        onRequestEdit={handleRequestEditFromCard}
                         onRequestDelete={handleRequestDeleteFromCard}
                         onAddClick={(): void => handleAddClick(status)}
-                        mutatingCardId={priorityMutatingId}
+                        dropIndicatorIndex={dropTarget?.status === status ? dropTarget.index : null}
                         getDragHandlers={getDragHandlers}
                         today={today}
                         isExpanded={descriptionsExpanded}

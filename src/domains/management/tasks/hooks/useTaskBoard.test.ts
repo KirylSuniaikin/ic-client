@@ -9,6 +9,7 @@ import {
     moveTaskCard,
     uploadTaskCardImage,
     deleteTaskCardImage,
+    uploadTaskCardAttachment,
 } from "../../../../shared/api/management";
 import type { TaskCard } from "../types";
 import { useTaskBoard } from "./useTaskBoard";
@@ -24,6 +25,7 @@ const mockDeleteTaskCard = jest.mocked(deleteTaskCard);
 const mockMoveTaskCard = jest.mocked(moveTaskCard);
 const mockUploadTaskCardImage = jest.mocked(uploadTaskCardImage);
 const mockDeleteTaskCardImage = jest.mocked(deleteTaskCardImage);
+const mockUploadTaskCardAttachment = jest.mocked(uploadTaskCardAttachment);
 
 function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
     return {
@@ -66,6 +68,7 @@ describe("useTaskBoard", () => {
             makeCard({ id: 2, status: "DOING", position: 0 }),
             makeCard({ id: 3, status: "BACKLOG", position: 1 }),
             makeCard({ id: 4, status: "DONE", position: 0 }),
+            makeCard({ id: 5, status: "BLOCKED", position: 0 }),
         ];
         mockFetchTaskBoard.mockResolvedValue(cards);
 
@@ -79,6 +82,7 @@ describe("useTaskBoard", () => {
         expect(result.current.cardsByStatus.BACKLOG.map(c => c.id)).toEqual([1, 3]);
         expect(result.current.cardsByStatus.DOING.map(c => c.id)).toEqual([2]);
         expect(result.current.cardsByStatus.DONE.map(c => c.id)).toEqual([4]);
+        expect(result.current.cardsByStatus.BLOCKED.map(c => c.id)).toEqual([5]);
     });
 
     it("refetches with the new assigneeId when ownerId changes", async () => {
@@ -234,7 +238,7 @@ describe("useTaskBoard", () => {
         expect(mockFetchTaskBoard).not.toHaveBeenCalled();
     });
 
-    describe("photo sync", () => {
+    describe("photo & attachment sync", () => {
         it("createCard uploads the pending photo against the id the create response returned", async () => {
             mockFetchTaskBoard.mockResolvedValue([]);
             mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
@@ -333,6 +337,112 @@ describe("useTaskBoard", () => {
             });
 
             expect(mockDeleteTaskCardImage).not.toHaveBeenCalled();
+            expect(ok).toBe(true);
+        });
+
+        it("createCard uploads each pending attachment against the id the create response returned", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+            mockUploadTaskCardAttachment.mockResolvedValue({
+                id: 1, taskCardId: 42, filename: "notes.txt", contentType: "text/plain", sizeBytes: 5, createdAt: "2026-08-12T10:00:00",
+            });
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const file1 = new File(["a"], "a.txt", { type: "text/plain" });
+            const file2 = new File(["b"], "b.txt", { type: "text/plain" });
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard(
+                    { title: "New task", description: null, deadline: null },
+                    null,
+                    [file1, file2]
+                );
+            });
+
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledWith(42, file1);
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledWith(42, file2);
+            expect(ok).toBe(true);
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
+
+        it("a rejected attachment upload after createCard does not turn a successful save into a failure", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+            mockUploadTaskCardAttachment.mockRejectedValue(new Error("HTTP 500"));
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const file = new File(["a"], "a.txt", { type: "text/plain" });
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard(
+                    { title: "New task", description: null, deadline: null },
+                    null,
+                    [file]
+                );
+            });
+
+            expect(ok).toBe(true);
+            expect(result.current.error).toBe("Task saved, but the attachments could not be uploaded.");
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
+
+        it("when only one of several pending attachments fails, the others still upload and the save still reports success", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+            const okMeta = {
+                id: 1, taskCardId: 42, filename: "a.txt", contentType: "text/plain", sizeBytes: 1, createdAt: "2026-08-12T10:00:00",
+            };
+            mockUploadTaskCardAttachment
+                .mockResolvedValueOnce(okMeta)
+                .mockRejectedValueOnce(new Error("HTTP 500"))
+                .mockResolvedValueOnce({ ...okMeta, id: 3, filename: "c.txt" });
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            const fileA = new File(["a"], "a.txt", { type: "text/plain" });
+            const fileB = new File(["b"], "b.txt", { type: "text/plain" });
+            const fileC = new File(["c"], "c.txt", { type: "text/plain" });
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard(
+                    { title: "New task", description: null, deadline: null },
+                    null,
+                    [fileA, fileB, fileC]
+                );
+            });
+
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledTimes(3);
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledWith(42, fileA);
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledWith(42, fileB);
+            expect(mockUploadTaskCardAttachment).toHaveBeenCalledWith(42, fileC);
+            // A single failed attachment among several must not read as a failed card save.
+            expect(ok).toBe(true);
+            expect(result.current.error).toBe("Task saved, but 1 attachment(s) could not be uploaded.");
+            expect(mockFetchTaskBoard).toHaveBeenCalledTimes(1);
+        });
+
+        it("createCard does not call uploadTaskCardAttachment when pendingAttachments is empty", async () => {
+            mockFetchTaskBoard.mockResolvedValue([]);
+            mockCreateTaskCard.mockResolvedValue(makeCard({ id: 42 }));
+
+            const { result } = renderHook(() => useTaskBoard());
+            await waitFor(() => expect(result.current.loading).toBe(false));
+            mockFetchTaskBoard.mockClear();
+
+            let ok = false;
+            await act(async () => {
+                ok = await result.current.createCard({ title: "New task", description: null, deadline: null });
+            });
+
+            expect(mockUploadTaskCardAttachment).not.toHaveBeenCalled();
             expect(ok).toBe(true);
         });
 

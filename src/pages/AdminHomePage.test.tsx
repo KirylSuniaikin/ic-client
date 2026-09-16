@@ -67,10 +67,20 @@ function mockAdminPageModals({ accountManagerOpen, onAccountManagerClose, role }
 // AdminHomePage passes `role` through to TaskBoardScreen unmodified for every
 // board-eligible role (MANAGER/SUPER_MANAGER/OWNER) — the actual OWNER-only sidebar
 // gating rule lives inside TaskBoardScreen and is covered by TaskBoardScreen.test.tsx.
-function mockTaskBoardScreen({ role }: { role: StaffRoles | null }): JSX.Element {
+function mockTaskBoardScreen({ role, autoOpenCardId, autoOpenAssigneeId, onAutoOpenHandled }: {
+    role: StaffRoles | null;
+    autoOpenCardId?: number;
+    autoOpenAssigneeId?: number;
+    onAutoOpenHandled?: () => void;
+}): JSX.Element {
     return (
-        <div data-testid="task-board-panel">
+        <div
+            data-testid="task-board-panel"
+            data-auto-open-card-id={autoOpenCardId === undefined ? "" : String(autoOpenCardId)}
+            data-auto-open-assignee-id={autoOpenAssigneeId === undefined ? "" : String(autoOpenAssigneeId)}
+        >
             {role === StaffRoles.OWNER && <div data-testid="staff-board-sidebar-stub" />}
+            <button data-testid="task-board-panel-auto-open-handled" onClick={(): void => onAutoOpenHandled?.()} />
         </div>
     );
 }
@@ -231,7 +241,7 @@ function branchInitValue(): AdminBranchInitResult {
     };
 }
 
-function renderAdminHomePage(role: StaffRoles | null): void {
+function renderAdminHomePage(role: StaffRoles | null, initialPath = "/admin"): void {
     mockUseAuth.mockReturnValue(authValue(role));
     mockUseAdminOrders.mockReturnValue(adminOrdersValue());
     mockUseDough.mockReturnValue(doughValue());
@@ -239,7 +249,7 @@ function renderAdminHomePage(role: StaffRoles | null): void {
     mockUseAdminBranchInit.mockReturnValue(branchInitValue());
 
     render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[initialPath]}>
             <AdminHomePage />
         </MemoryRouter>
     );
@@ -443,5 +453,63 @@ describe("AdminHomePage Account Manager surface", () => {
         renderAdminHomePage(StaffRoles.MANAGER);
 
         expect(screen.queryByTestId("admin-tab-staff")).toBeNull();
+    });
+});
+
+// task-spec.md Sub-task D3: a Telegram-clicked link lands on /admin?taskCardId=&assigneeId=.
+describe("AdminHomePage deep link (taskCardId/assigneeId)", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("parses taskCardId/assigneeId from the URL and passes them through to TaskBoardScreen", () => {
+        renderAdminHomePage(StaffRoles.MANAGER, "/admin?taskCardId=42&assigneeId=7");
+
+        const panel = screen.getByTestId("task-board-panel");
+        expect(panel.getAttribute("data-auto-open-card-id")).toBe("42");
+        expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("7");
+    });
+
+    it("passes undefined for both params when the URL carries neither", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+
+        const panel = screen.getByTestId("task-board-panel");
+        expect(panel.getAttribute("data-auto-open-card-id")).toBe("");
+        expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("");
+    });
+
+    it("falls back to undefined for a non-numeric taskCardId rather than erroring", () => {
+        renderAdminHomePage(StaffRoles.MANAGER, "/admin?taskCardId=not-a-number");
+
+        expect(screen.getByTestId("task-board-panel").getAttribute("data-auto-open-card-id")).toBe("");
+    });
+
+    // review-feedback-D.md Issue 2: Number("") and Number("  ") are 0, and Number.isFinite(0) is
+    // true, so a blank param used to resolve to 0 rather than undefined.
+    it("falls back to undefined for a blank taskCardId rather than 0", () => {
+        renderAdminHomePage(StaffRoles.MANAGER, "/admin?taskCardId=&assigneeId=");
+
+        const panel = screen.getByTestId("task-board-panel");
+        expect(panel.getAttribute("data-auto-open-card-id")).toBe("");
+        expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("");
+    });
+
+    it("falls back to undefined for a fractional or non-positive taskCardId", () => {
+        renderAdminHomePage(StaffRoles.MANAGER, "/admin?taskCardId=1.5&assigneeId=0");
+
+        const panel = screen.getByTestId("task-board-panel");
+        expect(panel.getAttribute("data-auto-open-card-id")).toBe("");
+        expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("");
+    });
+
+    it("strips taskCardId/assigneeId from the URL once TaskBoardScreen reports the deep link handled", () => {
+        renderAdminHomePage(StaffRoles.MANAGER, "/admin?taskCardId=42&assigneeId=7");
+
+        fireEvent.click(screen.getByTestId("task-board-panel-auto-open-handled"));
+
+        // AdminHomePage re-renders with the params cleared; the stub echoes back undefined ("").
+        const panel = screen.getByTestId("task-board-panel");
+        expect(panel.getAttribute("data-auto-open-card-id")).toBe("");
+        expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("");
     });
 });

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { resolveDropTarget } from "../dragOrdering";
-import type { ColumnGeometry, Rect } from "../dragOrdering";
+import type { ColumnGeometry, DropTarget, Rect } from "../dragOrdering";
 import type { TaskCard, TaskCardStatus } from "../types";
 import { logger } from "../../../../shared/utils/logger";
 
@@ -35,6 +35,10 @@ export interface CardDragHandlers {
 
 export interface UseCardDragResult {
     getDragHandlers: (card: TaskCard, onCardClick: (card: TaskCard) => void) => CardDragHandlers;
+    // Live drop-position preview while a card is actively being dragged (post long-press/threshold
+    // — never during the pre-drag candidate phase). Null whenever nothing is being dragged, or the
+    // pointer isn't over any column.
+    dropTarget: DropTarget | null;
 }
 
 interface DragState {
@@ -66,11 +70,13 @@ function toRect(domRect: DOMRect): Rect {
 }
 
 // A `pointerdown` that originates on an interactive control nested inside the card (the
-// three-dots menu's `IconButton`, which MUI always renders as a native `<button>`) must
-// never be allowed to start a drag candidate. Per Pointer Events Level 3, `setPointerCapture` on
-// the card would otherwise retarget the trailing `click` to the card, so the control's own
+// three-dots menu's `IconButton`, which MUI always renders as a native `<button>`, or a clickable
+// link chip rendered as an `<a href>` — see TaskDescriptionBlocks.tsx's `LinkRow`) must never be
+// allowed to start a drag candidate. Per Pointer Events Level 3, `setPointerCapture` on the card
+// would otherwise retarget the trailing `click` to the card, so the control's own
 // `onClick`/`stopPropagation` may never run on a real browser — see review-feedback-ST5.md
-// Issue 2. `target instanceof Element` narrows the DOM `EventTarget` union without a cast.
+// Issue 2 and review-feedback-D.md Issue 1 (the link chip is exactly this bug one control later).
+// `target instanceof Element` narrows the DOM `EventTarget` union without a cast.
 //
 // That alone misses the menu the button OPENS: MUI's `Menu` (and its `Modal` backdrop) is
 // rendered via `ReactDOM` portal into `document.body`, so it is a React-tree descendant of the
@@ -88,6 +94,7 @@ function isInteractiveTarget(event: React.PointerEvent<HTMLElement>): boolean {
     const target = event.target;
     if (!(target instanceof Element)) return false;
     if (target.closest("button") !== null) return true;
+    if (target.closest("a[href]") !== null) return true;
     return !event.currentTarget.contains(target);
 }
 
@@ -137,6 +144,43 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
     // Drives the live transform/zIndex/opacity of whichever card is actively being dragged —
     // this one DOES need to be state, since it must repaint on every pointermove.
     const [activeDrag, setActiveDrag] = useState<ActiveDragVisual | null>(null);
+
+    // Live drop-position preview (the placeholder gap TaskColumn renders). rAF-throttled: a raw
+    // pointermove firing this would mean a full DOM geometry read (readColumnGeometry) on every
+    // event, far more expensive than applyDragVisual's pure arithmetic.
+    const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+    const dropTargetRafIdRef = useRef<number | null>(null);
+    // Tracks "a frame is pending" independently of the id assignment below: `requestAnimationFrame`
+    // always resolves asynchronously in a real browser, but setting this flag BEFORE the call (not
+    // relying on the returned id) keeps the guard correct even if a callback ever ran synchronously
+    // (e.g. under a test mock) — otherwise the id assignment below would overwrite whatever the
+    // callback already reset, wedging this scheduler into never firing again for the rest of the drag.
+    const dropTargetFramePendingRef = useRef(false);
+
+    const cancelDropTargetRaf = useCallback((): void => {
+        dropTargetFramePendingRef.current = false;
+        if (dropTargetRafIdRef.current !== null) {
+            cancelAnimationFrame(dropTargetRafIdRef.current);
+            dropTargetRafIdRef.current = null;
+        }
+    }, []);
+
+    // Reads the latest known pointer position at the time the frame actually runs, not the
+    // position when it was scheduled — so a burst of pointermoves between frames only costs one
+    // geometry read, using the freshest point.
+    const scheduleDropTargetUpdate = useCallback((): void => {
+        if (dropTargetFramePendingRef.current) return;
+        dropTargetFramePendingRef.current = true;
+        dropTargetRafIdRef.current = requestAnimationFrame(() => {
+            dropTargetFramePendingRef.current = false;
+            dropTargetRafIdRef.current = null;
+            const state = dragStateRef.current;
+            if (!state || !state.dragging) return;
+            const columns = readColumnGeometry(containerDocument);
+            const target = resolveDropTarget(columns, lastPointRef.current, state.cardId);
+            setDropTarget(target);
+        });
+    }, [containerDocument]);
 
     // Touch scrolling is NOT disabled up front. A card that permanently declares
     // `touch-action: none` makes the whole board unscrollable on a phone, since the cards cover
@@ -215,8 +259,9 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
             cancelLongPress();
             stopEdgeScroll();
             stopBlockingTouchScroll();
+            cancelDropTargetRaf();
         };
-    }, [cancelLongPress, stopEdgeScroll, stopBlockingTouchScroll]);
+    }, [cancelLongPress, stopEdgeScroll, stopBlockingTouchScroll, cancelDropTargetRaf]);
 
     const getDragHandlers = useCallback(
         (card: TaskCard, onCardClick: (card: TaskCard) => void): CardDragHandlers => {
@@ -227,6 +272,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 if (state.isTouch) startBlockingTouchScroll();
                 startEdgeScroll();
                 applyDragVisual();
+                scheduleDropTargetUpdate();
             };
 
             const onPointerDown = (event: React.PointerEvent<HTMLElement>): void => {
@@ -239,7 +285,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 justDraggedCardIdRef.current = null;
 
                 if (event.button !== 0) return; // ignore non-primary mouse button
-                if (isInteractiveTarget(event)) return; // let interactive controls AND portalled surfaces they open (e.g. the three-dots menu button, its MenuItems, the modal backdrop) handle their own click — never start a drag candidate or take capture for them, see Issue 2 / iteration-2 Issue 1
+                if (isInteractiveTarget(event)) return; // let interactive controls AND portalled surfaces they open (e.g. the three-dots menu button, its MenuItems, the modal backdrop, a description link chip) handle their own click — never start a drag candidate or take capture for them, see Issue 2 / iteration-2 Issue 1 / review-feedback-D.md Issue 1
                 if (dragStateRef.current !== null) return; // a drag is already tracked (e.g. multi-touch)
 
                 const target = event.currentTarget;
@@ -327,6 +373,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 lastPointRef.current = { x: event.clientX, y: event.clientY };
                 updateEdgeScrollDirection(event.clientX);
                 applyDragVisual();
+                scheduleDropTargetUpdate();
             };
 
             const finishGesture = (event: React.PointerEvent<HTMLElement>): DragState | null => {
@@ -336,6 +383,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 cancelLongPress();
                 stopEdgeScroll();
                 stopBlockingTouchScroll();
+                cancelDropTargetRaf();
 
                 // Clear the tracked state BEFORE attempting to release capture, and independently of
                 // whether that release succeeds. `releasePointerCapture` is specified to throw once the
@@ -360,23 +408,26 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                     // A tap — including a long press released without moving. Leave the browser's own
                     // subsequent `click` event to fire onClick normally, and report no move.
                     setActiveDrag(null);
+                    setDropTarget(null);
                     return;
                 }
 
                 justDraggedCardIdRef.current = state.cardId;
                 setActiveDrag(null);
+                setDropTarget(null);
 
                 const columns = readColumnGeometry(containerDocument);
                 const point = { x: event.clientX, y: event.clientY };
-                const dropTarget = resolveDropTarget(columns, point, state.cardId);
-                if (dropTarget) {
-                    onDrop({ cardId: state.cardId, targetStatus: dropTarget.status, targetIndex: dropTarget.index });
+                const finalTarget = resolveDropTarget(columns, point, state.cardId);
+                if (finalTarget) {
+                    onDrop({ cardId: state.cardId, targetStatus: finalTarget.status, targetIndex: finalTarget.index });
                 }
             };
 
             const onPointerCancel = (event: React.PointerEvent<HTMLElement>): void => {
                 finishGesture(event);
                 setActiveDrag(null);
+                setDropTarget(null);
             };
 
             const onClick = (event: React.MouseEvent<HTMLElement>): void => {
@@ -412,8 +463,10 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
             stopBlockingTouchScroll,
             startEdgeScroll,
             stopEdgeScroll,
+            scheduleDropTargetUpdate,
+            cancelDropTargetRaf,
         ]
     );
 
-    return { getDragHandlers };
+    return { getDragHandlers, dropTarget };
 }
