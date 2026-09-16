@@ -14,6 +14,7 @@ import type {
     VendorTO
 } from "../../../domains/management/purchases/types";
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
+import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
@@ -26,6 +27,7 @@ import type {
     EditTaskCardPayload,
     MoveTaskCardPayload,
     TaskCard,
+    TaskCardAttachmentMeta,
     TaskCardImageMetaTO
 } from '../../../domains/management/tasks/types';
 import type {
@@ -36,6 +38,7 @@ import type {
     UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../../domains/management/staff/types';
+import type { TelegramBotUsernameResponse, TelegramConnectTokenResponse } from '../management';
 import type {
     AccountingCategoryTO,
     AccountingReportSummary,
@@ -48,6 +51,9 @@ import type {
 
 // Manual mock for shared/api/management.ts.
 // jest.fn() is at module level here — no jest.mock() factory restrictions apply.
+
+// Staff login (AuthPage).
+export const initiateAuth = jest.fn<Promise<Response>, [AuthRequest]>();
 
 export const fetchAllBranches = jest.fn<Promise<IBranch[]>, []>();
 export const getBranchInfo = jest.fn<Promise<IBranch>, [string]>();
@@ -99,6 +105,12 @@ export const uploadTaskCardImage = jest.fn<Promise<TaskCardImageMetaTO>, [number
 export const fetchTaskCardImage = jest.fn<Promise<Blob | null>, [number]>();
 export const deleteTaskCardImage = jest.fn<Promise<void>, [number]>();
 
+// Task card attachments.
+export const uploadTaskCardAttachment = jest.fn<Promise<TaskCardAttachmentMeta>, [number, File]>();
+export const fetchTaskCardAttachments = jest.fn<Promise<TaskCardAttachmentMeta[]>, [number]>();
+export const downloadTaskCardAttachment = jest.fn<Promise<void>, [number, number, string]>();
+export const deleteTaskCardAttachment = jest.fn<Promise<void>, [number, number]>();
+
 // Accounting reports.
 export const getAccountingReports = jest.fn<Promise<AccountingReportSummary[]>, [string]>();
 export const getAccountingReport = jest.fn<Promise<AccountingReportTO>, [number]>();
@@ -134,6 +146,8 @@ export const resetStaffPassword = jest.fn<Promise<void>, [number, string]>();
 export const setStaffEnabled = jest.fn<Promise<StaffAdminTO>, [number, boolean]>();
 export const setStaffBranch = jest.fn<Promise<StaffAdminTO>, [number, string]>();
 export const getCurrentStaff = jest.fn<Promise<CurrentStaffTO>, []>();
+export const fetchTelegramBotUsername = jest.fn<Promise<TelegramBotUsernameResponse>, []>();
+export const generateTelegramConnectToken = jest.fn<Promise<TelegramConnectTokenResponse>, [number]>();
 
 // Salary slip PDF (Phase F6/F7/F8).
 export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();

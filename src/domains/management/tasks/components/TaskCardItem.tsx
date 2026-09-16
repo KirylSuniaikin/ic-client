@@ -6,15 +6,14 @@ import { TaskCardImageThumb } from "./TaskCardImageThumb";
 import TaskDescriptionBlocks from "./TaskDescriptionBlocks";
 import { hasDescriptionContent } from "../descriptionBlocks";
 import type { CardDragHandlers } from "../hooks/useCardDrag";
-import type { TaskCard, TaskCardPriority } from "../types";
+import type { TaskCard } from "../types";
 import { TASK_CARD_OVERDUE_BG, TASK_CARD_OVERDUE_TEXT, TASK_CARD_PRIORITY_COLORS } from "../types";
 
 export interface TaskCardItemProps {
     card: TaskCard;
     onClick: (card: TaskCard) => void;
-    onChangePriority: (cardId: number, priority: TaskCardPriority) => void;
+    onRequestEdit: (card: TaskCard) => void;
     onRequestDelete?: (card: TaskCard) => void;
-    disabled?: boolean;
     getDragHandlers?: (card: TaskCard, onCardClick: (card: TaskCard) => void) => CardDragHandlers;
     today: string; // ISO Bahrain date (YYYY-MM-DD), threaded from TaskBoardPanel via TaskColumn
     isExpanded: boolean; // board-wide expand/collapse toggle, threaded from TaskBoardPanel via TaskColumn
@@ -37,9 +36,8 @@ const CLAMP_TWO_LINES = {
 export default function TaskCardItem({
     card,
     onClick,
-    onChangePriority,
+    onRequestEdit,
     onRequestDelete,
-    disabled,
     getDragHandlers,
     today,
     isExpanded,
@@ -114,9 +112,7 @@ export default function TaskCardItem({
                 <Box sx={{ display: "flex", mr: -1 }}>
                     <TaskCardMenu
                         cardId={card.id}
-                        priority={card.priority}
-                        disabled={disabled}
-                        onSelect={(priority): void => onChangePriority(card.id, priority)}
+                        onEdit={(): void => onRequestEdit(card)}
                         onDelete={onRequestDelete ? (): void => onRequestDelete(card) : undefined}
                     />
                 </Box>

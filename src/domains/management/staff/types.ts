@@ -44,6 +44,8 @@ export type StaffAdminTO = {
     basicSalary: number | null;
     housingAllowance: number | null;
     transportAllowance: number | null;
+    // Whether this staff member has linked their Telegram account via the bot's /start deep link.
+    telegramConnected: boolean;
 };
 
 // PATCH /api/staff/{id}/payroll. Full replacement of the payroll block, not a sparse patch -- the

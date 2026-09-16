@@ -12,6 +12,7 @@ import {
     editTaskCard,
     fetchTaskBoard,
     moveTaskCard,
+    uploadTaskCardAttachment,
     uploadTaskCardImage,
 } from "../../../../shared/api/management";
 import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
@@ -34,6 +35,13 @@ import type {
 // flipping the returned success flag to false.
 const NO_PHOTO_PATCH: PhotoPatch = { pendingImage: null, removeImage: false };
 
+// Assumed: pending attachments are uploaded here, right alongside the pending photo, rather than
+// literally inside TaskBoardPanel.handleCreate as task-spec-C.md's prose describes — createCard
+// only ever returns a plain success boolean, and changing that to also expose the new card's id
+// would break its existing public contract (and the useTaskBoard.test.ts assertions built on it,
+// which task-spec-C.md's test-update list does not mention touching). TaskBoardPanel still drives
+// this by passing pendingAttachments through to createCard, exactly as it already does pendingImage.
+
 export interface UseTaskBoardResult {
     cards: TaskCard[];
     cardsByStatus: Record<TaskCardStatus, TaskCard[]>;
@@ -45,7 +53,7 @@ export interface UseTaskBoardResult {
     // "fresh cards for this owner" without relying on `loading`, which is false in both states.
     loadedOwnerId: number | null;
     refetch: () => Promise<void>;
-    createCard: (input: CreateTaskCardPayload, pendingImage?: Blob | null) => Promise<boolean>;
+    createCard: (input: CreateTaskCardPayload, pendingImage?: Blob | null, pendingAttachments?: File[]) => Promise<boolean>;
     editCard: (id: number, input: EditTaskCardPayload, photo?: PhotoPatch) => Promise<boolean>;
     changePriority: (id: number, priority: TaskCardPriority) => Promise<boolean>;
     deleteCard: (id: number) => Promise<boolean>;
@@ -53,7 +61,7 @@ export interface UseTaskBoardResult {
 }
 
 function emptyBucket(): Record<TaskCardStatus, TaskCard[]> {
-    return { BACKLOG: [], DOING: [], DONE: [] };
+    return { BACKLOG: [], BLOCKED: [], DOING: [], DONE: [] };
 }
 
 export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
@@ -109,7 +117,11 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
         }
     };
 
-    const createCard = async (input: CreateTaskCardPayload, pendingImage: Blob | null = null): Promise<boolean> => {
+    const createCard = async (
+        input: CreateTaskCardPayload,
+        pendingImage: Blob | null = null,
+        pendingAttachments: File[] = []
+    ): Promise<boolean> => {
         setMutating(true);
         setError(null);
         try {
@@ -120,6 +132,22 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
                 } catch (err) {
                     logger.error("Failed to upload task card photo:", err);
                     setError("Task saved, but the photo could not be uploaded.");
+                }
+            }
+            if (pendingAttachments.length > 0) {
+                // Promise.allSettled: one failed attachment must not read as a failed card save,
+                // same reasoning as the invoice/entry photo sync this codebase already follows.
+                const results = await Promise.allSettled(
+                    pendingAttachments.map(file => uploadTaskCardAttachment(created.id, file))
+                );
+                const failedCount = results.filter(r => r.status === "rejected").length;
+                if (failedCount > 0) {
+                    logger.error(`Failed to upload ${failedCount} task card attachment(s)`);
+                    setError(
+                        failedCount === pendingAttachments.length
+                            ? "Task saved, but the attachments could not be uploaded."
+                            : `Task saved, but ${failedCount} attachment(s) could not be uploaded.`
+                    );
                 }
             }
             await refetch();

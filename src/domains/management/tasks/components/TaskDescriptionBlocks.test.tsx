@@ -1,6 +1,6 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, jest } from "@jest/globals";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import TaskDescriptionBlocks from "./TaskDescriptionBlocks";
 import { composeTaskDescription } from "../descriptionBlocks";
 
@@ -111,5 +111,54 @@ describe("TaskDescriptionBlocks", () => {
         render(<TaskDescriptionBlocks description="Legacy text" size="card" />);
 
         expect(screen.getByText("Legacy text").className).toMatch(/MuiTypography-caption/);
+    });
+
+    it("renders a link chip with the correct href and a safe target/rel when the description contains a URL", () => {
+        render(<TaskDescriptionBlocks description="Check https://example.com/path for details." />);
+
+        const link = screen.getByRole("link");
+        expect(link.getAttribute("href")).toBe("https://example.com/path");
+        expect(link.getAttribute("target")).toBe("_blank");
+        // review-feedback-D.md Issue 9: rel is the security-relevant half against reverse
+        // tabnabbing on a user-supplied URL rendered on an authenticated admin surface.
+        expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    });
+
+    it("renders no link row when the description contains no URL", () => {
+        render(<TaskDescriptionBlocks description="Plain text, no links at all." />);
+
+        expect(screen.queryByRole("link")).toBeNull();
+    });
+
+    it("renders one deduped chip per distinct URL when multiple (incl. repeated) URLs are present", () => {
+        const description = composeTaskDescription({
+            goal: "See https://example.com/a and https://example.com/b",
+            doneCriteria: "Also see https://example.com/a again",
+            progressComments: "",
+            blocker: "",
+        });
+
+        render(<TaskDescriptionBlocks description={description} />);
+
+        const links = screen.getAllByRole("link");
+        expect(links).toHaveLength(2);
+        expect(links.map(link => link.getAttribute("href"))).toEqual([
+            "https://example.com/a",
+            "https://example.com/b",
+        ]);
+    });
+
+    it("stops a card-size link click from bubbling to a parent onClick", () => {
+        const parentOnClick = jest.fn();
+
+        render(
+            <div onClick={parentOnClick}>
+                <TaskDescriptionBlocks description="Open https://example.com/path" size="card" />
+            </div>
+        );
+
+        fireEvent.click(screen.getByRole("link"));
+
+        expect(parentOnClick).not.toHaveBeenCalled();
     });
 });

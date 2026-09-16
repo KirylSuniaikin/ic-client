@@ -1,16 +1,23 @@
-import { jest, describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterAll, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import TaskCardDrawer from "./TaskCardDrawer";
 import type { TaskCard } from "../types";
 import { TASK_DESCRIPTION_MAX_LENGTH } from "../types";
-import { fetchTaskCardImage } from "../../../../shared/api/management";
+import { fetchTaskCardImage, fetchTaskCardAttachments } from "../../../../shared/api/management";
 import { composeTaskDescription } from "../descriptionBlocks";
 
-// Only ViewModePhoto (view mode, hasImage: true) reaches this module at all — create/edit mode
-// mounts TaskCardImageField, which does not fetch until its viewer is opened.
+// ViewModePhoto (view mode, hasImage: true) and TaskCardAttachmentsField (any mode with a real
+// card id) both reach this module — create/edit mode's TaskCardImageField does not fetch until
+// its viewer is opened, but TaskCardAttachmentsField fetches on every mount with a real cardId.
 jest.mock("../../../../shared/api/management");
 const mockFetchTaskCardImage = jest.mocked(fetchTaskCardImage);
+const mockFetchTaskCardAttachments = jest.mocked(fetchTaskCardAttachments);
+
+beforeEach(() => {
+    // Default: no attachments — individual tests override with mockResolvedValueOnce as needed.
+    mockFetchTaskCardAttachments.mockResolvedValue([]);
+});
 
 // jsdom implements neither of these — same stub TaskCardImageField.test.tsx installs, needed here
 // because ViewModePhoto (view mode, hasImage: true) turns the fetched blob into an object URL.
@@ -291,6 +298,7 @@ describe("TaskCardDrawer", () => {
             deadline: null,
             pendingImage: null,
             removeImage: false,
+            pendingAttachments: [],
         });
     });
 
@@ -331,6 +339,7 @@ describe("TaskCardDrawer", () => {
             deadline: card.deadline,
             pendingImage: null,
             removeImage: false,
+            pendingAttachments: [],
         });
     });
 
@@ -595,6 +604,104 @@ describe("TaskCardDrawer", () => {
 
             expect(mockFetchTaskCardImage).not.toHaveBeenCalled();
             expect(screen.queryByTestId("task-image-view-1")).toBeNull();
+        });
+    });
+
+    describe("attachments", () => {
+        afterEach(() => {
+            jest.clearAllMocks();
+        });
+
+        it("shows the attachments field in create mode, without fetching (no server id yet)", () => {
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(screen.getByTestId("task-attachments-empty-new")).toBeTruthy();
+            expect(mockFetchTaskCardAttachments).not.toHaveBeenCalled();
+        });
+
+        it("edit mode fetches the attachment list for the card's real id", async () => {
+            mockFetchTaskCardAttachments.mockResolvedValue([
+                { id: 9, taskCardId: 1, filename: "notes.pdf", contentType: "application/pdf", sizeBytes: 2048, createdAt: "2026-08-12T10:00:00" },
+            ]);
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="edit"
+                    card={makeCard()}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(await screen.findByText("notes.pdf")).toBeTruthy();
+            expect(mockFetchTaskCardAttachments).toHaveBeenCalledWith(1);
+        });
+
+        it("view mode renders a read-only list with no add/delete affordances", async () => {
+            mockFetchTaskCardAttachments.mockResolvedValue([
+                { id: 9, taskCardId: 1, filename: "notes.pdf", contentType: "application/pdf", sizeBytes: 2048, createdAt: "2026-08-12T10:00:00" },
+            ]);
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="view"
+                    card={makeCard()}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={jest.fn()}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            expect(await screen.findByText("notes.pdf")).toBeTruthy();
+            expect(screen.getByTestId("task-attachments-download-9")).toBeTruthy();
+            expect(screen.queryByTestId("task-attachments-delete-9")).toBeNull();
+            expect(screen.queryByTestId("task-attachments-add-1")).toBeNull();
+        });
+
+        it("submitting in 'create' mode after picking files includes them as pendingAttachments", async () => {
+            const onCreate = jest.fn();
+            render(
+                <TaskCardDrawer
+                    open
+                    mode="create"
+                    card={null}
+                    submitting={false}
+                    onClose={jest.fn()}
+                    onRequestEdit={jest.fn()}
+                    onRequestDelete={jest.fn()}
+                    onCreate={onCreate}
+                    onEdit={jest.fn()}
+                />
+            );
+
+            fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+            const file = new File(["hello"], "readme.txt", { type: "text/plain" });
+            fireEvent.change(screen.getByTestId("task-attachments-input-new"), { target: { files: [file] } });
+
+            await waitFor(() => expect(screen.getByText("readme.txt")).toBeTruthy());
+
+            fireEvent.click(screen.getByText("Save"));
+
+            expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ pendingAttachments: [file] }));
         });
     });
 

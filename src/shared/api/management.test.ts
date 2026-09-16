@@ -23,6 +23,8 @@ import {
     updateStaffPayroll,
     downloadSalarySlip,
     getCurrentStaff,
+    fetchTelegramBotUsername,
+    generateTelegramConnectToken,
 } from "./management";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
@@ -238,6 +240,58 @@ describe("getCurrentStaff", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(getCurrentStaff()).rejects.toThrow();
+    });
+});
+
+// ── fetchTelegramBotUsername ──────────────────────────────────────────────────
+
+describe("fetchTelegramBotUsername", () => {
+    it("calls authFetch for GET /staff/telegram-bot-username and returns the parsed body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(
+                JSON.stringify({ botUsername: "icpizza_bot" }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+        );
+
+        const result = await fetchTelegramBotUsername();
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("/staff/telegram-bot-username");
+        expect(init.method).toBe("GET");
+        expect(result).toEqual({ botUsername: "icpizza_bot" });
+    });
+
+    it("throws on a non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(fetchTelegramBotUsername()).rejects.toThrow();
+    });
+});
+
+// ── generateTelegramConnectToken ─────────────────────────────────────────────
+
+describe("generateTelegramConnectToken", () => {
+    it("calls authFetch for POST /staff/{id}/telegram-connect-token and returns the parsed body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(
+                JSON.stringify({ token: "server-issued-token" }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+        );
+
+        const result = await generateTelegramConnectToken(2);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("/staff/2/telegram-connect-token");
+        expect(init.method).toBe("POST");
+        expect(result).toEqual({ token: "server-issued-token" });
+    });
+
+    it("throws on a non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(generateTelegramConnectToken(2)).rejects.toThrow();
     });
 });
 
@@ -625,6 +679,7 @@ describe("updateStaffPayroll", () => {
             basicSalary: 240,
             housingAllowance: 60,
             transportAllowance: 40,
+            telegramConnected: false,
         };
     }
 

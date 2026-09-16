@@ -343,18 +343,36 @@ describe("fetchBaseAppInfo", () => {
         expect(mockReportIfServerError.mock.calls[0][0].status).toBe(200);
     });
 
-    it("wires a fetch rejection into reportNetworkError and re-throws it", async () => {
+    // Retries: covers a transient mobile-network blip or a cold-started backend on the very
+    // first request of a session (see fetchWithRetry in public.ts). Real timers/delays here are
+    // deliberate — it's the actual retry-exhaustion behavior under test, not just its shape.
+
+    it("retries twice, then wires the final rejection into reportNetworkError and re-throws it", async () => {
         const networkError = new Error("offline");
-        mockFetch.mockRejectedValueOnce(networkError);
+        mockFetch.mockRejectedValue(networkError);
 
         await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toBe(networkError);
 
+        // Original attempt + 2 retries.
+        expect(mockFetch).toHaveBeenCalledTimes(3);
         expect(mockReportNetworkError).toHaveBeenCalledTimes(1);
         const [error, url, method] = mockReportNetworkError.mock.calls[0] as [unknown, string, string];
         expect(error).toBe(networkError);
         expect(url).toContain("get_base_app_info");
         expect(method).toBe("GET");
-    });
+    }, 10000);
+
+    it("succeeds on a retry after one transient failure, without reporting a network error", async () => {
+        mockFetch
+            .mockRejectedValueOnce(new Error("Load failed"))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 }));
+
+        const result = await fetchBaseAppInfo(null, "branch-1");
+
+        expect(result).toEqual({ menu: [], workingHours: null });
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockReportNetworkError).not.toHaveBeenCalled();
+    }, 10000);
 
     it("sends X-Client-Platform: web", async () => {
         mockFetch.mockResolvedValueOnce(

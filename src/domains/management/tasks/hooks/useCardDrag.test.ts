@@ -67,12 +67,17 @@ function Harness(props: {
     onCardClick: (card: TaskCard) => void;
 }): JSX.Element {
     const { cards, onDrop, onCardClick } = props;
-    const { getDragHandlers } = useCardDrag({ onDrop });
-    const statuses: TaskCardStatus[] = ["BACKLOG", "DOING", "DONE"];
+    const { getDragHandlers, dropTarget } = useCardDrag({ onDrop });
+    const statuses: TaskCardStatus[] = ["BACKLOG", "BLOCKED", "DOING", "DONE"];
 
     return React.createElement(
         "div",
         { "data-board-scroller": true, "data-testid": "board-scroller" },
+        React.createElement(
+            "div",
+            { "data-testid": "drop-target" },
+            dropTarget ? `${dropTarget.status}:${dropTarget.index}` : "none"
+        ),
         statuses.map(status =>
             React.createElement(
                 "div",
@@ -107,6 +112,8 @@ beforeEach(() => {
         BACKLOG: { top: 0, bottom: 1000, left: 0, right: 300 },
         DOING: { top: 0, bottom: 1000, left: 310, right: 610 },
         DONE: { top: 0, bottom: 1000, left: 620, right: 920 },
+        // Placed after the existing three so their already-assigned coordinates stay untouched.
+        BLOCKED: { top: 0, bottom: 1000, left: 930, right: 1230 },
         "1": { top: 0, bottom: 100, left: 0, right: 300 },
         "2": { top: 100, bottom: 200, left: 0, right: 300 },
         "3": { top: 0, bottom: 100, left: 310, right: 610 },
@@ -137,6 +144,17 @@ beforeEach(() => {
     // jsdom does not implement pointer capture at all — calling the real, absent method would throw.
     Element.prototype.setPointerCapture = jest.fn<void, [number]>();
     Element.prototype.releasePointerCapture = jest.fn<void, [number]>();
+
+    // jsdom's real requestAnimationFrame schedules asynchronously in a way jest's fake timers do
+    // not drive (jest.advanceTimersByTime does not flush it here). Running the callback
+    // synchronously is safe for the hook's own dropTarget scheduling: lastPointRef/dragStateRef are
+    // already updated by the time scheduleDropTargetUpdate() is called, so an immediate callback
+    // sees the same values a real next-frame callback would.
+    window.requestAnimationFrame = jest.fn<number, [FrameRequestCallback]>((cb: FrameRequestCallback): number => {
+        cb(0);
+        return 0;
+    });
+    window.cancelAnimationFrame = jest.fn<void, [number]>();
 });
 
 afterEach(() => {
@@ -178,6 +196,21 @@ describe("useCardDrag", () => {
         fireEvent.pointerUp(card1, { pointerId: 1, clientX: 400, clientY: 10 });
 
         expect(onDrop).toHaveBeenCalledWith({ cardId: 1, targetStatus: "DOING", targetIndex: 0 });
+    });
+
+    it("drag into the BLOCKED column calls onDrop with targetStatus BLOCKED", () => {
+        const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+        const onDrop = jest.fn<void, [DropInput]>();
+        const onCardClick = jest.fn<void, [TaskCard]>();
+
+        render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+        const card1 = screen.getByTestId("card-1");
+
+        fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+        fireEvent.pointerMove(card1, { pointerId: 1, clientX: 1000, clientY: 10 });
+        fireEvent.pointerUp(card1, { pointerId: 1, clientX: 1000, clientY: 10 });
+
+        expect(onDrop).toHaveBeenCalledWith({ cardId: 1, targetStatus: "BLOCKED", targetIndex: 0 });
     });
 
     it("a drop released outside every column calls neither onDrop nor mutates anything", () => {
@@ -393,6 +426,93 @@ describe("useCardDrag", () => {
             expect(onDrop).not.toHaveBeenCalled();
             expect(onCardClick).toHaveBeenCalledWith(cards[0]);
             jest.useRealTimers();
+        });
+    });
+
+    describe("dropTarget (live drop-position preview)", () => {
+        it("stays null before a drag starts and during the pre-threshold candidate phase", () => {
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+            expect(screen.getByTestId("drop-target").textContent).toBe("none");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+            // Below the movement threshold — still a candidate, not a real drag yet.
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 52, clientY: 52 });
+            expect(screen.getByTestId("drop-target").textContent).toBe("none");
+        });
+
+        it("becomes non-null with the correct status/index once a real drag is underway, and updates as the pointer moves", () => {
+            const cards = [
+                makeCard({ id: 1, status: "BACKLOG" }),
+                makeCard({ id: 2, status: "BACKLOG" }),
+            ];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 50, clientY: 250 });
+
+            expect(screen.getByTestId("drop-target").textContent).toBe("BACKLOG:1");
+
+            // Move into the DOING column — the preview follows live, before any drop.
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 400, clientY: 10 });
+
+            expect(screen.getByTestId("drop-target").textContent).toBe("DOING:0");
+            expect(onDrop).not.toHaveBeenCalled();
+        });
+
+        it("resets to null after a drop", () => {
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 400, clientY: 10 });
+            expect(screen.getByTestId("drop-target").textContent).not.toBe("none");
+
+            fireEvent.pointerUp(card1, { pointerId: 1, clientX: 400, clientY: 10 });
+            expect(screen.getByTestId("drop-target").textContent).toBe("none");
+        });
+
+        it("resets to null after a cancelled drag", () => {
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 400, clientY: 10 });
+            expect(screen.getByTestId("drop-target").textContent).not.toBe("none");
+
+            fireEvent.pointerCancel(card1, { pointerId: 1 });
+            expect(screen.getByTestId("drop-target").textContent).toBe("none");
+        });
+
+        it("resets to null after a tap that never crossed the drag threshold", () => {
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, clientX: 50, clientY: 50, button: 0 });
+            fireEvent.pointerMove(card1, { pointerId: 1, clientX: 52, clientY: 52 });
+            fireEvent.pointerUp(card1, { pointerId: 1, clientX: 52, clientY: 52 });
+
+            expect(screen.getByTestId("drop-target").textContent).toBe("none");
         });
     });
 });

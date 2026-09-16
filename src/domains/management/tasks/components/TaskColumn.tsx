@@ -3,30 +3,51 @@ import { Box, IconButton, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import TaskCardItem from "./TaskCardItem";
 import type { TaskCardItemProps } from "./TaskCardItem";
-import type { TaskCard, TaskCardPriority, TaskCardStatus } from "../types";
+import type { TaskCard, TaskCardStatus } from "../types";
 import { TASK_CARD_STATUS_LABELS } from "../types";
 
 export interface TaskColumnProps {
     status: TaskCardStatus;
     cards: TaskCard[];
     onCardClick: (card: TaskCard) => void;
-    onChangePriority: (cardId: number, priority: TaskCardPriority) => void;
+    onRequestEdit: (card: TaskCard) => void;
     onRequestDelete?: (card: TaskCard) => void;
     onAddClick?: () => void; // every column gets one; adds a card to that column
-    mutatingCardId?: number | null; // disables that one card's menu while its own mutation is in flight
+    // Index within THIS column's card list where the actively-dragged card would land if dropped
+    // right now (null when this column isn't the current drop target, or nothing is being
+    // dragged). Renders a placeholder gap at that position, live, as the drag moves.
+    dropIndicatorIndex?: number | null;
     getDragHandlers?: TaskCardItemProps["getDragHandlers"];
     today: string; // ISO Bahrain date (YYYY-MM-DD), threaded down to each TaskCardItem for overdue paint
     isExpanded: boolean; // board-wide expand/collapse toggle, threaded down to each TaskCardItem
+}
+
+// Non-interactive by design (pointerEvents: none) — it must never be able to receive a stray
+// pointerdown/click that could confuse useCardDrag's isInteractiveTarget guard or pointer capture.
+function DropIndicator(): JSX.Element {
+    return (
+        <Box
+            data-testid="task-column-drop-indicator"
+            sx={{
+                height: 52,
+                mb: 1,
+                borderRadius: "12px",
+                border: "2px dashed rgba(228,75,76,0.45)",
+                backgroundColor: "rgba(228,75,76,0.06)",
+                pointerEvents: "none",
+            }}
+        />
+    );
 }
 
 export default function TaskColumn({
     status,
     cards,
     onCardClick,
-    onChangePriority,
+    onRequestEdit,
     onRequestDelete,
     onAddClick,
-    mutatingCardId,
+    dropIndicatorIndex = null,
     getDragHandlers,
     today,
     isExpanded,
@@ -53,8 +74,8 @@ export default function TaskColumn({
                 p: 1,
             }}
         >
-            {/* Fixed height, not padding: the header must sit on the same baseline in all three
-                columns whether or not its add button renders. */}
+            {/* Fixed height, not padding: the header must sit on the same baseline in every
+                column, however many there are, whether or not its add button renders. */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 0.75, height: 36, mb: 0.5 }}>
                 <Typography
                     variant="caption"
@@ -93,19 +114,21 @@ export default function TaskColumn({
                     </IconButton>
                 )}
             </Box>
-            {cards.map(card => (
-                <TaskCardItem
-                    key={card.id}
-                    card={card}
-                    onClick={onCardClick}
-                    onChangePriority={onChangePriority}
-                    onRequestDelete={onRequestDelete}
-                    disabled={mutatingCardId === card.id}
-                    getDragHandlers={getDragHandlers}
-                    today={today}
-                    isExpanded={isExpanded}
-                />
+            {cards.map((card, index) => (
+                <React.Fragment key={card.id}>
+                    {dropIndicatorIndex === index && <DropIndicator />}
+                    <TaskCardItem
+                        card={card}
+                        onClick={onCardClick}
+                        onRequestEdit={onRequestEdit}
+                        onRequestDelete={onRequestDelete}
+                        getDragHandlers={getDragHandlers}
+                        today={today}
+                        isExpanded={isExpanded}
+                    />
+                </React.Fragment>
             ))}
+            {dropIndicatorIndex === cards.length && <DropIndicator />}
         </Box>
     );
 }

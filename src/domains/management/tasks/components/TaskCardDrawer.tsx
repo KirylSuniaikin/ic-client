@@ -17,6 +17,7 @@ import { TASK_CARD_PRIORITY_COLORS, TASK_DESCRIPTION_MAX_LENGTH, TASK_TITLE_MAX_
 import { composeTaskDescription, hasDescriptionContent, parseTaskDescription } from "../descriptionBlocks";
 import TaskDescriptionBlocks from "./TaskDescriptionBlocks";
 import { TaskCardImageField } from "./TaskCardImageField";
+import { TaskCardAttachmentsField } from "./TaskCardAttachmentsField";
 import type { PhotoPatch } from "../../../../shared/components/EntityPhotoField";
 import { EntityPhotoViewer } from "../../../../shared/components/EntityPhotoViewer";
 import { useAuthImageUrl } from "../../../../shared/hooks/useAuthImageUrl";
@@ -34,6 +35,8 @@ export interface TaskCardFormValues {
     deadline: string | null; // ISO YYYY-MM-DD
     pendingImage: Blob | null;
     removeImage: boolean;
+    /** Files picked before the card has a server id; uploaded by the parent after a successful create. */
+    pendingAttachments: File[];
 }
 
 export interface TaskCardDrawerProps {
@@ -58,6 +61,7 @@ const EMPTY_FORM_VALUES: TaskCardFormValues = {
     deadline: null,
     pendingImage: null,
     removeImage: false,
+    pendingAttachments: [],
 };
 
 const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
@@ -101,6 +105,7 @@ function seedValues(mode: TaskCardDrawerMode, card: TaskCard | null): TaskCardFo
         // Always reset on (re)open — a brand-new blob/removal flag never survives a re-seed.
         pendingImage: null,
         removeImage: false,
+        pendingAttachments: [],
     };
 }
 
@@ -189,6 +194,7 @@ export default function TaskCardDrawer({
             deadline: values.deadline,
             pendingImage: values.pendingImage,
             removeImage: values.removeImage,
+            pendingAttachments: values.pendingAttachments,
         };
         if (mode === "create") {
             onCreate(submitValues);
@@ -248,6 +254,21 @@ export default function TaskCardDrawer({
                     )}
 
                     {card.hasImage && <ViewModePhoto taskCardId={card.id} />}
+
+                    <Typography
+                        variant="caption"
+                        sx={{ display: "block", mb: 1, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}
+                    >
+                        Attachments
+                    </Typography>
+                    <Box sx={{ mb: 2.5 }}>
+                        <TaskCardAttachmentsField
+                            cardId={card.id}
+                            pendingFiles={[]}
+                            onPendingFilesChange={(): void => {}}
+                            readOnly
+                        />
+                    </Box>
 
                     <Box
                         sx={{
@@ -409,6 +430,19 @@ export default function TaskCardDrawer({
                             pendingImage={values.pendingImage}
                             removeImage={values.removeImage}
                             onChange={(patch: PhotoPatch): void => setValues(prev => ({ ...prev, ...patch }))}
+                        />
+                    </Box>
+                    <Typography
+                        variant="caption"
+                        sx={{ display: "block", mb: 1, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "text.secondary" }}
+                    >
+                        Attachments
+                    </Typography>
+                    <Box sx={{ mb: 2.5 }}>
+                        <TaskCardAttachmentsField
+                            cardId={card?.id ?? null}
+                            pendingFiles={values.pendingAttachments}
+                            onPendingFilesChange={(files): void => setValues(prev => ({ ...prev, pendingAttachments: files }))}
                         />
                     </Box>
                     <Typography
