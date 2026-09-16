@@ -476,5 +476,70 @@ describe("AccountManagerScreen", () => {
             expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
             await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
         });
+
+        // Regression: the click handler previously awaited the token fetch BEFORE writing to the
+        // clipboard, which loses the browser's user-activation window on some browsers/WebViews --
+        // the write then silently fails and the manager gets no link at all. The fix calls
+        // navigator.clipboard.write() synchronously (within this test's fireEvent.click, no
+        // intervening await) with a ClipboardItem whose data resolves once the token arrives.
+        it("uses Clipboard.write + ClipboardItem when available, called synchronously from the click (not after the token fetch)", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+            let resolveToken: (value: { token: string }) => void = () => {};
+            mockGenerateTelegramConnectToken.mockReturnValue(
+                new Promise<{ token: string }>(resolve => { resolveToken = resolve; })
+            );
+            const mockWrite = jest.fn<Promise<void>, [unknown[]]>().mockResolvedValue(undefined);
+            (navigator.clipboard as unknown as { write: typeof mockWrite }).write = mockWrite;
+            class FakeClipboardItem {
+                constructor(public items: Record<string, Promise<Blob>>) {}
+            }
+            (window as unknown as { ClipboardItem: typeof FakeClipboardItem }).ClipboardItem = FakeClipboardItem;
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            // clipboard.write() is already called here -- BEFORE the token promise has resolved --
+            // proving it happens synchronously from the click rather than after an await.
+            expect(mockWrite).toHaveBeenCalledTimes(1);
+            expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+
+            // The ClipboardItem was constructed with a Promise-valued entry (not a resolved
+            // string/Blob) -- proving the data is deferred rather than requiring the token
+            // up front, which is what lets clipboard.write() run before the token exists at all.
+            const [[items]] = mockWrite.mock.calls;
+            const item = items[0] as FakeClipboardItem;
+            expect(item.items["text/plain"]).toBeInstanceOf(Promise);
+
+            resolveToken({ token: "server-issued-token" });
+
+            await waitFor(() => expect(screen.getByText("Connect link copied")).toBeTruthy());
+            expect(mockGenerateTelegramConnectToken).toHaveBeenCalledWith(2);
+
+            Reflect.deleteProperty(window, "ClipboardItem");
+        });
+
+        it("shows the actual link for manual copying when every clipboard mechanism fails (never leaves the manager with nothing)", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+            jest.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error("denied"));
+            // jsdom does not implement execCommand at all (undefined, not a spyable stub) --
+            // copyToClipboard's legacy fallback calls it directly, so it must exist to be forced
+            // to "nothing was copied" for this test.
+            document.execCommand = jest.fn<boolean, [string, boolean?, string?]>().mockReturnValue(false);
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            expect(await screen.findByText(
+                "Couldn't copy automatically — here's the link to copy manually: https://t.me/icpizza_bot?start=server-issued-token"
+            )).toBeTruthy();
+        });
     });
 });
