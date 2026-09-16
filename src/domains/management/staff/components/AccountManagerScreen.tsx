@@ -144,23 +144,58 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // fetched fresh per click, never the raw staff id -- staff ids are small sequential integers
     // and the bot is public, so a client-built `?start={s.id}` link let anyone hijack any staff
     // member's notification channel by guessing.
-    const handleCopyConnectLink = async (s: StaffAdminTO): Promise<void> => {
+    //
+    // Bug fix: this must NOT `await` the token fetch before writing to the clipboard. Several
+    // browsers/WebViews only allow clipboard access within a short window tied to the original
+    // click; by the time a network round-trip finishes, that window can already be gone, and the
+    // write silently fails -- the manager gets no link at all, with no visible reason why. The
+    // async Clipboard.write() + ClipboardItem(Promise) API exists specifically to solve this: call
+    // it SYNCHRONOUSLY inside the click handler (no leading await) and let the item's data resolve
+    // once the token fetch completes, without losing the write permission.
+    const handleCopyConnectLink = (s: StaffAdminTO): void => {
         if (!botUsername) return;
         setConnectLinkPendingIds(prev => new Set(prev).add(s.id));
-        try {
-            const { token } = await generateTelegramConnectToken(s.id);
-            await copyToClipboard(`https://t.me/${botUsername}?start=${token}`);
-            setCopyToastMessage("Connect link copied");
-        } catch (err) {
-            logger.error("Failed to copy Telegram connect link:", err);
-            setErrorMessage(err instanceof Error ? err.message : "Failed to copy connect link");
-        } finally {
+
+        const linkPromise = generateTelegramConnectToken(s.id).then(
+            ({ token }) => `https://t.me/${botUsername}?start=${token}`
+        );
+
+        const finish = (): void => {
             setConnectLinkPendingIds(prev => {
                 const next = new Set(prev);
                 next.delete(s.id);
                 return next;
             });
+        };
+
+        const onSuccess = (): void => setCopyToastMessage("Connect link copied");
+        // The token fetch can succeed even when the clipboard write fails -- surface the actual
+        // link rather than a bare error, so the manager isn't left with nothing to send manually.
+        const onFailure = (err: unknown): void => {
+            void linkPromise.then(
+                link => setErrorMessage(`Couldn't copy automatically — here's the link to copy manually: ${link}`),
+                () => {
+                    logger.error("Failed to generate Telegram connect link:", err);
+                    setErrorMessage(err instanceof Error ? err.message : "Failed to generate connect link");
+                }
+            );
+        };
+
+        // Cast: this DOM lib target doesn't declare ClipboardItem/Clipboard.write, but both are
+        // broadly supported (Chrome, Safari 13.1+, most Android/iOS WebViews) -- feature-detected
+        // via `in` before use, not assumed.
+        const clipboard = navigator.clipboard as Clipboard & { write?: (items: unknown[]) => Promise<void> };
+        if (typeof window !== "undefined" && "ClipboardItem" in window && typeof clipboard.write === "function") {
+            const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (items: Record<string, Promise<Blob>>) => unknown }).ClipboardItem;
+            const blobPromise = linkPromise.then(link => new Blob([link], { type: "text/plain" }));
+            const item = new ClipboardItemCtor({ "text/plain": blobPromise });
+            clipboard.write([item]).then(onSuccess, onFailure).finally(finish);
+            return;
         }
+
+        // No Promise-based Clipboard.write support -- fall back to the previous await-then-copy
+        // path (still best-effort on those browsers, same as before this fix).
+        void linkPromise.then(link => copyToClipboard(link)).then(onSuccess, onFailure).finally(finish);
     };
 
     // Filtered here rather than server-side: the roster is one branch's staff, the caller may
