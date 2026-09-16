@@ -34,7 +34,12 @@
   "betterTogether": "Better together",
   "pickUpReminder": {
     "title": "This order for Pick Up only",
-    "action": "Place pick up order"
+    "action": "Place pick up order",
+    "branchTitle": "Pick up at {{branchName}}",
+    "branchHint": "Make sure this is the branch you're coming to.",
+    "distanceWarning": "You're about {{km}} km from this branch.",
+    "dontAskAgain": "Don't ask again for this branch",
+    "changeBranch": "Change branch"
   },
   "delivery": {
     "addressTitle": "Delivery address",
