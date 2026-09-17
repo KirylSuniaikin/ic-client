@@ -7,7 +7,7 @@ import {
     fetchOrderProofPhoto, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
 } from "../../../../shared/api/dispatcher";
 import type {
-    CourierBoardRow, CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder,
+    CourierBoardRow, CourierOrderSummary, CourierStats, DeliveryCard, OrderRoute, UnassignedOrder,
 } from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
 import { emotionRulesFor } from "./emotionRules.testutil";
@@ -100,6 +100,33 @@ const LIVE_ORDER: CourierOrderSummary = {
 const AWAITING: UnassignedOrder = {
     orderId: 99, orderNo: 12, status: "Kitchen Phase", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
+    pizzaCount: 3, couriersNeeded: 1, oversized: false,
+};
+
+/** One rider cannot physically carry this — the automatic engine never offered it. */
+const OVERSIZED_AWAITING: UnassignedOrder = {
+    ...AWAITING, orderId: 100, orderNo: 13, pizzaCount: 17, couriersNeeded: 3, oversized: true,
+};
+
+/**
+ * An order live on the board's own "in flight" panel (`DeliveryBoardPanel`), still on the server's
+ * awaiting-courier list — orderId/orderNo deliberately distinct from every other fixture in this
+ * file so its card text ("#55") cannot collide with the waiting-queue row for the same order or
+ * with any other rendered order number.
+ */
+const BOARD_AWAITING: UnassignedOrder = {
+    orderId: 200, orderNo: 55, status: "Ready", branchId: "b1", branchName: "Manama",
+    addressLine: "Block 900, Road 1", waitingMinutes: 9,
+    pizzaCount: 3, couriersNeeded: 1, oversized: false,
+};
+
+const BOARD_CARD: DeliveryCard = {
+    orderId: 200, orderNo: 55, status: "Ready",
+    branchId: "b1", branchName: "Manama", addressLine: "Block 900, Road 1",
+    customerName: "Zainab", customerPhone: "33009911", courierPhone: null,
+    readyAt: null, estimatedHandoverAt: null, estimatedDeliveredAt: null, riskMinutes: null,
+    promisedAt: null, promisedTotalMinutes: null, freshnessBudgetMinutes: null,
+    items: [],
 };
 
 const ROUTE: OrderRoute = {
@@ -129,7 +156,7 @@ beforeEach(() => {
     mockAssign.mockReset();
     // Empty is the normal state; the tests that care opt in.
     mockAwaiting.mockResolvedValue([]);
-    mockAssign.mockResolvedValue(undefined);
+    mockAssign.mockResolvedValue({ assigned: true, warning: null });
     mockRelease.mockReset();
     mockCancel.mockReset();
     mockRelease.mockResolvedValue(undefined);
@@ -340,6 +367,22 @@ describe("CourierDispatcherPanel", () => {
     });
 
     /**
+     * Review iteration 2, Issue 1: the `withLoadingState` extraction moved `apply` outside the
+     * wrapper's own try, so a throw from `apply` itself — not from the request — went through a
+     * comment-only catch in `load()` and never reached `error` or `logger.error`. Every request
+     * here resolves normally; only `applyCouriersView`'s `boardRows.map(...)` throws, because the
+     * board endpoint answered with `null` instead of an array — a malformed payload, not a
+     * rejected promise. If `apply` runs after `withLoadingState` again, this assertion times out
+     * with the panel silently stuck on stale data instead of showing the failure.
+     */
+    it("surfaces an error when the board response is malformed and apply itself throws", async () => {
+        mockBoardCouriers.mockResolvedValue(null as unknown as CourierBoardRow[]);
+        render(<CourierDispatcherPanel />);
+
+        expect(await screen.findByText(/map/)).toBeTruthy();
+    });
+
+    /**
      * §2.3: an order nobody accepted is not cancelled and does not fall back to Keeta — the
      * customer has already paid — so it waits for a manager. Without this queue on screen, the
      * assign endpoint has no discoverable target.
@@ -372,7 +415,32 @@ describe("CourierDispatcherPanel", () => {
         fireEvent.click(await screen.findByLabelText("ali"));
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
-        await waitFor(() => expect(mockAssign).toHaveBeenCalledWith(99, "c1"));
+        // The first press is always unacknowledged — see the two-step flow in AssignCourierDialog.
+        await waitFor(() => expect(mockAssign).toHaveBeenCalledWith(99, "c1", false));
+    });
+
+    /**
+     * §4 of the courier-capacity brief: the automatic engine never offers an oversized order, so a
+     * manager reading this queue needs to know BEFORE pressing Assign that one rider cannot carry
+     * it — not discover it only after the manual-assign warning fires.
+     */
+    it("badges an oversized waiting order with how many couriers it needs", async () => {
+        mockAwaiting.mockResolvedValue([AWAITING, OVERSIZED_AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        await screen.findByText("Waiting for a courier");
+        expect(screen.getByText("Needs 3 couriers")).toBeTruthy();
+    });
+
+    /** A normal order carries no badge at all — not one reading "Needs 1 couriers". */
+    it("shows no badge for a normal, non-oversized waiting order", async () => {
+        mockAwaiting.mockResolvedValue([AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        await screen.findByText("Waiting for a courier");
+        expect(screen.queryByText(/Needs \d+ couriers/)).toBeNull();
     });
 
     /**
@@ -391,6 +459,46 @@ describe("CourierDispatcherPanel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
         expect(await screen.findByText(/409/)).toBeTruthy();
+        // Issue 1 (review iteration 1): `findByText` above also matches text behind a still-open
+        // dialog/backdrop — the dialog itself must actually close on a rejection, or the notice is
+        // hidden and the manager can keep pressing into the same 409. This assertion fails if the
+        // waiting-queue dialog's close-on-rejection wiring is removed.
+        await waitFor(() => expect(screen.queryByRole("radio", { name: "ali" })).toBeNull());
+        // The mount-site wrapper resolves the dialog's own promise with a benign
+        // `{ assigned: false, warning: null }` fallback so the dialog's `handlePress` has something
+        // to settle on. That fallback must never be readable as a real over-capacity warning — the
+        // order is already gone (assertion above), so nothing should be left to show one on.
+        expect(screen.queryByText(/already carrying/)).toBeNull();
+    });
+
+    /**
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5): `assigned: false` means
+     * nothing changed server-side. Unlike a real conflict (409), this is a normal 200 the dialog
+     * must survive — it must not close, and this panel must not refetch the queue/roster as if the
+     * hand-over had happened, or the dialog would be showing a warning about state that just moved
+     * out from under it.
+     */
+    it("keeps the waiting-queue dialog open and does not refetch when the server refuses over capacity", async () => {
+        mockAwaiting.mockResolvedValue([AWAITING]);
+        mockAssign.mockResolvedValue({
+            assigned: false,
+            warning: { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 },
+        });
+
+        render(<CourierDispatcherPanel />);
+
+        fireEvent.click(await screen.findByText("Assign"));
+        fireEvent.click(await screen.findByLabelText("ali"));
+        const awaitingCallsBefore = mockAwaiting.mock.calls.length;
+        const couriersCallsBefore = mockCouriers.mock.calls.length;
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(await screen.findByRole("button", { name: "Assign anyway" })).toBeTruthy();
+        expect(screen.getByText(/already carrying 6 pizza/)).toBeTruthy();
+        // Still open: the picker (radiogroup) is still on screen, not replaced by the "couriers" view.
+        expect(screen.getByRole("radio", { name: "ali" })).toBeTruthy();
+        expect(mockAwaiting.mock.calls.length).toBe(awaitingCallsBefore);
+        expect(mockCouriers.mock.calls.length).toBe(couriersCallsBefore);
     });
 
     /** The server rejects an offline rider with a 409, so it must not be offered as a choice. */
@@ -406,6 +514,75 @@ describe("CourierDispatcherPanel", () => {
         expect(screen.queryByLabelText("sara")).toBeNull();
     });
 });
+
+/**
+ * Issue 1 (review iteration 1) named TWO mount sites: the waiting-queue dialog above (its own
+ * `AssignCourierDialog`, opened straight off `CourierDispatcherPanel`) and the board's in-flight
+ * card dialog, opened through the embedded `DeliveryBoardPanel`. `DeliveryBoardPanel.test.tsx`
+ * proves that component's own close-on-reject wiring in isolation, against a bare mocked
+ * `onAssign` — it never exercises the REAL `handleAssign`/`withLoadingState` this panel owns, so it
+ * cannot prove the error a manager actually sees for this mount site. These tests mount the whole
+ * panel with a live board card and drive a real rejection through it, the same way the
+ * waiting-queue tests above do for their own mount site.
+ */
+describe("CourierDispatcherPanel — assign errors at the board mount site", () => {
+    async function openBoardCard(): Promise<void> {
+        mockAwaiting.mockResolvedValue([BOARD_AWAITING]);
+        mockBoardCards.mockResolvedValue([BOARD_CARD]);
+        render(<CourierDispatcherPanel />);
+
+        // getByTestId, not getByText("#55"): the waiting-queue row for the SAME order prints the
+        // identical "#55" label right above the board card, so a text query would be ambiguous —
+        // this opens the board's own in-flight card specifically.
+        fireEvent.click(await screen.findByTestId("delivery-card-200"));
+        await screen.findByText("Why this order is with this rider and not another");
+        fireEvent.click(await screen.findByRole("radio", { name: "ali" }));
+    }
+
+    it("surfaces the failure and closes the board popup when manualAssign rejects", async () => {
+        mockAssign.mockRejectedValue(new Error("Response: 500"));
+        await openBoardCard();
+
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        // The same error notice the waiting-queue mount site surfaces — proving `withLoadingState`
+        // reaches the panel's own `error` state regardless of which mount site called `handleAssign`.
+        expect(await screen.findByText(/500/)).toBeTruthy();
+        // And the popup itself must actually close, not sit open over an order that may have
+        // already moved — this fails if DeliveryBoardPanel's own close-on-reject wiring, wired
+        // through this panel's real `handleAssign`, is removed.
+        await waitFor(() =>
+            expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull()
+        );
+    });
+
+    /**
+     * The mount-site wrapper resolves the dialog's promise with a benign
+     * `{ assigned: false, warning: null }` fallback so `AssignCourierDialog.handlePress` has
+     * something to settle on. Because the popup is already gone by the time that resolution lands,
+     * nothing is left on screen for it to be misread as — neither a warning nor a quiet success.
+     */
+    it("never lets the benign rejection fallback read as a warning or a successful assignment", async () => {
+        mockAssign.mockRejectedValue(new Error("Response: 500"));
+        await openBoardCard();
+        // Not `mockBoardCards`: `DeliveryBoardPanel` refetches its own cards on ANY popup close
+        // (its `reload` is keyed on `openOrderId`), which would fire here regardless of outcome and
+        // says nothing about whether the assignment was misread as successful. `fetchCouriers` /
+        // `fetchOrdersAwaitingCourier` are the two calls `handleAssign` makes ONLY inside its own
+        // `assigned: true` branch — the actual signal that a success was (wrongly) believed.
+        const couriersCallsBefore = mockCouriers.mock.calls.length;
+        const awaitingCallsBefore = mockAwaiting.mock.calls.length;
+
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+        await screen.findByText(/500/);
+
+        expect(screen.queryByText(/already carrying/)).toBeNull();
+        expect(screen.queryByRole("button", { name: "Assign anyway" })).toBeNull();
+        expect(mockCouriers.mock.calls.length).toBe(couriersCallsBefore);
+        expect(mockAwaiting.mock.calls.length).toBe(awaitingCallsBefore);
+    });
+});
+
 /**
  * The board used to be a snapshot from the moment it opened: an order that fell out of automatic
  * assignment appeared only if someone thought to reload — during exactly the minutes it matters.

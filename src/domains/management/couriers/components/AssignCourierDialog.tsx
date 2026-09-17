@@ -3,7 +3,10 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, Drawer, Button, Box, Typography, Chip, Alert,
     CircularProgress, useMediaQuery, useTheme,
 } from '@mui/material';
-import type { CourierBoardRow, CourierStats, DeliveryCard, DispatchableOrder } from '../types';
+import type {
+    CourierBoardRow, CourierStats, DeliveryCard, DispatchableOrder, ManualAssignResult,
+    OverCapacityWarning,
+} from '../types';
 import { CourierAvailabilityList } from './CourierAvailabilityList';
 import { DeliveryOrderDetails } from './DeliveryOrderDetails';
 import {
@@ -49,7 +52,20 @@ export interface AssignCourierDialogProps {
     freshnessBudgetMinutes?: number | null;
     couriers: CourierStats[];
     onClose: () => void;
-    onAssign: (courierId: string) => void;
+    /**
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5 "Resolved design
+     * decision"): the dialog always awaits this and never closes itself. `assigned: false` means
+     * nothing changed server-side — the dialog shows `warning` and relabels its own button so the
+     * next press re-sends with `acknowledgeOverCapacity: true`. `assigned: true` is the caller's
+     * cue to close/refetch, exactly as the old fire-and-forget `onAssign` did.
+     *
+     * Contract: this must never reject. A failed request (network/5xx, a 409 race) is the
+     * caller's own error state (see `CourierDispatcherPanel.handleAssign` / §7's edge-case row) —
+     * the caller catches it, closes the dialog from its own side (the `order`/`card` prop this
+     * dialog is rendered with becomes `null`), and resolves here with a harmless fallback. That
+     * is what lets this dialog have no failure branch of its own to get wrong.
+     */
+    onAssign: (courierId: string, acknowledgeOverCapacity: boolean) => Promise<ManualAssignResult>;
     /**
      * The engine's verdict per rider for THIS order. Omit it — as the waiting-for-a-courier queue
      * does — and the section is not rendered at all; an empty array is a real answer ("nobody on
@@ -79,9 +95,51 @@ export function AssignCourierDialog({
     assignable = true,
 }: AssignCourierDialogProps): JSX.Element {
     const [selected, setSelected] = useState<string | null>(null);
+    /**
+     * Non-null exactly once the server has refused an unacknowledged over-capacity assignment.
+     * Its presence, not a separate flag, is what drives the button's relabel to "Assign anyway"
+     * and what the next press acknowledges — one source of truth for "have we already tried and
+     * been told no".
+     */
+    const [warning, setWarning] = useState<OverCapacityWarning | null>(null);
+    const [pending, setPending] = useState(false);
 
     function isAvailable(courier: CourierStats): boolean {
         return !UNAVAILABLE_STATUSES.includes(courier.status);
+    }
+
+    /**
+     * Never disabled, never blocking: this always resolves to either a warning to show or a
+     * result the caller uses to close/refetch. `onAssign` is contractually guaranteed not to
+     * reject (see its doc comment) — a real failure is the caller's own error state, surfaced by
+     * closing this dialog from the outside, not by this function catching anything.
+     */
+    async function handlePress(): Promise<void> {
+        if (selected === null) return;
+        setPending(true);
+        try {
+            const result = await onAssign(selected, warning !== null);
+            setWarning(result.assigned ? null : result.warning);
+        } finally {
+            setPending(false);
+        }
+    }
+
+    /**
+     * A rider is a different request (Issue 3, review iteration 1): `warning` describes the last
+     * rider's numbers, and "Assign anyway" is only allowed to re-send THAT same request. Switching
+     * riders clears it, which puts the button back to plain "Assign" — an unacknowledged first
+     * press for whoever is newly selected. Re-clicking the already-selected rider is a no-op here
+     * on purpose, so it does not wipe a warning that still describes them.
+     */
+    function selectCourier(courierId: string): void {
+        if (courierId !== selected) setWarning(null);
+        setSelected(courierId);
+    }
+
+    function resetOnExit(): void {
+        setSelected(null);
+        setWarning(null);
     }
 
     const theme = useTheme();
@@ -154,6 +212,17 @@ export function AssignCourierDialog({
                     </Alert>
                 ) : (
                     <>
+                        {/* Non-blocking: the manager can always press "Assign anyway" below. This
+                            is the server's own capacity math, not a client guess — see
+                            DispatcherService.manualAssign. */}
+                        {warning !== null && (
+                            <Alert severity="warning" sx={{ mb: 2 }}>
+                                {`This rider is already carrying ${warning.riderPizzas} `
+                                    + `pizza${warning.riderPizzas === 1 ? '' : 's'}. This order adds `
+                                    + `${warning.orderPizzas} more, for ${warning.totalPizzas} total — `
+                                    + `over the ${warning.capacity}-pizza limit for one courier.`}
+                            </Alert>
+                        )}
                         <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 1 }}>
                             Hand it to a rider
                         </Typography>
@@ -167,10 +236,10 @@ export function AssignCourierDialog({
                                         aria-checked={isSelected}
                                         aria-label={courier.name ?? courier.courierId}
                                         tabIndex={0}
-                                        onClick={() => setSelected(courier.courierId)}
+                                        onClick={() => selectCourier(courier.courierId)}
                                         onKeyDown={(event) => {
                                             if (event.key === 'Enter' || event.key === ' ') {
-                                                setSelected(courier.courierId);
+                                                selectCourier(courier.courierId);
                                             }
                                         }}
                                         sx={{
@@ -206,8 +275,8 @@ export function AssignCourierDialog({
                     <Button
                         variant="contained"
                         disableElevation
-                        disabled={selected === null}
-                        onClick={() => { if (selected !== null) onAssign(selected); }}
+                        disabled={selected === null || pending}
+                        onClick={() => { void handlePress(); }}
                         sx={{
                             textTransform: 'none', backgroundColor: brandRed, borderRadius: 999,
                             px: 3, fontWeight: 700,
@@ -218,7 +287,9 @@ export function AssignCourierDialog({
                             },
                         }}
                     >
-                        Assign
+                        {pending
+                            ? <CircularProgress size={18} sx={{ color: '#fff' }} />
+                            : (warning !== null ? 'Assign anyway' : 'Assign')}
                     </Button>
                 )}
             </DialogActions>
@@ -246,7 +317,7 @@ export function AssignCourierDialog({
                 // nothing in the console. The desktop branch never showed it because a Dialog inside
                 // a Dialog shares 1300 and wins on DOM order.
                 sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
-                SlideProps={{ onExited: () => setSelected(null) }}
+                SlideProps={{ onExited: resetOnExit }}
                 PaperProps={{
                     elevation: 0,
                     sx: {
@@ -273,7 +344,7 @@ export function AssignCourierDialog({
             // Wider only when it carries the roster: a picker of four names in a `sm` dialog is a
             // lot of empty paper, and the availability rows in an `xs` one wrap to shreds.
             maxWidth={availability === undefined ? 'xs' : 'sm'}
-            TransitionProps={{ onExited: () => setSelected(null) }}
+            TransitionProps={{ onExited: resetOnExit }}
             PaperProps={{
                 elevation: 0,
                 sx: { ...paperSx, borderRadius: 3, boxShadow: '0 12px 40px rgba(59,53,44,0.16)' },

@@ -33,6 +33,16 @@ export const FADED = "#b0a79f";
 export const TONE_OK = "#2e7d32";
 export const TONE_BAD = "#b3261e";
 
+/**
+ * The amber "needs attention, but not blocked" tone — the same amber {@link CourierStatusChip}
+ * already uses for a busy/occupied courier, and the one the order-list's geofence chip uses for
+ * an override. Named here, next to {@link TONE_OK}/{@link TONE_BAD}, so a new amber badge (e.g.
+ * the waiting-queue's "Needs N couriers" chip) has one existing tone to reach for instead of a
+ * fourth hex literal.
+ */
+export const WARN_BG = "#fff6e6";
+export const WARN_FG = "#8a5a00";
+
 /** A block of rows on its own surface, replacing the default table backdrop. */
 export const PANEL_CARD_SX: SxProps<Theme> = {
     backgroundColor: "#fff",

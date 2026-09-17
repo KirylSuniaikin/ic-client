@@ -1,8 +1,8 @@
 import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AssignCourierDialog } from "./AssignCourierDialog";
-import type { CourierBoardRow, CourierStats, UnassignedOrder } from "../types";
+import type { CourierBoardRow, CourierStats, ManualAssignResult, UnassignedOrder } from "../types";
 
 /**
  * Manual assignment (DELIVERY_SPEC.md §2.3, manual §02 "Manual assignment").
@@ -29,6 +29,7 @@ function courier(overrides: Partial<CourierStats>): CourierStats {
 const ORDER: UnassignedOrder = {
     orderId: 99, orderNo: 4821, status: "Ready", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
+    pizzaCount: 3, couriersNeeded: 1, oversized: false,
 };
 
 const RANKED: CourierBoardRow = {
@@ -70,7 +71,8 @@ function renderDialog(
     order: UnassignedOrder | null = ORDER,
     extra: Partial<React.ComponentProps<typeof AssignCourierDialog>> = {}
 ) {
-    const onAssign = jest.fn<void, [string]>();
+    const onAssign = jest.fn<Promise<ManualAssignResult>, [string, boolean]>();
+    onAssign.mockResolvedValue({ assigned: true, warning: null });
     const onClose = jest.fn<void, []>();
     render(
         <AssignCourierDialog
@@ -133,14 +135,14 @@ describe("AssignCourierDialog", () => {
     });
 
     /** The sheet still has to do the job: the same actions, reachable. */
-    it("still assigns from the phone sheet", () => {
+    it("still assigns from the phone sheet", async () => {
         setNarrowViewport(true);
         const { onAssign } = renderDialog([courier({}), courier({ courierId: "c2", name: "Sara" })]);
 
         fireEvent.click(screen.getByText("Sara"));
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
-        expect(onAssign).toHaveBeenCalledWith("c2");
+        await waitFor(() => expect(onAssign).toHaveBeenCalledWith("c2", false));
     });
 
     it("names the order and where it is going, so the manager is not assigning a number", () => {
@@ -178,7 +180,7 @@ describe("AssignCourierDialog", () => {
         expect(screen.getByRole("radio", { name: "Sara" })).toBeTruthy();
     });
 
-    it("cannot assign until a rider is actually chosen", () => {
+    it("cannot assign until a rider is actually chosen", async () => {
         const { onAssign } = renderDialog([courier({})]);
 
         const assign = screen.getByRole("button", { name: "Assign" });
@@ -188,10 +190,10 @@ describe("AssignCourierDialog", () => {
 
         expect((screen.getByRole("button", { name: "Assign" }) as HTMLButtonElement).disabled).toBe(false);
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
-        expect(onAssign).toHaveBeenCalledWith("c1");
+        await waitFor(() => expect(onAssign).toHaveBeenCalledWith("c1", false));
     });
 
-    it("assigns the rider that is actually selected, not the first one listed", () => {
+    it("assigns the rider that is actually selected, not the first one listed", async () => {
         const { onAssign } = renderDialog([
             courier({ courierId: "c1", name: "Ali" }),
             courier({ courierId: "c2", name: "Sara" }),
@@ -200,7 +202,7 @@ describe("AssignCourierDialog", () => {
         fireEvent.click(screen.getByRole("radio", { name: "Sara" }));
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
-        expect(onAssign).toHaveBeenCalledWith("c2");
+        await waitFor(() => expect(onAssign).toHaveBeenCalledWith("c2", false));
         expect(onAssign).toHaveBeenCalledTimes(1);
     });
 
@@ -214,13 +216,13 @@ describe("AssignCourierDialog", () => {
     });
 
     /** The rows are divs, so keyboard selection has to be wired by hand — and it is. */
-    it("can be driven from the keyboard, not only by tapping", () => {
+    it("can be driven from the keyboard, not only by tapping", async () => {
         const { onAssign } = renderDialog([courier({ courierId: "c1", name: "Ali" })]);
 
         fireEvent.keyDown(screen.getByRole("radio", { name: "Ali" }), { key: "Enter" });
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
-        expect(onAssign).toHaveBeenCalledWith("c1");
+        await waitFor(() => expect(onAssign).toHaveBeenCalledWith("c1", false));
     });
 
     /**
@@ -317,5 +319,155 @@ describe("AssignCourierDialog", () => {
         renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: true });
 
         expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
+    });
+});
+
+/**
+ * Server-authoritative two-step (courier-capacity, task-spec.md §5 "Resolved design decision"):
+ * pressing Assign always sends `acknowledgeOverCapacity: false` first. `assigned: false` means the
+ * server refused and changed nothing — the dialog has to show the warning and relabel its own
+ * button rather than close, and the next press has to acknowledge. This is the manager's whole
+ * escape hatch for an order too big for one rider, so it must never dead-end.
+ */
+describe("AssignCourierDialog — the over-capacity warning", () => {
+    const WARNING = { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 };
+
+    function renderWithSequence(results: ManualAssignResult[]) {
+        const onAssign = jest.fn<Promise<ManualAssignResult>, [string, boolean]>();
+        for (const result of results) onAssign.mockResolvedValueOnce(result);
+        render(
+            <AssignCourierDialog
+                order={ORDER}
+                couriers={[courier({})]}
+                onAssign={onAssign}
+                onClose={jest.fn()}
+            />
+        );
+        return { onAssign };
+    }
+
+    it("sends the first press unacknowledged", async () => {
+        const { onAssign } = renderWithSequence([{ assigned: true, warning: null }]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() => expect(onAssign).toHaveBeenCalledWith("c1", false));
+    });
+
+    it("shows the warning and relabels the button when the server refuses over capacity", async () => {
+        renderWithSequence([{ assigned: false, warning: WARNING }]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(await screen.findByRole("button", { name: "Assign anyway" })).toBeTruthy();
+        // The four numbers a manager is deciding against — rider load, this order, the total, the
+        // configured capacity — not just a generic "over capacity" sentence.
+        expect(screen.getByText(/already carrying 6 pizzas/)).toBeTruthy();
+        expect(screen.getByText(/adds 4 more/)).toBeTruthy();
+        expect(screen.getByText(/10 total/)).toBeTruthy();
+        expect(screen.getByText(/8-pizza limit/)).toBeTruthy();
+    });
+
+    /** Requirement 18: the selected rider must not be cleared by the refusal. */
+    it("keeps the chosen rider selected after the server refuses", async () => {
+        renderWithSequence([{ assigned: false, warning: WARNING }]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await screen.findByRole("button", { name: "Assign anyway" });
+        expect(screen.getByRole("radio", { name: "Ali" }).getAttribute("aria-checked")).toBe("true");
+    });
+
+    /**
+     * Issue 3 (review iteration 1): an acknowledgement is only valid for the request whose warning
+     * is on screen. Selecting a different rider after a refusal is a DIFFERENT request — one whose
+     * load was never computed or shown — so it must not silently inherit the previous rider's
+     * "Assign anyway" acknowledgement.
+     */
+    it("clears a stale warning when a different rider is selected after a refusal", async () => {
+        const onAssign = jest.fn<Promise<ManualAssignResult>, [string, boolean]>();
+        onAssign.mockResolvedValueOnce({ assigned: false, warning: WARNING });
+        onAssign.mockResolvedValueOnce({ assigned: true, warning: null });
+        render(
+            <AssignCourierDialog
+                order={ORDER}
+                couriers={[courier({ courierId: "c1", name: "Ali" }), courier({ courierId: "c2", name: "Sara" })]}
+                onAssign={onAssign}
+                onClose={jest.fn()}
+            />
+        );
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+        await screen.findByRole("button", { name: "Assign anyway" });
+
+        fireEvent.click(screen.getByRole("radio", { name: "Sara" }));
+
+        expect(screen.queryByRole("button", { name: "Assign anyway" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Assign" })).toBeTruthy();
+        expect(screen.queryByText(/already carrying/)).toBeNull();
+        expect(screen.getByRole("radio", { name: "Sara" }).getAttribute("aria-checked")).toBe("true");
+
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() => expect(onAssign).toHaveBeenNthCalledWith(2, "c2", false));
+    });
+
+    /** Re-selecting the SAME rider after a refusal must not wipe out the warning still on screen. */
+    it("keeps the warning when the same rider is re-selected", async () => {
+        renderWithSequence([{ assigned: false, warning: WARNING }]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+        await screen.findByRole("button", { name: "Assign anyway" });
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+
+        expect(screen.getByRole("button", { name: "Assign anyway" })).toBeTruthy();
+        expect(screen.getByText(/already carrying 6 pizza/)).toBeTruthy();
+    });
+
+    it("re-sends acknowledged once the manager presses Assign anyway", async () => {
+        const { onAssign } = renderWithSequence([
+            { assigned: false, warning: WARNING },
+            { assigned: true, warning: WARNING },
+        ]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Assign anyway" }));
+
+        await waitFor(() => expect(onAssign).toHaveBeenNthCalledWith(2, "c1", true));
+    });
+
+    /** No warning at all on the ordinary, within-capacity path — nothing to show, nothing to relabel. */
+    it("never shows the warning or relabels the button when the order is within capacity", async () => {
+        renderWithSequence([{ assigned: true, warning: null }]);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() => expect(screen.queryByRole("button", { name: "Assign anyway" })).toBeNull());
+        expect(screen.queryByText(/already carrying/)).toBeNull();
+    });
+
+    /**
+     * Requirement 18: "The dialog is never disabled and never blocks." The order's own `oversized`
+     * flag (surfaced as the queue badge) must not gate the button — capacity is only ever learned
+     * from the server's response to a real press, never guessed client-side ahead of one. Selecting
+     * a rider on an oversized order has to enable Assign exactly as it does on a normal one.
+     */
+    it("does not disable Assign for an oversized order before any press has been made", () => {
+        const oversizedOrder = { ...ORDER, pizzaCount: 17, couriersNeeded: 3, oversized: true };
+        renderDialog([courier({})], oversizedOrder);
+
+        expect((screen.getByRole("button", { name: "Assign" }) as HTMLButtonElement).disabled).toBe(true);
+
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+
+        expect((screen.getByRole("button", { name: "Assign" }) as HTMLButtonElement).disabled).toBe(false);
     });
 });

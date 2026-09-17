@@ -128,6 +128,33 @@ export type UnassignedOrder = {
     addressLine: string | null;
     /** How long it has been unclaimed. The list is oldest first for this reason. */
     waitingMinutes: number;
+    /** Any size counts as 1; drinks/sides carry no dough type and are excluded by construction. */
+    pizzaCount: number;
+    /** `Math.ceil(pizzaCount / capacity)` — the same definition the backend uses everywhere. */
+    couriersNeeded: number;
+    /** `pizzaCount > capacity` — one rider cannot physically carry this order. */
+    oversized: boolean;
+};
+
+/**
+ * Mirrors backend `OverCapacityWarningTO`. The manual-assign endpoint's non-blocking warning: a
+ * manager can always push past it, but the four numbers are what they are deciding against.
+ */
+export type OverCapacityWarning = {
+    riderPizzas: number;
+    orderPizzas: number;
+    totalPizzas: number;
+    capacity: number;
+};
+
+/**
+ * Mirrors backend `ManualAssignResultTO`. The manual-assign endpoint's server-authoritative
+ * two-step: `assigned: false` means nothing changed and `warning` is what to show before the
+ * caller re-sends with `acknowledgeOverCapacity: true`.
+ */
+export type ManualAssignResult = {
+    assigned: boolean;
+    warning: OverCapacityWarning | null;
 };
 
 /**

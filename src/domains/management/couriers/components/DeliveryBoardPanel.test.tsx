@@ -4,7 +4,9 @@ import { render, screen, fireEvent, waitFor, act, within } from "@testing-librar
 import { DeliveryBoardPanel } from "./DeliveryBoardPanel";
 import type { DeliveryBoardPanelProps } from "./DeliveryBoardPanel";
 import { fetchBoardCouriers, fetchDeliveryCards } from "../../../../shared/api/dispatcher";
-import type { CourierBoardRow, CourierStats, DeliveryCard, UnassignedOrder } from "../types";
+import type {
+    CourierBoardRow, CourierStats, DeliveryCard, ManualAssignResult, UnassignedOrder,
+} from "../types";
 import { connectSocket, socket } from "../../../../shared/api/socket";
 import { PANEL_MIN_HEIGHT, TONE_BAD, TONE_OK } from "./dispatcherStyles";
 import { emotionRulesFor } from "./emotionRules.testutil";
@@ -103,10 +105,12 @@ const PICKABLE: CourierStats = {
 const AWAITING_AT_RISK: UnassignedOrder = {
     orderId: 101, orderNo: 11, status: "Ready", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
+    pizzaCount: 3, couriersNeeded: 1, oversized: false,
 };
 
 function renderBoard(props: Partial<DeliveryBoardPanelProps> = {}) {
-    const onAssign = jest.fn<void, [number, string]>();
+    const onAssign = jest.fn<Promise<ManualAssignResult>, [number, string, boolean]>();
+    onAssign.mockResolvedValue({ assigned: true, warning: null });
     render(
         <DeliveryBoardPanel
             couriers={[PICKABLE]}
@@ -642,7 +646,7 @@ describe("DeliveryBoardPanel — assigning by hand from the board", () => {
         fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
         fireEvent.click(screen.getByRole("button", { name: "Assign" }));
 
-        expect(onAssign).toHaveBeenCalledWith(101, "c1");
+        expect(onAssign).toHaveBeenCalledWith(101, "c1", false);
     });
 
     it("offers no picker on an order a rider already holds, and says why", async () => {
@@ -654,6 +658,81 @@ describe("DeliveryBoardPanel — assigning by hand from the board", () => {
         expect(screen.queryByRole("button", { name: "Assign" })).toBeNull();
         expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
         expect(onAssign).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5): `assigned: true` is this
+     * panel's own cue to close the popup, exactly as the old fire-and-forget `onAssign` did.
+     */
+    it("closes the popup once the server actually assigns", async () => {
+        renderBoard({ awaiting: [AWAITING_AT_RISK] });
+
+        await openCard("#11");
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() =>
+            expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull()
+        );
+    });
+
+    /**
+     * `assigned: false` means nothing changed server-side — the popup has to stay open with the
+     * warning showing, not close as if the hand-over had happened.
+     */
+    it("keeps the popup open when the server refuses over capacity", async () => {
+        const onAssign = jest.fn<Promise<ManualAssignResult>, [number, string, boolean]>();
+        onAssign.mockResolvedValue({
+            assigned: false,
+            warning: { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 },
+        });
+        render(
+            <DeliveryBoardPanel couriers={[PICKABLE]} awaiting={[AWAITING_AT_RISK]} onAssign={onAssign} />
+        );
+
+        await openCard("#11");
+        const cardCallsBefore = mockCards.mock.calls.length;
+        const courierCallsBefore = mockCouriers.mock.calls.length;
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(await screen.findByText(/already carrying 6 pizza/)).toBeTruthy();
+        expect(screen.getByText("Why this order is with this rider and not another")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Assign anyway" })).toBeTruthy();
+        // Requirement 19: nothing changed server-side on `assigned: false`, so neither the cards
+        // nor the annotated roster are refetched — only a real `assigned: true` earns a reload.
+        expect(mockCards.mock.calls.length).toBe(cardCallsBefore);
+        expect(mockCouriers.mock.calls.length).toBe(courierCallsBefore);
+    });
+
+    /**
+     * Issue 1 (review iteration 1): before this fix, a rejected `onAssign` reached the dialog's own
+     * empty catch and did nothing — the popup stayed open over an order that, in production, may
+     * already have moved. `assigned: false` (above) is a normal 200 the popup must survive; this is
+     * a real failure (network/5xx, or the 409 the other mount site's test already covers), which
+     * must close it instead.
+     */
+    it("closes the popup when manualAssign rejects", async () => {
+        const onAssign = jest.fn<Promise<ManualAssignResult>, [number, string, boolean]>();
+        onAssign.mockRejectedValue(new Error("Response: 409"));
+        render(
+            <DeliveryBoardPanel couriers={[PICKABLE]} awaiting={[AWAITING_AT_RISK]} onAssign={onAssign} />
+        );
+
+        await openCard("#11");
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() =>
+            expect(screen.queryByText("Why this order is with this rider and not another")).toBeNull()
+        );
+        // The wrapper settles the dialog's own promise with a benign
+        // `{ assigned: false, warning: null }` fallback — but the popup is already gone, so there
+        // is nothing left for that fallback to be misread as: no warning, no relabelled button, no
+        // radio still sitting on screen as if the popup had merely refreshed.
+        expect(screen.queryByText(/already carrying/)).toBeNull();
+        expect(screen.queryByRole("button", { name: "Assign anyway" })).toBeNull();
+        expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
     });
 });
 

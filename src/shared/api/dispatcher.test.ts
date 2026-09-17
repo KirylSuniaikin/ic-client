@@ -179,14 +179,46 @@ describe("dispatcher — the proof photo", () => {
 });
 
 describe("dispatcher — writes", () => {
-    it("names the courier the manager picked in the assign body", async () => {
-        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    /**
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5): a caller that never
+     * mentions `acknowledgeOverCapacity` still has to send it as `false`, not leave it absent, so
+     * the endpoint's optional/defaulted-to-false contract is exercised on the wire rather than
+     * assumed.
+     */
+    it("names the courier the manager picked and defaults the acknowledgement to false", async () => {
+        mockAuthFetch.mockResolvedValueOnce(json({ assigned: true, warning: null }));
 
         await manualAssign(99, "c1");
 
         expect(calledUrl()).toBe(`${BASE}/orders/99/assign`);
         expect(calledInit().method).toBe("POST");
-        expect(JSON.parse(calledInit().body as string)).toEqual({ courierId: "c1" });
+        expect(JSON.parse(calledInit().body as string)).toEqual({
+            courierId: "c1",
+            acknowledgeOverCapacity: false,
+        });
+    });
+
+    /** The second half of the two-step: re-sending with the manager's explicit go-ahead. */
+    it("carries an explicit acknowledgement through to the request body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(json({ assigned: true, warning: { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 } }));
+
+        await manualAssign(99, "c1", true);
+
+        expect(JSON.parse(calledInit().body as string)).toEqual({
+            courierId: "c1",
+            acknowledgeOverCapacity: true,
+        });
+    });
+
+    /**
+     * The endpoint answers `200 OK` with a body now, not `204 No Content` — the parsed JSON is the
+     * caller's only way to see whether the server actually assigned or is holding for a warning.
+     */
+    it("returns the parsed response body rather than discarding it", async () => {
+        const body = { assigned: false, warning: { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 } };
+        mockAuthFetch.mockResolvedValueOnce(json(body));
+
+        await expect(manualAssign(99, "c1")).resolves.toEqual(body);
     });
 
     /** A 409 here is the race in manual §04 edge 7 — someone else claimed the order first. */

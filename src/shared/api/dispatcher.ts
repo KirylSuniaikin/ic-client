@@ -9,6 +9,7 @@ import type {
     CourierPeriodStats,
     CourierStats,
     DeliveryCard,
+    ManualAssignResult,
     OrderRoute,
     UnassignedOrder,
 } from '../../domains/management/couriers/types';
@@ -98,14 +99,28 @@ export async function fetchOrderRoute(orderId: number): Promise<OrderRoute> {
     return res.json();
 }
 
-/** §2.3's escape hatch: assign a specific courier once the queue has been exhausted. */
-export async function manualAssign(orderId: number, courierId: string): Promise<void> {
+/**
+ * §2.3's escape hatch: assign a specific courier once the queue has been exhausted.
+ *
+ * Server-authoritative two-step (courier-capacity, task-spec.md §5): a first call with
+ * `acknowledgeOverCapacity` omitted (defaulted to `false` here, not left to the server, so every
+ * caller's intent is explicit on the wire) can come back `{ assigned: false, warning: {...} }`
+ * without changing anything server-side. Re-sending the same request with
+ * `acknowledgeOverCapacity: true` assigns exactly as it always has. `200 OK` now carries this body
+ * instead of the old `204 No Content` — the parsed JSON is the caller's only way to see it.
+ */
+export async function manualAssign(
+    orderId: number,
+    courierId: string,
+    acknowledgeOverCapacity?: boolean
+): Promise<ManualAssignResult> {
     const res = await authFetch(`${BASE}/orders/${orderId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courierId }),
+        body: JSON.stringify({ courierId, acknowledgeOverCapacity: acknowledgeOverCapacity ?? false }),
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
 }
 
 /**

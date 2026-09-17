@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Box, Typography, Button, CircularProgress, FormControlLabel, Switch,
+    Box, Typography, Button, Chip, CircularProgress, FormControlLabel, Switch,
 } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
@@ -20,11 +20,12 @@ import { GOOGLE_MAPS_API_KEY } from '../../../branch/utils/mapsConfig';
 import { EntityPhotoViewer } from '../../../../shared/components/EntityPhotoViewer';
 import { formatBahrainClock } from '../../../../shared/utils/timeUtils';
 import type {
-    CourierBoardRow, CourierOrderSummary, CourierStats, OrderRoute, UnassignedOrder,
+    CourierBoardRow, CourierOrderSummary, CourierStats, ManualAssignResult, OrderRoute,
+    UnassignedOrder,
 } from '../types';
 import {
     BRAND_RED as brandRed, CHIP_SELF_SX, CLICKABLE_ROW_SX, CourierStatusChip, EmptyState,
-    MUTED, PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX,
+    MUTED, PANEL_CARD_SX, PanelNotice, ROW_SX, SECTION_TITLE_SX, STATS_WRAP_SX, WARN_BG, WARN_FG,
 } from './dispatcherStyles';
 
 /**
@@ -84,18 +85,38 @@ export function CourierDispatcherPanel(): JSX.Element {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async <T,>(fn: () => Promise<T>, apply: (value: T) => void): Promise<void> => {
+    /**
+     * The one place `loading`/`error` get set around a request: logs, surfaces the message, and
+     * (unlike `load` below) rethrows so a caller that needs the resolved value — `handleAssign`,
+     * for the `ManualAssignResult` its own caller awaits — can still get it, or react to the
+     * failure itself, instead of this being a second copy of the same five lines (review
+     * iteration 1, Issue 4).
+     */
+    const withLoadingState = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
         setLoading(true);
         setError(null);
         try {
-            apply(await fn());
+            return await fn();
         } catch (err) {
             logger.error('Dispatcher panel request failed:', err);
             setError(err instanceof Error ? err.message : String(err));
+            throw err;
         } finally {
             setLoading(false);
         }
     }, []);
+
+    const load = useCallback(async <T,>(fn: () => Promise<T>, apply: (value: T) => void): Promise<void> => {
+        try {
+            // apply runs INSIDE withLoadingState's own try, not after it — a throw from apply
+            // (e.g. a malformed payload) must go through the same log-and-show path as a throw
+            // from fn, exactly as the pre-extraction `load()` did (review iteration 2, Issue 1).
+            await withLoadingState(async () => apply(await fn()));
+        } catch {
+            // Fire-and-forget call sites (`void load(...)`) never await this — withLoadingState
+            // has already logged the failure and put it in `error` for the panel's own notice.
+        }
+    }, [withLoadingState]);
 
     /** The one place the couriers view's three payloads land, so its two loaders cannot drift. */
     const applyCouriersView = useCallback(
@@ -139,23 +160,35 @@ export function CourierDispatcherPanel(): JSX.Element {
      * on the board below it. Takes the order id rather than reading `assigning`, so the board's
      * own dialog does not need a second copy of this.
      *
-     * The conflict cases are the point of the reload: another manager (or a courier finally
-     * accepting the offer) can take the order between this list being drawn and the button being
-     * pressed, and the server rejects that with a 409 rather than reassigning.
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5): unlike every other
+     * handler on this panel, this one does NOT close the dialog or refetch up front — the dialog
+     * awaits the returned {@link ManualAssignResult} and only this function's own `assigned: true`
+     * branch does either. An `assigned: false` response changed nothing server-side, so the queue
+     * and roster are left exactly as they were and the dialog stays open showing the warning.
+     *
+     * The conflict cases are still the point of the reload on success: another manager (or a
+     * courier finally accepting the offer) can take the order between this list being drawn and
+     * the button being pressed, and the server rejects that with a 409 rather than reassigning —
+     * which reaches the caller as a rejection, same as before this change. `withLoadingState`
+     * already logs it and puts it in `error` before rethrowing; it is each `onAssign` wired below
+     * — not this function — that catches the rejection and closes its own dialog/popup (Issue 1,
+     * review iteration 1), since only they know which local "is this open" state to clear.
      */
-    async function handleAssign(orderId: number, courierId: string): Promise<void> {
-        setAssigning(null);
-        // Assign and refresh inside one load() so a 409 stays on screen instead of being cleared
-        // by the refetch that follows it.
-        await load(
-            async () => {
-                await manualAssign(orderId, courierId);
-                return await Promise.all([
+    async function handleAssign(
+        orderId: number,
+        courierId: string,
+        acknowledgeOverCapacity: boolean
+    ): Promise<ManualAssignResult> {
+        return await withLoadingState(async () => {
+            const result = await manualAssign(orderId, courierId, acknowledgeOverCapacity);
+            if (result.assigned) {
+                setAssigning(null);
+                applyCouriersView(await Promise.all([
                     fetchCouriers(showOffShift), fetchOrdersAwaitingCourier(), fetchBoardCouriers(),
-                ]);
-            },
-            applyCouriersView
-        );
+                ]));
+            }
+            return result;
+        });
     }
 
     /**
@@ -234,6 +267,17 @@ export function CourierDispatcherPanel(): JSX.Element {
                                         <Typography variant="body2" sx={{ ...STATS_WRAP_SX, fontWeight: 700, color: brandRed }}>
                                             {order.waitingMinutes} min
                                         </Typography>
+                                        {/* One rider physically cannot carry this order — the
+                                            automatic engine never offered it (it is not stuck on
+                                            an unlucky roster), so the manager needs to know to
+                                            split it across riders by hand before pressing Assign. */}
+                                        {order.oversized && (
+                                            <Chip
+                                                size="small"
+                                                label={`Needs ${order.couriersNeeded} couriers`}
+                                                sx={{ backgroundColor: WARN_BG, color: WARN_FG, fontWeight: 700 }}
+                                            />
+                                        )}
                                         <Button
                                             size="small"
                                             variant="contained"
@@ -257,7 +301,9 @@ export function CourierDispatcherPanel(): JSX.Element {
                     <DeliveryBoardPanel
                         couriers={couriers}
                         awaiting={awaiting}
-                        onAssign={(orderId, courierId) => { void handleAssign(orderId, courierId); }}
+                        onAssign={(orderId, courierId, acknowledgeOverCapacity) =>
+                            handleAssign(orderId, courierId, acknowledgeOverCapacity)
+                        }
                     />
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -428,8 +474,18 @@ export function CourierDispatcherPanel(): JSX.Element {
                 order={assigning}
                 couriers={couriers}
                 onClose={() => setAssigning(null)}
-                onAssign={(courierId) => {
-                    if (assigning !== null) void handleAssign(assigning.orderId, courierId);
+                onAssign={(courierId, acknowledgeOverCapacity) => {
+                    if (assigning === null) return Promise.resolve({ assigned: false, warning: null });
+                    // Fulfils AssignCourierDialog's "never rejects" contract: a failed request is
+                    // already logged and in `error` by `withLoadingState` inside handleAssign — this
+                    // call site's own job is only to close the dialog it owns rather than leave it
+                    // open over an order that may have already moved (Issue 1, review iteration 1).
+                    return handleAssign(assigning.orderId, courierId, acknowledgeOverCapacity).catch(
+                        (): ManualAssignResult => {
+                            setAssigning(null);
+                            return { assigned: false, warning: null };
+                        }
+                    );
                 }}
             />
 

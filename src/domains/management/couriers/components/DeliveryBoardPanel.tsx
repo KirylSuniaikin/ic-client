@@ -3,7 +3,9 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import { fetchBoardCouriers, fetchDeliveryCards } from '../../../../shared/api/dispatcher';
 import { logger } from '../../../../shared/utils/logger';
 import { useDeliveryBoardEvents } from '../hooks/useDeliveryBoardEvents';
-import type { CourierBoardRow, CourierStats, DeliveryCard, UnassignedOrder } from '../types';
+import type {
+    CourierBoardRow, CourierStats, DeliveryCard, ManualAssignResult, UnassignedOrder,
+} from '../types';
 import { FRESHNESS_BUDGET_MINUTES } from '../utils/freshness';
 import { AssignCourierDialog } from './AssignCourierDialog';
 import {
@@ -36,7 +38,13 @@ export interface DeliveryBoardPanelProps {
      * whether manual assignment is offered for a card.
      */
     awaiting: UnassignedOrder[];
-    onAssign: (orderId: number, courierId: string) => void;
+    /**
+     * Server-authoritative two-step (courier-capacity, task-spec.md §5): the parent's own
+     * `manualAssign` wrapper, awaited by this panel's dialog wiring below. Returns the result
+     * rather than firing and forgetting, so an `assigned: false` warning can keep the popup open
+     * instead of this panel closing it out from under the dialog.
+     */
+    onAssign: (orderId: number, courierId: string, acknowledgeOverCapacity: boolean) => Promise<ManualAssignResult>;
     /**
      * Minutes the food may spend out of the oven before it stops being what the customer ordered.
      * Null when the server has not told us (which is every case today — see
@@ -216,10 +224,22 @@ export function DeliveryBoardPanel({
                 availabilityLoading={loading}
                 assignable={openCard !== null && awaiting.some((order) => order.orderId === openCard.orderId)}
                 onClose={() => setOpenOrderId(null)}
-                onAssign={(courierId) => {
-                    if (openCard === null) return;
-                    setOpenOrderId(null);
-                    onAssign(openCard.orderId, courierId);
+                onAssign={(courierId, acknowledgeOverCapacity) => {
+                    if (openCard === null) return Promise.resolve({ assigned: false, warning: null });
+                    return onAssign(openCard.orderId, courierId, acknowledgeOverCapacity)
+                        .then((result) => {
+                            if (result.assigned) setOpenOrderId(null);
+                            return result;
+                        })
+                        .catch((): ManualAssignResult => {
+                            // Fulfils AssignCourierDialog's "never rejects" contract. The parent's
+                            // own `handleAssign` has already logged this and surfaced it via
+                            // `setError` — this popup's own job is to close rather than sit open
+                            // over an order that may have already moved (Issue 1, review
+                            // iteration 1).
+                            setOpenOrderId(null);
+                            return { assigned: false, warning: null };
+                        });
                 }}
             />
         </Box>
