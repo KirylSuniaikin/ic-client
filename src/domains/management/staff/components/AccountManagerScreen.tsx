@@ -29,7 +29,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import TelegramIcon from "@mui/icons-material/Telegram";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import theme from "../../../../shared/utils/theme";
 import { logger } from "../../../../shared/utils/logger";
@@ -355,7 +355,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                         onClick={() => void handleCopyConnectLink(s)}
                         sx={iconButtonSx}
                     >
-                        {pending ? <CircularProgress size={14} /> : <ContentCopyRoundedIcon fontSize="small" />}
+                        {pending ? <CircularProgress size={14} /> : <TelegramIcon fontSize="small" />}
                     </IconButton>
                 </span>
             </Tooltip>
