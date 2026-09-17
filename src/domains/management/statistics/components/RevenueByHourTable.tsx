@@ -27,6 +27,7 @@ const transformDataForDataGrid = (backendData: any) => {
         id: item.Hour,
         label: `${String(item.Hour).padStart(2, '0')}:00`,
         ...item.sellsByDay,
+        counts: item.ordersByDay,
     }));
 
     return { flatRows, maxAmount };
@@ -63,6 +64,7 @@ export function RevenueByHourTable({rawData}: Props) {
         headerAlign: 'center',
         renderCell: (params) => {
             const amount = params.value || 0;
+            const count = params.row.counts?.[field] ?? 0;
             const color = getHeatmapColor(amount, maxAmount);
 
             return (
@@ -80,7 +82,7 @@ export function RevenueByHourTable({rawData}: Props) {
                         border: '1px solid #eee'
                     }}
                 >
-                    {amount > 0 ? `BHD ${amount.toFixed(2)}` : ''}
+                    {amount > 0 ? `BHD ${amount.toFixed(2)} / ${count}` : ''}
                 </Box>
             );
         },

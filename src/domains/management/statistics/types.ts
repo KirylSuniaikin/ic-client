@@ -29,6 +29,7 @@ export type VatStatePayload = {
 export type SellsByHourStat = {
     hour: number;
     sellsByDay: Record<string, number>;
+    ordersByDay: Record<string, number>;
 };
 
 export type DateRangeState = {
