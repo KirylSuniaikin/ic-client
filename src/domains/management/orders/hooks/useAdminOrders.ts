@@ -74,8 +74,9 @@ const STATUS_RANK: Record<string, number> = {
 // The two /topic/{branchId}/delivery-alert types this board acts on. Both are published by
 // DeliveryAlertPublisher on the real transition only: arrivedAtKitchen when the rider is standing
 // at the pass, and offerAccepted when the order gains a rider at all — every assignment path
-// funnels through that one method (rider accept, server auto-accept, and a manager's manual
-// assign), which is why one frame type covers all three.
+// funnels through that one method (the rider tapping Alright, a manager's manual assign, and the
+// server-side auto-accept that still exists but ships disabled), which is why one frame type
+// covers all of them.
 const COURIER_AT_KITCHEN = 'COURIER_AT_KITCHEN';
 const COURIER_ASSIGNED = 'COURIER_ASSIGNED';
 
