@@ -82,7 +82,11 @@ describe("useReturnCountdown", () => {
         expect(onElapsed).not.toHaveBeenCalled();
     });
 
-    it("agrees with the mobile screen on how long ten seconds is", () => {
-        expect(RETURN_DELAY_SECONDS).toBe(10);
+    /**
+     * The two screens are siblings and must count the same. If this fails, the fix is to change
+     * ic-pizza-mobile's constant with it, not to update the number here alone.
+     */
+    it("agrees with the mobile screen on how long the pause is", () => {
+        expect(RETURN_DELAY_SECONDS).toBe(5);
     });
 });
