@@ -3,6 +3,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { HireStaffRequest, HiredStaffTO } from "../types";
+import type { TelegramConnectTokenResponse } from "../../../../shared/api/management";
 import { copyToClipboard } from "../utils/copyToClipboard";
 
 // jsdom's test environment lacks crypto.getRandomValues (used by generatePassword via the
@@ -32,8 +33,13 @@ type Branch = { id: string; externalId: string; branchNo: number; branchName: st
 // the caller's own scope, so it is empty or one-element exactly when a city-level hirer needs
 // every branch.
 const mockFetchAllBranches = jest.fn<Promise<Branch[]>, []>();
+// Wired through the factory the same way as fetchAllBranches above -- without this, the import
+// inside HireStaffDrawer would be undefined and the best-effort try/catch around the token call
+// would silently swallow a TypeError, making a "success" test pass for the wrong reason.
+const mockGenerateTelegramConnectToken = jest.fn<Promise<TelegramConnectTokenResponse>, [number]>();
 jest.mock("../../../../shared/api/management", () => ({
     fetchAllBranches: () => mockFetchAllBranches(),
+    generateTelegramConnectToken: (staffId: number) => mockGenerateTelegramConnectToken(staffId),
 }));
 
 // No manual mock exists for this tiny util -- factoryless jest.mock() automocks it, and
@@ -75,6 +81,7 @@ describe("HireStaffDrawer", () => {
         mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER, branchId: "branch-1" });
         mockFetchAllBranches.mockResolvedValue([]);
         mockCopyToClipboard.mockResolvedValue(undefined);
+        mockGenerateTelegramConnectToken.mockReset();
     });
 
     it("filters role options per the hierarchy for a MANAGER caller (no MANAGER/SUPER_MANAGER/OWNER)", () => {
@@ -369,5 +376,61 @@ describe("HireStaffDrawer", () => {
         const priceInput = screen.getByLabelText("Price/hour") as HTMLInputElement;
         expect(priceInput.value).toBe((400 / 150).toFixed(3));
         expect(priceInput.value).toBe("2.667");
+    });
+
+    describe("Telegram connect link on hire", () => {
+        it("generates a connect token and shows the Telegram field when botUsername is set and the token resolves", async () => {
+            const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+            mockGenerateTelegramConnectToken.mockResolvedValue({ token: "server-issued-token" });
+
+            render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} botUsername="icpizza_bot" />);
+
+            fillRequiredFields("COOK");
+            fireEvent.click(screen.getByText("Add"));
+
+            await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+            expect(mockGenerateTelegramConnectToken).toHaveBeenCalledWith(hired().id);
+
+            await waitFor(() => expect(screen.getByTestId("hire-staff-credentials")).toBeTruthy());
+            const field = screen.getByTestId("hire-staff-credentials-telegram-link");
+            const input = field.querySelector("input") as HTMLInputElement;
+            expect(input.value).toBe("https://t.me/icpizza_bot?start=server-issued-token");
+        });
+
+        it("still shows the credentials panel with no Telegram field when the token request rejects, and the copy stays the legacy two-part format", async () => {
+            const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+            mockGenerateTelegramConnectToken.mockRejectedValue(new Error("HTTP 500"));
+
+            render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} botUsername="icpizza_bot" />);
+
+            fillRequiredFields("COOK");
+            fireEvent.click(screen.getByText("Add"));
+
+            // The rejection is caught inside handleSubmit's own try/catch around the token call --
+            // if it escaped as an unhandled rejection instead, this render would never settle into
+            // the credentials view and the assertions below would time out.
+            await waitFor(() => expect(screen.getByTestId("hire-staff-credentials")).toBeTruthy());
+            expect(screen.queryByTestId("hire-staff-credentials-telegram-link")).toBeNull();
+
+            fireEvent.click(screen.getByTestId("hire-staff-copy-button"));
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith("new.cook / s3cretPW"));
+        });
+
+        it("never calls generateTelegramConnectToken with no botUsername, and the copy stays the legacy two-part format", async () => {
+            const createMock = jest.fn<Promise<HiredStaffTO>, [HireStaffRequest]>().mockResolvedValue(hired());
+
+            render(<HireStaffDrawer open onClose={jest.fn()} create={createMock} />);
+
+            fillRequiredFields("COOK");
+            fireEvent.click(screen.getByText("Add"));
+
+            await waitFor(() => expect(screen.getByTestId("hire-staff-credentials")).toBeTruthy());
+            expect(mockGenerateTelegramConnectToken).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByTestId("hire-staff-copy-button"));
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith("new.cook / s3cretPW"));
+        });
     });
 });
