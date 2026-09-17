@@ -66,7 +66,7 @@ describe("TaskCardItem", () => {
     });
 
     it("always renders the title", () => {
-        render(<TaskCardItem card={makeCard()} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={makeCard()} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         expect(screen.getByText("Restock mozzarella")).toBeTruthy();
     });
@@ -77,7 +77,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description: "Buy more cheese" })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={false}
                 />
@@ -98,7 +98,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={false}
                 />
@@ -119,7 +119,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -140,7 +140,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description: "Buy more cheese" })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -155,7 +155,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description: null })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -170,7 +170,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ description: "" })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -185,7 +185,7 @@ describe("TaskCardItem", () => {
         ["YELLOW", "#e4b11b"],
         ["RED", "#e44b4c"],
     ] as [TaskCardPriority, string][])("renders the %s priority as the card's left edge color", (priority, expected) => {
-        render(<TaskCardItem card={makeCard({ priority })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={makeCard({ priority })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         const card = screen.getByTestId("task-card-1");
         // jsdom echoes the hex back verbatim rather than normalising it, so compare case-insensitively.
@@ -195,7 +195,7 @@ describe("TaskCardItem", () => {
     it("clicking the card body calls onClick with the card", () => {
         const onClick = jest.fn();
         const card = makeCard();
-        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={card} onClick={onClick} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByText("Restock mozzarella"));
 
@@ -205,7 +205,7 @@ describe("TaskCardItem", () => {
 
     it("clicking the three-dots icon does not call onClick", () => {
         const onClick = jest.fn();
-        render(<TaskCardItem card={makeCard()} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={makeCard()} onClick={onClick} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
 
@@ -215,7 +215,7 @@ describe("TaskCardItem", () => {
     it("with no getDragHandlers prop supplied, clicking the card body is byte-identical to ST4's click behavior", () => {
         const onClick = jest.fn();
         const card = makeCard();
-        render(<TaskCardItem card={card} onClick={onClick} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={card} onClick={onClick} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         const cardEl = screen.getByTestId("task-card-1");
         // MUI's Paper always emits its own `--Paper-shadow` custom property inline, so the whole
@@ -232,9 +232,9 @@ describe("TaskCardItem", () => {
         expect(onClick).toHaveBeenCalledWith(card);
     });
 
-    it("a tap on the three-dots menu button opens the priority menu, not the drawer, with real drag handlers wired (review-feedback-ST5.md Issue 2)", () => {
+    it("a tap on the three-dots menu button opens the card menu, not the drawer, with real drag handlers wired (review-feedback-ST5.md Issue 2)", () => {
         const onClick = jest.fn();
-        const onChangePriority = jest.fn();
+        const onRequestEdit = jest.fn();
         const onDrop = jest.fn();
         const card = makeCard();
 
@@ -249,7 +249,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={card}
                     onClick={onClick}
-                    onChangePriority={onChangePriority}
+                    onRequestEdit={onRequestEdit}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
                     isExpanded={true}
@@ -271,15 +271,13 @@ describe("TaskCardItem", () => {
         // pointer capture on the card in the first place — which is what would let Pointer Events
         // L3 (Chromium) retarget the trailing click away from the button on a real device.
         expect(setPointerCaptureMock).not.toHaveBeenCalled();
-        expect(screen.getByText("Green")).toBeTruthy();
-        expect(screen.getByText("Yellow")).toBeTruthy();
-        expect(screen.getByText("Red")).toBeTruthy();
+        expect(screen.getByTestId("task-card-edit-1")).toBeTruthy();
         expect(onClick).not.toHaveBeenCalled();
     });
 
-    it("a tap on a priority option inside the portalled menu changes priority and does not open the drawer (review-feedback-ST5.md iteration 2 Issue 1)", () => {
+    it("a tap on the Edit option inside the portalled menu calls onRequestEdit and does not open the drawer (review-feedback-ST5.md iteration 2 Issue 1)", () => {
         const onClick = jest.fn();
-        const onChangePriority = jest.fn();
+        const onRequestEdit = jest.fn();
         const onDrop = jest.fn();
         const card = makeCard();
 
@@ -292,7 +290,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={card}
                     onClick={onClick}
-                    onChangePriority={onChangePriority}
+                    onRequestEdit={onRequestEdit}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
                     isExpanded={true}
@@ -307,23 +305,23 @@ describe("TaskCardItem", () => {
         // MUI's `Menu` is portalled to `document.body` but stays a REACT descendant of the card, so
         // this drives the exact real-device sequence: pointerdown -> pointerup -> click, landing on
         // a `MenuItem` (`role="menuitem"`) rather than the three-dots button this time.
-        const greenOption = screen.getByRole("menuitem", { name: "Green" });
-        fireEvent.pointerDown(greenOption, { pointerId: 3, clientX: 15, clientY: 15, button: 0 });
-        fireEvent.pointerUp(greenOption, { pointerId: 3, clientX: 15, clientY: 15, button: 0 });
-        fireEvent.click(greenOption);
+        const editOption = screen.getByRole("menuitem", { name: "Edit" });
+        fireEvent.pointerDown(editOption, { pointerId: 3, clientX: 15, clientY: 15, button: 0 });
+        fireEvent.pointerUp(editOption, { pointerId: 3, clientX: 15, clientY: 15, button: 0 });
+        fireEvent.click(editOption);
 
         // Decisive, environment-independent proof (jsdom does not implement the browser's
         // click-retargeting-under-capture behaviour): pointerdown on the menu item must never take
         // pointer capture on the card, or a real device would retarget the trailing click away from
         // the `MenuItem` and onto the card.
         expect(setPointerCaptureMock).not.toHaveBeenCalled();
-        expect(onChangePriority).toHaveBeenCalledWith(card.id, "GREEN");
+        expect(onRequestEdit).toHaveBeenCalledWith(card);
         expect(onClick).not.toHaveBeenCalled();
     });
 
     it("a tap on the menu's backdrop does not take pointer capture on the card or open the drawer (review-feedback-ST5.md iteration 2 Issue 1)", () => {
         const onClick = jest.fn();
-        const onChangePriority = jest.fn();
+        const onRequestEdit = jest.fn();
         const onDrop = jest.fn();
         const card = makeCard();
 
@@ -336,7 +334,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={card}
                     onClick={onClick}
-                    onChangePriority={onChangePriority}
+                    onRequestEdit={onRequestEdit}
                     getDragHandlers={getDragHandlers}
                     today={TODAY}
                     isExpanded={true}
@@ -346,7 +344,7 @@ describe("TaskCardItem", () => {
 
         render(<Wrapper />);
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
-        expect(screen.getByText("Green")).toBeTruthy();
+        expect(screen.getByTestId("task-card-edit-1")).toBeTruthy();
 
         const backdrop = document.querySelector<HTMLElement>(".MuiBackdrop-root");
         if (!backdrop) throw new Error("expected the Menu's Modal backdrop to be in the document");
@@ -361,7 +359,48 @@ describe("TaskCardItem", () => {
         // reached the card underneath.
         expect(setPointerCaptureMock).not.toHaveBeenCalled();
         expect(onClick).not.toHaveBeenCalled();
-        expect(onChangePriority).not.toHaveBeenCalled();
+        expect(onRequestEdit).not.toHaveBeenCalled();
+    });
+
+    it("a tap on a description link chip does not take pointer capture on the card or open the drawer, with real drag handlers wired (review-feedback-D.md Issue 1)", () => {
+        const onClick = jest.fn();
+        const onDrop = jest.fn();
+        const card = makeCard({ description: "See https://example.com/vendor for details" });
+
+        const setPointerCaptureMock = jest.fn<void, [number]>();
+        Element.prototype.setPointerCapture = setPointerCaptureMock;
+
+        function Wrapper(): JSX.Element {
+            const { getDragHandlers } = useCardDrag({ onDrop });
+            return (
+                <TaskCardItem
+                    card={card}
+                    onClick={onClick}
+                    onRequestEdit={jest.fn()}
+                    getDragHandlers={getDragHandlers}
+                    today={TODAY}
+                    isExpanded={true}
+                />
+            );
+        }
+
+        render(<Wrapper />);
+        const link = screen.getByRole("link");
+
+        // Full gesture: pointerdown -> pointerup -> click, exactly what a real tap on the chip
+        // dispatches.
+        fireEvent.pointerDown(link, { pointerId: 5, clientX: 20, clientY: 20, button: 0 });
+        fireEvent.pointerUp(link, { pointerId: 5, clientX: 20, clientY: 20, button: 0 });
+        fireEvent.click(link);
+
+        // Decisive, environment-independent proof (jsdom does not implement the browser's
+        // click-retargeting-under-capture behaviour): pointerdown on the link chip must never
+        // take pointer capture on the card, or a real device would retarget the trailing click
+        // away from the anchor and onto the card -- which is exactly what would stop the chip's
+        // own onClick/stopPropagation from ever running and open the drawer instead of following
+        // the link (review-feedback-D.md Issue 1).
+        expect(setPointerCaptureMock).not.toHaveBeenCalled();
+        expect(onClick).not.toHaveBeenCalled();
     });
 
     it("renders the deadline as DD.MM.YYYY when the card has one", () => {
@@ -369,7 +408,7 @@ describe("TaskCardItem", () => {
             <TaskCardItem
                 card={makeCard({ deadline: "2026-08-25" })}
                 onClick={jest.fn()}
-                onChangePriority={jest.fn()}
+                onRequestEdit={jest.fn()}
                 today={TODAY}
                 isExpanded={true}
             />
@@ -379,7 +418,7 @@ describe("TaskCardItem", () => {
     });
 
     it("omits the deadline line when the card has none", () => {
-        render(<TaskCardItem card={makeCard({ deadline: null })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />);
+        render(<TaskCardItem card={makeCard({ deadline: null })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />);
 
         expect(screen.queryByTestId("task-card-deadline-1")).toBeNull();
     });
@@ -389,7 +428,7 @@ describe("TaskCardItem", () => {
             <TaskCardItem
                 card={makeCard({ deadline: "2026-08-18" })}
                 onClick={jest.fn()}
-                onChangePriority={jest.fn()}
+                onRequestEdit={jest.fn()}
                 today={TODAY}
                 isExpanded={true}
             />
@@ -401,7 +440,7 @@ describe("TaskCardItem", () => {
 
     it("does not paint the overdue background when the deadline is today", () => {
         render(
-            <TaskCardItem card={makeCard({ deadline: TODAY })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+            <TaskCardItem card={makeCard({ deadline: TODAY })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />
         );
 
         const card = screen.getByTestId("task-card-1");
@@ -410,12 +449,12 @@ describe("TaskCardItem", () => {
 
     it("renders the photo thumb only when the card has an image", () => {
         const { rerender } = render(
-            <TaskCardItem card={makeCard({ hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+            <TaskCardItem card={makeCard({ hasImage: false })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />
         );
         expect(screen.queryByTestId("task-image-thumb-1")).toBeNull();
 
         rerender(
-            <TaskCardItem card={makeCard({ hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+            <TaskCardItem card={makeCard({ hasImage: true })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />
         );
         expect(screen.getByTestId("task-image-thumb-1")).toBeTruthy();
     });
@@ -436,7 +475,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ deadline: null, hasImage: false })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -450,7 +489,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ deadline: "2026-08-25", hasImage: false })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -465,7 +504,7 @@ describe("TaskCardItem", () => {
                 <TaskCardItem
                     card={makeCard({ deadline: null, hasImage: true })}
                     onClick={jest.fn()}
-                    onChangePriority={jest.fn()}
+                    onRequestEdit={jest.fn()}
                     today={TODAY}
                     isExpanded={true}
                 />
@@ -476,12 +515,12 @@ describe("TaskCardItem", () => {
 
         it("renders the title exactly once in either layout", () => {
             const { rerender } = render(
-                <TaskCardItem card={makeCard({ deadline: null, hasImage: false })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+                <TaskCardItem card={makeCard({ deadline: null, hasImage: false })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />
             );
             expect(screen.getAllByText("Restock mozzarella")).toHaveLength(1);
 
             rerender(
-                <TaskCardItem card={makeCard({ deadline: "2026-08-25", hasImage: true })} onClick={jest.fn()} onChangePriority={jest.fn()} today={TODAY} isExpanded={true} />
+                <TaskCardItem card={makeCard({ deadline: "2026-08-25", hasImage: true })} onClick={jest.fn()} onRequestEdit={jest.fn()} today={TODAY} isExpanded={true} />
             );
             expect(screen.getAllByText("Restock mozzarella")).toHaveLength(1);
         });

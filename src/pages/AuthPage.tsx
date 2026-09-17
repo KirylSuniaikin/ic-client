@@ -26,7 +26,12 @@ export function AuthPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const from = location.state?.from?.pathname || '/admin';
+    // ProtectedRoute passes the FULL location (including `.search`) into state.from when it
+    // redirects here -- navigate with both pathname and search, or a Telegram deep link's
+    // ?taskCardId=... query string is silently dropped on the way back to /admin.
+    const from = location.state?.from;
+    const fromPathname = from?.pathname || '/admin';
+    const fromSearch = from?.search || '';
 
 
     const logoImg = require('../assets/logo.png');
@@ -50,7 +55,7 @@ export function AuthPage() {
 
             localStorage.setItem("jwt_token", data.token);
 
-            navigate(from, {replace: true});
+            navigate({ pathname: fromPathname, search: fromSearch }, {replace: true});
         } catch (e) {
             setErrorMessage(e.message ? e.message : errorMessage);
             setErrorSnackBarOpen(true);

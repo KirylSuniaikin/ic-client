@@ -50,6 +50,7 @@ import type {
     EditTaskCardPayload,
     MoveTaskCardPayload,
     TaskCard,
+    TaskCardAttachmentMeta,
     TaskCardImageMetaTO
 } from '../../domains/management/tasks/types';
 import type {
@@ -532,6 +533,40 @@ export async function getCurrentStaff(): Promise<CurrentStaffTO> {
     return res.json();
 }
 
+// GET /api/staff/telegram-bot-username -- same normal staff auth as the other /api/staff calls.
+// Fetched once by AccountManagerScreen on mount (not per-row) so the connect link
+// (https://t.me/{botUsername}?start={token}) can be built for every row without a fetch each --
+// the token itself is minted per-row, on demand, by generateTelegramConnectToken below.
+export type TelegramBotUsernameResponse = {
+    botUsername: string;
+};
+
+export async function fetchTelegramBotUsername(): Promise<TelegramBotUsernameResponse> {
+    const res = await authFetch(BASE_URL + `/staff/telegram-bot-username`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// POST /api/staff/{id}/telegram-connect-token -- mints a single-use, expiring token for the
+// "/start {token}" deep link, replacing the old client-built "/start {staffId}" link (a raw,
+// guessable sequential id anyone could message the public bot with to hijack another staff
+// member's notification channel). This is the only endpoint that ever returns the raw token.
+export type TelegramConnectTokenResponse = {
+    token: string;
+};
+
+export async function generateTelegramConnectToken(staffId: number): Promise<TelegramConnectTokenResponse> {
+    const res = await authFetch(BASE_URL + `/staff/${staffId}/telegram-connect-token`, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
 export async function initiateAuth(authRequest: AuthRequest): Promise<Response> {
     return await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
@@ -763,6 +798,54 @@ export async function fetchTaskCardImage(id: number): Promise<Blob | null> {
 
 export async function deleteTaskCardImage(id: number): Promise<void> {
     const res = await authFetch(BASE_URL + `/tasks/${id}/image`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+}
+
+export async function uploadTaskCardAttachment(cardId: number, file: File): Promise<TaskCardAttachmentMeta> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/tasks/${cardId}/attachments`, {
+        method: "POST",
+        // No Content-Type header: same reasoning as uploadTaskCardImage above — the browser must
+        // generate the multipart/form-data boundary itself from the FormData body.
+        body: formData,
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchTaskCardAttachments(cardId: number): Promise<TaskCardAttachmentMeta[]> {
+    const res = await authFetch(BASE_URL + `/tasks/${cardId}/attachments`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// Fetches the raw bytes and drives a browser download from them, rather than returning the blob
+// for the caller to handle — every caller in this codebase wants the same "save this file" result,
+// so the object-URL/temporary-<a>/revoke dance lives once here instead of once per call site.
+export async function downloadTaskCardAttachment(cardId: number, attachmentId: number, filename: string): Promise<void> {
+    const res = await authFetch(BASE_URL + `/tasks/${cardId}/attachments/${attachmentId}`, {
+        method: "GET",
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+}
+
+export async function deleteTaskCardAttachment(cardId: number, attachmentId: number): Promise<void> {
+    const res = await authFetch(BASE_URL + `/tasks/${cardId}/attachments/${attachmentId}`, {
         method: "DELETE",
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);

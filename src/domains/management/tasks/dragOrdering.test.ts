@@ -97,6 +97,50 @@ describe("computeReorder", () => {
         const doing = result.filter(c => c.status === "DOING").sort((a, b) => a.position - b.position);
         expect(doing.map(c => c.id)).toEqual([1, 2]);
     });
+
+    it("cross-column move into BLOCKED updates status and renumbers both affected columns", () => {
+        const cards = [
+            makeCard({ id: 1, status: "BACKLOG", position: 0 }),
+            makeCard({ id: 2, status: "BACKLOG", position: 1 }),
+            makeCard({ id: 3, status: "BLOCKED", position: 0 }),
+        ];
+
+        const result = computeReorder(cards, 1, "BLOCKED", 0);
+
+        const moved = result.find(c => c.id === 1);
+        expect(moved?.status).toBe("BLOCKED");
+        expect(moved?.position).toBe(0);
+
+        const blocked = result.filter(c => c.status === "BLOCKED").sort((a, b) => a.position - b.position);
+        expect(blocked.map(c => c.id)).toEqual([1, 3]);
+        expect(blocked.map(c => c.position)).toEqual([0, 1]);
+
+        const backlog = result.filter(c => c.status === "BACKLOG").sort((a, b) => a.position - b.position);
+        expect(backlog.map(c => c.id)).toEqual([2]);
+        expect(backlog.map(c => c.position)).toEqual([0]);
+    });
+
+    it("cross-column move out of BLOCKED updates status and renumbers both affected columns", () => {
+        const cards = [
+            makeCard({ id: 1, status: "BLOCKED", position: 0 }),
+            makeCard({ id: 2, status: "BLOCKED", position: 1 }),
+            makeCard({ id: 3, status: "DOING", position: 0 }),
+        ];
+
+        const result = computeReorder(cards, 1, "DOING", 0);
+
+        const moved = result.find(c => c.id === 1);
+        expect(moved?.status).toBe("DOING");
+        expect(moved?.position).toBe(0);
+
+        const doing = result.filter(c => c.status === "DOING").sort((a, b) => a.position - b.position);
+        expect(doing.map(c => c.id)).toEqual([1, 3]);
+        expect(doing.map(c => c.position)).toEqual([0, 1]);
+
+        const blocked = result.filter(c => c.status === "BLOCKED").sort((a, b) => a.position - b.position);
+        expect(blocked.map(c => c.id)).toEqual([2]);
+        expect(blocked.map(c => c.position)).toEqual([0]);
+    });
 });
 
 describe("resolveDropTarget", () => {
@@ -163,5 +207,21 @@ describe("resolveDropTarget", () => {
         // Point at y=260 is below both => index 2.
         const result = resolveDropTarget(columns, { x: 10, y: 260 }, 2);
         expect(result).toEqual({ status: "BACKLOG", index: 2 });
+    });
+
+    it("resolves a drop into a BLOCKED column", () => {
+        const blockedColumn: ColumnGeometry = {
+            status: "BLOCKED" as TaskCardStatus,
+            rect: rect(0, 1000, 300, 600),
+            cardRects: [
+                { id: 4, rect: rect(0, 100, 300, 600) },
+                { id: 5, rect: rect(100, 200, 300, 600) },
+            ],
+        };
+        const columns = [backlogColumn([]), blockedColumn];
+
+        // Point inside the BLOCKED column's rect, below both cards' midpoints (50, 150) => index 2.
+        const result = resolveDropTarget(columns, { x: 400, y: 999 }, null);
+        expect(result).toEqual({ status: "BLOCKED", index: 2 });
     });
 });

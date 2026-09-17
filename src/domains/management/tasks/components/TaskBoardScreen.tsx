@@ -10,11 +10,24 @@ import TaskBoardPanel from "./TaskBoardPanel";
 
 export interface TaskBoardScreenProps {
     role: StaffRoles | null;
+    /**
+     * One-shot deep-link target from a Telegram-clicked link (task-spec.md Sub-task D3). Threaded
+     * straight through to TaskBoardPanel, which owns opening it once its board has loaded.
+     */
+    autoOpenCardId?: number;
+    /**
+     * OWNER-sidebar-only: seeds `selectedOwnerId` so the deep link lands on the assignee's board
+     * instead of the caller's own. Irrelevant for a MANAGER/SUPER_MANAGER, whose own board is
+     * already what they land on with no owner-selection step -- no special-casing needed for them.
+     */
+    autoOpenAssigneeId?: number;
+    /** Fired once the deep-link target has been handled, so the caller can strip the query params. */
+    onAutoOpenHandled?: () => void;
 }
 
 // Composes the OWNER-only sidebar with the existing TaskBoardPanel (ST4). Does not
 // touch TaskBoardPanel/TaskColumn/TaskCardItem/etc — those are ST5's territory next.
-export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Element {
+export default function TaskBoardScreen({ role, autoOpenCardId, autoOpenAssigneeId, onAutoOpenHandled }: TaskBoardScreenProps): JSX.Element {
     const isOwner = role === StaffRoles.OWNER;
     // Called unconditionally (Rules of Hooks) and no-ops internally when disabled.
     const { owners, loading, error } = useBoardOwners(isOwner);
@@ -22,7 +35,12 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-    const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(null);
+    // Lazily seeded from `autoOpenAssigneeId` (rather than seeded later by the effect below) so
+    // TaskBoardPanel's very FIRST fetch already targets the deep-linked assignee's board instead
+    // of the caller's own -- otherwise TaskBoardPanel's "the id never resolved" detection
+    // (review-feedback-D.md Issue 3) could fire off the caller's own board, before this effect
+    // ever gets a chance to seed the right owner.
+    const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(autoOpenAssigneeId ?? null);
     // Expanded, the sidebar takes ~230px — on a phone that leaves the board barely half the screen.
     // Initial value only: once toggled, the choice is the user's for the rest of the session.
     const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -47,12 +65,13 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     );
 
     // Display default only: owners[0] is always the caller (server-pinned), so this is
-    // functionally identical to leaving selectedOwnerId unset.
+    // functionally identical to leaving selectedOwnerId unset -- UNLESS a deep link named a
+    // specific assignee, in which case that board is what the click was meant to land on.
     useEffect(() => {
         if (owners.length > 0 && selectedOwnerId === null) {
-            setSelectedOwnerId(owners[0].id);
+            setSelectedOwnerId(autoOpenAssigneeId ?? owners[0].id);
         }
-    }, [owners, selectedOwnerId]);
+    }, [owners, selectedOwnerId, autoOpenAssigneeId]);
 
     const selectedOwnerLabel = ownersWithCounts.find(owner => owner.id === selectedOwnerId);
     const ownerLabel = selectedOwnerLabel ? shortStaffName(staffDisplayName(selectedOwnerLabel)) : undefined;
@@ -63,7 +82,7 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
     }, [error]);
 
     if (!isOwner) {
-        return <TaskBoardPanel />;
+        return <TaskBoardPanel autoOpenCardId={autoOpenCardId} onAutoOpenHandled={onAutoOpenHandled} />;
     }
 
     return (
@@ -83,6 +102,8 @@ export default function TaskBoardScreen({ role }: TaskBoardScreenProps): JSX.Ele
                     ownerId={selectedOwnerId ?? undefined}
                     onOpenCardCountChange={handleOpenCardCountChange}
                     ownerLabel={ownerLabel}
+                    autoOpenCardId={autoOpenCardId}
+                    onAutoOpenHandled={onAutoOpenHandled}
                 />
             </Box>
             <ErrorSnackbar

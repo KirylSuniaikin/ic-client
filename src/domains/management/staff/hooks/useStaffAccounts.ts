@@ -68,6 +68,9 @@ export function useStaffAccounts(branchId?: string): UseStaffAccountsResult {
             basicSalary: null,
             housingAllowance: null,
             transportAllowance: null,
+            // A freshly hired account has never linked Telegram; only the bot's /start deep link
+            // can flip this.
+            telegramConnected: false,
         }]);
         return hired;
     }, []);

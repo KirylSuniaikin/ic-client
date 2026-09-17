@@ -9,16 +9,19 @@ import type { UseBoardOwnersResult } from "../hooks/useBoardOwners";
 // through) can be asserted without depending on TaskBoardPanel's internals -- that
 // component already has its own dedicated TaskBoardPanel.test.tsx. Echoes ownerId
 // into a data attribute so tests can assert its value across re-renders.
-function mockTaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel }: {
+function mockTaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel, autoOpenCardId, onAutoOpenHandled }: {
     ownerId?: number | null;
     onOpenCardCountChange?: (ownerId: number | null, openCardCount: number) => void;
     ownerLabel?: string;
+    autoOpenCardId?: number;
+    onAutoOpenHandled?: () => void;
 }): JSX.Element {
     return (
         <div
             data-testid="task-board-panel"
             data-owner-id={ownerId === undefined || ownerId === null ? "" : String(ownerId)}
             data-owner-label={ownerLabel ?? ""}
+            data-auto-open-card-id={autoOpenCardId === undefined ? "" : String(autoOpenCardId)}
         >
             {/* Stands in for the real panel's effect: a card was added/moved/deleted and the board
                 now holds this many unfinished cards. */}
@@ -26,6 +29,7 @@ function mockTaskBoardPanel({ ownerId, onOpenCardCountChange, ownerLabel }: {
                 data-testid="panel-reports-4-open-cards"
                 onClick={(): void => onOpenCardCountChange?.(ownerId ?? null, 4)}
             />
+            <button data-testid="panel-reports-auto-open-handled" onClick={(): void => onAutoOpenHandled?.()} />
         </div>
     );
 }
@@ -336,5 +340,46 @@ describe("TaskBoardScreen", () => {
 
         expect(screen.getByText("HTTP 500")).toBeTruthy();
         expect(getOwnerId()).toBe("");
+    });
+
+    // task-spec.md Sub-task D3: threading the one-shot deep-link target through to TaskBoardPanel.
+    describe("deep-link auto-open props", () => {
+        it("role=MANAGER: passes autoOpenCardId and onAutoOpenHandled straight through on the non-owner path", () => {
+            const onAutoOpenHandled = jest.fn();
+
+            render(<TaskBoardScreen role={StaffRoles.MANAGER} autoOpenCardId={42} onAutoOpenHandled={onAutoOpenHandled} />);
+
+            expect(screen.getByTestId("task-board-panel").getAttribute("data-auto-open-card-id")).toBe("42");
+
+            fireEvent.click(screen.getByTestId("panel-reports-auto-open-handled"));
+            expect(onAutoOpenHandled).toHaveBeenCalledTimes(1);
+        });
+
+        it("role=OWNER: passes autoOpenCardId through once an owner is selected", async () => {
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners: [makeOwner({ id: 12 })] }));
+
+            render(<TaskBoardScreen role={StaffRoles.OWNER} autoOpenCardId={42} />);
+
+            await waitFor(() => {
+                expect(screen.getByTestId("task-board-panel").getAttribute("data-auto-open-card-id")).toBe("42");
+            });
+        });
+
+        it("role=OWNER: seeds selectedOwnerId from autoOpenAssigneeId instead of the first owner", async () => {
+            const owners = [makeOwner({ id: 12 }), makeOwner({ id: 4, username: "casey.manager", role: StaffRoles.MANAGER })];
+            mockUseBoardOwners.mockReturnValue(boardOwnersValue({ owners }));
+
+            render(<TaskBoardScreen role={StaffRoles.OWNER} autoOpenAssigneeId={4} />);
+
+            await waitFor(() => {
+                expect(getOwnerId()).toBe("4");
+            });
+        });
+
+        it("role=MANAGER: autoOpenAssigneeId is irrelevant on the non-owner path (no owner-selection step to seed)", () => {
+            render(<TaskBoardScreen role={StaffRoles.MANAGER} autoOpenAssigneeId={4} />);
+
+            expect(getOwnerId()).toBe("");
+        });
     });
 });

@@ -1,30 +1,18 @@
-// Assumed: §5.5's TaskCardMenuProps (priority/disabled/onSelect) omits a card identifier,
-// but §5.6 requires the trigger button's testid to be `task-card-menu-button-${card.id}`.
-// Adding a required `cardId` prop is the simplest reconciliation — it does not change the
-// menu's public behavior contract, only lets it compose the id-scoped testid.
+// Priority is edited via the card's edit drawer, not this menu — see EditOutlinedIcon item below.
 import React, { useState } from "react";
 import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Divider } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import type { TaskCardPriority } from "../types";
-import { TASK_CARD_PRIORITY_COLORS } from "../types";
 
 export interface TaskCardMenuProps {
     cardId: number;
-    priority: TaskCardPriority;
     disabled?: boolean;
-    onSelect: (priority: TaskCardPriority) => void;
+    onEdit: () => void;
     onDelete?: () => void; // omitted = no Delete entry (the card popup still offers one)
 }
 
-const PRIORITY_OPTIONS: { value: TaskCardPriority; label: string }[] = [
-    { value: "GREEN", label: "Green" },
-    { value: "YELLOW", label: "Yellow" },
-    { value: "RED", label: "Red" },
-];
-
-export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: TaskCardMenuProps): JSX.Element {
+export default function TaskCardMenu({ cardId, disabled, onEdit, onDelete }: TaskCardMenuProps): JSX.Element {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const open = Boolean(anchorEl);
 
@@ -38,10 +26,10 @@ export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: T
         setAnchorEl(null);
     };
 
-    const handleSelect = (event: React.MouseEvent<HTMLElement>, value: TaskCardPriority): void => {
+    const handleEdit = (event: React.MouseEvent<HTMLElement>): void => {
         event.stopPropagation();
-        onSelect(value);
         setAnchorEl(null);
+        onEdit();
     };
 
     const handleDelete = (event: React.MouseEvent<HTMLElement>): void => {
@@ -57,7 +45,7 @@ export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: T
                 size="small"
                 disabled={disabled}
                 onClick={handleOpen}
-                aria-label="Change priority"
+                aria-label="Card actions"
             >
                 <MoreVertIcon fontSize="small" />
             </IconButton>
@@ -88,14 +76,12 @@ export default function TaskCardMenu({ cardId, disabled, onSelect, onDelete }: T
                     },
                 }}
             >
-                {PRIORITY_OPTIONS.map(option => (
-                    <MenuItem key={option.value} onClick={(e): void => handleSelect(e, option.value)}>
-                        <ListItemIcon>
-                            <FiberManualRecordIcon fontSize="small" sx={{ color: TASK_CARD_PRIORITY_COLORS[option.value] }} />
-                        </ListItemIcon>
-                        <ListItemText>{option.label}</ListItemText>
-                    </MenuItem>
-                ))}
+                <MenuItem data-testid={`task-card-edit-${cardId}`} onClick={handleEdit}>
+                    <ListItemIcon>
+                        <EditOutlinedIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Edit</ListItemText>
+                </MenuItem>
                 {onDelete && <Divider />}
                 {onDelete && (
                     <MenuItem data-testid={`task-card-delete-${cardId}`} onClick={handleDelete} sx={{ color: "error.main" }}>

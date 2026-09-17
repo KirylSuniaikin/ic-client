@@ -1,6 +1,6 @@
 import type { StaffRoles } from '../../auth/types';
 
-export type TaskCardStatus = 'BACKLOG' | 'DOING' | 'DONE';
+export type TaskCardStatus = 'BACKLOG' | 'BLOCKED' | 'DOING' | 'DONE';
 export type TaskCardPriority = 'GREEN' | 'YELLOW' | 'RED';
 
 export type TaskCard = {
@@ -49,10 +49,21 @@ export type TaskCardImageMetaTO = {
     sizeBytes: number;
 };
 
-export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['BACKLOG', 'DOING', 'DONE'];
+/** Metadata returned by the task-card attachment endpoints. The bytes are never inlined in JSON. */
+export type TaskCardAttachmentMeta = {
+    id: number;
+    taskCardId: number;
+    filename: string;
+    contentType: string;
+    sizeBytes: number;
+    createdAt: string;
+};
+
+export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['BACKLOG', 'BLOCKED', 'DOING', 'DONE'];
 
 export const TASK_CARD_STATUS_LABELS: Record<TaskCardStatus, string> = {
     BACKLOG: 'Backlog',
+    BLOCKED: 'Blocked',
     DOING: 'Doing',
     DONE: 'Done',
 };

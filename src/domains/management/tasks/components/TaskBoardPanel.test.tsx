@@ -16,14 +16,22 @@ jest.mock("../hooks/useTaskBoard");
 // which already have their own dedicated useCardDrag.test.ts.
 jest.mock("../hooks/useCardDrag");
 
+// TaskCardDrawer itself is NOT mocked (it is the real component under test here), and its
+// TaskCardAttachmentsField now fetches on mount for any real card id, in every mode — so
+// shared/api/management must be mocked or every test that opens the drawer for an existing card
+// would hit a real, unmocked fetch().
+jest.mock("../../../../shared/api/management");
+
 import { useTaskBoard } from "../hooks/useTaskBoard";
 import { useCardDrag } from "../hooks/useCardDrag";
 import type { UseCardDragOptions } from "../hooks/useCardDrag";
+import { fetchTaskCardAttachments } from "../../../../shared/api/management";
 import TaskBoardPanel from "./TaskBoardPanel";
 import { composeTaskDescription } from "../descriptionBlocks";
 
 const mockUseTaskBoard = jest.mocked(useTaskBoard);
 const mockUseCardDrag = jest.mocked(useCardDrag);
+const mockFetchTaskCardAttachments = jest.mocked(fetchTaskCardAttachments);
 
 function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
     return {
@@ -45,7 +53,7 @@ function makeCard(overrides: Partial<TaskCard> = {}): TaskCard {
 function taskBoardValue(overrides: Partial<UseTaskBoardResult> = {}): UseTaskBoardResult {
     return {
         cards: [],
-        cardsByStatus: { BACKLOG: [], DOING: [], DONE: [] },
+        cardsByStatus: { BACKLOG: [], BLOCKED: [], DOING: [], DONE: [] },
         loading: false,
         error: null,
         mutating: false,
@@ -54,7 +62,7 @@ function taskBoardValue(overrides: Partial<UseTaskBoardResult> = {}): UseTaskBoa
         // to the same value passed as the ownerId prop.
         loadedOwnerId: null,
         refetch: jest.fn(async () => undefined),
-        createCard: jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true),
+        createCard: jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true),
         editCard: jest.fn<Promise<boolean>, [number, EditTaskCardPayload, PhotoPatch?]>().mockResolvedValue(true),
         changePriority: jest.fn<Promise<boolean>, [number, TaskCardPriority]>().mockResolvedValue(true),
         deleteCard: jest.fn<Promise<boolean>, [number]>().mockResolvedValue(true),
@@ -72,35 +80,48 @@ describe("TaskBoardPanel", () => {
         mockUseTaskBoard.mockReturnValue(taskBoardValue());
         mockUseCardDrag.mockImplementation((options: UseCardDragOptions) => {
             capturedOnDrop = options.onDrop;
-            return { getDragHandlers: jest.fn() };
+            return { getDragHandlers: jest.fn(), dropTarget: null };
         });
+        // Default: no attachments — nothing in this file exercises TaskCardAttachmentsField's own
+        // behaviour (that lives in TaskCardAttachmentsField.test.tsx); this just keeps the drawer's
+        // real fetch-on-mount from hitting an unmocked network call.
+        mockFetchTaskCardAttachments.mockResolvedValue([]);
     });
 
     it("renders with no props at all without throwing", () => {
         expect(() => render(<TaskBoardPanel />)).not.toThrow();
     });
 
-    it("renders exactly 3 columns with cards routed to the right column", () => {
+    it("renders all 4 columns, in BACKLOG, BLOCKED, DOING, DONE order, with cards routed to the right column", () => {
         const cards = [
             makeCard({ id: 1, status: "BACKLOG" }),
             makeCard({ id: 2, status: "DOING", title: "In progress task" }),
             makeCard({ id: 3, status: "DONE", title: "Finished task" }),
+            makeCard({ id: 4, status: "BLOCKED", title: "Blocked task" }),
         ];
         mockUseTaskBoard.mockReturnValue(
             taskBoardValue({
                 cards,
-                cardsByStatus: { BACKLOG: [cards[0]], DOING: [cards[1]], DONE: [cards[2]] },
+                cardsByStatus: { BACKLOG: [cards[0]], BLOCKED: [cards[3]], DOING: [cards[1]], DONE: [cards[2]] },
             })
         );
 
         render(<TaskBoardPanel />);
 
         expect(screen.getByTestId("task-column-BACKLOG")).toBeTruthy();
+        expect(screen.getByTestId("task-column-BLOCKED")).toBeTruthy();
         expect(screen.getByTestId("task-column-DOING")).toBeTruthy();
         expect(screen.getByTestId("task-column-DONE")).toBeTruthy();
+        expect(screen.getByTestId("task-board-add-button-BLOCKED")).toBeTruthy();
         expect(screen.getByTestId("task-card-1")).toBeTruthy();
         expect(screen.getByTestId("task-card-2")).toBeTruthy();
         expect(screen.getByTestId("task-card-3")).toBeTruthy();
+        expect(screen.getByTestId("task-card-4")).toBeTruthy();
+
+        // TASK_CARD_STATUSES' order is the board's left-to-right column order: BLOCKED sits
+        // between BACKLOG and DOING.
+        const columnTestIds = screen.getAllByTestId(/^task-column-[A-Z]+$/).map(el => el.getAttribute("data-testid"));
+        expect(columnTestIds).toEqual(["task-column-BACKLOG", "task-column-BLOCKED", "task-column-DOING", "task-column-DONE"]);
     });
 
     it("shows the loading indicator while loading and no cards yet", () => {
@@ -115,7 +136,7 @@ describe("TaskBoardPanel", () => {
     it("clicking a card opens the drawer in 'view' mode with that card's data", () => {
         const card = makeCard({ description: "Buy more cheese" });
         mockUseTaskBoard.mockReturnValue(
-            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
         );
 
         render(<TaskBoardPanel />);
@@ -141,7 +162,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("every column has its own Add button, and each creates in that column", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -155,12 +176,32 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }), null);
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ status: "DOING" }), null, []);
+        });
+    });
+
+    it("picking files in create mode forwards them through to board.createCard as pendingAttachments", async () => {
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
+        mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByTestId("task-board-add-button-BACKLOG"));
+        fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+
+        const file = new File(["hello"], "readme.txt", { type: "text/plain" });
+        fireEvent.change(screen.getByTestId("task-attachments-input-new"), { target: { files: [file] } });
+        await waitFor(() => expect(screen.getByText("readme.txt")).toBeTruthy());
+
+        fireEvent.click(screen.getByText("Save"));
+
+        await waitFor(() => {
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ title: "New task" }), null, [file]);
         });
     });
 
     it("filling the four-block description form composes them into one string via composeTaskDescription for createCard", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -183,13 +224,14 @@ describe("TaskBoardPanel", () => {
         await waitFor(() => {
             expect(createCard).toHaveBeenCalledWith(
                 expect.objectContaining({ title: "New task", description: expectedDescription }),
-                null
+                null,
+                []
             );
         });
     });
 
     it("submits description: null when all four blocks are left blank", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -199,7 +241,7 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ description: null }), null);
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ description: null }), null, []);
         });
     });
 
@@ -207,7 +249,7 @@ describe("TaskBoardPanel", () => {
         const card = makeCard();
         const editCard = jest.fn<Promise<boolean>, [number, EditTaskCardPayload, PhotoPatch?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(
-            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] }, editCard })
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] }, editCard })
         );
 
         render(<TaskBoardPanel />);
@@ -249,7 +291,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("a failed createCard leaves the drawer open and shows ErrorSnackbar", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(false);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(false);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard, error: "HTTP 400" }));
 
         render(<TaskBoardPanel />);
@@ -269,7 +311,7 @@ describe("TaskBoardPanel", () => {
     it("a successful editCard closes the drawer", async () => {
         const card = makeCard();
         mockUseTaskBoard.mockReturnValue(
-            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
         );
 
         render(<TaskBoardPanel />);
@@ -287,7 +329,7 @@ describe("TaskBoardPanel", () => {
         const card = makeCard();
         const deleteCard = jest.fn<Promise<boolean>, [number]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(
-            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] }, deleteCard })
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] }, deleteCard })
         );
 
         render(<TaskBoardPanel />);
@@ -314,7 +356,7 @@ describe("TaskBoardPanel", () => {
         const card = makeCard({ id: 42 });
         const deleteCard = jest.fn<Promise<boolean>, [number]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(
-            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] }, deleteCard })
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] }, deleteCard })
         );
 
         render(<TaskBoardPanel />);
@@ -332,13 +374,30 @@ describe("TaskBoardPanel", () => {
         });
     });
 
+    it("editing from the card's three-dots menu opens the drawer directly in edit mode, without the view-mode step", () => {
+        const card = makeCard({ id: 42, title: "Restock mozzarella" });
+        mockUseTaskBoard.mockReturnValue(
+            taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
+        );
+
+        render(<TaskBoardPanel />);
+
+        fireEvent.click(screen.getByTestId("task-card-menu-button-42"));
+        fireEvent.click(screen.getByTestId("task-card-edit-42"));
+
+        // "Edit Task" is the drawer's edit-mode-only header; the view-mode "Edit" button never
+        // rendering at all is what proves this skipped the view-mode step entirely.
+        expect(screen.getByText("Edit Task")).toBeTruthy();
+        expect(screen.getByDisplayValue("Restock mozzarella")).toBeTruthy();
+    });
+
     it("a failed deleteCard leaves the dialog/drawer open and shows ErrorSnackbar", async () => {
         const card = makeCard();
         const deleteCard = jest.fn<Promise<boolean>, [number]>().mockResolvedValue(false);
         mockUseTaskBoard.mockReturnValue(
             taskBoardValue({
                 cards: [card],
-                cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] },
+                cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] },
                 deleteCard,
                 error: "HTTP 500",
             })
@@ -375,7 +434,7 @@ describe("TaskBoardPanel", () => {
     });
 
     it("passing ownerId results in createCard being called with matching assigneeId", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel ownerId={7} />);
@@ -385,12 +444,12 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: 7 }), null);
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: 7 }), null, []);
         });
     });
 
     it("omitting ownerId results in createCard being called with assigneeId undefined", async () => {
-        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?]>().mockResolvedValue(true);
+        const createCard = jest.fn<Promise<boolean>, [CreateTaskCardPayload, (Blob | null)?, File[]?]>().mockResolvedValue(true);
         mockUseTaskBoard.mockReturnValue(taskBoardValue({ createCard }));
 
         render(<TaskBoardPanel />);
@@ -400,7 +459,7 @@ describe("TaskBoardPanel", () => {
         fireEvent.click(screen.getByText("Save"));
 
         await waitFor(() => {
-            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: undefined }), null);
+            expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: undefined }), null, []);
         });
     });
 
@@ -420,7 +479,7 @@ describe("TaskBoardPanel", () => {
         it("defaults to expanded, showing description text and a 'Collapse all' label", () => {
             const card = makeCard({ description: "Buy more cheese" });
             mockUseTaskBoard.mockReturnValue(
-                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
             );
 
             render(<TaskBoardPanel />);
@@ -432,7 +491,7 @@ describe("TaskBoardPanel", () => {
         it("clicking the toggle collapses descriptions and flips the label to 'Expand all'", () => {
             const card = makeCard({ description: "Buy more cheese" });
             mockUseTaskBoard.mockReturnValue(
-                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
             );
 
             render(<TaskBoardPanel />);
@@ -446,7 +505,7 @@ describe("TaskBoardPanel", () => {
         it("clicking the toggle twice returns to expanded, showing 'Collapse all' and the description text again", () => {
             const card = makeCard({ description: "Buy more cheese" });
             mockUseTaskBoard.mockReturnValue(
-                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], DOING: [], DONE: [] } })
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
             );
 
             render(<TaskBoardPanel />);
@@ -476,7 +535,7 @@ describe("TaskBoardPanel", () => {
             mockUseTaskBoard.mockReturnValue(
                 taskBoardValue({
                     cards: staleCards,
-                    cardsByStatus: { BACKLOG: staleCards, DOING: [], DONE: [] },
+                    cardsByStatus: { BACKLOG: staleCards, BLOCKED: [], DOING: [], DONE: [] },
                     loading: false,
                     loadedOwnerId: 1,
                 })
@@ -496,7 +555,7 @@ describe("TaskBoardPanel", () => {
             mockUseTaskBoard.mockReturnValue(
                 taskBoardValue({
                     cards: ownerBCards,
-                    cardsByStatus: { BACKLOG: [ownerBCards[0]], DOING: [ownerBCards[1]], DONE: [] },
+                    cardsByStatus: { BACKLOG: [ownerBCards[0]], BLOCKED: [], DOING: [ownerBCards[1]], DONE: [] },
                     loading: false,
                     loadedOwnerId: 7,
                 })
@@ -520,6 +579,88 @@ describe("TaskBoardPanel", () => {
 
         await waitFor(() => {
             expect(moveCard).toHaveBeenCalledWith(5, "DOING", 2);
+        });
+    });
+
+    // task-spec.md Sub-task D3: opens the card named by a Telegram-clicked deep link, the moment
+    // it appears in board.cards, exactly once.
+    describe("autoOpenCardId", () => {
+        it("opens the matching card's drawer once the board has loaded, and reports via onAutoOpenHandled", () => {
+            const card = makeCard({ id: 42, title: "Deep-linked card", description: "From Telegram" });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
+            );
+            const onAutoOpenHandled = jest.fn();
+
+            render(<TaskBoardPanel autoOpenCardId={42} onAutoOpenHandled={onAutoOpenHandled} />);
+
+            const drawer = screen.getByRole("dialog");
+            expect(within(drawer).getByText("From Telegram")).toBeTruthy();
+            expect(onAutoOpenHandled).toHaveBeenCalledTimes(1);
+        });
+
+        it("opens nothing but still reports onAutoOpenHandled once the board has loaded and the id never resolves (review-feedback-D.md Issue 3)", () => {
+            const card = makeCard({ id: 1 });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
+            );
+            const onAutoOpenHandled = jest.fn();
+
+            render(<TaskBoardPanel autoOpenCardId={999} onAutoOpenHandled={onAutoOpenHandled} />);
+
+            expect(screen.queryByRole("dialog")).toBeNull();
+            // onAutoOpenHandled's own contract is "opened, OR the id never resolved" -- a card
+            // that was deleted/moved/never existed must still get its deep-link params stripped,
+            // or they'd linger in the URL and re-force the board tab on every refresh.
+            expect(onAutoOpenHandled).toHaveBeenCalledTimes(1);
+        });
+
+        it("does not report an unresolved id while cards still belong to a previous owner (loadedOwnerId behind ownerId)", () => {
+            // Simulates the moment right after an owner switch: loading has already flipped back
+            // to false, but the fetch for the new owner (7) hasn't resolved yet, so the board
+            // still holds the previous owner's (1) cards -- same race onOpenCardCountChange above
+            // guards against. Deciding "unresolved" here would be wrong: the deep-linked card may
+            // still be sitting in owner 7's board, not yet fetched.
+            const staleCards = [makeCard({ id: 1 })];
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({
+                    cards: staleCards,
+                    cardsByStatus: { BACKLOG: staleCards, BLOCKED: [], DOING: [], DONE: [] },
+                    loading: false,
+                    loadedOwnerId: 1,
+                })
+            );
+            const onAutoOpenHandled = jest.fn();
+
+            render(<TaskBoardPanel ownerId={7} autoOpenCardId={999} onAutoOpenHandled={onAutoOpenHandled} />);
+
+            expect(onAutoOpenHandled).not.toHaveBeenCalled();
+        });
+
+        it("does not reopen the drawer once the user has closed it, even if board.cards updates again", async () => {
+            const card = makeCard({ id: 42, title: "Deep-linked card" });
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [card], cardsByStatus: { BACKLOG: [card], BLOCKED: [], DOING: [], DONE: [] } })
+            );
+
+            const { rerender } = render(<TaskBoardPanel autoOpenCardId={42} />);
+            expect(screen.getByRole("dialog")).toBeTruthy();
+
+            fireEvent.click(within(screen.getByRole("dialog")).getByLabelText("Close"));
+            // MUI's Dialog plays an exit transition on close, so it does not leave the DOM
+            // synchronously with the click — wait for it to actually disappear before asserting.
+            await waitFor(() => {
+                expect(screen.queryByRole("dialog")).toBeNull();
+            });
+
+            // An unrelated card update (e.g. someone else edited a card) reruns the effect's deps.
+            const updatedCard = { ...card, title: "Edited elsewhere" };
+            mockUseTaskBoard.mockReturnValue(
+                taskBoardValue({ cards: [updatedCard], cardsByStatus: { BACKLOG: [updatedCard], BLOCKED: [], DOING: [], DONE: [] } })
+            );
+            rerender(<TaskBoardPanel autoOpenCardId={42} />);
+
+            expect(screen.queryByRole("dialog")).toBeNull();
         });
     });
 });

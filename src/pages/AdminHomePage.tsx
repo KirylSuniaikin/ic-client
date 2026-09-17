@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Alert, Box } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { LoadingIndicator } from "../shared/components/LoadingIndicator";
 import { useAuth } from "../domains/auth/context/AuthProvider";
 import {StaffRoles, isManagerRole} from "../domains/auth/types";
@@ -32,11 +32,53 @@ import { ExternalOrderAlert } from "../domains/management/orders/components/Exte
 import { EditedOrderAlert } from "../domains/management/orders/components/EditedOrderAlert";
 import { LtrBoundary } from "../shared/components/LtrBoundary";
 
+// task-spec.md Sub-task D3: `?taskCardId=&assigneeId=` from a Telegram-clicked deep link.
+// Both optional; undefined (not thrown) on absent/invalid input, since a malformed or stale link
+// should just fall back to the normal admin landing rather than error the page or force the board
+// tab open for a link that named no card. `Number("")`/`Number("  ")` are `0`, which
+// `Number.isFinite` happily accepts, so blank input is rejected explicitly rather than relying on
+// that check alone -- and only a positive integer is a valid database id (review-feedback-D.md
+// Issue 2).
+function parseOptionalId(raw: string | null): number | undefined {
+    if (raw === null) return undefined;
+    if (raw.trim().length === 0) return undefined;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function AdminHomePage(): JSX.Element {
     const { username, fullName, branchId, userId, role, logout } = useAuth();
     const { availableBranches, selectedBranch, setSelectedBranch, branchError } = useAdminBranchInit(branchId, role);
     const navigate = useNavigate();
     const ui = useAdminUIState();
+    // useAdminUIState returns a fresh object every render, so eslint's exhaustive-deps can't prove
+    // `ui.setActiveAdminTab` is stable and asks for the whole `ui` object -- which WOULD refire this
+    // effect on every unrelated ui change. Pull out just the setter: it's a useState setter under the
+    // hood, so React guarantees this reference itself never changes across renders.
+    const { setActiveAdminTab } = ui;
+    const [searchParams, setSearchParams] = useSearchParams();
+    const autoOpenCardId = parseOptionalId(searchParams.get("taskCardId"));
+    const autoOpenAssigneeId = parseOptionalId(searchParams.get("assigneeId"));
+    // One-shot: forces the board tab open for a deep link, without touching useAdminUIState's
+    // own role-based default (which already gets a manager to 'board' with no link involved).
+    const hasForcedBoardTabRef = useRef(false);
+    useEffect(() => {
+        if (hasForcedBoardTabRef.current) return;
+        if (autoOpenCardId === undefined) return;
+        hasForcedBoardTabRef.current = true;
+        setActiveAdminTab('board');
+    }, [autoOpenCardId, setActiveAdminTab]);
+    // Threaded down to TaskBoardPanel (via TaskBoardScreen) so it can strip these params once the
+    // deep-linked card has been opened -- this component owns the router search params, and
+    // TaskBoardPanel has no router access of its own.
+    const clearDeepLinkParams = useCallback((): void => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.delete("taskCardId");
+            next.delete("assigneeId");
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
     const selectedBranchIdStr = selectedBranch ? String(selectedBranch.id) : null;
     // Proxy breaks circular dep: useAdminOrders needs stopSound before useAlertAudio can provide it
     const audioStopRef = useRef<() => void>(() => {});
@@ -129,7 +171,12 @@ function AdminHomePage(): JSX.Element {
                 </Box>
             )}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
-                <TaskBoardScreen role={role} />
+                <TaskBoardScreen
+                    role={role}
+                    autoOpenCardId={autoOpenCardId}
+                    autoOpenAssigneeId={autoOpenAssigneeId}
+                    onAutoOpenHandled={clearDeepLinkParams}
+                />
             )}
             {(ui.isHistoryOpen || isReviewer) && branchForComponents && <HistoryComponent selectedBranch={branchForComponents} onClose={() => ui.setIsHistoryOpen(false)} />}
             {ui.isConfigOpen && branchForComponents && <ConfigComponent isOpen={ui.isConfigOpen} onClose={() => ui.setIsConfigOpen(false)} selectedBranch={branchForComponents} role={role} />}

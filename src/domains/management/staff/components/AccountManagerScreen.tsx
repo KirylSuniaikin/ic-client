@@ -4,6 +4,7 @@ import {
     Avatar,
     Box,
     Button,
+    CircularProgress,
     Dialog,
     IconButton,
     Paper,
@@ -27,8 +28,11 @@ import LockResetIcon from "@mui/icons-material/LockReset";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import theme from "../../../../shared/utils/theme";
+import { logger } from "../../../../shared/utils/logger";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles } from "../../../auth/types";
 import type { IBranch } from "../../inventory/types";
@@ -38,6 +42,8 @@ import { useBranchScope } from "../../_shared/hooks/useBranchScope";
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
 import { canAdministerStaff } from "../types";
 import type { StaffAdminTO } from "../types";
+import { fetchTelegramBotUsername, generateTelegramConnectToken } from "../../../../shared/api/management";
+import { copyToClipboard } from "../utils/copyToClipboard";
 import HireStaffDrawer from "./HireStaffDrawer";
 import ResetPasswordDrawer from "./ResetPasswordDrawer";
 import EditStaffDrawer from "./EditStaffDrawer";
@@ -46,6 +52,10 @@ import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staff
 const colorRed = "#E44B4C";
 const pageBg = "#fbfaf6";
 const hairline = "#efece4";
+// review-feedback-D.md Issue 8: named consts beside the other palette values above, rather than
+// inline literals, for the "Telegram connected" roundel -- mirrors deactivatedPill's shape.
+const telegramConnectedBg = "#eefaf3";
+const telegramConnectedFg = "#1f6f4a";
 
 // A tinted pill per role, rather than one grey chip for all of them: the roster's whole job is
 // telling people apart at a glance, and the role is the column a manager actually scans for.
@@ -101,6 +111,12 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     const [showDeactivated, setShowDeactivated] = useState(false);
     const [roleFilter, setRoleFilter] = useState<string>("ALL");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [copyToastMessage, setCopyToastMessage] = useState<string | null>(null);
+    const [botUsername, setBotUsername] = useState<string | null>(null);
+    // Per-row in-flight tracking for the connect-link copy button, mirroring ResetPasswordDrawer's
+    // `submitting` flag -- but keyed by staff id since several rows' buttons can be pressed
+    // independently rather than one drawer at a time.
+    const [connectLinkPendingIds, setConnectLinkPendingIds] = useState<ReadonlySet<number>>(new Set());
 
     const isOwnerViewer = role === StaffRoles.OWNER;
 
@@ -108,6 +124,79 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     useEffect(() => {
         if (error) setErrorMessage(error);
     }, [error]);
+
+    // Fetched once on mount, not per row -- every row's connect link is built from the same
+    // bot username, so there is nothing row-specific to refetch.
+    useEffect(() => {
+        let cancelled = false;
+        void (async (): Promise<void> => {
+            try {
+                const { botUsername: username } = await fetchTelegramBotUsername();
+                if (!cancelled) setBotUsername(username);
+            } catch (err) {
+                if (!cancelled) logger.error("Failed to load Telegram bot username:", err);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    // Security fix: the link payload is now a single-use, server-generated, expiring token
+    // fetched fresh per click, never the raw staff id -- staff ids are small sequential integers
+    // and the bot is public, so a client-built `?start={s.id}` link let anyone hijack any staff
+    // member's notification channel by guessing.
+    //
+    // Bug fix: this must NOT `await` the token fetch before writing to the clipboard. Several
+    // browsers/WebViews only allow clipboard access within a short window tied to the original
+    // click; by the time a network round-trip finishes, that window can already be gone, and the
+    // write silently fails -- the manager gets no link at all, with no visible reason why. The
+    // async Clipboard.write() + ClipboardItem(Promise) API exists specifically to solve this: call
+    // it SYNCHRONOUSLY inside the click handler (no leading await) and let the item's data resolve
+    // once the token fetch completes, without losing the write permission.
+    const handleCopyConnectLink = (s: StaffAdminTO): void => {
+        if (!botUsername) return;
+        setConnectLinkPendingIds(prev => new Set(prev).add(s.id));
+
+        const linkPromise = generateTelegramConnectToken(s.id).then(
+            ({ token }) => `https://t.me/${botUsername}?start=${token}`
+        );
+
+        const finish = (): void => {
+            setConnectLinkPendingIds(prev => {
+                const next = new Set(prev);
+                next.delete(s.id);
+                return next;
+            });
+        };
+
+        const onSuccess = (): void => setCopyToastMessage("Connect link copied");
+        // The token fetch can succeed even when the clipboard write fails -- surface the actual
+        // link rather than a bare error, so the manager isn't left with nothing to send manually.
+        const onFailure = (err: unknown): void => {
+            void linkPromise.then(
+                link => setErrorMessage(`Couldn't copy automatically — here's the link to copy manually: ${link}`),
+                () => {
+                    logger.error("Failed to generate Telegram connect link:", err);
+                    setErrorMessage(err instanceof Error ? err.message : "Failed to generate connect link");
+                }
+            );
+        };
+
+        // Cast: this DOM lib target doesn't declare ClipboardItem/Clipboard.write, but both are
+        // broadly supported (Chrome, Safari 13.1+, most Android/iOS WebViews) -- feature-detected
+        // via `in` before use, not assumed.
+        const clipboard = navigator.clipboard as Clipboard & { write?: (items: unknown[]) => Promise<void> };
+        if (typeof window !== "undefined" && "ClipboardItem" in window && typeof clipboard.write === "function") {
+            const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (items: Record<string, Promise<Blob>>) => unknown }).ClipboardItem;
+            const blobPromise = linkPromise.then(link => new Blob([link], { type: "text/plain" }));
+            const item = new ClipboardItemCtor({ "text/plain": blobPromise });
+            clipboard.write([item]).then(onSuccess, onFailure).finally(finish);
+            return;
+        }
+
+        // No Promise-based Clipboard.write support -- fall back to the previous await-then-copy
+        // path (still best-effort on those browsers, same as before this fix).
+        void linkPromise.then(link => copyToClipboard(link)).then(onSuccess, onFailure).finally(finish);
+    };
 
     // Filtered here rather than server-side: the roster is one branch's staff, the caller may
     // already see every row, and toggling the filter then costs no refetch that could race the
@@ -228,6 +317,50 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     );
 
     const price = (s: StaffAdminTO): string => (s.pricePerHour !== null ? `BD ${s.pricePerHour}` : "—");
+
+    // Always visible, same rationale as rowActions above: no hover on a kitchen tablet.
+    const telegramCell = (s: StaffAdminTO): React.JSX.Element => {
+        if (s.telegramConnected) {
+            return (
+                <Tooltip title="Telegram connected">
+                    <Box
+                        component="span"
+                        data-testid={`staff-telegram-connected-${s.id}`}
+                        sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 30,
+                            height: 30,
+                            borderRadius: "999px",
+                            backgroundColor: telegramConnectedBg,
+                            color: telegramConnectedFg,
+                        }}
+                    >
+                        <CheckCircleRoundedIcon fontSize="small" />
+                    </Box>
+                </Tooltip>
+            );
+        }
+
+        const pending = connectLinkPendingIds.has(s.id);
+        return (
+            <Tooltip title="Copy Telegram connect link">
+                <span>
+                    <IconButton
+                        size="small"
+                        aria-label="Copy Telegram connect link"
+                        data-testid={`staff-telegram-copy-${s.id}`}
+                        disabled={!botUsername || pending}
+                        onClick={() => void handleCopyConnectLink(s)}
+                        sx={iconButtonSx}
+                    >
+                        {pending ? <CircularProgress size={14} /> : <ContentCopyRoundedIcon fontSize="small" />}
+                    </IconButton>
+                </span>
+            </Tooltip>
+        );
+    };
 
     return (
         <Dialog
@@ -423,7 +556,10 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                             {rolePill(s)}
                                             {!s.enabled && deactivatedPill(s)}
                                         </Stack>
-                                        {administrable && rowActions(s)}
+                                        <Stack direction="row" spacing={0.75} alignItems="center">
+                                            {telegramCell(s)}
+                                            {administrable && rowActions(s)}
+                                        </Stack>
                                     </Box>
                                 </Paper>
                             );
@@ -464,6 +600,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                     <TableCell>Name</TableCell>
                                     <TableCell>Role</TableCell>
                                     {isOwnerViewer && <TableCell>Price/hour</TableCell>}
+                                    <TableCell align="center" sx={{ width: 90 }}>Telegram</TableCell>
                                     <TableCell align="right" sx={{ width: 150 }}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -488,6 +625,9 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                                     {price(s)}
                                                 </TableCell>
                                             )}
+                                            <TableCell align="center">
+                                                {telegramCell(s)}
+                                            </TableCell>
                                             <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                                                 {administrable && rowActions(s)}
                                             </TableCell>
@@ -530,6 +670,13 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 message={errorMessage ?? ""}
                 severity="error"
                 handleClose={(): void => setErrorMessage(null)}
+            />
+
+            <ErrorSnackbar
+                open={copyToastMessage !== null}
+                message={copyToastMessage ?? ""}
+                severity="success"
+                handleClose={(): void => setCopyToastMessage(null)}
             />
         </Dialog>
     );

@@ -24,6 +24,23 @@ import { ItemsUnavailableError, BranchClosedError } from '../../domains/order/ty
 import type { BranchClosedResponse } from '../../domains/order/types';
 import type { StatsResponse } from '../../domains/management/statistics/types';
 
+// A transient mobile-network blip or a cold-started backend can fail the very first request of a
+// customer's session — the one load with nothing cached to fall back on. Two retries with a short
+// backoff covers both cases (a real outage still fails after this and reports as before) without
+// meaningfully delaying the common case where the first attempt just succeeds.
+const BASE_APP_INFO_RETRY_DELAYS_MS = [500, 1500];
+
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await fetch(url, init);
+        } catch (error) {
+            if (attempt >= BASE_APP_INFO_RETRY_DELAYS_MS.length) throw error;
+            await new Promise(resolve => setTimeout(resolve, BASE_APP_INFO_RETRY_DELAYS_MS[attempt]));
+        }
+    }
+}
+
 export async function fetchBaseAppInfo(
     userId: string | null,
     branchId: string
@@ -44,12 +61,13 @@ export async function fetchBaseAppInfo(
 
     let response: Response;
     try {
-        response = await fetch(url, {
+        response = await fetchWithRetry(url, {
             method: "GET",
             headers,
         });
     } catch (error) {
-        // Fire-and-forget: telemetry must never delay the order path's error handling.
+        // Fire-and-forget: telemetry must never delay the order path's error handling. Only
+        // reported once, after every retry has already failed.
         void reportNetworkError(error, url, "GET");
         throw error;
     }

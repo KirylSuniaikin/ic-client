@@ -4,71 +4,63 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import TaskCardMenu from "./TaskCardMenu";
 
 describe("TaskCardMenu", () => {
-    it("renders exactly 3 priority options when opened", () => {
-        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={jest.fn()} />);
+    it("has an aria-label of 'Card actions' on the trigger button", () => {
+        render(<TaskCardMenu cardId={1} onEdit={jest.fn()} />);
 
-        fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
-
-        expect(screen.getByText("Green")).toBeTruthy();
-        expect(screen.getByText("Yellow")).toBeTruthy();
-        expect(screen.getByText("Red")).toBeTruthy();
+        expect(screen.getByTestId("task-card-menu-button-1").getAttribute("aria-label")).toBe("Card actions");
     });
 
-    it("clicking Green calls onSelect with GREEN exactly once", () => {
-        const onSelect = jest.fn();
-        render(<TaskCardMenu cardId={1} priority="RED" onSelect={onSelect} />);
+    it("shows exactly one Edit item when opened", () => {
+        render(<TaskCardMenu cardId={1} onEdit={jest.fn()} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
-        fireEvent.click(screen.getByText("Green"));
 
-        expect(onSelect).toHaveBeenCalledTimes(1);
-        expect(onSelect).toHaveBeenCalledWith("GREEN");
+        expect(screen.getByTestId("task-card-edit-1")).toBeTruthy();
+        expect(screen.getAllByText("Edit")).toHaveLength(1);
     });
 
-    it("clicking Yellow calls onSelect with YELLOW exactly once", () => {
-        const onSelect = jest.fn();
-        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={onSelect} />);
+    it("clicking Edit calls onEdit exactly once", () => {
+        const onEdit = jest.fn();
+        render(<TaskCardMenu cardId={1} onEdit={onEdit} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
-        fireEvent.click(screen.getByText("Yellow"));
+        fireEvent.click(screen.getByTestId("task-card-edit-1"));
 
-        expect(onSelect).toHaveBeenCalledTimes(1);
-        expect(onSelect).toHaveBeenCalledWith("YELLOW");
-    });
-
-    it("clicking Red calls onSelect with RED exactly once", () => {
-        const onSelect = jest.fn();
-        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={onSelect} />);
-
-        fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
-        fireEvent.click(screen.getByText("Red"));
-
-        expect(onSelect).toHaveBeenCalledTimes(1);
-        expect(onSelect).toHaveBeenCalledWith("RED");
+        expect(onEdit).toHaveBeenCalledTimes(1);
     });
 
     it("offers no Delete entry when onDelete is omitted", () => {
-        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={jest.fn()} />);
+        render(<TaskCardMenu cardId={1} onEdit={jest.fn()} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
 
         expect(screen.queryByTestId("task-card-delete-1")).toBeNull();
     });
 
-    it("clicking Delete calls onDelete exactly once and never changes priority", () => {
+    it("shows Edit above a divider above Delete when onDelete is provided", () => {
+        render(<TaskCardMenu cardId={1} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+        fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
+
+        expect(screen.getByTestId("task-card-edit-1")).toBeTruthy();
+        expect(screen.getByTestId("task-card-delete-1")).toBeTruthy();
+        expect(screen.getByRole("separator")).toBeTruthy();
+    });
+
+    it("clicking Delete calls onDelete exactly once and never calls onEdit", () => {
         const onDelete = jest.fn();
-        const onSelect = jest.fn();
-        render(<TaskCardMenu cardId={1} priority="GREEN" onSelect={onSelect} onDelete={onDelete} />);
+        const onEdit = jest.fn();
+        render(<TaskCardMenu cardId={1} onEdit={onEdit} onDelete={onDelete} />);
 
         fireEvent.click(screen.getByTestId("task-card-menu-button-1"));
         fireEvent.click(screen.getByTestId("task-card-delete-1"));
 
         expect(onDelete).toHaveBeenCalledTimes(1);
-        expect(onSelect).not.toHaveBeenCalled();
+        expect(onEdit).not.toHaveBeenCalled();
     });
 
     it("disables the trigger button when disabled is true", () => {
-        render(<TaskCardMenu cardId={1} priority="GREEN" disabled onSelect={jest.fn()} />);
+        render(<TaskCardMenu cardId={1} disabled onEdit={jest.fn()} />);
 
         expect(screen.getByTestId("task-card-menu-button-1").hasAttribute("disabled")).toBe(true);
     });
