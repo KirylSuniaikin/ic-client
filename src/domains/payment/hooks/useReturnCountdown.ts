@@ -3,11 +3,13 @@ import {useEffect, useRef, useState} from "react";
 /**
  * How long a confirmed payment stays on screen before the customer is taken back to the menu.
  *
- * <p>Ten seconds is long enough to read the order number and short enough that nobody feels held.
+ * <p>Five seconds. Ten was long enough to read the order number twice and long enough to feel held
+ * on a screen with one thing on it — the number is also on the order-status screen the customer
+ * lands on, so nothing is lost by leaving sooner.
  * The same constant exists in `ic-pizza-mobile` — the two screens are siblings and must count the
  * same.
  */
-export const RETURN_DELAY_SECONDS = 10;
+export const RETURN_DELAY_SECONDS = 5;
 
 /**
  * Counts down to an automatic hand-off, and reports the seconds left so the screen can show them.
