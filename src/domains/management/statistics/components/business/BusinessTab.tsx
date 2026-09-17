@@ -6,10 +6,7 @@ import InventoryCogsCard from "./InventoryCogsCard";
 import ChannelPerformanceCard from "./ChannelPerformanceCard";
 import KpiBlockCard from "./KpiBlockCard";
 import ProfitAndLossCard from "./ProfitAndLossCard";
-import MenuCostCardsCard from "./MenuCostCardsCard";
-import ComponentCostDrawer from "./ComponentCostDrawer";
 import CollapsibleCard from "./CollapsibleCard";
-import {useCostCards} from "../../hooks/useCostCards";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
 import {formatBd} from "./businessFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
@@ -47,9 +44,7 @@ export default function BusinessTab(
     {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
 ): React.JSX.Element {
     const {categories, classify} = useBusinessCategories();
-    const costCards = useCostCards();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
-    const [costDrawerOpen, setCostDrawerOpen] = useState<boolean>(false);
 
     // A card that shows nothing while shut just forces you to open all six, so each carries the
     // one number you would have opened it for.
@@ -77,16 +72,6 @@ export default function BusinessTab(
     // payload.
     const handleClassify = async (id: number, payload: Parameters<typeof classify>[1]): Promise<void> => {
         await classify(id, payload);
-        await onRefresh();
-    };
-
-    // A cost change moves COGS in every month of the statement, so the report is refetched too --
-    // the server evicts its cache on the write, but this client still holds the old payload.
-    const handleSetComponentCost = async (
-        id: number,
-        payload: Parameters<typeof costCards.setComponentCost>[1]
-    ): Promise<void> => {
-        await costCards.setComponentCost(id, payload);
         await onRefresh();
     };
 
@@ -190,25 +175,6 @@ export default function BusinessTab(
                     >
                         <InventoryCogsCard months={data.inventoryCogs}/>
                     </CollapsibleCard>
-
-                    <CollapsibleCard
-                        title="🍕 Menu cost cards"
-                        summary={costCards.cards ? `${costCards.cards.cards.length} items` : undefined}
-                        info="What each item costs to make, at the latest price paid for every ingredient. Each line prints its resolved unit cost, which is the only place a per-kg price applied to a per-gram amount becomes visible. Batch recipes — doughs and sauces, which are not menu items — are on the second tab."
-                        badge={costCards.uncostedCount > 0
-                            ? <Chip
-                                label={`⚠ ${costCards.uncostedCount} ingredients with no cost`}
-                                onClick={() => setCostDrawerOpen(true)}
-                                sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
-                            : undefined}
-                    >
-                        <MenuCostCardsCard
-                            data={costCards.cards}
-                            loading={costCards.loading}
-                            components={costCards.components}
-                            onSetCosts={() => setCostDrawerOpen(true)}
-                        />
-                    </CollapsibleCard>
                 </>
             )}
 
@@ -217,13 +183,6 @@ export default function BusinessTab(
                 categories={categories}
                 onClose={() => setDrawerOpen(false)}
                 onChange={handleClassify}
-            />
-
-            <ComponentCostDrawer
-                open={costDrawerOpen}
-                components={costCards.components}
-                onClose={() => setCostDrawerOpen(false)}
-                onChange={handleSetComponentCost}
             />
         </Box>
     );

@@ -3,20 +3,18 @@ import React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BusinessTab from "./BusinessTab";
-import type { BusinessStatsResponse, CategoryClassification, ComponentCost } from "../../types";
+import type { BusinessStatsResponse, CategoryClassification } from "../../types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts. useBusinessCategories
 // runs for real, so the fetch -> classify -> refetch wiring is genuine.
 jest.mock("../../../../../shared/api/management");
 
 import {
-    getBusinessCategories, getComponentCosts, getMenuCostCards, updateCategoryClassification
+    getBusinessCategories, updateCategoryClassification
 } from "../../../../../shared/api/management";
 
 const mockGet = jest.mocked(getBusinessCategories);
 const mockUpdate = jest.mocked(updateCategoryClassification);
-const mockCostCards = jest.mocked(getMenuCostCards);
-const mockComponents = jest.mocked(getComponentCosts);
 
 const marketing: CategoryClassification = {
     id: 1, name: "Marketing", type: "DEBIT", pnlClass: null, kpiTag: null,
@@ -222,11 +220,6 @@ describe("BusinessTab", () => {
         jest.clearAllMocks();
         mockGet.mockResolvedValue([marketing, rent]);
         mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX" });
-        mockCostCards.mockResolvedValue({
-            cards: [], menuItemsWithoutRecipe: [],
-            costing: { componentsUsed: 0, componentsResolved: 0, coveragePercent: 100, warnings: [] },
-        });
-        mockComponents.mockResolvedValue([]);
     });
 
     describe("classification", () => {
@@ -496,97 +489,6 @@ describe("BusinessTab", () => {
                 expect(screen.getByText("= Available")).toBeTruthy();
                 expect(screen.getByText("− Ending inventory")).toBeTruthy();
             });
-        });
-    });
-
-    describe("batch recipes", () => {
-        // Doughs and sauces are not menu items, so they appear on no cost card -- and they are
-        // where a good deal of the cost actually is.
-        const dough: ComponentCost = {
-            id: 9, name: "Dough", unit: "GRAMS", productId: null, productName: null,
-            productPrice: null, cost: null, batchYield: 4854, resolvedUnitCost: 0.000117,
-            costSource: "BATCH",
-            ingredients: [
-                {
-                    id: 1, ingredientProductId: 26, ingredientProductName: "Pizza Flour",
-                    ingredientComponentId: null, ingredientComponentName: null,
-                    amount: 3000, lineCost: 0.39,
-                },
-            ],
-        };
-        const mozzarella: ComponentCost = {
-            id: 10, name: "Mozarella", unit: "GRAMS", productId: 7, productName: "Mozarella",
-            productPrice: 3, cost: null, batchYield: null, resolvedUnitCost: 0.003,
-            costSource: "PRODUCT", ingredients: [],
-        };
-
-        const openBatches = async (): Promise<void> => {
-            await openCard("🍕 Menu cost cards");
-            await userEvent.click(await screen.findByRole("button", {name: "Batch recipes"}));
-        };
-
-        it("lists a component that is made from something", async () => {
-            mockComponents.mockResolvedValue([dough, mozzarella]);
-
-            renderTab();
-            await openBatches();
-
-            expect(await screen.findByText("Dough")).toBeTruthy();
-        });
-
-        it("leaves out a component that is just a purchased price", async () => {
-            // Mozzarella is bought, not made. Listing it under "recipes" would say it has one.
-            mockComponents.mockResolvedValue([dough, mozzarella]);
-
-            renderTab();
-            await openBatches();
-
-            expect(screen.queryByText("Mozarella")).toBeNull();
-        });
-
-        it("shows the yield and the cost per kg rather than a per-gram figure", async () => {
-            // 0.000117 per gram is unreadable; 0.117 per kg is the number the owner works in.
-            mockComponents.mockResolvedValue([dough]);
-
-            renderTab();
-            await openBatches();
-
-            expect(await screen.findByText(/yields 4854 grams/)).toBeTruthy();
-            expect(await screen.findByText(/0\.117 per kg/)).toBeTruthy();
-        });
-
-        it("says so plainly when nothing has a batch recipe yet", async () => {
-            mockComponents.mockResolvedValue([mozzarella]);
-
-            renderTab();
-            await openBatches();
-
-            expect(await screen.findByText(/No batch recipes yet/)).toBeTruthy();
-        });
-    });
-
-    describe("ingredient costs", () => {
-        it("says nothing at all when every ingredient is costed", async () => {
-            renderTab();
-
-            await screen.findByText("📊 Key metrics");
-            expect(screen.queryByText(/ingredients costed/)).toBeNull();
-        });
-
-        it("warns with the count when ingredients have no cost", async () => {
-            mockComponents.mockResolvedValue([
-                {
-                    id: 5, name: "Oregano", unit: "GRAMS", productId: null, productName: null,
-                    productPrice: null, cost: null, batchYield: null, ingredients: [],
-                    resolvedUnitCost: 0, costSource: "MISSING",
-                },
-            ]);
-
-            renderTab();
-
-            // Rides as a badge on the Menu cost cards header now, not a card of its own above
-            // the report.
-            expect(await screen.findByText(/1 ingredients with no cost/)).toBeTruthy();
         });
     });
 
