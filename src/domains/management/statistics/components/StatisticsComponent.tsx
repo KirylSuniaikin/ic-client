@@ -9,6 +9,7 @@ import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import {StaffSummaryContent} from "../../shift/components/StaffSummaryContent";
 import PrepPlanTable from "./PrepPlanTable";
 import BusinessTab from "./business/BusinessTab";
+import PricingCostCardsSection from "./PricingCostCardsSection";
 import MonthRangePickerPopover from "./business/MonthRangePickerPopover";
 import {useBusinessStats} from "../hooks/useBusinessStats";
 import {PerformanceTab} from "./tabs/PerformanceTab";
@@ -67,6 +68,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     // that is not the owner's full picture. Mirrors the OWNER-only SecurityConfig matcher; the
     // server is the real gate, this only keeps a tab nobody can use off the strip.
     const canSeeBusiness = role === StaffRoles.OWNER;
+
+    // Same audience as canSeePerformance (MANAGER, SUPER_MANAGER, OWNER); named separately because it
+    // gates a different section and the two may diverge later. Deliberately the same inline expression
+    // style as canSeeBusiness/canSeePerformance in this file, not the equivalent isManagerRole() helper
+    // in domains/auth/types.ts, to match this file's existing convention of inlining role checks.
+    const canSeeCostCards = role === StaffRoles.MANAGER || hasCityAccess(role);
     const [mode, setMode] = useState<StatsMode>(canSeePerformance ? "Performance" : "Consumption");
     const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState<HTMLElement | null>(null);
     const [monthRangeAnchorEl, setMonthRangeAnchorEl] = useState<HTMLElement | null>(null);
@@ -295,7 +302,18 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         </Box>
                     )}
                     {mode === "Reports" && <VatReportCard branchId={singleScope.branch.id}/>}
-                    {mode === "Pricing" && <ProductsTable/>}
+                    {mode === "Pricing" && (
+                        <>
+                            <ProductsTable/>
+                            {canSeeCostCards && (
+                                <Box sx={{mt: 1}}>
+                                    <PricingCostCardsSection
+                                        onCostSaved={role === StaffRoles.OWNER ? businessStats.refresh : undefined}
+                                    />
+                                </Box>
+                            )}
+                        </>
+                    )}
                     {mode === "Shifts" && <StaffSummaryContent branchId={singleScope.branch.id} role={role}/>}
                 </Box>
             </Box>

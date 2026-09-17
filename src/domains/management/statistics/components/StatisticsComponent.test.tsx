@@ -19,9 +19,12 @@ jest.mock("./PrepPlanTable", () => ({ __esModule: true, default: () => null }));
 jest.mock("./DoughUsageTable", () => ({ DoughUsageTable: () => null }));
 jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ ConsumptionStatistics: () => null }));
 jest.mock("./VatReportCard", () => ({ VatReportCard: () => null }));
-jest.mock("./ProductsTable", () => ({ ProductsTable: () => null }));
+jest.mock("./ProductsTable", () => ({ ProductsTable: () => <div data-testid="products-table"/> }));
 jest.mock("../../shift/components/StaffSummaryContent", () => ({ StaffSummaryContent: () => null }));
 jest.mock("./business/BusinessTab", () => ({ __esModule: true, default: () => null }));
+jest.mock("./PricingCostCardsSection", () => ({
+    __esModule: true, default: () => <div data-testid="pricing-cost-cards"/>
+}));
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts. useStatistics
 // runs for real here (not mocked), so the branch-switch -> refetch wiring is genuine.
@@ -69,19 +72,22 @@ function renderWithTwoBranches(): ReturnType<typeof render> {
     );
 }
 
+// Shared by "Business tab visibility" and "Pricing tab cost-card visibility" — both need a render
+// parameterized only by role, with the same two-branch provider `renderWithTwoBranches` fixes to
+// SUPER_MANAGER.
+function renderAs(role: StaffRoles): ReturnType<typeof render> {
+    return render(
+        <ManagementBranchScopeProvider branches={[branchA, branchB]} homeBranch={branchA}>
+            <StatisticsComponent onClose={jest.fn()} branchId={branchA.id} role={role} />
+        </ManagementBranchScopeProvider>
+    );
+}
+
 describe("StatisticsComponent", () => {
     // Business Stats is the consolidated company P&L, owner withdrawals included, and has no branch
     // dimension -- so it is OWNER-only, mirroring the SecurityConfig matcher. These assertions are
     // about the tab STRIP: a role that must not see it must not be offered it.
     describe("Business tab visibility", () => {
-        function renderAs(role: StaffRoles): ReturnType<typeof render> {
-            return render(
-                <ManagementBranchScopeProvider branches={[branchA, branchB]} homeBranch={branchA}>
-                    <StatisticsComponent onClose={jest.fn()} branchId={branchA.id} role={role} />
-                </ManagementBranchScopeProvider>
-            );
-        }
-
         it("offers the Business tab to an OWNER", () => {
             renderAs(StaffRoles.OWNER);
 
@@ -118,6 +124,35 @@ describe("StatisticsComponent", () => {
             expect(screen.queryByRole("combobox")).toBeNull();
             const today = formatStatDate(new Date());
             expect(screen.queryByRole("button", { name: `${today} — ${today}` })).toBeNull();
+        });
+    });
+
+    // The cost-card section is a second block on the Pricing tab, gated on the same MANAGER+
+    // audience as canSeePerformance -- widened from the old OWNER-only Business tab home. The
+    // section must be entirely absent from the DOM for a role below MANAGER, not merely hidden.
+    describe("Pricing tab cost-card visibility", () => {
+        it("shows the cost-card section to a MANAGER after switching to Pricing", async () => {
+            renderAs(StaffRoles.MANAGER);
+            await switchTab("Pricing");
+
+            expect(await screen.findByTestId("pricing-cost-cards")).toBeTruthy();
+            expect(screen.getByTestId("products-table")).toBeTruthy();
+        });
+
+        it("hides the cost-card section from a COOK but still shows ProductsTable", async () => {
+            renderAs(StaffRoles.COOK);
+            await switchTab("Pricing");
+
+            expect(await screen.findByTestId("products-table")).toBeTruthy();
+            expect(screen.queryByTestId("pricing-cost-cards")).toBeNull();
+        });
+
+        it("shows the cost-card section to an OWNER too (regression)", async () => {
+            renderAs(StaffRoles.OWNER);
+            await switchTab("Pricing");
+
+            expect(await screen.findByTestId("pricing-cost-cards")).toBeTruthy();
+            expect(screen.getByTestId("products-table")).toBeTruthy();
         });
     });
 
