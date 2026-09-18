@@ -154,7 +154,7 @@ export default function CredentialsRevealPanel({
                 sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
                 data-testid={`${testIdPrefix}-copy-button`}
             >
-                {copied ? "Copied!" : telegramLink ? "Copy login, password & Telegram link" : "Copy login + password"}
+                {copied ? "Copied!" : "Copy credentials"}
             </Button>
             <Button fullWidth variant="outlined" onClick={onDone} sx={NEUTRAL_BUTTON_SX}>
                 Done

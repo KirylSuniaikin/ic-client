@@ -96,7 +96,7 @@ describe("CredentialsRevealPanel", () => {
             expect(screen.queryByTestId("reset-password-auto-copied")).toBeNull();
             expect(screen.queryByTestId("reset-password-copy-error")).toBeNull();
             expect(screen.queryByText("Copied!")).toBeNull();
-            expect(screen.getByText("Copy login + password")).toBeTruthy();
+            expect(screen.getByText("Copy credentials")).toBeTruthy();
         });
 
         it("leaves the manual button working after a refused automatic copy", async () => {
@@ -146,10 +146,10 @@ describe("CredentialsRevealPanel", () => {
             await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith(THREE_LINE_TEXT));
         });
 
-        it("shows the Telegram-aware idle label when telegramLink is set, flipping to Copied! once copied", async () => {
+        it("keeps the generic idle label when telegramLink is set, flipping to Copied! once copied", async () => {
             renderPanel("reset-password", TELEGRAM_LINK);
 
-            expect(screen.getByText("Copy login, password & Telegram link")).toBeTruthy();
+            expect(screen.getByText("Copy credentials")).toBeTruthy();
 
             await waitFor(() => expect(screen.getByText("Copied!")).toBeTruthy());
         });
