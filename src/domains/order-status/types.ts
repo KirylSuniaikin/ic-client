@@ -24,3 +24,19 @@ export type OrderStatusData = {
     handoverAt?: string;
     estimatedDeliveredAt?: string;
 };
+
+// Mirrors the Phase 1a backend contract exactly:
+// GET /api/customer/orders/{orderId}/courier-location → { couriers: TrackedCourier[] }
+// (runs/1a/task-spec.md §5, already committed and frozen — this type is the frontend's mirror).
+export type TrackedCourier = {
+    name: string;
+    latitude: number;
+    longitude: number;
+    positionAgeSeconds: number;
+    /** Always 1 in this phase; kept for shape parity with Phase 6b's 0..N extension. */
+    partIndex: number;
+};
+
+export type OrderTrackingResponse = {
+    couriers: TrackedCourier[]; // length 0 or 1 in this phase
+};

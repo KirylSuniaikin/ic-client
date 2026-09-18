@@ -4,6 +4,7 @@ import Lottie from "lottie-react";
 import kitchenPhaseAnimation from "../../../assets/animations/kitchen_phase_animatiom.json";
 import readyAnimation from "../../../assets/animations/ready-animation.json";
 import DeliveryRideAnimation from "./animations/DeliveryRideAnimation";
+import { CourierTrackingMap } from "./CourierTrackingMap";
 import { TextTitleWithoutVariant } from "../../../shared/components/typography";
 import { formatBahrainClock } from "../../../shared/utils/timeUtils";
 import {
@@ -12,6 +13,7 @@ import {
     stageIndexIn,
     stagesFor,
 } from "../../../shared/utils/orderStages";
+import { useCourierTracking } from "../hooks/useCourierTracking";
 import type { OrderStatusData } from "../types";
 
 // cast is needed because JSON modules are typed as `unknown` per global.d.ts
@@ -41,6 +43,9 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
     const currentStage = stageIndexIn(stages, status);
     const riding = status === OUT_FOR_DELIVERY_STATUS;
     const delivered = status === DELIVERED_STATUS;
+
+    // Called unconditionally — hooks cannot be called inside the `riding` branch below.
+    const { courier } = useCourierTracking(order?.id ?? null, delivery, status);
 
     // A wall-clock arrival needs no ticking: left alone it simply falls into the past, which is
     // an honest way to say "running late". The moving, elapsed-time bar lives on the island pill.
@@ -89,6 +94,7 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
             {riding && (
                 <Box sx={{ mt: 1 }}>
                     <DeliveryRideAnimation />
+                    <CourierTrackingMap courier={courier} />
                 </Box>
             )}
 

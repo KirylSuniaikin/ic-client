@@ -11,6 +11,7 @@ import type {
     ReviewPromptOutcome,
     SuggestedOrderResponse,
 } from "../../../domains/customer-auth/types";
+import type { OrderTrackingResponse } from "../../../domains/order-status/types";
 
 // Manual mock for shared/api/customerAuth.ts.
 // Used by CustomerAuthProvider.test.tsx via jest.mock("../../../shared/api/customerAuth").
@@ -23,6 +24,7 @@ export const updateCustomerName = jest.fn<Promise<CustomerMeResponse>, [string, 
 export const fetchCustomerMe = jest.fn<Promise<CustomerMeResponse>, [string]>();
 export const fetchMyOrders = jest.fn<Promise<CustomerOrdersPageResponse>, [string, number, number]>();
 export const fetchOrderDetail = jest.fn<Promise<CustomerOrderDetail>, [string, number]>();
+export const fetchCourierLocation = jest.fn<Promise<OrderTrackingResponse>, [string, number]>();
 export const fetchActiveOrder = jest.fn<Promise<CustomerActiveOrder | null>, [string]>();
 export const fetchSuggestedItems = jest.fn<Promise<SuggestedOrderResponse>, [string]>();
 // Resolves to null by default so suites that don't care about the review prompt
