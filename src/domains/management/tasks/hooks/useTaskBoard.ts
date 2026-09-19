@@ -102,7 +102,20 @@ export function useTaskBoard(ownerId?: number | null): UseTaskBoardResult {
     const cardsByStatus = useMemo(() => {
         const buckets = emptyBucket();
         for (const card of cards) {
-            buckets[card.status].push(card);
+            // Defensive: `card.status` is typed as `TaskCardStatus` but arrives from the backend
+            // at runtime, so TypeScript's exhaustiveness guarantee doesn't actually hold here.
+            // Real incident: the backend migration adding BLOCKED and this file's matching bucket
+            // landed a day apart across two independently-deployed repos — anyone on a stale
+            // cached bundle (or hitting the API in that gap) saw a card with a status this
+            // `buckets` object had no key for, and `buckets[card.status].push(card)` crashed the
+            // whole board with "undefined is not an object". A status this build doesn't know
+            // about should drop that one card, not take down every column with it.
+            const bucket = buckets[card.status];
+            if (!bucket) {
+                logger.error("Task card has an unrecognized status, dropping it from the board:", card);
+                continue;
+            }
+            bucket.push(card);
         }
         return buckets;
     }, [cards]);

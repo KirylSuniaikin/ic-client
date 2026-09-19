@@ -181,6 +181,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             setCheckoutLoading(true);
             const response = await createOrder(orderData);
             window.ttq?.track('PlaceAnOrder', { content_id: "PlaceAnOrder", order_id: response.id, currency: 'BHD', value: orderData.amount_paid });
+            // eventID must match the event_id MetaService sends server-side for this order
+            // (same order id, stringified) so Meta dedupes the Pixel/CAPI copies of this Purchase
+            // instead of counting it twice -- see MetaService.createEventData.
+            window.fbq?.('track', 'Purchase', { value: orderData.amount_paid, currency: 'BHD' }, { eventID: String(response.id) });
             // window.ttq is the TikTok pixel SDK; a global.d.ts augmentation would be cleaner but is not available
             (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({ phone_number: "+" + orderData.tel });
             setCartItems([]);

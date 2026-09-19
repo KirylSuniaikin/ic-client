@@ -72,7 +72,31 @@ export async function reportNetworkError(error: unknown, url: string, method: st
 // here.
 export type AuthFetchOptions = {
     skipAuthRedirectOn401?: boolean;
+    /**
+     * Opt-in retry delays (ms) for a transient network failure — mirrors public.ts's
+     * `fetchWithRetry` (built for `fetchBaseAppInfo`'s cold-start/mobile-blip case). Empty/absent
+     * by default: `authFetch` backs dozens of call sites, many of them non-idempotent POSTs (order
+     * mutations, payments), so blind retries must stay opt-in per call site rather than a global
+     * default. Only retries a `PreResponseNetworkError` — i.e. the raw `fetch()` call itself
+     * rejecting (offline, DNS, CORS) — never a received HTTP response, exactly like the
+     * `fetchWithRetry` this mirrors.
+     */
+    retryDelaysMs?: number[];
 };
+
+// Retries ONLY a raw `fetch()` rejection (offline, DNS, CORS) — never a received HTTP response,
+// so a non-idempotent POST is only ever retried when nothing could possibly have reached the
+// server. `delaysMs` empty means exactly today's single-attempt behaviour.
+async function fetchWithRetries(url: string, init: RequestInit, delaysMs: number[]): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await fetch(url, init);
+        } catch (error) {
+            if (attempt >= delaysMs.length) throw error;
+            await new Promise(resolve => setTimeout(resolve, delaysMs[attempt]));
+        }
+    }
+}
 
 export async function authFetch(
     url: string,
@@ -90,16 +114,15 @@ export async function authFetch(
     applyClientPlatform(headers);
 
     const method = headersWithoutAuth?.method ?? "GET";
+    const retryDelaysMs = options?.retryDelaysMs ?? [];
 
     let response: Response;
     try {
-        response = await fetch(url, {
-            ...headersWithoutAuth,
-            headers
-        });
+        response = await fetchWithRetries(url, { ...headersWithoutAuth, headers }, retryDelaysMs);
     } catch (error) {
         // Fire-and-forget: telemetry must never add latency to the caller's error path
-        // (this wraps the order path). reportClientError swallows its own failures.
+        // (this wraps the order path). reportClientError swallows its own failures. Only
+        // reported once, after every retry (if any) has already failed.
         void reportNetworkError(error, url, method);
         throw new PreResponseNetworkError(error);
     }

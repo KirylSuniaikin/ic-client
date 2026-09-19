@@ -33,6 +33,20 @@ const LOCATION = {
     name: 'IC Pizza Al Hidd',
     tagline: 'Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes',
     cuisines: ['Detroit-style Pizza', 'Brooklyn-style Pizza', 'Pizza'],
+    keywords: [
+        'Detroit style pizza Bahrain',
+        'Brooklyn style pizza Bahrain',
+        'baguette pizza Bahrain',
+        'cold fermented dough pizza Bahrain',
+        '48 hour fermented pizza dough',
+        'cold fermentation pizza',
+        'San Marzano tomatoes pizza',
+        'artisan pizza Bahrain',
+        'pizza pickup Bahrain',
+        'self-order pizza kiosk Bahrain',
+        'pizza Al Hidd',
+        'pizza delivery Al Hidd',
+    ],
     streetAddress: 'Road 114, Block 101, Building 1284R',
     addressLocality: 'Al Hidd',
     addressCountry: 'BH',
@@ -63,6 +77,9 @@ function buildRestaurantJsonLd(location) {
         url: location.url,
         telephone: location.telephone,
         servesCuisine: location.cuisines,
+        // schema.org's `keywords` is typed as a single Text value, not a list -- comma-joined,
+        // per the common convention (schema.org/keywords).
+        keywords: location.keywords.join(', '),
         priceRange: '$$',
         address: {
             '@type': 'PostalAddress',
@@ -114,13 +131,14 @@ function escapeHtml(value) {
     return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderHeadTags({title, description, urlPath, jsonLd}) {
+function renderHeadTags({title, description, urlPath, jsonLd, keywords}) {
     const url = `${SITE_URL}${urlPath}`;
     const t = escapeHtml(title);
     const d = escapeHtml(description);
     return [
         `<title>${t}</title>`,
         `<meta name="description" content="${d}">`,
+        ...(keywords && keywords.length > 0 ? [`<meta name="keywords" content="${escapeHtml(keywords.join(', '))}">`] : []),
         `<link rel="canonical" href="${url}">`,
         '<meta property="og:type" content="website">',
         `<meta property="og:site_name" content="${escapeHtml(LOCATION.name)}">`,
@@ -155,6 +173,7 @@ async function fetchMenuData() {
 const TAG_PATTERNS = [
     /<title>[\s\S]*?<\/title>/,
     /<meta[^>]*\bname=["']description["'][^>]*>/,
+    /<meta[^>]*\bname=["']keywords["'][^>]*>/,
     /<link[^>]*\brel=["']canonical["'][^>]*>/,
     /<meta[^>]*\bproperty=["']og:[a-z_]+["'][^>]*>/g,
     /<meta[^>]*\bname=["']twitter:[a-z]+["'][^>]*>/g,
@@ -183,6 +202,7 @@ async function main() {
         description: `${LOCATION.tagline}. Order online for pickup or delivery in ${LOCATION.addressLocality}, Bahrain. Call ${LOCATION.telephone}.`,
         urlPath: '/menu',
         jsonLd,
+        keywords: LOCATION.keywords,
     });
     await writeRoute(template, '/menu', 'menu/index.html', menuTags);
     // "/" redirects client-side to "/menu" (see src/app/router.tsx) -- same tags, so a crawler

@@ -545,4 +545,14 @@ describe("updateOrderStatus", () => {
             updateOrderStatus({ orderId: "1", jahezOrderId: null, orderStatus: "Ready", reason: null })
         ).resolves.not.toThrow();
     });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+        await updateOrderStatus({ orderId: "1", jahezOrderId: null, orderStatus: "Ready", reason: null });
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
 });

@@ -22,6 +22,11 @@ export type RestaurantLocation = {
     tagline: string;
     // Cuisine/style keywords for JSON-LD `servesCuisine`, most specific first.
     cuisines: string[];
+    // Broader search-intent phrases for the JSON-LD/meta `keywords` field. This is structured
+    // data for machines, not visible copy, so it's the right place for phrase variants (e.g.
+    // "fermentation" alongside "48-hour cold-fermented dough") that would read as keyword
+    // stuffing if crammed into the title/description instead.
+    keywords: string[];
     streetAddress: string;
     addressLocality: string;
     addressCountry: string; // ISO 3166-1 alpha-2
@@ -37,6 +42,20 @@ export const AL_HIDD_LOCATION: RestaurantLocation = {
     legalName: 'IC PIZZA W.L.L.',
     tagline: 'Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes',
     cuisines: ['Detroit-style Pizza', 'Brooklyn-style Pizza', 'Pizza'],
+    keywords: [
+        'Detroit style pizza Bahrain',
+        'Brooklyn style pizza Bahrain',
+        'baguette pizza Bahrain',
+        'cold fermented dough pizza Bahrain',
+        '48 hour fermented pizza dough',
+        'cold fermentation pizza',
+        'San Marzano tomatoes pizza',
+        'artisan pizza Bahrain',
+        'pizza pickup Bahrain',
+        'self-order pizza kiosk Bahrain',
+        'pizza Al Hidd',
+        'pizza delivery Al Hidd',
+    ],
     streetAddress: 'Road 114, Block 101, Building 1284R',
     addressLocality: 'Al Hidd',
     addressCountry: 'BH',

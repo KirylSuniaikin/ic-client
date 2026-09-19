@@ -305,21 +305,32 @@ export async function sendOrderPayment(payload: OrderPaymentPayload): Promise<un
     }
 }
 
+// Retries a transient network blip (see AuthFetchOptions.retryDelaysMs). Safe to retry: a
+// PreResponseNetworkError means the request never reached the server, and setting an order's
+// status to the same value twice is idempotent — unlike order CREATION, which already has its
+// own dedicated idempotency-key mechanism precisely because blindly retrying that would risk a
+// duplicate order.
+const STATUS_UPDATE_RETRY_DELAYS_MS = [500, 1500];
+
 export async function updateOrderStatus(payload: UpdateOrderStatusPayload): Promise<void> {
     const {orderId, jahezOrderId, orderStatus, reason} = payload;
     try {
-        const response = await authFetch(BASE_URL + "/status_update", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+        const response = await authFetch(
+            BASE_URL + "/status_update",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    orderId,
+                    jahezOrderId,
+                    orderStatus,
+                    reason
+                })
             },
-            body: JSON.stringify({
-                orderId,
-                jahezOrderId,
-                orderStatus,
-                reason
-            })
-        });
+            { retryDelaysMs: STATUS_UPDATE_RETRY_DELAYS_MS }
+        );
 
         if (response.ok) return;
 

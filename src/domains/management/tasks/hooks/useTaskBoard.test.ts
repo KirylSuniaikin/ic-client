@@ -13,6 +13,7 @@ import {
 } from "../../../../shared/api/management";
 import type { TaskCard } from "../types";
 import { useTaskBoard } from "./useTaskBoard";
+import { logger } from "../../../../shared/utils/logger";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../../shared/api/management");
@@ -83,6 +84,36 @@ describe("useTaskBoard", () => {
         expect(result.current.cardsByStatus.DOING.map(c => c.id)).toEqual([2]);
         expect(result.current.cardsByStatus.DONE.map(c => c.id)).toEqual([4]);
         expect(result.current.cardsByStatus.BLOCKED.map(c => c.id)).toEqual([5]);
+    });
+
+    // Real incident: a card with a status this build's `emptyBucket()` has no key for (e.g. a
+    // stale cached bundle from before BLOCKED shipped, or any future status added backend-first)
+    // used to crash the whole board on `buckets[card.status].push(card)`.
+    it("drops a card with an unrecognized status instead of crashing the board", async () => {
+        const errorSpy = jest.spyOn(logger, "error").mockImplementation(() => undefined);
+        const knownCard = makeCard({ id: 1, status: "BACKLOG" });
+        // Cast is needed to simulate a runtime value TypeScript's own type would never let us
+        // construct directly — exactly the "typed as TaskCardStatus, not actually guaranteed at
+        // runtime" gap this test exists to cover.
+        const unknownStatusCard = { ...makeCard({ id: 2 }), status: "ARCHIVED" } as unknown as TaskCard;
+        mockFetchTaskBoard.mockResolvedValue([knownCard, unknownStatusCard]);
+
+        const { result } = renderHook(() => useTaskBoard());
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.cardsByStatus.BACKLOG.map(c => c.id)).toEqual([1]);
+        expect(result.current.cardsByStatus.BLOCKED).toEqual([]);
+        expect(result.current.cardsByStatus.DOING).toEqual([]);
+        expect(result.current.cardsByStatus.DONE).toEqual([]);
+        expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining("unrecognized status"),
+            expect.objectContaining({ id: 2 })
+        );
+
+        errorSpy.mockRestore();
     });
 
     it("refetches with the new assigneeId when ownerId changes", async () => {

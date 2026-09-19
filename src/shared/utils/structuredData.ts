@@ -17,6 +17,9 @@ export function buildRestaurantJsonLd(location: RestaurantLocation): Record<stri
         url: location.url,
         telephone: location.telephone,
         servesCuisine: location.cuisines,
+        // schema.org's `keywords` is typed as a single Text value, not a list -- comma-joined,
+        // per the common convention (schema.org/keywords).
+        keywords: location.keywords.join(', '),
         priceRange: '$$',
         address: {
             '@type': 'PostalAddress',
