@@ -30,6 +30,7 @@ const ORDER: UnassignedOrder = {
     orderId: 99, orderNo: 4821, status: "Ready", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
     pizzaCount: 3, couriersNeeded: 1, oversized: false,
+    partId: 501, partIndex: 1, partsTotal: 1,
 };
 
 const RANKED: CourierBoardRow = {
@@ -469,5 +470,25 @@ describe("AssignCourierDialog — the over-capacity warning", () => {
         fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
 
         expect((screen.getByRole("button", { name: "Assign" }) as HTMLButtonElement).disabled).toBe(false);
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §11 P5): the title reflects "part k of N" when the
+ * target carries a partsTotal > 1 — the queue's own per-part row.
+ */
+describe("AssignCourierDialog — split target title", () => {
+    it("reflects 'part k of N' when the target is one part of a split order", () => {
+        const splitTarget: UnassignedOrder = { ...ORDER, partIndex: 2, partsTotal: 3 };
+        renderDialog([courier({})], splitTarget);
+
+        expect(screen.getByText(/part 2 of 3/)).toBeTruthy();
+    });
+
+    it("leaves the title unchanged for a plain, non-split target", () => {
+        renderDialog([courier({})], ORDER);
+
+        expect(screen.queryByText(/part \d+ of \d+/)).toBeNull();
+        expect(screen.getByText(`Assign order #${ORDER.orderNo}`)).toBeTruthy();
     });
 });

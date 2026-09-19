@@ -6,7 +6,8 @@ import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import {
     cancelOrder, fetchBoardCouriers, fetchCouriers, fetchCourierOrders, fetchOrderProofPhoto,
-    fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
+    fetchOrderRoute, fetchOrdersAwaitingCourier, fetchPartProofPhoto, manualAssign,
+    manualAssignPart, releaseOrder, releasePart,
 } from '../../../../shared/api/dispatcher';
 import { logger } from '../../../../shared/utils/logger';
 import { AssignCourierDialog } from './AssignCourierDialog';
@@ -81,7 +82,13 @@ export function CourierDispatcherPanel(): JSX.Element {
     const [orders, setOrders] = useState<CourierOrderSummary[]>([]);
     const [pendingAction, setPendingAction] = useState<PendingOrderAction | null>(null);
     const [route, setRoute] = useState<OrderRoute | null>(null);
-    const [proofPhotoOrderId, setProofPhotoOrderId] = useState<number | null>(null);
+    /**
+     * Courier-capacity Phase 5 (D5): the proof-photo viewer always targets the specific part the
+     * manager drilled in from — one viewer, no picker. `usePart` selects which fetch function
+     * `EntityPhotoViewer` calls; a non-split order (`usePart: false`) keeps hitting the unchanged
+     * order-keyed route exactly as before this phase.
+     */
+    const [proofPhotoTarget, setProofPhotoTarget] = useState<{ id: number; usePart: boolean } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -175,12 +182,18 @@ export function CourierDispatcherPanel(): JSX.Element {
      * review iteration 1), since only they know which local "is this open" state to clear.
      */
     async function handleAssign(
-        orderId: number,
+        target: { orderId: number; partId?: number; partsTotal?: number },
         courierId: string,
         acknowledgeOverCapacity: boolean
     ): Promise<ManualAssignResult> {
         return await withLoadingState(async () => {
-            const result = await manualAssign(orderId, courierId, acknowledgeOverCapacity);
+            // Courier-capacity Phase 5 (task-spec.md §7.3 step 3): a genuinely split target routes
+            // to the part-primary endpoint; every non-split target (partsTotal absent/1) keeps
+            // using the unchanged order-keyed one — byte-identical to before this phase.
+            const isSplitTarget = (target.partsTotal ?? 1) > 1;
+            const result = isSplitTarget && target.partId !== undefined
+                ? await manualAssignPart(target.partId, courierId, acknowledgeOverCapacity)
+                : await manualAssign(target.orderId, courierId, acknowledgeOverCapacity);
             if (result.assigned) {
                 setAssigning(null);
                 applyCouriersView(await Promise.all([
@@ -208,8 +221,16 @@ export function CourierDispatcherPanel(): JSX.Element {
         await load(
             async () => {
                 if (pending.action === 'release') {
-                    await releaseOrder(pending.order.orderId);
+                    // Courier-capacity Phase 5: per-part release for a genuinely split order's
+                    // row, the unchanged order-keyed release for every other one.
+                    if ((pending.order.partsTotal ?? 1) > 1) {
+                        await releasePart(pending.order.partId);
+                    } else {
+                        await releaseOrder(pending.order.orderId);
+                    }
                 } else {
+                    // D6: cancel always stays wired to the whole order, regardless of which
+                    // part's row it was pressed from.
                     await cancelOrder(pending.order.orderId);
                 }
                 return await fetchCourierOrders(courierId);
@@ -253,10 +274,22 @@ export function CourierDispatcherPanel(): JSX.Element {
                             </Typography>
                             <Box sx={PANEL_CARD_SX}>
                                 {awaiting.map((order) => (
-                                    <Box key={order.orderId} sx={ROW_SX}>
+                                    // Courier-capacity Phase 5: partId, not orderId, keys a
+                                    // genuinely split order's row — two rows for the same order
+                                    // (one per still-unassigned part) are two distinct entries here.
+                                    <Box key={order.partId} sx={ROW_SX}>
                                         <Box sx={{ minWidth: 0, flex: 1 }}>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                                                 #{order.orderNo ?? order.orderId}
+                                                {order.partsTotal > 1 && (
+                                                    <Typography
+                                                        component="span"
+                                                        variant="caption"
+                                                        sx={{ ml: 1, color: brandRed, fontWeight: 700 }}
+                                                    >
+                                                        Part {order.partIndex}/{order.partsTotal}
+                                                    </Typography>
+                                                )}
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: '#8a807a' }}>
                                                 {order.branchName ?? '—'} · {order.addressLine ?? '—'}
@@ -301,8 +334,11 @@ export function CourierDispatcherPanel(): JSX.Element {
                     <DeliveryBoardPanel
                         couriers={couriers}
                         awaiting={awaiting}
+                        // D7: this board is read-only for assignment once an order is genuinely
+                        // split, so it only ever calls onAssign for a plain, non-split order —
+                        // partsTotal is left at its unchanged default of 1 here.
                         onAssign={(orderId, courierId, acknowledgeOverCapacity) =>
-                            handleAssign(orderId, courierId, acknowledgeOverCapacity)
+                            handleAssign({ orderId }, courierId, acknowledgeOverCapacity)
                         }
                     />
 
@@ -408,14 +444,25 @@ export function CourierDispatcherPanel(): JSX.Element {
                     <Box sx={PANEL_CARD_SX}>
                         {!loading && orders.length === 0 && <EmptyState>No orders yet.</EmptyState>}
                         {orders.map((order) => (
+                            // Courier-capacity Phase 5: keyed by partId, not orderId — a split
+                            // order can contribute more than one row to this same courier's list.
                             <Box
-                                key={order.orderId}
+                                key={order.partId}
                                 sx={CLICKABLE_ROW_SX}
                                 onClick={() => setView({ level: 'route', courier: view.courier, order })}
                             >
                                 <Box sx={{ minWidth: 0, flex: 1 }}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                                         #{order.orderNo ?? order.orderId}
+                                        {order.partsTotal > 1 && (
+                                            <Typography
+                                                component="span"
+                                                variant="caption"
+                                                sx={{ ml: 1, color: brandRed, fontWeight: 700 }}
+                                            >
+                                                Part {order.partIndex}/{order.partsTotal}
+                                            </Typography>
+                                        )}
                                     </Typography>
                                     <Typography variant="body2" sx={{ color: '#8a807a' }}>
                                         {order.status}
@@ -480,7 +527,11 @@ export function CourierDispatcherPanel(): JSX.Element {
                     // already logged and in `error` by `withLoadingState` inside handleAssign — this
                     // call site's own job is only to close the dialog it owns rather than leave it
                     // open over an order that may have already moved (Issue 1, review iteration 1).
-                    return handleAssign(assigning.orderId, courierId, acknowledgeOverCapacity).catch(
+                    return handleAssign(
+                        { orderId: assigning.orderId, partId: assigning.partId, partsTotal: assigning.partsTotal },
+                        courierId,
+                        acknowledgeOverCapacity
+                    ).catch(
                         (): ManualAssignResult => {
                             setAssigning(null);
                             return { assigned: false, warning: null };
@@ -502,13 +553,16 @@ export function CourierDispatcherPanel(): JSX.Element {
             {/* Shares the viewer the purchase and accounting photos use, so the fetch/objectURL/
                 revoke cycle exists once. The bytes cannot be reached with a plain <img src>: the
                 endpoint is MANAGER-gated and the JWT is attached by authFetch, so a browser-issued
-                image request carries no credential and 401s. */}
+                image request carries no credential and 401s.
+                Courier-capacity Phase 5 (D5): always targets the specific part the manager drilled
+                in from — one viewer, no picker. `usePart` decides which endpoint to call; a
+                non-split order keeps hitting the unchanged order-keyed one. */}
             <EntityPhotoViewer
-                open={proofPhotoOrderId !== null}
-                onClose={() => setProofPhotoOrderId(null)}
+                open={proofPhotoTarget !== null}
+                onClose={() => setProofPhotoTarget(null)}
                 blob={null}
-                serverId={proofPhotoOrderId}
-                fetchImage={fetchOrderProofPhoto}
+                serverId={proofPhotoTarget?.id ?? null}
+                fetchImage={proofPhotoTarget?.usePart ? fetchPartProofPhoto : fetchOrderProofPhoto}
                 title="Proof of delivery"
                 testIdPrefix="proof-photo"
             />
@@ -518,6 +572,16 @@ export function CourierDispatcherPanel(): JSX.Element {
                     <Typography variant="h6" sx={{ mb: 2 }}>
                         Order #{route.orderNo ?? route.orderId}
                     </Typography>
+
+                    {/* D4: the route/timings drill-down stays order-level this phase — no
+                        /parts/{partId}/route endpoint exists — so a split order's own row is
+                        captioned to say so, rather than silently implying these three numbers and
+                        the GPS trail below belong to just the part that was opened. */}
+                    {view.level === 'route' && (view.order.partsTotal ?? 1) > 1 && (
+                        <PanelNotice tone="info">
+                            Wait / Travel / GPS trail are for the whole order, not just this part.
+                        </PanelNotice>
+                    )}
 
                     <Box sx={{ display: 'flex', gap: 4, mb: 3 }}>
                         <Box><Typography variant="caption">Wait</Typography>
@@ -551,7 +615,14 @@ export function CourierDispatcherPanel(): JSX.Element {
                     <Button
                         size="small"
                         startIcon={<PhotoCameraOutlinedIcon fontSize="small" />}
-                        onClick={() => setProofPhotoOrderId(route.orderId)}
+                        onClick={() => {
+                            if (view.level !== 'route') return;
+                            const usePart = (view.order.partsTotal ?? 1) > 1;
+                            setProofPhotoTarget({
+                                id: usePart ? view.order.partId : route.orderId,
+                                usePart,
+                            });
+                        }}
                         sx={{ textTransform: 'none', fontWeight: 700, color: brandRed, mb: 2 }}
                     >
                         Proof photo

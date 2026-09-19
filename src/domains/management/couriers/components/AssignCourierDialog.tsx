@@ -149,6 +149,10 @@ export function AssignCourierDialog({
 
     const selectable = couriers.filter(isAvailable);
     const orderLabel = `#${order?.orderNo ?? order?.orderId ?? ''}`;
+    // Courier-capacity Phase 5 (task-spec.md §11 P5): the queue's own per-part target carries
+    // partIndex/partsTotal (UnassignedOrder), so the title says which part this is, the same way
+    // HandedToCourierDialog's copy does. Absent/1 on every non-split target, unchanged title.
+    const isSplitTarget = (order?.partsTotal ?? 1) > 1;
 
     const paperSx = {
         backgroundColor: SHEET_GROUND,
@@ -158,7 +162,11 @@ export function AssignCourierDialog({
     const body = (
         <>
             <DialogTitle sx={{ pb: 0.5, fontWeight: 700, fontSize: 18, color: INK }}>
-                {assignable ? `Assign order ${orderLabel}` : `Order ${orderLabel}`}
+                {assignable
+                    ? (isSplitTarget
+                        ? `Assign order ${orderLabel} — part ${order?.partIndex} of ${order?.partsTotal}`
+                        : `Assign order ${orderLabel}`)
+                    : `Order ${orderLabel}`}
             </DialogTitle>
 
             <DialogContent sx={{ pt: 2 }}>

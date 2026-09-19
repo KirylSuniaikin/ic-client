@@ -14,9 +14,13 @@ import {
     fetchOrderProofPhoto,
     fetchOrderRoute,
     fetchOrdersAwaitingCourier,
+    fetchPartProofPhoto,
     manualAssign,
+    manualAssignPart,
     markHandedOverToCourier,
+    markPartHandedOverToCourier,
     releaseOrder,
+    releasePart,
 } from "./dispatcher";
 import { DeliveryApiError } from "../../domains/delivery/types";
 
@@ -285,5 +289,101 @@ describe("dispatcher — the kitchen hand-over", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
         await expect(markHandedOverToCourier(77)).resolves.toBeUndefined();
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §6.3/§11): the part-primary siblings of the order-keyed
+ * functions above, mirroring each one's method/URL/body/error contract exactly — the only
+ * difference is the path segment (`parts/{partId}` instead of `orders/{orderId}`).
+ */
+describe("dispatcher — part-primary siblings", () => {
+    it("manualAssignPart posts to parts/{partId}/assign with the same body shape as manualAssign", async () => {
+        mockAuthFetch.mockResolvedValueOnce(json({ assigned: true, warning: null }));
+
+        await manualAssignPart(501, "c1");
+
+        expect(calledUrl()).toBe(`${BASE}/parts/501/assign`);
+        expect(calledInit().method).toBe("POST");
+        expect(JSON.parse(calledInit().body as string)).toEqual({
+            courierId: "c1",
+            acknowledgeOverCapacity: false,
+        });
+    });
+
+    it("manualAssignPart carries an explicit acknowledgement through, same as manualAssign", async () => {
+        mockAuthFetch.mockResolvedValueOnce(json({ assigned: true, warning: null }));
+
+        await manualAssignPart(501, "c1", true);
+
+        expect(JSON.parse(calledInit().body as string)).toEqual({
+            courierId: "c1",
+            acknowledgeOverCapacity: true,
+        });
+    });
+
+    it("manualAssignPart returns the parsed response body", async () => {
+        const body = { assigned: false, warning: { riderPizzas: 6, orderPizzas: 4, totalPizzas: 10, capacity: 8 } };
+        mockAuthFetch.mockResolvedValueOnce(json(body));
+
+        await expect(manualAssignPart(501, "c1")).resolves.toEqual(body);
+    });
+
+    it("manualAssignPart surfaces a 409 exactly like manualAssign", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+
+        await expect(manualAssignPart(501, "c1")).rejects.toThrow("Response: 409");
+    });
+
+    it("releasePart posts to parts/{partId}/release with no body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await releasePart(501);
+
+        expect(calledUrl()).toBe(`${BASE}/parts/501/release`);
+        expect(calledInit().method).toBe("POST");
+        expect(calledInit().body).toBeUndefined();
+    });
+
+    it("fetchPartProofPhoto returns the bytes on success", async () => {
+        const bytes = new Blob(["jpeg"], { type: "image/jpeg" });
+        mockAuthFetch.mockResolvedValueOnce(new Response(bytes, { status: 200 }));
+
+        const photo = await fetchPartProofPhoto(501);
+
+        expect(calledUrl()).toBe(`${BASE}/parts/501/proof-photo`);
+        expect(photo).toBeInstanceOf(Blob);
+    });
+
+    /** Same 404-is-null contract as fetchOrderProofPhoto. */
+    it("fetchPartProofPhoto reads a 404 as absent rather than as a failure", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(fetchPartProofPhoto(501)).resolves.toBeNull();
+    });
+
+    it("fetchPartProofPhoto still throws on a real failure", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(fetchPartProofPhoto(501)).rejects.toThrow("Response: 500");
+    });
+
+    it("markPartHandedOverToCourier posts on the kitchen path, not the manager one", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await markPartHandedOverToCourier(501);
+
+        expect(calledUrl()).toBe(`${BASE_URL}/kitchen/delivery/parts/501/handed-over`);
+        expect(calledUrl()).not.toContain("/management/");
+        expect(calledInit().method).toBe("POST");
+    });
+
+    /** Same DeliveryApiError contract as markHandedOverToCourier. */
+    it("markPartHandedOverToCourier throws a typed error carrying the status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+
+        await expect(markPartHandedOverToCourier(501)).rejects.toBeInstanceOf(DeliveryApiError);
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+        await expect(markPartHandedOverToCourier(501)).rejects.toMatchObject({ status: 409 });
     });
 });

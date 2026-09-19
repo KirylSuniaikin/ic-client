@@ -75,3 +75,63 @@ describe("HandedToCourierDialog", () => {
         expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
     });
 });
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §11 P4): the `part` prop lets one dialog serve both the
+ * plain hand-over and a split order's per-part one, without a second component.
+ */
+describe("HandedToCourierDialog — split order part copy", () => {
+    it("includes 'part k of N' when a part is passed", () => {
+        render(
+            <HandedToCourierDialog
+                open
+                order={ORDER}
+                onConfirm={jest.fn<void, []>()}
+                onCancel={jest.fn<void, []>()}
+                part={{ partIndex: 1, partsTotal: 2 }}
+            />
+        );
+
+        expect(screen.getByText(/part 1 of 2/)).toBeTruthy();
+    });
+
+    it("still names the order when a part is passed", () => {
+        render(
+            <HandedToCourierDialog
+                open
+                order={ORDER}
+                onConfirm={jest.fn<void, []>()}
+                onCancel={jest.fn<void, []>()}
+                part={{ partIndex: 2, partsTotal: 3 }}
+            />
+        );
+
+        expect(screen.getByText(/order #4821/)).toBeTruthy();
+    });
+
+    it("leaves the unchanged copy exactly as before when no part is passed", () => {
+        renderDialog();
+
+        expect(screen.queryByText(/part \d+ of \d+/)).toBeNull();
+        expect(screen.getByText(/leaves this\s+board/)).toBeTruthy();
+    });
+
+    it("still confirms/cancels correctly when a part is passed", () => {
+        const onConfirm = jest.fn<void, []>();
+        const onCancel = jest.fn<void, []>();
+        render(
+            <HandedToCourierDialog
+                open
+                order={ORDER}
+                onConfirm={onConfirm}
+                onCancel={onCancel}
+                part={{ partIndex: 1, partsTotal: 2 }}
+            />
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+        expect(onCancel).not.toHaveBeenCalled();
+    });
+});

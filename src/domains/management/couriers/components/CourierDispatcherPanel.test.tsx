@@ -4,7 +4,8 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { CourierDispatcherPanel } from "./CourierDispatcherPanel";
 import {
     cancelOrder, fetchBoardCouriers, fetchCouriers, fetchCourierOrders, fetchDeliveryCards,
-    fetchOrderProofPhoto, fetchOrderRoute, fetchOrdersAwaitingCourier, manualAssign, releaseOrder,
+    fetchOrderProofPhoto, fetchOrderRoute, fetchOrdersAwaitingCourier, fetchPartProofPhoto,
+    manualAssign, manualAssignPart, releaseOrder, releasePart,
 } from "../../../../shared/api/dispatcher";
 import type {
     CourierBoardRow, CourierOrderSummary, CourierStats, DeliveryCard, OrderRoute, UnassignedOrder,
@@ -55,8 +56,11 @@ const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
 const mockAwaiting = jest.mocked(fetchOrdersAwaitingCourier);
 const mockAssign = jest.mocked(manualAssign);
+const mockAssignPart = jest.mocked(manualAssignPart);
 const mockRelease = jest.mocked(releaseOrder);
+const mockReleasePart = jest.mocked(releasePart);
 const mockCancel = jest.mocked(cancelOrder);
+const mockPartProofPhoto = jest.mocked(fetchPartProofPhoto);
 // The board panel this screen now embeds has its own two fetchers; they are stubbed empty here so
 // these tests keep asserting on the roster and the queue rather than on the board.
 const mockBoardCards = jest.mocked(fetchDeliveryCards);
@@ -87,6 +91,7 @@ const ORDER: CourierOrderSummary = {
     orderId: 42, orderNo: 7, status: "Delivered", deliveredAt: "2026-08-08T10:00:00",
     waitTimeMinutes: 3, travelTimeMinutes: 12, geofenceWarning: false, geofenceDistanceM: 20,
     geofenceOverridden: null,
+    partId: 501, partIndex: 1, partsTotal: 1,
 };
 
 // Still in flight, so release and cancel are both legal on it — unlike ORDER, which is Delivered
@@ -95,17 +100,20 @@ const LIVE_ORDER: CourierOrderSummary = {
     orderId: 43, orderNo: 8, status: "Out for delivery", deliveredAt: null,
     waitTimeMinutes: 2, travelTimeMinutes: null, geofenceWarning: null, geofenceDistanceM: null,
     geofenceOverridden: null,
+    partId: 502, partIndex: 1, partsTotal: 1,
 };
 
 const AWAITING: UnassignedOrder = {
     orderId: 99, orderNo: 12, status: "Kitchen Phase", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
     pizzaCount: 3, couriersNeeded: 1, oversized: false,
+    partId: 991, partIndex: 1, partsTotal: 1,
 };
 
 /** One rider cannot physically carry this — the automatic engine never offered it. */
 const OVERSIZED_AWAITING: UnassignedOrder = {
     ...AWAITING, orderId: 100, orderNo: 13, pizzaCount: 17, couriersNeeded: 3, oversized: true,
+    partId: 1001,
 };
 
 /**
@@ -118,6 +126,7 @@ const BOARD_AWAITING: UnassignedOrder = {
     orderId: 200, orderNo: 55, status: "Ready", branchId: "b1", branchName: "Manama",
     addressLine: "Block 900, Road 1", waitingMinutes: 9,
     pizzaCount: 3, couriersNeeded: 1, oversized: false,
+    partId: 2001, partIndex: 1, partsTotal: 1,
 };
 
 const BOARD_CARD: DeliveryCard = {
@@ -154,12 +163,16 @@ beforeEach(() => {
     mockRoute.mockResolvedValue(ROUTE);
     mockAwaiting.mockReset();
     mockAssign.mockReset();
+    mockAssignPart.mockReset();
     // Empty is the normal state; the tests that care opt in.
     mockAwaiting.mockResolvedValue([]);
     mockAssign.mockResolvedValue({ assigned: true, warning: null });
+    mockAssignPart.mockResolvedValue({ assigned: true, warning: null });
     mockRelease.mockReset();
+    mockReleasePart.mockReset();
     mockCancel.mockReset();
     mockRelease.mockResolvedValue(undefined);
+    mockReleasePart.mockResolvedValue(undefined);
     mockCancel.mockResolvedValue(undefined);
     mockBoardCards.mockReset();
     mockBoardCouriers.mockReset();
@@ -167,6 +180,8 @@ beforeEach(() => {
     mockBoardCouriers.mockResolvedValue([BOARD_ROW]);
     mockProofPhoto.mockReset();
     mockProofPhoto.mockResolvedValue(null);
+    mockPartProofPhoto.mockReset();
+    mockPartProofPhoto.mockResolvedValue(null);
     // No key is the default in test and in any environment that never configured one.
     mockMapsKey.value = undefined;
 });
@@ -718,6 +733,166 @@ describe("CourierDispatcherPanel — release and cancel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Release" }));
 
         expect(mockRoute).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Courier-capacity Phase 5 (task-spec.md §11 P5): a genuinely split order's row releases
+     * PART, not the whole order — releaseOrder would release a part that is not even the one on
+     * screen once orders.assigned_courier_id stops being mirrored.
+     */
+    it("releases the part, not the order, for a genuinely split order's row", async () => {
+        const splitLiveOrder = { ...LIVE_ORDER, partId: 4302, partIndex: 2, partsTotal: 2 };
+        mockOrders.mockResolvedValue([splitLiveOrder]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        await screen.findByText("#8");
+
+        fireEvent.click(screen.getByRole("button", { name: "Release" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Release order" }));
+
+        await waitFor(() => expect(mockReleasePart).toHaveBeenCalledWith(4302));
+        expect(mockRelease).not.toHaveBeenCalled();
+    });
+
+    /** D6: cancel always stays wired to the whole order, regardless of which part's row it is pressed from. */
+    it("cancels the whole order, never a single part, from a split order's own row", async () => {
+        const splitLiveOrder = { ...LIVE_ORDER, partId: 4302, partIndex: 2, partsTotal: 2 };
+        mockOrders.mockResolvedValue([splitLiveOrder]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        await screen.findByText("#8");
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel order" }));
+
+        await waitFor(() => expect(mockCancel).toHaveBeenCalledWith(43));
+    });
+
+    /** D6: Cancel renders once per row, unaffected by which part it belongs to — never deduplicated across siblings. */
+    it("renders one Cancel button per part row of the same split order", async () => {
+        const part1: CourierOrderSummary = { ...LIVE_ORDER, partId: 4301, partIndex: 1, partsTotal: 2 };
+        const part2: CourierOrderSummary = { ...LIVE_ORDER, partId: 4302, partIndex: 2, partsTotal: 2 };
+        mockOrders.mockResolvedValue([part1, part2]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        await screen.findByText("Part 1/2");
+
+        expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(2);
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §11 P5): the waiting-for-a-courier queue becomes
+ * part-keyed — one row per still-unassigned part, routed to the correct assign endpoint.
+ */
+describe("CourierDispatcherPanel — split order queue (courier-capacity Phase 5)", () => {
+    const SPLIT_PART_1_AWAITING: UnassignedOrder = {
+        orderId: 300, orderNo: 30, status: "Ready", branchId: "b1", branchName: "Manama",
+        addressLine: "Block 1, Road 1", waitingMinutes: 5,
+        pizzaCount: 4, couriersNeeded: 1, oversized: false,
+        partId: 3001, partIndex: 1, partsTotal: 2,
+    };
+    const SPLIT_PART_2_AWAITING: UnassignedOrder = {
+        ...SPLIT_PART_1_AWAITING, partId: 3002, partIndex: 2,
+    };
+
+    it("renders one row per still-unassigned part, each with its own Part badge", async () => {
+        mockAwaiting.mockResolvedValue([SPLIT_PART_1_AWAITING, SPLIT_PART_2_AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        await screen.findByText("Waiting for a courier");
+        expect(screen.getByText("Part 1/2")).toBeTruthy();
+        expect(screen.getByText("Part 2/2")).toBeTruthy();
+        expect(screen.getAllByText("#30")).toHaveLength(2);
+    });
+
+    it("shows no Part badge for a non-split waiting order", async () => {
+        mockAwaiting.mockResolvedValue([AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        await screen.findByText("Waiting for a courier");
+        expect(screen.queryByText(/Part \d+\/\d+/)).toBeNull();
+    });
+
+    it("calls manualAssignPart, not manualAssign, when assigning a split order's part from the queue", async () => {
+        mockAwaiting.mockResolvedValue([SPLIT_PART_1_AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        fireEvent.click(await screen.findByText("Assign"));
+        fireEvent.click(await screen.findByLabelText("ali"));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() => expect(mockAssignPart).toHaveBeenCalledWith(3001, "c1", false));
+        expect(mockAssign).not.toHaveBeenCalled();
+    });
+
+    it("still calls manualAssign for a plain, non-split waiting order", async () => {
+        mockAwaiting.mockResolvedValue([AWAITING]);
+
+        render(<CourierDispatcherPanel />);
+
+        fireEvent.click(await screen.findByText("Assign"));
+        fireEvent.click(await screen.findByLabelText("ali"));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        await waitFor(() => expect(mockAssign).toHaveBeenCalledWith(99, "c1", false));
+        expect(mockAssignPart).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (D5): the proof-photo viewer always targets the specific part the
+ * manager drilled in from.
+ */
+describe("CourierDispatcherPanel — proof photo per part (courier-capacity Phase 5)", () => {
+    it("fetches the part-keyed proof photo for a genuinely split order's route", async () => {
+        const splitOrder: CourierOrderSummary = { ...ORDER, partId: 4201, partIndex: 2, partsTotal: 2 };
+        mockOrders.mockResolvedValue([splitOrder]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        const button = await screen.findByRole("button", { name: /Proof photo/ });
+        fireEvent.click(button);
+
+        await waitFor(() => expect(mockPartProofPhoto).toHaveBeenCalledWith(4201));
+        expect(mockProofPhoto).not.toHaveBeenCalled();
+    });
+
+    it("still fetches the order-keyed proof photo for a plain, non-split order's route", async () => {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        const button = await screen.findByRole("button", { name: /Proof photo/ });
+        fireEvent.click(button);
+
+        await waitFor(() => expect(mockProofPhoto).toHaveBeenCalledWith(42));
+        expect(mockPartProofPhoto).not.toHaveBeenCalled();
+    });
+
+    it("captions the route drill-down as whole-order when opened from a split order's row", async () => {
+        const splitOrder: CourierOrderSummary = { ...ORDER, partId: 4201, partIndex: 2, partsTotal: 2 };
+        mockOrders.mockResolvedValue([splitOrder]);
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        expect(await screen.findByText(
+            /Wait \/ Travel \/ GPS trail are for the whole order, not just this part/
+        )).toBeTruthy();
+    });
+
+    it("shows no such caption for a plain, non-split order's route", async () => {
+        render(<CourierDispatcherPanel />);
+        fireEvent.click(await screen.findByText("ali"));
+        fireEvent.click(await screen.findByText("#7"));
+
+        await screen.findByText(/Route \(1 points\)/);
+        expect(screen.queryByText(/Wait \/ Travel \/ GPS trail are for the whole order/)).toBeNull();
     });
 });
 

@@ -222,7 +222,14 @@ export function DeliveryBoardPanel({
                 couriers={couriers}
                 availability={rows}
                 availabilityLoading={loading}
-                assignable={openCard !== null && awaiting.some((order) => order.orderId === openCard.orderId)}
+                // Courier-capacity Phase 5 (D7): read-only for assignment once an order is
+                // genuinely split — per-part assign lives only in the waiting-for-a-courier queue,
+                // so this board never teaches a second surface the same per-part assignment UI.
+                assignable={
+                    openCard !== null
+                    && (openCard.partsTotal ?? 1) <= 1
+                    && awaiting.some((order) => order.orderId === openCard.orderId)
+                }
                 onClose={() => setOpenOrderId(null)}
                 onAssign={(courierId, acknowledgeOverCapacity) => {
                     if (openCard === null) return Promise.resolve({ assigned: false, warning: null });

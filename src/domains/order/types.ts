@@ -120,6 +120,16 @@ export type OrderItem = {
     comboItemTO?: ComboItemTO[];
     photo?: string;
     customizations?: Customization[];
+    // Courier-capacity Phase 5: 1-based, present only on a split order's items — which of the
+    // order's delivery parts this item belongs to. Absent/undefined for every non-split order.
+    partIndex?: number;
+};
+
+/** Courier-capacity Phase 5: mirrors backend ActiveOrdersTO.KitchenPartTO. */
+export type KitchenPartStatus = {
+    partId: number;
+    partIndex: number;
+    handedOver: boolean;
 };
 
 export type Order = {
@@ -159,6 +169,12 @@ export type Order = {
     // reconnect resync.
     courier_assigned?: boolean;
     courier_at_kitchen?: boolean;
+    // Courier-capacity Phase 5: null/undefined for a non-delivery order, 1 for a normal delivery
+    // order, N for a genuinely split one. `courier_assigned` above is REDEFINED once this is > 1:
+    // it then means "every part has a courier", not just this order's single assignedCourier.
+    partsTotal?: number;
+    // Present only once partsTotal > 1 — one entry per delivery part, in part-index order.
+    parts?: KitchenPartStatus[];
 };
 
 export type BaseAppInfoResponse = {

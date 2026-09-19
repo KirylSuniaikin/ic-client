@@ -62,10 +62,35 @@ export function DeliveryOrderDetails({
 
             <Divider sx={{ my: 1.75 }} />
 
-            <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 0.5 }}>
-                Courier
-            </Typography>
-            <PhoneMetric label="Phone" phone={card.courierPhone} absent="not assigned" />
+            {/* Courier-capacity Phase 5 (task-spec.md §11 P5): a genuinely split order shows one
+                courier line per part instead of the single block below — D1 (no rider name on
+                this popup either, phone only, same as every other courier line here). */}
+            {(card.partsTotal ?? 1) > 1 && card.parts !== undefined ? (
+                <>
+                    <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 0.5 }}>
+                        Couriers
+                    </Typography>
+                    {card.parts.map((part) => (
+                        <Box key={part.partId} sx={{ mb: 0.75 }}>
+                            <Typography variant="caption" sx={{ color: MUTED }}>
+                                Part {part.partIndex}/{card.partsTotal}
+                            </Typography>
+                            <PhoneMetric
+                                label="Phone"
+                                phone={part.courierPhone}
+                                absent={part.assigned ? 'no number on file' : 'not assigned'}
+                            />
+                        </Box>
+                    ))}
+                </>
+            ) : (
+                <>
+                    <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 0.5 }}>
+                        Courier
+                    </Typography>
+                    <PhoneMetric label="Phone" phone={card.courierPhone} absent="not assigned" />
+                </>
+            )}
 
             <Divider sx={{ my: 1.75 }} />
 

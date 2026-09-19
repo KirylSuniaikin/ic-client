@@ -9,7 +9,7 @@ import {
     Divider, IconButton
 } from "@mui/material";
 import {updateOrderStatus} from "../../../../shared/api/public";
-import {markHandedOverToCourier} from "../../../../shared/api/dispatcher";
+import {markHandedOverToCourier, markPartHandedOverToCourier} from "../../../../shared/api/dispatcher";
 import {DeliveryApiError} from "../../../delivery/types";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {HandedToCourierDialog} from "./HandedToCourierDialog";
@@ -22,7 +22,7 @@ import {CircularTimer} from "../../../../shared/components/CircularTimer";
 import BluetoothPrinterService from "../../../../services/BluetoothPrinterService";
 import {usePreciseCountdown} from "../../../../shared/hooks/usePreciseCountdown";
 import {toEpochMsBahrain} from "../../../../shared/utils/timeUtils";
-import type {Order, OrderItem, ComboItemTO} from '../../../order/types';
+import type {Order, OrderItem, ComboItemTO, KitchenPartStatus} from '../../../order/types';
 import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderLines';
 
 const colorRed = '#E44B4C';
@@ -171,6 +171,40 @@ function handOverLabel(order: Order): string {
     return order.courier_assigned === true ? "HANDED TO COURIER" : "NO COURIER YET";
 }
 
+/**
+ * Courier-capacity Phase 5 (task-spec.md §5.5/§7.2 step 4, D2/D3): a genuinely split order
+ * — `partsTotal > 1` with its own `parts` list populated — gets one hand-over button PER PART
+ * instead of the single order-level one above. `order.partsTotal` is undefined/1 for every order
+ * this phase does not touch, so this is false there and the block below never renders.
+ */
+function isGenuinelySplit(order: Order): boolean {
+    return (order.partsTotal ?? 1) > 1 && Array.isArray(order.parts) && order.parts.length > 1;
+}
+
+/**
+ * Review iteration 1, Issue 1: the per-part hand-over block used to render whenever the order was
+ * split and had an open part, with no status check at all — so a split order that ended in
+ * `Cancelled` (`DispatcherService.cancel` only releases part 1) or `Returned Undelivered`
+ * (`markReturnedUndeliveredForPart` leaves sibling parts untouched) could be pinned to the board
+ * (see `findActiveOrders`'s own narrowed rescue) AND still present an enabled hand-over control on
+ * a terminal order. `Ready` and `Out for delivery` are the only two statuses a live delivery order
+ * ever carries while a part can still legitimately need a hand-over (task-spec.md §7.2 steps 2-5) —
+ * mirrors the single-button path's own `order.status === "Ready"` liveness check.
+ */
+function isOrderStillLiveForSplitHandOver(order: Order): boolean {
+    return order.status === "Ready" || order.status === "Out for delivery";
+}
+
+/** D3's fixed notice, shown once, above every part's own button, while any part still lacks a courier. */
+const ALL_PARTS_NEED_A_COURIER_NOTICE =
+    "Every part needs its own courier before any of them can be handed over.";
+
+function splitPartButtonLabel(part: KitchenPartStatus, partsTotal: number): string {
+    return part.handedOver
+        ? `PART ${part.partIndex}/${partsTotal} HANDED OVER`
+        : `HAND OVER PART ${part.partIndex}/${partsTotal}`;
+}
+
 function isNotKeetaDefaultNotes(notes: string) {
     return !(notes === "Need cutlery"
         || notes === "Need cutlery; Please contact me when the item is out of stock"
@@ -198,6 +232,19 @@ function OrderCard({
     const [handingOver, setHandingOver] = useState(false);
     const [handOverError, setHandOverError] = useState<string | null>(null);
 
+    // Courier-capacity Phase 5: a split order's own, independent hand-over state — never engaged
+    // by a non-split order, which keeps the block above byte-identical to before this phase.
+    const [splitHandOverTarget, setSplitHandOverTarget] = useState<KitchenPartStatus | null>(null);
+    const [handingOverPartIds, setHandingOverPartIds] = useState<ReadonlySet<number>>(new Set());
+    // Review iteration 1, Issue 2: `parts[k].handedOver` only ever arrives via the REST snapshot
+    // (no live frame carries it — `DeliveryAlertPublisher.handedOver` only pushes `signalBoard` and
+    // a courier-topic frame). Without this, a successfully handed-over part's own button reverts to
+    // its enabled label the instant `handingOverPartIds`'s `finally` clears it, for the entire rest
+    // of the card's now-extended lifetime (D8). Only ever grows — once a part is truly handed over
+    // server-side that never reverses, so a stale entry here is never wrong, only redundant once the
+    // next REST refresh/reconnect confirms it via `part.handedOver` itself.
+    const [locallyHandedOverPartIds, setLocallyHandedOverPartIds] = useState<ReadonlySet<number>>(new Set());
+
     async function confirmHandOver(): Promise<void> {
         setHandOverConfirmOpen(false);
         setHandingOver(true);
@@ -212,6 +259,31 @@ function OrderCard({
             setHandOverError(handOverErrorMessage(err));
         } finally {
             setHandingOver(false);
+        }
+    }
+
+    /**
+     * Part-primary sibling of {@link confirmHandOver}. Same no-local-removal reasoning: the last
+     * open part's hand-over fires `KitchenCardShouldClose` server-side, which is what actually
+     * takes the card off every tablet (task-spec.md §5.6).
+     */
+    async function confirmSplitPartHandOver(): Promise<void> {
+        const target = splitHandOverTarget;
+        setSplitHandOverTarget(null);
+        if (!target) return;
+        setHandingOverPartIds(prev => new Set(prev).add(target.partId));
+        try {
+            await markPartHandedOverToCourier(target.partId);
+            setLocallyHandedOverPartIds(prev => new Set(prev).add(target.partId));
+        } catch (err) {
+            logger.error("Courier hand-over confirmation failed for part:", target.partId, err);
+            setHandOverError(handOverErrorMessage(err));
+        } finally {
+            setHandingOverPartIds(prev => {
+                const next = new Set(prev);
+                next.delete(target.partId);
+                return next;
+            });
         }
     }
 
@@ -390,6 +462,18 @@ function OrderCard({
                                         ({item.size})
                                     </Typography>
                                 )}
+                                {/* Courier-capacity Phase 5: "Part k/N" only when the order is
+                                    genuinely split — undefined partIndex/partsTotal on every other
+                                    order leaves this byte-identical to before the phase. */}
+                                {(order.partsTotal ?? 1) > 1 && item.partIndex != null && (
+                                    <Typography
+                                        component="span"
+                                        variant="body2"
+                                        sx={{ml: 1, fontWeight: 600, color: colorRed}}
+                                    >
+                                        Part {item.partIndex}/{order.partsTotal}
+                                    </Typography>
+                                )}
                             </Typography>
 
                             {renderItemDetails(item)}
@@ -502,7 +586,7 @@ function OrderCard({
                                 kitchen still sees there is nobody to hand to — which is exactly
                                 the condition the endpoint 409s on — without spending a line of
                                 caption on it. */}
-                            {order.status === "Ready" && order.order_type === "Delivery" && (
+                            {order.status === "Ready" && order.order_type === "Delivery" && !isGenuinelySplit(order) && (
                                 <Button
                                     variant="contained"
                                     size="small"
@@ -522,6 +606,55 @@ function OrderCard({
                                 >
                                     {handOverLabel(order)}
                                 </Button>
+                            )}
+                            {/* Courier-capacity Phase 5 (D2): a genuinely split order gets one
+                                hand-over button PER PART, side by side, instead of a single
+                                cycling button — visible whenever the order is split and at least
+                                one part is still open (task-spec.md §7.2 step 4): a split order's
+                                card stays on the board past the FIRST part's own departure, so this
+                                stays visible through both "Ready" and "Out for delivery". Review
+                                iteration 1, Issue 1: gated on `isOrderStillLiveForSplitHandOver` so
+                                a `Cancelled`/`Returned Undelivered` split order — which the board's
+                                own `findActiveOrders` rescue clause never returns anyway once its
+                                status guard is in place, but which this block must not blindly
+                                trust — can never present a hand-over control. */}
+                            {isDelivery && isGenuinelySplit(order) && isOrderStillLiveForSplitHandOver(order)
+                                && order.parts?.some(p => !p.handedOver && !locallyHandedOverPartIds.has(p.partId)) && (
+                                <Box sx={{display: "flex", flexWrap: "wrap", gap: 1, mr: 1}}>
+                                    {order.courier_assigned !== true && (
+                                        <Typography
+                                            variant="body2"
+                                            sx={{color: colorRed, width: "100%"}}
+                                        >
+                                            {ALL_PARTS_NEED_A_COURIER_NOTICE}
+                                        </Typography>
+                                    )}
+                                    {order.parts!.map(part => {
+                                        const handedOver = part.handedOver || locallyHandedOverPartIds.has(part.partId);
+                                        return (
+                                            <Button
+                                                key={part.partId}
+                                                variant="contained"
+                                                size="small"
+                                                disabled={
+                                                    handedOver
+                                                    || order.courier_assigned !== true
+                                                    || handingOverPartIds.has(part.partId)
+                                                }
+                                                sx={{
+                                                    borderColor: colorBeige,
+                                                    color: colorRed,
+                                                    backgroundColor: "white",
+                                                    borderRadius: 4,
+                                                    "&.Mui-disabled": {backgroundColor: "#f0ece4", color: "#9a9188"}
+                                                }}
+                                                onClick={() => setSplitHandOverTarget(part)}
+                                            >
+                                                {splitPartButtonLabel({...part, handedOver}, order.partsTotal ?? part.partIndex)}
+                                            </Button>
+                                        );
+                                    })}
+                                </Box>
                             )}
                             {order.order_type !== "Jahez" && order.order_type !== "Keeta" && (order.order_type as string) !== "TalabaT" && (
                                 <Button
@@ -571,6 +704,17 @@ function OrderCard({
                 order={order}
                 onConfirm={() => { void confirmHandOver(); }}
                 onCancel={() => setHandOverConfirmOpen(false)}
+            />
+            {/* Courier-capacity Phase 5: the split order's own per-part confirm — same dialog,
+                scoped by the `part` prop, never opened by the non-split path above. */}
+            <HandedToCourierDialog
+                open={splitHandOverTarget !== null}
+                order={order}
+                onConfirm={() => { void confirmSplitPartHandOver(); }}
+                onCancel={() => setSplitHandOverTarget(null)}
+                part={splitHandOverTarget
+                    ? {partIndex: splitHandOverTarget.partIndex, partsTotal: order.partsTotal ?? splitHandOverTarget.partIndex}
+                    : undefined}
             />
             {/* Same failure surface the rest of the admin board uses (AdminHomePage's dough
                 alert, TaskBoardPanel's failed mutations) — never a silent no-op. */}

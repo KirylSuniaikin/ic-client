@@ -20,10 +20,11 @@ jest.mock("../../../../shared/api/public");
 jest.mock("../../../../shared/api/dispatcher");
 
 import * as publicApi from "../../../../shared/api/public";
-import { markHandedOverToCourier } from "../../../../shared/api/dispatcher";
+import { markHandedOverToCourier, markPartHandedOverToCourier } from "../../../../shared/api/dispatcher";
 import OrderCard from "./OrderCard";
 
 const mockMarkHandedOverToCourier = jest.mocked(markHandedOverToCourier);
+const mockMarkPartHandedOverToCourier = jest.mocked(markPartHandedOverToCourier);
 
 // The shared public mock does not export these two (see HistoryComponent.test.tsx); OrderCard
 // reaches for them at call time, so patching them onto the mocked module object is enough.
@@ -386,5 +387,193 @@ describe("OrderCard — a rider arriving changes nothing on the card", () => {
         expect(screen.queryByText("COURIER HERE")).toBeNull();
         expect(screen.getByText("Type:").closest("p")?.textContent).toBe("Type: Delivery");
         expect(screen.getByText("OVEN")).toBeTruthy();
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §11 P4): the kitchen card's per-part surface. D2 (one
+ * button per part, side by side, not a single cycling button), D3 (the fixed notice while any
+ * part still lacks a courier), and the "Part k/N" item label. A non-split order (no `parts`, or
+ * `partsTotal` absent/1) must render exactly as {@code OrderCard — HANDED TO COURIER} already
+ * proves — none of these tests touch that path.
+ */
+describe("OrderCard — split order hand-over (courier-capacity Phase 5)", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockMarkPartHandedOverToCourier.mockResolvedValue(undefined);
+    });
+
+    function makeSplitDelivery(overrides: Partial<Order> = {}): Order {
+        return makeOrder({
+            status: "Out for delivery",
+            order_type: "Delivery",
+            partsTotal: 2,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: true },
+                { partId: 502, partIndex: 2, handedOver: false },
+            ],
+            courier_assigned: true,
+            ...overrides,
+        });
+    }
+
+    it("renders one hand-over button per part, side by side, not a single cycling button", () => {
+        renderCard(makeSplitDelivery());
+
+        expect(screen.getByText(/HAND OVER PART 2\/2/)).toBeTruthy();
+        expect(screen.getByText(/PART 1\/2 HANDED OVER/)).toBeTruthy();
+        // Never the single order-level button on a genuinely split order.
+        expect(screen.queryByText("HANDED TO COURIER")).toBeNull();
+        expect(screen.queryByText("NO COURIER YET")).toBeNull();
+    });
+
+    it("disables the already-handed-over part's own button", () => {
+        renderCard(makeSplitDelivery());
+
+        const doneButton = screen.getByText(/PART 1\/2 HANDED OVER/).closest("button");
+        expect(doneButton?.disabled).toBe(true);
+    });
+
+    it("enables the still-open part's button once every part has a courier", () => {
+        renderCard(makeSplitDelivery({ courier_assigned: true }));
+
+        const openButton = screen.getByText(/HAND OVER PART 2\/2/).closest("button");
+        expect(openButton?.disabled).toBe(false);
+    });
+
+    /** D3: the fixed notice, and the backend's own 409 gate mirrored client-side as a disabled button. */
+    it("shows the D3 notice and disables every open part's button while courier_assigned is not true", () => {
+        renderCard(makeSplitDelivery({ courier_assigned: false }));
+
+        expect(screen.getByText(
+            "Every part needs its own courier before any of them can be handed over."
+        )).toBeTruthy();
+        const openButton = screen.getByText(/HAND OVER PART 2\/2/).closest("button");
+        expect(openButton?.disabled).toBe(true);
+    });
+
+    it("shows no D3 notice once every part has a courier", () => {
+        renderCard(makeSplitDelivery({ courier_assigned: true }));
+
+        expect(screen.queryByText(
+            "Every part needs its own courier before any of them can be handed over."
+        )).toBeNull();
+    });
+
+    it("posts the hand-over for the specific part that was tapped, not the order", async () => {
+        renderCard(makeSplitDelivery());
+
+        fireEvent.click(screen.getByText(/HAND OVER PART 2\/2/));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkPartHandedOverToCourier).toHaveBeenCalledWith(502));
+        expect(mockMarkHandedOverToCourier).not.toHaveBeenCalled();
+    });
+
+    it("renders 'Part k/N' on each item only when the order is genuinely split", () => {
+        renderCard(makeSplitDelivery({
+            items: [
+                { name: "Pepperoni", category: "Pizzas", size: "L", quantity: 1, amount: 5, description: "", partIndex: 1 },
+                { name: "Cola", category: "Beverages", size: "", quantity: 2, amount: 2, description: "", partIndex: 2 },
+            ],
+        }));
+
+        expect(screen.getByText("Part 1/2")).toBeTruthy();
+        expect(screen.getByText("Part 2/2")).toBeTruthy();
+    });
+
+    it("renders no 'Part k/N' label at all on a non-split order's items", () => {
+        renderCard(makeReadyDelivery({
+            items: [
+                { name: "Pepperoni", category: "Pizzas", size: "L", quantity: 1, amount: 5, description: "" },
+            ],
+        }));
+
+        expect(screen.queryByText(/Part \d+\/\d+/)).toBeNull();
+    });
+
+    /** A non-split order's card/button set must be byte-identical — proven again here for D8/§12. */
+    it("leaves a non-split delivery order's single hand-over button completely unaffected", () => {
+        renderCard(makeReadyDelivery());
+
+        expect(screen.getByText("HANDED TO COURIER")).toBeTruthy();
+        expect(screen.queryByText(/HAND OVER PART/)).toBeNull();
+        expect(screen.queryByText(
+            "Every part needs its own courier before any of them can be handed over."
+        )).toBeNull();
+    });
+
+    /**
+     * Review iteration 1, Issue 1: a `Cancelled` split order with an undeparted sibling part used
+     * to still present an enabled hand-over control — the block had no status check at all, so a
+     * terminal order could resurrect itself as "Out for delivery" if a stray tap landed. The board's
+     * own `findActiveOrders` rescue is narrowed server-side too, but this card must not trust that
+     * alone: it never renders a hand-over control at all once the order is no longer "Ready" or
+     * "Out for delivery".
+     */
+    it("renders no split hand-over control at all once the order is Cancelled", () => {
+        renderCard(makeSplitDelivery({ status: "Cancelled" }));
+
+        expect(screen.queryByText(/HAND OVER PART/)).toBeNull();
+        expect(screen.queryByText(/PART \d+\/\d+ HANDED OVER/)).toBeNull();
+        expect(screen.queryByText(
+            "Every part needs its own courier before any of them can be handed over."
+        )).toBeNull();
+    });
+
+    it("renders no split hand-over control at all once the order is Returned Undelivered", () => {
+        renderCard(makeSplitDelivery({ status: "Returned Undelivered" }));
+
+        expect(screen.queryByText(/HAND OVER PART/)).toBeNull();
+        expect(screen.queryByText(/PART \d+\/\d+ HANDED OVER/)).toBeNull();
+    });
+
+    /**
+     * Review iteration 1, Issue 2: `parts[k].handedOver` only ever arrives via the REST snapshot —
+     * no live frame carries it — so without a local override a successfully handed-over part's own
+     * button reverted to its enabled label the instant the request resolved, misstating which parts
+     * were actually done for the rest of the card's now-extended lifetime. Three parts here (rather
+     * than two) so the block stays on screen after the tapped part is done — part 3 is still open —
+     * and the flip is observable rather than hidden behind the whole block's own disappearance.
+     */
+    it("flips the tapped part's own button to the handed-over/disabled form once the API call resolves", async () => {
+        renderCard(makeSplitDelivery({
+            partsTotal: 3,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: true },
+                { partId: 502, partIndex: 2, handedOver: false },
+                { partId: 503, partIndex: 3, handedOver: false },
+            ],
+        }));
+
+        fireEvent.click(screen.getByText(/HAND OVER PART 2\/3/));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkPartHandedOverToCourier).toHaveBeenCalledWith(502));
+        await waitFor(() => expect(screen.getByText(/PART 2\/3 HANDED OVER/)).toBeTruthy());
+        const doneButton = screen.getByText(/PART 2\/3 HANDED OVER/).closest("button");
+        expect(doneButton?.disabled).toBe(true);
+        // Part 1's own state is untouched by part 2's hand-over, and part 3 is still open.
+        expect(screen.getByText(/PART 1\/3 HANDED OVER/)).toBeTruthy();
+        expect(screen.getByText(/HAND OVER PART 3\/3/)).toBeTruthy();
+    });
+
+    it("does not flip the tapped part's button when the hand-over call fails", async () => {
+        mockMarkPartHandedOverToCourier.mockRejectedValueOnce(new Error("network down"));
+        renderCard(makeSplitDelivery({
+            partsTotal: 3,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: true },
+                { partId: 502, partIndex: 2, handedOver: false },
+                { partId: 503, partIndex: 3, handedOver: false },
+            ],
+        }));
+
+        fireEvent.click(screen.getByText(/HAND OVER PART 2\/3/));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkPartHandedOverToCourier).toHaveBeenCalledWith(502));
+        expect(screen.getByText(/HAND OVER PART 2\/3/)).toBeTruthy();
+        expect(screen.queryByText(/PART 2\/3 HANDED OVER/)).toBeNull();
     });
 });

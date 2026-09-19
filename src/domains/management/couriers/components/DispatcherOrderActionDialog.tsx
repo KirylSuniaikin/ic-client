@@ -38,6 +38,10 @@ export function DispatcherOrderActionDialog({
 }: DispatcherOrderActionDialogProps): JSX.Element {
     const orderLabel = order === null ? '' : `#${order.orderNo ?? order.orderId}`;
     const isCancel = action === 'cancel';
+    // Courier-capacity Phase 5 (D6/task-spec.md §11 P5): release is per-part when the order is
+    // genuinely split; cancel stays wired to the whole order and its copy is UNCHANGED regardless
+    // of which part's row it was pressed from.
+    const isSplitPart = order !== null && (order.partsTotal ?? 1) > 1;
 
     return (
         <Dialog open={action !== null && order !== null} onClose={onClose} fullWidth maxWidth="xs">
@@ -58,6 +62,13 @@ export function DispatcherOrderActionDialog({
                             EazyPay console.
                         </Typography>
                     </>
+                ) : isSplitPart && order !== null ? (
+                    <Typography variant="body2" sx={{ color: '#3b352c' }}>
+                        This takes part {order.partIndex} of {order.partsTotal} of order {orderLabel} off{' '}
+                        {courierName} and leaves that part unassigned. It is not offered to anyone
+                        automatically — it goes back to the waiting list for you to assign. The rest of
+                        the order is unaffected.
+                    </Typography>
                 ) : (
                     <Typography variant="body2" sx={{ color: '#3b352c' }}>
                         This takes order {orderLabel} off {courierName} and leaves it unassigned.

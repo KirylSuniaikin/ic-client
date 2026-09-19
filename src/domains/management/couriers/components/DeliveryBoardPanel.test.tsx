@@ -106,6 +106,7 @@ const AWAITING_AT_RISK: UnassignedOrder = {
     orderId: 101, orderNo: 11, status: "Ready", branchId: "b1", branchName: "Manama",
     addressLine: "Block 338, Road 3801", waitingMinutes: 14,
     pizzaCount: 3, couriersNeeded: 1, oversized: false,
+    partId: 1011, partIndex: 1, partsTotal: 1,
 };
 
 function renderBoard(props: Partial<DeliveryBoardPanelProps> = {}) {
@@ -733,6 +734,33 @@ describe("DeliveryBoardPanel — assigning by hand from the board", () => {
         expect(screen.queryByText(/already carrying/)).toBeNull();
         expect(screen.queryByRole("button", { name: "Assign anyway" })).toBeNull();
         expect(screen.queryByRole("radio", { name: "Ali" })).toBeNull();
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (D7/task-spec.md §11 P5): once an order is genuinely split, this board
+ * is read-only for assignment — per-part assign lives only in the waiting-for-a-courier queue.
+ */
+describe("DeliveryBoardPanel — a genuinely split card (courier-capacity Phase 5)", () => {
+    it("forces assignable false for a split card even though the server still lists it as awaiting", async () => {
+        const splitCard: DeliveryCard = { ...AT_RISK, partsTotal: 2 };
+        mockCards.mockResolvedValue([splitCard]);
+        renderBoard({ awaiting: [AWAITING_AT_RISK] });
+
+        await openLiveCard("#11");
+
+        expect(screen.getByText(/A courier already holds this order/)).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Assign" })).toBeNull();
+    });
+
+    it("leaves a non-split card's assignable behaviour unchanged", async () => {
+        const { onAssign } = renderBoard({ awaiting: [AWAITING_AT_RISK] });
+
+        await openCard("#11");
+        fireEvent.click(screen.getByRole("radio", { name: "Ali" }));
+        fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+        expect(onAssign).toHaveBeenCalledWith(101, "c1", false);
     });
 });
 

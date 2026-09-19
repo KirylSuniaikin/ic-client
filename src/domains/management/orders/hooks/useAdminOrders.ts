@@ -336,7 +336,11 @@ export function useAdminOrders(
 
             subscriptions.push(
                 socket.subscribe(`/topic/${branchId}/delivery-alert`, (frame) => {
-                    const payload = JSON.parse(frame.body) as { type?: string; orderId?: unknown };
+                    const payload = JSON.parse(frame.body) as {
+                        type?: string;
+                        orderId?: unknown;
+                        allPartsAssigned?: boolean;
+                    };
                     // The branch delivery channel is a discriminated union: NO_COURIER_AVAILABLE,
                     // PICKUP_OVERDUE and GEOFENCE_WARNING land here too and are the dispatcher's
                     // business, not the kitchen's. Anything but the two types above is dropped, so
@@ -345,6 +349,12 @@ export function useAdminOrders(
                     const isAssignment = payload.type === COURIER_ASSIGNED;
                     if (!isArrival && !isAssignment) return;
                     const alertedOrderId = getStringId(payload?.orderId ?? payload);
+
+                    // Courier-capacity Phase 5 (task-spec.md §5.7): a COURIER_ASSIGNED frame only
+                    // enables hand-over once EVERY part of the order has a courier — `allPartsAssigned`
+                    // omitted entirely (an old backend build, or the single-part legacy case) is
+                    // read as true, so a stale bundle/backend keeps today's behaviour unchanged.
+                    const allPartsAssigned = payload.allPartsAssigned !== false;
 
                     // Patches the same two facts ActiveOrdersTO already reports rather than adding
                     // second copies, so a REST re-hydrate and a live frame can never disagree.
@@ -363,9 +373,12 @@ export function useAdminOrders(
                     setOrders(prev =>
                         prev.map(o => {
                             if (getStringId(o) !== alertedOrderId) return o;
-                            return isArrival
-                                ? { ...o, courier_at_kitchen: true }
-                                : { ...o, courier_assigned: true };
+                            if (isArrival) return { ...o, courier_at_kitchen: true };
+                            // A part still lacking its own courier: leave courier_assigned as it
+                            // was (never a premature true, and never a regression to false either
+                            // — this frame is silent on that other part's own eventual assignment).
+                            if (!allPartsAssigned) return o;
+                            return { ...o, courier_assigned: true };
                         })
                     );
 

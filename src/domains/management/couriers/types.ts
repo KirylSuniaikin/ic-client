@@ -34,6 +34,10 @@ export type CourierOrderSummary = {
      * drift, a warning the rider had to override by hand is a rider making a claim.
      */
     geofenceOverridden: boolean | null;
+    // Courier-capacity Phase 5: always populated — 1/1 for a non-split order's part 1.
+    partId: number;
+    partIndex: number;
+    partsTotal: number;
 };
 
 export type CourierRoutePoint = {
@@ -112,6 +116,12 @@ export type DispatchableOrder = {
     orderNo: number | null;
     branchName: string | null;
     addressLine: string | null;
+    // Courier-capacity Phase 5: optional so a caller with no part concept (a plain DeliveryCard
+    // opened non-split) still satisfies this type structurally. Present and > 1 on partsTotal
+    // means this specific target IS one part of a genuinely split order.
+    partId?: number;
+    partIndex?: number;
+    partsTotal?: number;
 };
 
 /**
@@ -134,6 +144,11 @@ export type UnassignedOrder = {
     couriersNeeded: number;
     /** `pizzaCount > capacity` — one rider cannot physically carry this order. */
     oversized: boolean;
+    // Courier-capacity Phase 5: always populated — 1/1 for a non-split order's part 1. One row
+    // per still-unassigned PART, so a genuinely split order can have several rows here.
+    partId: number;
+    partIndex: number;
+    partsTotal: number;
 };
 
 /**
@@ -224,12 +239,24 @@ export type DeliveryCard = {
      * instead of quietly dropping the section.
      */
     items: DeliveryCardItem[];
+    // Courier-capacity Phase 5: null/1 for a non-split order. `courierPhone` above is kept =
+    // part 1's for backward compatibility; a client rendering `parts` ignores it.
+    partsTotal?: number;
+    parts?: DeliveryCardPart[];
 };
 
 /** One line of {@link DeliveryCard.items}; mirrors backend `DeliveryCardItemTO`. */
 export type DeliveryCardItem = {
     name: string | null;
     quantity: number | null;
+};
+
+/** Mirrors backend `DeliveryCardTO.DeliveryCardPartTO`. One row per part of a split order. */
+export type DeliveryCardPart = {
+    partId: number;
+    partIndex: number;
+    courierPhone: string | null;
+    assigned: boolean;
 };
 
 /**

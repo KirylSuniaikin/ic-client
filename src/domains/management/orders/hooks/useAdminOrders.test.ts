@@ -631,4 +631,54 @@ describe("useAdminOrders — delivery alerts", () => {
 
         expect(jest.mocked(socket.publish)).not.toHaveBeenCalled();
     });
+
+    /**
+     * Courier-capacity Phase 5 (task-spec.md §5.7/§11): the premature hand-over button fix. A
+     * split order's part 1 getting a courier used to enable hand-over immediately, even though
+     * part 2 still had nobody — the backend now says so explicitly via `allPartsAssigned`.
+     */
+    describe("allPartsAssigned (courier-capacity Phase 5)", () => {
+        it("does NOT set courier_assigned when allPartsAssigned is false", async () => {
+            const view = await boardWith([deliveryOrder(7)]);
+
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7, allPartsAssigned: false }));
+
+            expect(view.result.current.orders[0].courier_assigned).toBe(false);
+        });
+
+        it("sets courier_assigned when allPartsAssigned is explicitly true", async () => {
+            const view = await boardWith([deliveryOrder(7)]);
+
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7, allPartsAssigned: true }));
+
+            expect(view.result.current.orders[0].courier_assigned).toBe(true);
+        });
+
+        // Legacy safety: an old backend build (or a single-part order, byte-identical to today)
+        // never sends the field at all — treated as true, not as false.
+        it("sets courier_assigned when allPartsAssigned is omitted entirely", async () => {
+            const view = await boardWith([deliveryOrder(7)]);
+
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7 }));
+
+            expect(view.result.current.orders[0].courier_assigned).toBe(true);
+        });
+
+        it("does not flip courier_at_kitchen when a part is still unassigned", async () => {
+            const view = await boardWith([deliveryOrder(7)]);
+
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7, allPartsAssigned: false }));
+
+            expect(view.result.current.orders[0].courier_at_kitchen).toBe(false);
+        });
+
+        it("does not clear an already-true courier_assigned when a later sibling frame arrives false", async () => {
+            const view = await boardWith([deliveryOrder(7)]);
+
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7, allPartsAssigned: true }));
+            act(() => sendAlert({ type: "COURIER_ASSIGNED", orderId: 7, allPartsAssigned: false }));
+
+            expect(view.result.current.orders[0].courier_assigned).toBe(true);
+        });
+    });
 });

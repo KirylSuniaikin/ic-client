@@ -17,14 +17,26 @@ import { Order } from "../../../order/types";
  * `DispatcherOrderActionDialog` next door), and a confirm that answers a tap on a card should
  * look like the other confirms staff already answer on the same screen.
  */
+/**
+ * Courier-capacity Phase 5 (task-spec.md §11 P4): identifies WHICH part this confirm is for, so
+ * the copy can say "part k of N" — undefined for the unchanged, non-split case (or a split
+ * order's own board card is never opened with only "the order" in mind once D2's per-part
+ * buttons exist, but the type stays optional so every existing call site compiles unchanged).
+ */
+export interface HandedToCourierPart {
+    partIndex: number;
+    partsTotal: number;
+}
+
 interface Props {
     open: boolean;
     order: Order;
     onConfirm: () => void;
     onCancel: () => void;
+    part?: HandedToCourierPart;
 }
 
-export function HandedToCourierDialog({ open, order, onConfirm, onCancel }: Props): JSX.Element {
+export function HandedToCourierDialog({ open, order, onConfirm, onCancel, part }: Props): JSX.Element {
     return (
         <Dialog
             open={open}
@@ -48,8 +60,18 @@ export function HandedToCourierDialog({ open, order, onConfirm, onCancel }: Prop
             </DialogTitle>
             <DialogContent sx={{ textAlign: "center", pb: 1.5 }}>
                 <Typography fontSize="13px" color="text.secondary">
-                    Confirm order #{order?.order_no} has been handed to the courier. It leaves this
-                    board and the customer is told it is on the way.
+                    {part ? (
+                        <>
+                            Confirm part {part.partIndex} of {part.partsTotal} of order #{order?.order_no} has
+                            been handed to the courier. The rest of the order stays on this board until its
+                            own part is handed over.
+                        </>
+                    ) : (
+                        <>
+                            Confirm order #{order?.order_no} has been handed to the courier. It leaves this
+                            board and the customer is told it is on the way.
+                        </>
+                    )}
                 </Typography>
             </DialogContent>
             <Divider />

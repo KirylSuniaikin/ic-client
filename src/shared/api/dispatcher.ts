@@ -205,3 +205,51 @@ export async function markHandedOverToCourier(orderId: number): Promise<void> {
     });
     if (!res.ok) throw new DeliveryApiError(`Response: ${res.status}`, res.status);
 }
+
+// ---------------------------------------------------------------------------------------
+// Courier-capacity Phase 5 (task-spec.md §6.3): part-primary siblings of the order-keyed
+// functions above, for a genuinely split order. `manualAssign`, `releaseOrder`,
+// `fetchOrderProofPhoto`, `markHandedOverToCourier` are UNCHANGED — every non-split call path
+// keeps using them exactly as today.
+// ---------------------------------------------------------------------------------------
+
+/** Part-primary sibling of {@link manualAssign} — same body/response shape, scoped to one part. */
+export async function manualAssignPart(
+    partId: number,
+    courierId: string,
+    acknowledgeOverCapacity?: boolean
+): Promise<ManualAssignResult> {
+    const res = await authFetch(`${BASE}/parts/${partId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courierId, acknowledgeOverCapacity: acknowledgeOverCapacity ?? false }),
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+/** Part-primary sibling of {@link releaseOrder}. */
+export async function releasePart(partId: number): Promise<void> {
+    const res = await authFetch(`${BASE}/parts/${partId}/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+}
+
+/** Part-primary sibling of {@link fetchOrderProofPhoto} — same 404-is-null contract. */
+export async function fetchPartProofPhoto(partId: number): Promise<Blob | null> {
+    const res = await authFetch(`${BASE}/parts/${partId}/proof-photo`, { method: 'GET' });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.blob();
+}
+
+/** Part-primary sibling of {@link markHandedOverToCourier} — same {@link DeliveryApiError} contract. */
+export async function markPartHandedOverToCourier(partId: number): Promise<void> {
+    const res = await authFetch(`${BASE_URL}/kitchen/delivery/parts/${partId}/handed-over`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new DeliveryApiError(`Response: ${res.status}`, res.status);
+}

@@ -22,6 +22,7 @@ const ORDER: CourierOrderSummary = {
     orderId: 43, orderNo: 4821, status: "Out for delivery", deliveredAt: null,
     waitTimeMinutes: 5, travelTimeMinutes: 12,
     geofenceWarning: null, geofenceDistanceM: null, geofenceOverridden: null,
+    partId: 4301, partIndex: 1, partsTotal: 1,
 };
 
 function renderDialog(
@@ -107,6 +108,36 @@ describe("DispatcherOrderActionDialog — cancel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Cancel order" }));
 
         expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (D6/task-spec.md §11 P5): release mentions the part when the order is
+ * genuinely split; cancel's copy is UNCHANGED regardless of which part's row it was pressed from.
+ */
+describe("DispatcherOrderActionDialog — split order (courier-capacity Phase 5)", () => {
+    const SPLIT_ORDER: CourierOrderSummary = { ...ORDER, partIndex: 2, partsTotal: 3 };
+
+    it("mentions the part in the release copy when the order is genuinely split", () => {
+        renderDialog("release", SPLIT_ORDER);
+
+        expect(screen.getByText(/part 2 of 3 of order #4821/)).toBeTruthy();
+        expect(screen.getByText(/rest of the order is unaffected/)).toBeTruthy();
+    });
+
+    it("leaves the release copy unchanged for a plain, non-split order", () => {
+        renderDialog("release", ORDER);
+
+        expect(screen.queryByText(/part \d+ of \d+/)).toBeNull();
+        expect(screen.getByText(/takes order #4821 off Ali/)).toBeTruthy();
+    });
+
+    it("leaves the cancel copy completely unchanged on a split order's own row", () => {
+        renderDialog("cancel", SPLIT_ORDER);
+
+        expect(screen.queryByText(/part \d+ of \d+/)).toBeNull();
+        expect(screen.getByText("Cancel order #4821")).toBeTruthy();
+        expect(screen.getByText(/No money is returned to the customer/)).toBeTruthy();
     });
 });
 
