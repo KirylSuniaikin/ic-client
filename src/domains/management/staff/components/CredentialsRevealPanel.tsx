@@ -15,6 +15,13 @@ export interface CredentialsRevealPanelProps {
     onDone: () => void;
     /** Prefix for this panel's data-testids, so each host keeps its own stable selectors. */
     testIdPrefix: string;
+    /**
+     * Telegram connect link for the account this panel is revealing credentials for.
+     * Optional and backward compatible: omitted or null/undefined means "no link to show or
+     * copy" — the panel behaves exactly as it does today (this is ResetPasswordDrawer's case,
+     * always, and HireStaffDrawer's case when link generation was skipped or failed).
+     */
+    telegramLink?: string | null;
 }
 
 // The one-time reveal of a plaintext password. Extracted from HireStaffDrawer so the reset flow
@@ -28,10 +35,19 @@ export default function CredentialsRevealPanel({
     password,
     onDone,
     testIdPrefix,
+    telegramLink,
 }: CredentialsRevealPanelProps): React.JSX.Element {
     const [copied, setCopied] = useState(false);
     const [autoCopied, setAutoCopied] = useState(false);
     const [copyError, setCopyError] = useState<string | null>(null);
+
+    // Two shapes: the legacy two-part string, unchanged, or the three-line format the manager
+    // needs to forward to a freshly hired staff member -- login, password, and the mandatory
+    // Telegram link, in that order.
+    const buildCopyText = (): string =>
+        telegramLink
+            ? `login: ${username}\npassword: ${password}\ntelegram link to receive updates(mandatory to click): ${telegramLink}`
+            : `${username} / ${password}`;
 
     // Copy the moment the credentials appear: this is the only time the password is ever shown,
     // and the copy is what the manager is here for.
@@ -45,7 +61,7 @@ export default function CredentialsRevealPanel({
         let cancelled = false;
         void (async (): Promise<void> => {
             try {
-                await copyToClipboard(`${username} / ${password}`);
+                await copyToClipboard(buildCopyText());
                 if (cancelled) return;
                 setCopied(true);
                 setAutoCopied(true);
@@ -54,11 +70,12 @@ export default function CredentialsRevealPanel({
             }
         })();
         return () => { cancelled = true; };
-    }, [username, password]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username, password, telegramLink]);
 
     const handleCopy = async (): Promise<void> => {
         try {
-            await copyToClipboard(`${username} / ${password}`);
+            await copyToClipboard(buildCopyText());
             setCopyError(null);
             setCopied(true);
         } catch (err) {
@@ -89,6 +106,16 @@ export default function CredentialsRevealPanel({
                 sx={{ mb: 2 }}
                 data-testid={`${testIdPrefix}-credentials-password`}
             />
+            {telegramLink && (
+                <TextField
+                    label="Telegram link"
+                    fullWidth
+                    value={telegramLink}
+                    InputProps={{ readOnly: true }}
+                    sx={{ mb: 2 }}
+                    data-testid={`${testIdPrefix}-credentials-telegram-link`}
+                />
+            )}
             {autoCopied && (
                 <Box
                     sx={{
@@ -127,7 +154,7 @@ export default function CredentialsRevealPanel({
                 sx={{ ...BRAND_BUTTON_SX, mb: 1 }}
                 data-testid={`${testIdPrefix}-copy-button`}
             >
-                {copied ? "Copied!" : "Copy login + password"}
+                {copied ? "Copied!" : "Copy credentials"}
             </Button>
             <Button fullWidth variant="outlined" onClick={onDone} sx={NEUTRAL_BUTTON_SX}>
                 Done

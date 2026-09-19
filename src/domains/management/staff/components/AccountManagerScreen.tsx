@@ -645,6 +645,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 onClose={() => setHireOpen(false)}
                 create={create}
                 defaultBranchId={scopedBranch.id}
+                botUsername={botUsername}
             />
 
             <ResetPasswordDrawer
