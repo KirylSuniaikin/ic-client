@@ -9,6 +9,7 @@ const LOCATION: RestaurantLocation = {
     legalName: "IC PIZZA W.L.L.",
     tagline: "Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes",
     cuisines: ["Detroit-style Pizza", "Brooklyn-style Pizza", "Pizza"],
+    keywords: ["Detroit style pizza Bahrain", "cold fermentation pizza"],
     streetAddress: "Road 114, Block 101, Building 1284R",
     addressLocality: "Al Hidd",
     addressCountry: "BH",
@@ -45,6 +46,7 @@ describe("buildRestaurantJsonLd", () => {
             telephone: "+973 3360 7710",
             description: "Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes",
             servesCuisine: ["Detroit-style Pizza", "Brooklyn-style Pizza", "Pizza"],
+            keywords: "Detroit style pizza Bahrain, cold fermentation pizza",
             address: {
                 "@type": "PostalAddress",
                 streetAddress: "Road 114, Block 101, Building 1284R",

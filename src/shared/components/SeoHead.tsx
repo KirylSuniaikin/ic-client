@@ -11,9 +11,12 @@ interface SeoHeadProps {
     // One JSON-LD object, or several (e.g. Restaurant + Menu on the same page).
     jsonLd?: Record<string, unknown> | Record<string, unknown>[];
     noIndex?: boolean;
+    // Search-intent phrase variants (see RestaurantLocation.keywords) -- machine-readable,
+    // deliberately kept out of the human-facing title/description to avoid reading as stuffing.
+    keywords?: string[];
 }
 
-export function SeoHead({title, description, path, image, jsonLd, noIndex}: SeoHeadProps): JSX.Element {
+export function SeoHead({title, description, path, image, jsonLd, noIndex, keywords}: SeoHeadProps): JSX.Element {
     const url = `${DEFAULT_LOCATION.url}${path}`;
     const ogImage = image ?? DEFAULT_LOCATION.image;
     const jsonLdEntries = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
@@ -22,6 +25,7 @@ export function SeoHead({title, description, path, image, jsonLd, noIndex}: SeoH
         <Helmet>
             <title>{title}</title>
             <meta name="description" content={description}/>
+            {keywords && keywords.length > 0 && <meta name="keywords" content={keywords.join(', ')}/>}
             {noIndex && <meta name="robots" content="noindex, nofollow"/>}
             <link rel="canonical" href={url}/>
             <meta property="og:type" content="website"/>

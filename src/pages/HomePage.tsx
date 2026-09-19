@@ -178,6 +178,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 title={`${DEFAULT_LOCATION.name} — Detroit & Brooklyn Style Pizza | Order Online, Bahrain`}
                 description={`${DEFAULT_LOCATION.tagline}. Order online for pickup or delivery in ${DEFAULT_LOCATION.addressLocality}, Bahrain. Call ${DEFAULT_LOCATION.telephone}.`}
                 path="/menu"
+                keywords={DEFAULT_LOCATION.keywords}
                 jsonLd={[
                     buildRestaurantJsonLd(DEFAULT_LOCATION),
                     ...(menu.menuData.length > 0 ? [buildMenuJsonLd(menu.menuData, DEFAULT_LOCATION)] : []),
