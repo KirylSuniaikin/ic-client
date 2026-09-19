@@ -6,6 +6,7 @@ import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@j
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 
 // HomePage (via HeroSection/CustomerIconButton) uses useTranslation -- initialize the real
 // i18n instance (side-effect import) so keys resolve to English, mirroring HeroSection.test.tsx.
@@ -109,14 +110,16 @@ function AuthUiTestTrigger(): React.JSX.Element {
 
 function renderHomePage(initialEntries: string[], recommendedIds: string[] = ["1"]) {
     return render(
-        <CustomerAuthProvider>
-            <CustomerAuthUiProvider>
-                <MemoryRouter initialEntries={initialEntries}>
-                    <HomePage userParam={null} recommendedIds={recommendedIds} giftId={null} />
-                </MemoryRouter>
-                <AuthUiTestTrigger />
-            </CustomerAuthUiProvider>
-        </CustomerAuthProvider>
+        <HelmetProvider>
+            <CustomerAuthProvider>
+                <CustomerAuthUiProvider>
+                    <MemoryRouter initialEntries={initialEntries}>
+                        <HomePage userParam={null} recommendedIds={recommendedIds} giftId={null} />
+                    </MemoryRouter>
+                    <AuthUiTestTrigger />
+                </CustomerAuthUiProvider>
+            </CustomerAuthProvider>
+        </HelmetProvider>
     );
 }
 
