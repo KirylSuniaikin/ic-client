@@ -9,9 +9,8 @@ installGlobalErrorHandlers();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
-const root = ReactDOM.createRoot(rootElement);
 
-root.render(
+const app = (
     <React.StrictMode>
         <BrowserRouter>
             <AppProviders>
@@ -20,3 +19,11 @@ root.render(
         </BrowserRouter>
     </React.StrictMode>
 );
+
+// react-snap prerenders build/*.html with real markup; hydrating onto that markup (instead of a
+// fresh render into an empty root) avoids a flash-to-blank before the app repaints.
+if (rootElement.hasChildNodes()) {
+    ReactDOM.hydrateRoot(rootElement, app);
+} else {
+    ReactDOM.createRoot(rootElement).render(app);
+}

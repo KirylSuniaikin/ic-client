@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge, Box, IconButton } from "@mui/material";
+import { Badge, Box, IconButton, Typography } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -31,6 +31,9 @@ import { enI18n } from "../shared/i18n";
 import { isKioskSearch } from "../shared/utils/kioskMode";
 import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
+import { SeoHead } from "../shared/components/SeoHead";
+import { DEFAULT_LOCATION } from "../shared/utils/restaurantLocations";
+import { buildRestaurantJsonLd, buildMenuJsonLd } from "../shared/utils/structuredData";
 
 interface HomePageProps {
     userParam: string | null;
@@ -161,8 +164,40 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     const preloadUrls = useMemo(() => collectPreloadUrls(groups, PRELOAD_IMAGE_COUNT), [groups]);
     const menuImagesReady = useImagePreloader(preloadUrls);
 
-    if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <PizzaLoader />;
-    if (menu.error) return <div>{tr("home:error", { message: menu.error })}</div>;
+    // Rendered ahead of the loading/error early-returns below so a crawler (or react-snap at
+    // build time) still gets a title/description/JSON-LD even if it catches the page before the
+    // menu fetch resolves. The Menu JSON-LD is appended once menuData actually has items.
+    //
+    // Title/description lean on DEFAULT_LOCATION.tagline (Detroit & Brooklyn style, 48h
+    // cold-fermented dough, San Marzano tomatoes) rather than competing head-on for generic
+    // "best pizza Bahrain" -- competitors (Empire, Francesco's, Secco, Cico's) already own
+    // NY-style/Neapolitan, and this is IC Pizza's real point of difference in that field.
+    const seoHead = !isAdmin && (
+        <>
+            <SeoHead
+                title={`${DEFAULT_LOCATION.name} — Detroit & Brooklyn Style Pizza | Order Online, Bahrain`}
+                description={`${DEFAULT_LOCATION.tagline}. Order online for pickup or delivery in ${DEFAULT_LOCATION.addressLocality}, Bahrain. Call ${DEFAULT_LOCATION.telephone}.`}
+                path="/menu"
+                jsonLd={[
+                    buildRestaurantJsonLd(DEFAULT_LOCATION),
+                    ...(menu.menuData.length > 0 ? [buildMenuJsonLd(menu.menuData, DEFAULT_LOCATION)] : []),
+                ]}
+            />
+            {/* Visually hidden, not removed: HeroSection is a video/branch-picker with no heading
+                text, so the page had no <h1> at all before this. Kept off-screen rather than
+                shown so it doesn't touch the hero's visual design (see DESIGN.md) -- ask design
+                before making it visible. */}
+            <Typography
+                component="h1"
+                sx={{position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}}
+            >
+                {DEFAULT_LOCATION.name} — Detroit & Brooklyn Style Pizza, Pickup &amp; Delivery in {DEFAULT_LOCATION.addressLocality}, Bahrain
+            </Typography>
+        </>
+    );
+
+    if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <>{seoHead}<PizzaLoader /></>;
+    if (menu.error) return <>{seoHead}<div>{tr("home:error", { message: menu.error })}</div></>;
 
     localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
 
@@ -214,6 +249,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // is stored in localStorage; the customer-facing flow stays language-dependent (RTL for Arabic).
     const content = (
         <Box sx={{ backgroundColor: "#fbfaf6" }}>
+            {seoHead}
             {showActiveOrderCard && !heroScrolledAway && activeOrderIsland.activeOrder && (
                 <ActiveOrderIslandPill
                     branchName={activeOrderIsland.activeOrder.branchName}

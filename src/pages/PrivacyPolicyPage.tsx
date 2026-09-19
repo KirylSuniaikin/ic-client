@@ -1,5 +1,6 @@
 import React from 'react';
 import {Box, Container, Divider, Link, Typography} from '@mui/material';
+import {SeoHead} from '../shared/components/SeoHead';
 
 // Deliberately NOT wired to i18n. The six shared locale namespaces are byte-identical to
 // ic-pizza-mobile's and pinned by a parity test there, so adding keys here would break the
@@ -42,6 +43,11 @@ function Bullet({children}: {children: React.ReactNode}): JSX.Element {
 export function PrivacyPolicyPage(): JSX.Element {
     return (
         <Container maxWidth="md" sx={{py: {xs: 4, sm: 6}}}>
+            <SeoHead
+                title="Privacy Policy | IC Pizza"
+                description="How IC Pizza collects, uses and protects your personal data across our website, mobile app and kiosk terminals."
+                path="/privacy"
+            />
             <Typography variant="h4" component="h1" sx={{fontWeight: 700}}>
                 Privacy Policy
             </Typography>
