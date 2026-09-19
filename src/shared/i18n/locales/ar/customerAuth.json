@@ -103,7 +103,10 @@
     "delivered": "تم التوصيل — بالهناء والشفاء! 🍕",
     "arrivingAround": "الوصول حوالي {{time}}",
     "arrivalUnknown": "سنعرف وقت الوصول فور استلام السائق للطلب.",
-    "courierUpdatedAgo": "آخر تحديث قبل {{minutes}} دقيقة"
+    "courierUpdatedAgo": "آخر تحديث قبل {{minutes}} دقيقة",
+    "courierPartCaption": "الجزء {{index}} · {{name}}",
+    "partDelivered": "الجزء {{index}} من {{total}}: تم التوصيل",
+    "partOnTheWay": "الجزء {{index}} من {{total}}: في الطريق"
   },
   "errors": {
     "tooManyAttempts": "محاولات كثيرة جداً — يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.",

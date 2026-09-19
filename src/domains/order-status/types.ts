@@ -25,18 +25,32 @@ export type OrderStatusData = {
     estimatedDeliveredAt?: string;
 };
 
-// Mirrors the Phase 1a backend contract exactly:
-// GET /api/customer/orders/{orderId}/courier-location → { couriers: TrackedCourier[] }
-// (runs/1a/task-spec.md §5, already committed and frozen — this type is the frontend's mirror).
+// Mirrors the Phase 6a backend contract exactly:
+// GET /api/customer/orders/{orderId}/courier-location → { couriers: TrackedCourier[], parts?: TrackedPart[] }
+// (runs/6a/task-spec.md §5, already committed and frozen — this type is the frontend's mirror).
 export type TrackedCourier = {
     name: string;
     latitude: number;
     longitude: number;
     positionAgeSeconds: number;
-    /** Always 1 in this phase; kept for shape parity with Phase 6b's 0..N extension. */
+    /** One entry per currently-out-for-delivery part, ordered ascending; length 0..N since Phase 6a. */
     partIndex: number;
 };
 
+/**
+ * One part's coarse progress. Present only when the order's parts have partsTotal > 1 — see
+ * OrderTrackingResponse.parts. Deliberately two states only ("on the way" / "delivered"); a part
+ * with a courier assigned but not yet departed reports delivered: false, indistinguishable from a
+ * genuinely out-for-delivery, undelivered part (backend Requirement 5, runs/6a/task-spec.md §4).
+ */
+export type TrackedPart = {
+    partIndex: number;
+    partsTotal: number;
+    delivered: boolean;
+};
+
 export type OrderTrackingResponse = {
-    couriers: TrackedCourier[]; // length 0 or 1 in this phase
+    couriers: TrackedCourier[]; // 0..N since Phase 6a
+    /** Absent for a single-part order; never present with length <= 1. */
+    parts?: TrackedPart[];
 };

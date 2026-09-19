@@ -68,13 +68,23 @@ class FakeMarker {
     }
 }
 
+class FakeLatLngBounds {
+    extend(): void {
+        // Bounds contents aren't asserted from this file — CourierTrackingMap.test.tsx owns that.
+    }
+}
+
 const mockMapInstance = {
     setCenter: (): void => undefined,
     setZoom: (): void => undefined,
+    fitBounds: (): void => undefined,
+    getZoom: (): number | undefined => undefined,
 };
 
 function installGoogleStub(): void {
-    (globalThis as unknown as { google: unknown }).google = { maps: { Marker: FakeMarker } };
+    (globalThis as unknown as { google: unknown }).google = {
+        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds },
+    };
 }
 
 beforeAll(installGoogleStub);
@@ -289,6 +299,84 @@ describe("OrderStatusContent", () => {
 
             await waitFor(() => expect(mockFetchCourierLocation).toHaveBeenCalledWith("tok-1", 7));
             expect(screen.queryByTestId("google-map")).toBeNull();
+        });
+    });
+
+    // runs/6b/task-spec.md §11 — the N-courier map + per-part progress block, wired end-to-end
+    // through OrderStatusContent's `riding` branch.
+    describe("split-order tracking (2+ parts)", () => {
+        it("renders both markers' captions and the DeliveryPartsProgress block for a mocked two-courier, two-part response", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                couriers: [
+                    { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
+                    { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 12, partIndex: 2 },
+                ],
+                parts: [
+                    { partIndex: 1, partsTotal: 2, delivered: false },
+                    { partIndex: 2, partsTotal: 2, delivered: false },
+                ],
+            }));
+
+            renderStatus({
+                order: order({ orderType: "Delivery", orderStatus: "Out for delivery", id: 7 }),
+                remainingSeconds: 0,
+            });
+
+            await waitFor(() => expect(mockFetchCourierLocation).toHaveBeenCalledWith("tok-1", 7));
+            await waitFor(() => expect(screen.getByTestId("courier-caption-2")).toBeTruthy());
+            expect(screen.getByTestId("courier-caption-1")).toBeTruthy();
+            expect(screen.getByTestId("delivery-part-progress-1").textContent).toBe("Part 1 of 2 on the way");
+            expect(screen.getByTestId("delivery-part-progress-2").textContent).toBe("Part 2 of 2 on the way");
+        });
+
+        it("does not render a DeliveryPartsProgress container for a mocked single-courier, no-parts response (today's production shape)", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }],
+            }));
+
+            renderStatus({
+                order: order({ orderType: "Delivery", orderStatus: "Out for delivery", id: 7 }),
+                remainingSeconds: 0,
+            });
+
+            await waitFor(() => expect(screen.getByTestId("google-map")).toBeTruthy());
+            expect(screen.queryByTestId(/^delivery-part-progress-/)).toBeNull();
+        });
+
+        it("never renders the progress block for a pickup order, mirroring the map's own gating", async () => {
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                couriers: [],
+                parts: [
+                    { partIndex: 1, partsTotal: 2, delivered: true },
+                    { partIndex: 2, partsTotal: 2, delivered: false },
+                ],
+            }));
+
+            renderStatus({
+                order: order({ orderType: "Pick Up", orderStatus: "Out for delivery", id: 7 }),
+                remainingSeconds: 0,
+            });
+            await waitForAuthReady();
+            expect(screen.queryByTestId(/^delivery-part-progress-/)).toBeNull();
+        });
+
+        it("never renders the progress block before 'Out for delivery', mirroring the map's own gating", async () => {
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                couriers: [],
+                parts: [
+                    { partIndex: 1, partsTotal: 2, delivered: true },
+                    { partIndex: 2, partsTotal: 2, delivered: false },
+                ],
+            }));
+
+            renderStatus({
+                order: order({ orderType: "Delivery", orderStatus: "Ready", id: 7 }),
+                remainingSeconds: 0,
+            });
+            await waitForAuthReady();
+            expect(screen.queryByTestId(/^delivery-part-progress-/)).toBeNull();
         });
     });
 });

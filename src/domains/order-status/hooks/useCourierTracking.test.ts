@@ -10,7 +10,7 @@ import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../../cu
 import { CustomerAuthApiError } from "../../customer-auth/types";
 import { POLL_INTERVAL_MS, useCourierTracking } from "./useCourierTracking";
 import type { OrderTrackingResponse } from "../types";
-import type { TrackedCourier } from "../types";
+import type { TrackedCourier, TrackedPart } from "../types";
 
 const mockFetchCourierLocation = jest.mocked(fetchCourierLocation);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
@@ -22,6 +22,19 @@ const COURIER: TrackedCourier = {
     positionAgeSeconds: 10,
     partIndex: 1,
 };
+
+const COURIER_2: TrackedCourier = {
+    name: "Sara",
+    latitude: 26.23,
+    longitude: 50.59,
+    positionAgeSeconds: 12,
+    partIndex: 2,
+};
+
+const PARTS_2: TrackedPart[] = [
+    { partIndex: 1, partsTotal: 2, delivered: true },
+    { partIndex: 2, partsTotal: 2, delivered: false },
+];
 
 // useCourierTracking calls useCustomerAuth() internally, so every renderHook needs this
 // ancestor — mirrors app/providers.tsx wiring (same shape as useActiveOrderIsland.test.ts).
@@ -80,7 +93,8 @@ describe("useCourierTracking", () => {
         await flush();
 
         expect(mockFetchCourierLocation).not.toHaveBeenCalled();
-        expect(result.current.courier).toBeNull();
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
     });
 
     it("does not fetch for a pickup order", async () => {
@@ -154,12 +168,13 @@ describe("useCourierTracking", () => {
             { wrapper, initialProps: { status: "Out for delivery" } }
         );
         await flush();
-        expect(result.current.courier).toEqual(COURIER);
+        expect(result.current.couriers).toEqual([COURIER]);
 
         rerender({ status: "Delivered" });
         await flush();
 
-        expect(result.current.courier).toBeNull();
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
     });
 
     it("on a rejected fetch (CustomerAuthApiError), sets courier to null, logs via logger.debug, does not throw, and still fetches on the next tick", async () => {
@@ -170,14 +185,15 @@ describe("useCourierTracking", () => {
 
         const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
         await flush();
-        expect(result.current.courier).toEqual(COURIER);
+        expect(result.current.couriers).toEqual([COURIER]);
 
         act(() => {
             jest.advanceTimersByTime(POLL_INTERVAL_MS);
         });
         await flush();
 
-        expect(result.current.courier).toBeNull();
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
         expect(console.debug).toHaveBeenCalledWith(
             "useCourierTracking: fetchCourierLocation failed",
             expect.any(CustomerAuthApiError)
@@ -187,7 +203,7 @@ describe("useCourierTracking", () => {
             jest.advanceTimersByTime(POLL_INTERVAL_MS);
         });
         await flush();
-        expect(result.current.courier).toEqual(COURIER);
+        expect(result.current.couriers).toEqual([COURIER]);
         expect(mockFetchCourierLocation).toHaveBeenCalledTimes(3);
     });
 
@@ -198,11 +214,33 @@ describe("useCourierTracking", () => {
         const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
         await flush();
 
-        expect(result.current.courier).toBeNull();
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
         expect(console.debug).toHaveBeenCalledWith(
             "useCourierTracking: fetchCourierLocation failed",
             expect.any(Error)
         );
+    });
+
+    // runs/6b/task-spec.md §11 — a rejected fetch clears BOTH fields to [], extending the
+    // existing plain-Error case above to also pin `parts`.
+    it("on a rejected fetch, clears both couriers and parts to []", async () => {
+        loginWithToken();
+        mockFetchCourierLocation.mockResolvedValueOnce(courierResponse({ couriers: [COURIER_2], parts: PARTS_2 }));
+        mockFetchCourierLocation.mockRejectedValueOnce(new Error("network down"));
+
+        const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+        await flush();
+        expect(result.current.couriers).toEqual([COURIER_2]);
+        expect(result.current.parts).toEqual(PARTS_2);
+
+        act(() => {
+            jest.advanceTimersByTime(POLL_INTERVAL_MS);
+        });
+        await flush();
+
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
     });
 
     it("clears the interval and the visibility listener on unmount — no further calls after unmount + timer advance", async () => {
@@ -258,7 +296,37 @@ describe("useCourierTracking", () => {
         await flush();
 
         expect(mockFetchCourierLocation).toHaveBeenCalledTimes(1);
-        expect(result.current.courier).toBeNull();
+        expect(result.current.couriers).toEqual([]);
+        expect(result.current.parts).toEqual([]);
         expect(console.debug).not.toHaveBeenCalled();
+    });
+
+    // runs/6b/task-spec.md §11 — a two-courier response with no `parts` key sets couriers to
+    // both entries and normalizes parts to [].
+    it("sets couriers to both entries and parts to [] for a resolved {couriers: [c1, c2]} response with no parts key", async () => {
+        loginWithToken();
+        mockFetchCourierLocation.mockResolvedValue(courierResponse({ couriers: [COURIER, COURIER_2] }));
+
+        const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+        await flush();
+
+        expect(result.current.couriers).toEqual([COURIER, COURIER_2]);
+        expect(result.current.parts).toEqual([]);
+    });
+
+    // runs/6b/task-spec.md §11 — both fields are set from the same response in one state update:
+    // a single waitFor checking both at once, rather than two sequential waits, proves there is no
+    // render in between where one field is fresh and the other stale.
+    it("sets couriers and parts together from a single split-order response, in one state update", async () => {
+        loginWithToken();
+        mockFetchCourierLocation.mockResolvedValue(courierResponse({ couriers: [COURIER_2], parts: PARTS_2 }));
+
+        const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+        await flush();
+
+        expect({ couriers: result.current.couriers, parts: result.current.parts }).toEqual({
+            couriers: [COURIER_2],
+            parts: PARTS_2,
+        });
     });
 });

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchCourierLocation } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { logger } from "../../../shared/utils/logger";
-import type { TrackedCourier } from "../types";
+import type { TrackedCourier, TrackedPart } from "../types";
 
 const OUT_FOR_DELIVERY_STATUS = "Out for delivery";
 
@@ -16,8 +16,18 @@ const OUT_FOR_DELIVERY_STATUS = "Out for delivery";
 export const POLL_INTERVAL_MS = 20_000;
 
 export type UseCourierTrackingResult = {
-    courier: TrackedCourier | null;
+    couriers: TrackedCourier[];
+    parts: TrackedPart[];
 };
+
+// runs/6b/task-spec.md §6: a render must never show new couriers paired with stale parts (or vice
+// versa) — every transition sets both fields from a single object, in one setState call.
+type TrackingState = {
+    couriers: TrackedCourier[];
+    parts: TrackedPart[];
+};
+
+const EMPTY_STATE: TrackingState = { couriers: [], parts: [] };
 
 function useVisibility(): boolean {
     const [visible, setVisible] = useState<boolean>(() => document.visibilityState === "visible");
@@ -43,7 +53,7 @@ export function useCourierTracking(
 ): UseCourierTrackingResult {
     const { token } = useCustomerAuth();
     const visible = useVisibility();
-    const [courier, setCourier] = useState<TrackedCourier | null>(null);
+    const [state, setState] = useState<TrackingState>(EMPTY_STATE);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const trackable = token !== null && orderId !== null && isDelivery && orderStatus === OUT_FOR_DELIVERY_STATUS;
@@ -61,7 +71,7 @@ export function useCourierTracking(
             // out-for-delivery mid-poll" in one branch — the map must disappear immediately, not
             // linger with a stale marker.
             clearRunningInterval();
-            setCourier(null);
+            setState(EMPTY_STATE);
             return;
         }
 
@@ -79,12 +89,12 @@ export function useCourierTracking(
         async function poll(): Promise<void> {
             try {
                 const response = await fetchCourierLocation(currentToken, currentOrderId);
-                setCourier(response.couriers[0] ?? null);
+                setState({ couriers: response.couriers, parts: response.parts ?? [] });
             } catch (error) {
                 // Explicit, never a silent catch — self-healing for a transient network blip; a
                 // persistent 404/401 simply keeps the map hidden without spamming an error state.
                 logger.debug("useCourierTracking: fetchCourierLocation failed", error);
-                setCourier(null);
+                setState(EMPTY_STATE);
             }
         }
 
@@ -96,5 +106,5 @@ export function useCourierTracking(
         return clearRunningInterval;
     }, [trackable, visible, orderId, token]);
 
-    return { courier };
+    return state;
 }

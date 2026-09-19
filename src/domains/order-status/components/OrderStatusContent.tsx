@@ -5,6 +5,7 @@ import kitchenPhaseAnimation from "../../../assets/animations/kitchen_phase_anim
 import readyAnimation from "../../../assets/animations/ready-animation.json";
 import DeliveryRideAnimation from "./animations/DeliveryRideAnimation";
 import { CourierTrackingMap } from "./CourierTrackingMap";
+import { DeliveryPartsProgress } from "./DeliveryPartsProgress";
 import { TextTitleWithoutVariant } from "../../../shared/components/typography";
 import { formatBahrainClock } from "../../../shared/utils/timeUtils";
 import {
@@ -45,7 +46,7 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
     const delivered = status === DELIVERED_STATUS;
 
     // Called unconditionally — hooks cannot be called inside the `riding` branch below.
-    const { courier } = useCourierTracking(order?.id ?? null, delivery, status);
+    const { couriers, parts } = useCourierTracking(order?.id ?? null, delivery, status);
 
     // A wall-clock arrival needs no ticking: left alone it simply falls into the past, which is
     // an honest way to say "running late". The moving, elapsed-time bar lives on the island pill.
@@ -94,7 +95,8 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
             {riding && (
                 <Box sx={{ mt: 1 }}>
                     <DeliveryRideAnimation />
-                    <CourierTrackingMap courier={courier} />
+                    <CourierTrackingMap couriers={couriers} />
+                    <DeliveryPartsProgress parts={parts} />
                 </Box>
             )}
 

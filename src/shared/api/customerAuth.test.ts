@@ -358,6 +358,26 @@ describe("fetchCourierLocation", () => {
 
         await expect(fetchCourierLocation("bad-token", 7)).rejects.toThrow(CustomerAuthApiError);
     });
+
+    // runs/6b/task-spec.md §11 — proves the untouched fetch wrapper still passes the widened
+    // (couriers + parts) shape through verbatim.
+    it("round-trips a two-courier, two-part response with both fields intact and unmodified", async () => {
+        const tracking = {
+            couriers: [
+                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
+                { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 12, partIndex: 2 },
+            ],
+            parts: [
+                { partIndex: 1, partsTotal: 2, delivered: true },
+                { partIndex: 2, partsTotal: 2, delivered: false },
+            ],
+        };
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(tracking), { status: 200 }));
+
+        const result = await fetchCourierLocation("my-access-token", 7);
+
+        expect(result).toEqual(tracking);
+    });
 });
 
 describe("fetchSuggestedItems", () => {

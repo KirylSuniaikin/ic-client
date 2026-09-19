@@ -103,7 +103,10 @@
     "delivered": "Delivered — enjoy! 🍕",
     "arrivingAround": "Arriving around {{time}}",
     "arrivalUnknown": "We'll have an arrival time as soon as a courier picks it up.",
-    "courierUpdatedAgo": "Updated {{minutes}} min ago"
+    "courierUpdatedAgo": "Updated {{minutes}} min ago",
+    "courierPartCaption": "Part {{index}} · {{name}}",
+    "partDelivered": "Part {{index}} of {{total}} delivered",
+    "partOnTheWay": "Part {{index}} of {{total}} on the way"
   },
   "errors": {
     "tooManyAttempts": "Too many attempts — please wait a bit before trying again.",
