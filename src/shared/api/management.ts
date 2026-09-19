@@ -87,8 +87,17 @@ export async function getReports(
     return res.json();
 }
 
+// Retries a transient network blip (see AuthFetchOptions.retryDelaysMs) — this endpoint loads on
+// every admin page mount, often the first request of a session, so it hits the same cold-start/
+// mobile-network window as fetchBaseAppInfo (public.ts). Idempotent GET, safe to retry.
+const FETCH_BRANCHES_RETRY_DELAYS_MS = [500, 1500];
+
 export async function fetchAllBranches(): Promise<IBranch[]> {
-    const res = await authFetch(BASE_URL + '/branch/fetch_branches', { headers: { Accept: "application/json" } });
+    const res = await authFetch(
+        BASE_URL + '/branch/fetch_branches',
+        { headers: { Accept: "application/json" } },
+        { retryDelaysMs: FETCH_BRANCHES_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as IBranch[];
 }

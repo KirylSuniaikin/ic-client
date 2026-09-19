@@ -167,6 +167,16 @@ describe("fetchAllBranches", () => {
 
         await expect(fetchAllBranches()).rejects.toThrow();
     });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+
+        await fetchAllBranches();
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
 });
 
 // ── getReports ────────────────────────────────────────────────────────────────

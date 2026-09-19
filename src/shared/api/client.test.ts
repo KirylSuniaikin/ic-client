@@ -261,4 +261,48 @@ describe("authFetch", () => {
         expect(payload.source).toBe("api-network");
         expect(payload.message).toContain("network down");
     });
+
+    describe("retryDelaysMs", () => {
+        it("does not retry when retryDelaysMs is not provided (existing single-attempt behaviour)", async () => {
+            const networkError = new Error("network down");
+            mockFetch.mockRejectedValueOnce(networkError);
+
+            await expect(authFetch("https://example.com/api/test", { method: "GET" }))
+                .rejects.toBeInstanceOf(PreResponseNetworkError);
+
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+        });
+
+        it("retries on a fetch rejection and succeeds once a retry gets a response", async () => {
+            mockFetch
+                .mockRejectedValueOnce(new Error("offline"))
+                .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+            const response = await authFetch(
+                "https://example.com/api/test",
+                { method: "GET" },
+                { retryDelaysMs: [1, 1] }
+            );
+
+            expect(response.status).toBe(200);
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+            expect(mockReportClientError).not.toHaveBeenCalled();
+        });
+
+        it("reports and rejects with PreResponseNetworkError only once retries are exhausted", async () => {
+            const networkError = new Error("still offline");
+            mockFetch.mockRejectedValue(networkError);
+
+            const rejection = authFetch(
+                "https://example.com/api/test",
+                { method: "GET" },
+                { retryDelaysMs: [1, 1] }
+            );
+            await expect(rejection).rejects.toBeInstanceOf(PreResponseNetworkError);
+
+            // Original attempt + 2 retries.
+            expect(mockFetch).toHaveBeenCalledTimes(3);
+            expect(mockReportClientError).toHaveBeenCalledTimes(1);
+        });
+    });
 });
