@@ -16,7 +16,10 @@ describe("CredentialsRevealPanel", () => {
         mockCopyToClipboard.mockResolvedValue(undefined);
     });
 
-    function renderPanel(prefix = "reset-password"): ReturnType<typeof jest.fn<void, []>> {
+    function renderPanel(
+        prefix = "reset-password",
+        telegramLink: string | null | undefined = undefined,
+    ): ReturnType<typeof jest.fn<void, []>> {
         const onDone = jest.fn<void, []>();
         render(
             <CredentialsRevealPanel
@@ -25,6 +28,7 @@ describe("CredentialsRevealPanel", () => {
                 password="s3cretPW"
                 onDone={onDone}
                 testIdPrefix={prefix}
+                telegramLink={telegramLink}
             />,
         );
         return onDone;
@@ -92,7 +96,7 @@ describe("CredentialsRevealPanel", () => {
             expect(screen.queryByTestId("reset-password-auto-copied")).toBeNull();
             expect(screen.queryByTestId("reset-password-copy-error")).toBeNull();
             expect(screen.queryByText("Copied!")).toBeNull();
-            expect(screen.getByText("Copy login + password")).toBeTruthy();
+            expect(screen.getByText("Copy credentials")).toBeTruthy();
         });
 
         it("leaves the manual button working after a refused automatic copy", async () => {
@@ -104,6 +108,50 @@ describe("CredentialsRevealPanel", () => {
             fireEvent.click(screen.getByTestId("reset-password-copy-button"));
 
             expect(await screen.findByText("Copied!")).toBeTruthy();
+        });
+    });
+
+    describe("telegram link", () => {
+        const TELEGRAM_LINK = "https://t.me/icpizza_bot?start=server-issued-token";
+        const THREE_LINE_TEXT =
+            "login: casey.cook\npassword: s3cretPW\ntelegram link to receive updates(mandatory to click): " +
+            TELEGRAM_LINK;
+
+        it("renders the third field with the correct testid and value when telegramLink is set", () => {
+            renderPanel("reset-password", TELEGRAM_LINK);
+
+            const field = screen.getByTestId("reset-password-credentials-telegram-link");
+            const input = field.querySelector("input") as HTMLInputElement;
+            expect(input.value).toBe(TELEGRAM_LINK);
+        });
+
+        it("does not render the third field when telegramLink is unset", () => {
+            renderPanel();
+
+            expect(screen.queryByTestId("reset-password-credentials-telegram-link")).toBeNull();
+        });
+
+        it("auto-copies the exact three-line string when telegramLink is set", async () => {
+            renderPanel("reset-password", TELEGRAM_LINK);
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith(THREE_LINE_TEXT));
+        });
+
+        it("manually copies the exact three-line string when telegramLink is set", async () => {
+            renderPanel("reset-password", TELEGRAM_LINK);
+            mockCopyToClipboard.mockClear();
+
+            fireEvent.click(screen.getByTestId("reset-password-copy-button"));
+
+            await waitFor(() => expect(mockCopyToClipboard).toHaveBeenCalledWith(THREE_LINE_TEXT));
+        });
+
+        it("keeps the generic idle label when telegramLink is set, flipping to Copied! once copied", async () => {
+            renderPanel("reset-password", TELEGRAM_LINK);
+
+            expect(screen.getByText("Copy credentials")).toBeTruthy();
+
+            await waitFor(() => expect(screen.getByText("Copied!")).toBeTruthy());
         });
     });
 });

@@ -6,6 +6,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
 import {CssBaseline} from '@mui/material';
 import {useTranslation} from 'react-i18next';
+import {HelmetProvider} from 'react-helmet-async';
 import {AuthProvider} from '../domains/auth/context/AuthProvider';
 import {CustomerAuthProvider} from '../domains/customer-auth/context/CustomerAuthProvider';
 import {CustomerAuthUiProvider} from '../domains/customer-auth/context/CustomerAuthUiProvider';
@@ -36,23 +37,25 @@ export function AppProviders({children}: AppProvidersProps): React.JSX.Element {
     const cache = direction === 'rtl' ? rtlCache : ltrCache;
 
     return (
-        <CacheProvider value={cache}>
-            <ThemeProvider theme={theme}>
-                {/* No enableColorScheme: it emits `html { color-scheme: light }`
-                    which would override our `only light` (index.css / meta) and let
-                    Chrome's "Force dark mode for web contents" flag re-darken the page. */}
-                <CssBaseline />
-                <AuthProvider>
-                    <CustomerAuthProvider>
-                        <CustomerAuthUiProvider>
-                            <AppErrorBoundary>
-                                {children}
-                            </AppErrorBoundary>
-                            <CustomerAuthModals />
-                        </CustomerAuthUiProvider>
-                    </CustomerAuthProvider>
-                </AuthProvider>
-            </ThemeProvider>
-        </CacheProvider>
+        <HelmetProvider>
+            <CacheProvider value={cache}>
+                <ThemeProvider theme={theme}>
+                    {/* No enableColorScheme: it emits `html { color-scheme: light }`
+                        which would override our `only light` (index.css / meta) and let
+                        Chrome's "Force dark mode for web contents" flag re-darken the page. */}
+                    <CssBaseline />
+                    <AuthProvider>
+                        <CustomerAuthProvider>
+                            <CustomerAuthUiProvider>
+                                <AppErrorBoundary>
+                                    {children}
+                                </AppErrorBoundary>
+                                <CustomerAuthModals />
+                            </CustomerAuthUiProvider>
+                        </CustomerAuthProvider>
+                    </AuthProvider>
+                </ThemeProvider>
+            </CacheProvider>
+        </HelmetProvider>
     );
 }

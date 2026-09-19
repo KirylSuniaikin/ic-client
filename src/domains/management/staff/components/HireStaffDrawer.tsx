@@ -14,7 +14,7 @@ import {
     Typography,
 } from "@mui/material";
 import { logger } from "../../../../shared/utils/logger";
-import { fetchAllBranches } from "../../../../shared/api/management";
+import { fetchAllBranches, generateTelegramConnectToken } from "../../../../shared/api/management";
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { StaffRoles, hasCityAccess } from "../../../auth/types";
 import ResponsiveSheet, { SHEET_Z_INDEX } from "../../_shared/components/ResponsiveSheet";
@@ -31,10 +31,17 @@ export interface HireStaffDrawerProps {
     create: (request: HireStaffRequest) => Promise<HiredStaffTO>;
     /** Branch the roster is scoped to, pre-selected for a city-level hirer. */
     defaultBranchId?: string;
+    /**
+     * The Telegram bot's username, fetched once by the caller (AccountManagerScreen) via
+     * fetchTelegramBotUsername(). Optional and nullable: null/undefined means "not loaded yet
+     * or failed to load" — the drawer must not fetch it itself, and must skip Telegram-link
+     * generation entirely rather than call the token endpoint with nothing to build a link from.
+     */
+    botUsername?: string | null;
 }
 
 
-export default function HireStaffDrawer({ open, onClose, create, defaultBranchId }: HireStaffDrawerProps): React.JSX.Element {
+export default function HireStaffDrawer({ open, onClose, create, defaultBranchId, botUsername }: HireStaffDrawerProps): React.JSX.Element {
     const { role, branchId: ownBranchId } = useAuth();
     const cityAccess = hasCityAccess(role);
     const hireableRoles = getHireableRoles(role);
@@ -53,7 +60,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
     const [selectedBranchId, setSelectedBranchId] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
-    const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
+    const [credentials, setCredentials] = useState<{ username: string; password: string; telegramLink: string | null } | null>(null);
 
     // Fetched here rather than read from ManagementBranchScope, for the same reason
     // ChangeBranchDrawer does it: that context is seeded from the caller's own scope, so it is
@@ -164,7 +171,25 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
 
         try {
             const hired = await create(request);
-            setCredentials({ username: hired.username, password });
+
+            // Best-effort: a freshly hired staff member's Telegram connect link is a bonus on
+            // top of a hire that already succeeded, never a reason to fail it. Skipped entirely
+            // when there is no bot username yet -- there is nothing to build a link from, and
+            // calling the token endpoint for a link that can never be constructed is a wasted
+            // request. See the sequencing/timing trade-off note in the task spec: awaiting this
+            // before the credentials panel mounts adds to, but does not introduce, the auto-copy
+            // effect's existing user-gesture risk.
+            let telegramLink: string | null = null;
+            if (botUsername) {
+                try {
+                    const { token } = await generateTelegramConnectToken(hired.id);
+                    telegramLink = `https://t.me/${botUsername}?start=${token}`;
+                } catch (err) {
+                    logger.warn("Failed to generate Telegram connect link for the new hire:", err);
+                }
+            }
+
+            setCredentials({ username: hired.username, password, telegramLink });
         } catch (err) {
             logger.error("Failed to hire staff:", err);
             setFormError(err instanceof Error ? err.message : "Failed to hire staff");
@@ -187,6 +212,7 @@ export default function HireStaffDrawer({ open, onClose, create, defaultBranchId
                     title="Successfully added 🎉"
                     username={credentials.username}
                     password={credentials.password}
+                    telegramLink={credentials.telegramLink}
                     onDone={onClose}
                     testIdPrefix="hire-staff"
                 />

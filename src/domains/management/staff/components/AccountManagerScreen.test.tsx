@@ -33,8 +33,8 @@ jest.mock("../../_shared/context/ManagementBranchScope", () => ({
 
 // HireStaffDrawer has its own dedicated test file — stub it here so this file only asserts
 // that AccountManagerScreen opens/closes it and wires `create` through.
-function mockHireStaffDrawer({ open }: { open: boolean; onClose: () => void; create: unknown }): JSX.Element {
-    return <div data-testid="hire-staff-drawer-stub" data-open={open ? "true" : "false"} />;
+function mockHireStaffDrawer({ open, botUsername }: { open: boolean; onClose: () => void; create: unknown; botUsername?: string | null }): JSX.Element {
+    return <div data-testid="hire-staff-drawer-stub" data-open={open ? "true" : "false"} data-botusername={botUsername ?? ""} />;
 }
 jest.mock("./HireStaffDrawer", () => ({
     __esModule: true,
@@ -199,6 +199,18 @@ describe("AccountManagerScreen", () => {
         fireEvent.click(screen.getByTestId("staff-hire-button"));
 
         expect(screen.getByTestId("hire-staff-drawer-stub").getAttribute("data-open")).toBe("true");
+    });
+
+    // Pass-through: the screen already fetches botUsername once on mount for its own per-row
+    // Telegram flow; HireStaffDrawer must receive that same value rather than fetching it itself.
+    it("passes the fetched botUsername through to HireStaffDrawer", async () => {
+        render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+        await waitFor(() => expect(mockFetchTelegramBotUsername).toHaveBeenCalled());
+
+        await waitFor(() =>
+            expect(screen.getByTestId("hire-staff-drawer-stub").getAttribute("data-botusername")).toBe("icpizza_bot")
+        );
     });
 
     it("surfaces a hook error via the ErrorSnackbar", () => {
