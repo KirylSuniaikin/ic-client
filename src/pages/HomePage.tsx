@@ -13,6 +13,7 @@ import { ActiveOrderIslandPill } from "../domains/customer-auth/components/Activ
 import { usePixelTracking } from "../domains/order/hooks/usePixelTracking";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import MenuSections from "../domains/menu/components/MenuSections";
+import { FaqSection, FAQ_SECTION_VISIBLE } from "../shared/components/FaqSection";
 import HomePageModals from "./HomePageModals";
 import HeroSection from "./HeroSection";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
@@ -273,6 +274,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 cartItems={cart.cartItems}
                 isAdmin={isAdmin}
             />
+            {!isAdmin && FAQ_SECTION_VISIBLE && <FaqSection items={MENU_PAGE_FAQ} />}
             {isAdmin && noPopupOpen && (
                 <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 10000 }}>
                     <IconButton onClick={() => { cart.setCartItems([]); navigate('/admin/'); }} sx={{ backgroundColor: "#ffffff", boxShadow: "0 2px 6px rgba(0,0,0,0.1)", "&:hover": { backgroundColor: "#f5f5f5" } }}>
