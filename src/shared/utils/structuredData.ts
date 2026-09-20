@@ -15,6 +15,7 @@ export function buildRestaurantJsonLd(location: RestaurantLocation): Record<stri
         slogan: location.tagline,
         image: location.image,
         url: location.url,
+        sameAs: location.sameAs,
         telephone: location.telephone,
         servesCuisine: location.cuisines,
         // schema.org's `keywords` is typed as a single Text value, not a list -- comma-joined,
