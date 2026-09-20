@@ -33,7 +33,8 @@ import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
 import { SeoHead } from "../shared/components/SeoHead";
 import { DEFAULT_LOCATION } from "../shared/utils/restaurantLocations";
-import { buildRestaurantJsonLd, buildMenuJsonLd } from "../shared/utils/structuredData";
+import { buildRestaurantJsonLd, buildMenuJsonLd, buildFaqJsonLd } from "../shared/utils/structuredData";
+import { MENU_PAGE_FAQ } from "../shared/utils/faq";
 
 interface HomePageProps {
     userParam: string | null;
@@ -182,6 +183,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 jsonLd={[
                     buildRestaurantJsonLd(DEFAULT_LOCATION),
                     ...(menu.menuData.length > 0 ? [buildMenuJsonLd(menu.menuData, DEFAULT_LOCATION)] : []),
+                    buildFaqJsonLd(MENU_PAGE_FAQ),
                 ]}
             />
             {/* Visually hidden, not removed: HeroSection is a video/branch-picker with no heading

@@ -14,6 +14,7 @@
 // this file runs directly under plain Node, outside the CRA/webpack/TS toolchain. Keep these in
 // sync by hand if any of them change:
 //   - src/shared/utils/restaurantLocations.ts   (business info)
+//   - src/shared/utils/faq.ts                   (FAQ Q&A content)
 //   - src/shared/utils/structuredData.ts        (JSON-LD builders)
 //   - src/shared/components/SeoHead.tsx         (tag shape)
 //   - src/pages/HomePage.tsx / PrivacyPolicyPage.tsx (title/description copy)
@@ -101,6 +102,53 @@ function buildRestaurantJsonLd(location) {
         })),
         hasMenu: `${location.url}/menu`,
         acceptsReservations: false,
+    };
+}
+
+// Mirrors src/shared/utils/faq.ts -- see that file for the answers' source and update notes.
+const MENU_PAGE_FAQ = [
+    {
+        question: 'Do you deliver everywhere in Bahrain?',
+        answer: 'Yes — delivery across all of Bahrain is available today through Talabat and Keeta. Direct delivery through our own website and app is still being rolled out.',
+    },
+    {
+        question: 'Is there a minimum order for pickup?',
+        answer: "No minimum order for pickup. Delivery minimums and fees via Talabat and Keeta follow those platforms' own terms.",
+    },
+    {
+        question: 'What payment methods do you accept?',
+        answer: "Cash and card are accepted for pickup. For delivery via Talabat or Keeta, payment follows those platforms' own options. Benefit and BenefitPay support is coming soon.",
+    },
+    {
+        question: 'Do you have vegetarian pizza options?',
+        answer: 'Yes — our Veggie Mexican pizza is fully vegetarian.',
+    },
+    {
+        question: 'Can I get a thin crust pizza?',
+        answer: 'Yes, thin crust is available for every pizza on the menu in Medium and Large sizes.',
+    },
+    {
+        question: 'Do you have a dine-in restaurant?',
+        answer: 'No — IC Pizza is pickup and delivery only, ordered via self-service kiosk, our website, or delivery apps. There is no dine-in seating.',
+    },
+    {
+        question: 'Do you take bulk or party orders?',
+        answer: "Yes, we're happy to take bulk and party orders — call us to arrange.",
+    },
+];
+
+function buildFaqJsonLd(items) {
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: items.map(item => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+                '@type': 'Answer',
+                text: item.answer,
+            },
+        })),
     };
 }
 
@@ -202,6 +250,7 @@ async function main() {
 
     const jsonLd = [buildRestaurantJsonLd(LOCATION)];
     if (menuData.length > 0) jsonLd.push(buildMenuJsonLd(menuData, LOCATION));
+    jsonLd.push(buildFaqJsonLd(MENU_PAGE_FAQ));
 
     const menuTags = renderHeadTags({
         title: `${LOCATION.name} — Detroit & Brooklyn Style Pizza | Order Online, Bahrain`,
