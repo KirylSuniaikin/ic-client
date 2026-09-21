@@ -1,5 +1,6 @@
 import type {MenuItem} from '../../domains/menu/types';
 import type {RestaurantLocation} from './restaurantLocations';
+import type {FaqItem} from './faq';
 
 // Bahrain-only today; there is no other currency anywhere in the ordering flow
 // (see the "currency" key in shared/i18n/locales/*/common.json, also "BHD").
@@ -15,6 +16,7 @@ export function buildRestaurantJsonLd(location: RestaurantLocation): Record<stri
         slogan: location.tagline,
         image: location.image,
         url: location.url,
+        sameAs: location.sameAs,
         telephone: location.telephone,
         servesCuisine: location.cuisines,
         // schema.org's `keywords` is typed as a single Text value, not a list -- comma-joined,
@@ -35,6 +37,21 @@ export function buildRestaurantJsonLd(location: RestaurantLocation): Record<stri
         })),
         hasMenu: `${location.url}/menu`,
         acceptsReservations: false,
+    };
+}
+
+export function buildFaqJsonLd(items: FaqItem[]): Record<string, unknown> {
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: items.map(item => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+                '@type': 'Answer',
+                text: item.answer,
+            },
+        })),
     };
 }
 

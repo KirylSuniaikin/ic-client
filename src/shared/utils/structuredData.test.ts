@@ -1,7 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import type { MenuItem } from "../../domains/menu/types";
 import type { RestaurantLocation } from "./restaurantLocations";
-import { buildRestaurantJsonLd, buildMenuJsonLd } from "./structuredData";
+import { buildRestaurantJsonLd, buildMenuJsonLd, buildFaqJsonLd } from "./structuredData";
 
 const LOCATION: RestaurantLocation = {
     slug: "al-hidd",
@@ -10,6 +10,7 @@ const LOCATION: RestaurantLocation = {
     tagline: "Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes",
     cuisines: ["Detroit-style Pizza", "Brooklyn-style Pizza", "Pizza"],
     keywords: ["Detroit style pizza Bahrain", "cold fermentation pizza"],
+    sameAs: ["https://www.talabat.com/bahrain/ic-pizza", "https://www.instagram.com/icpizza.bh/"],
     streetAddress: "Road 114, Block 101, Building 1284R",
     addressLocality: "Al Hidd",
     addressCountry: "BH",
@@ -47,6 +48,7 @@ describe("buildRestaurantJsonLd", () => {
             description: "Detroit & Brooklyn style pizza, 48-hour cold-fermented dough, San Marzano tomatoes",
             servesCuisine: ["Detroit-style Pizza", "Brooklyn-style Pizza", "Pizza"],
             keywords: "Detroit style pizza Bahrain, cold fermentation pizza",
+            sameAs: ["https://www.talabat.com/bahrain/ic-pizza", "https://www.instagram.com/icpizza.bh/"],
             address: {
                 "@type": "PostalAddress",
                 streetAddress: "Road 114, Block 101, Building 1284R",
@@ -120,6 +122,40 @@ describe("buildMenuJsonLd", () => {
             "@type": "Offer",
             price: 3.5,
             priceCurrency: "BHD",
+        });
+    });
+});
+
+describe("buildFaqJsonLd", () => {
+    it("maps each item to a schema.org Question/Answer pair, in order", () => {
+        const jsonLd = buildFaqJsonLd([
+            { question: "Do you deliver?", answer: "Yes, via Talabat and Keeta." },
+            { question: "Do you take card?", answer: "Yes." },
+        ]);
+
+        expect(jsonLd).toEqual({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [
+                {
+                    "@type": "Question",
+                    name: "Do you deliver?",
+                    acceptedAnswer: { "@type": "Answer", text: "Yes, via Talabat and Keeta." },
+                },
+                {
+                    "@type": "Question",
+                    name: "Do you take card?",
+                    acceptedAnswer: { "@type": "Answer", text: "Yes." },
+                },
+            ],
+        });
+    });
+
+    it("returns an empty mainEntity for an empty FAQ list", () => {
+        expect(buildFaqJsonLd([])).toEqual({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [],
         });
     });
 });

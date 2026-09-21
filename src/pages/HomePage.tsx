@@ -13,6 +13,7 @@ import { ActiveOrderIslandPill } from "../domains/customer-auth/components/Activ
 import { usePixelTracking } from "../domains/order/hooks/usePixelTracking";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import MenuSections from "../domains/menu/components/MenuSections";
+import { FaqSection, FAQ_SECTION_VISIBLE } from "../shared/components/FaqSection";
 import HomePageModals from "./HomePageModals";
 import HeroSection from "./HeroSection";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
@@ -33,7 +34,8 @@ import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
 import { SeoHead } from "../shared/components/SeoHead";
 import { DEFAULT_LOCATION } from "../shared/utils/restaurantLocations";
-import { buildRestaurantJsonLd, buildMenuJsonLd } from "../shared/utils/structuredData";
+import { buildRestaurantJsonLd, buildMenuJsonLd, buildFaqJsonLd } from "../shared/utils/structuredData";
+import { MENU_PAGE_FAQ } from "../shared/utils/faq";
 
 interface HomePageProps {
     userParam: string | null;
@@ -182,6 +184,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 jsonLd={[
                     buildRestaurantJsonLd(DEFAULT_LOCATION),
                     ...(menu.menuData.length > 0 ? [buildMenuJsonLd(menu.menuData, DEFAULT_LOCATION)] : []),
+                    buildFaqJsonLd(MENU_PAGE_FAQ),
                 ]}
             />
             {/* Visually hidden, not removed: HeroSection is a video/branch-picker with no heading
@@ -271,6 +274,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 cartItems={cart.cartItems}
                 isAdmin={isAdmin}
             />
+            {!isAdmin && FAQ_SECTION_VISIBLE && <FaqSection items={MENU_PAGE_FAQ} />}
             {isAdmin && noPopupOpen && (
                 <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 10000 }}>
                     <IconButton onClick={() => { cart.setCartItems([]); navigate('/admin/'); }} sx={{ backgroundColor: "#ffffff", boxShadow: "0 2px 6px rgba(0,0,0,0.1)", "&:hover": { backgroundColor: "#f5f5f5" } }}>

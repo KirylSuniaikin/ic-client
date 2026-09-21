@@ -27,6 +27,10 @@ export type RestaurantLocation = {
     // "fermentation" alongside "48-hour cold-fermented dough") that would read as keyword
     // stuffing if crammed into the title/description instead.
     keywords: string[];
+    // Other authoritative profiles of the same business, for JSON-LD `sameAs` -- this is what
+    // lets a search engine or AI aggregator confirm "this Talabat/Keeta/Instagram listing and
+    // this website are the same restaurant" instead of treating them as unrelated entities.
+    sameAs: string[];
     streetAddress: string;
     addressLocality: string;
     addressCountry: string; // ISO 3166-1 alpha-2
@@ -55,6 +59,11 @@ export const AL_HIDD_LOCATION: RestaurantLocation = {
         'self-order pizza kiosk Bahrain',
         'pizza Al Hidd',
         'pizza delivery Al Hidd',
+    ],
+    sameAs: [
+        'https://www.talabat.com/bahrain/ic-pizza',
+        'https://url-eu.mykeeta.com/4creMhXz',
+        'https://www.instagram.com/icpizza.bh/',
     ],
     streetAddress: 'Road 114, Block 101, Building 1284R',
     addressLocality: 'Al Hidd',
