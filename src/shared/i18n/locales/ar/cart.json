@@ -9,8 +9,7 @@
   "comingSoon": "قريباً",
   "paymentTitle": "طريقة الدفع",
   "payment": {
-    "atCounter": "الدفع عند الاستلام",
-    "benefit": "بنفت (عبر الإنترنت)",
+    "benefit": "بنفت",
     "benefitPay": "بنفت باي"
   },
   "extras": {

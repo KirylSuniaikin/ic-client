@@ -34,7 +34,12 @@
   "betterTogether": "ألذّ معاً",
   "pickUpReminder": {
     "title": "هذا الطلب للاستلام فقط",
-    "action": "تأكيد طلب الاستلام"
+    "action": "تأكيد طلب الاستلام",
+    "branchTitle": "الاستلام من فرع {{branchName}}",
+    "branchHint": "تأكد أن هذا هو الفرع الذي ستأتي إليه.",
+    "distanceWarning": "أنت على بعد حوالي {{km}} كم من هذا الفرع.",
+    "dontAskAgain": "لا تسألني مرة أخرى عن هذا الفرع",
+    "changeBranch": "تغيير الفرع"
   },
   "delivery": {
     "addressTitle": "عنوان التوصيل",

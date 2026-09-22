@@ -447,6 +447,39 @@ export async function getBaseAdminInfo(branchId: string): Promise<AdminBaseInfo 
  * A 404 means the reference is unknown — a mistyped or tampered URL — and is surfaced as an error
  * rather than as a failed payment, because those are very different things to tell a customer.
  */
+/**
+ * The widget parameters for an attempt, for the standalone /benefitpay page.
+ *
+ * Unauthenticated by necessity: that page is opened in a bare browser tab by the mobile app, which
+ * cannot pass a session into it. The reference is the only credential, which is why it carries
+ * random digits.
+ */
+export async function fetchBenefitPaySession(reference: string): Promise<BenefitPaySession> {
+    const url = `${BASE_URL}/payments/benefitpay/session/${encodeURIComponent(reference)}`;
+
+    const headers = new Headers();
+    applyClientPlatform(headers);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {method: "GET", headers});
+    } catch (error) {
+        void reportNetworkError(error, url, "GET");
+        throw error;
+    }
+
+    void reportIfServerError(response, url, "GET");
+
+    if (!response.ok) {
+        throw new Error(`Ошибка: ${response.status}`);
+    }
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE html>")) {
+        throw new Error("API вернул HTML, а не JSON. Проверь сервер!");
+    }
+    return JSON.parse(text) as BenefitPaySession;
+}
+
 export async function fetchBpgPaymentResult(reference: string): Promise<BpgPaymentResult> {
     const url = `${BASE_URL}/payments/bpg/result/${encodeURIComponent(reference)}`;
 

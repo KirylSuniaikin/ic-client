@@ -192,10 +192,10 @@ describe("PaymentResultContent", () => {
             renderContent({ result: resultWith("APPROVED") });
 
             act(() => {
-                jest.advanceTimersByTime(4000);
+                jest.advanceTimersByTime(3000);
             });
 
-            expect(screen.getByText("Back to the menu in 1s")).toBeTruthy();
+            expect(screen.getByText("Back to the menu in 2s")).toBeTruthy();
         });
 
         it("returns to the menu once the five seconds are up", () => {

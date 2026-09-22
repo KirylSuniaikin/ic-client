@@ -27,6 +27,7 @@ export const retryBpgPayment = jest.fn<Promise<BpgRetryResult>, [string]>();
 export const bpgCheckout = jest.fn<Promise<BpgCheckoutResult>, [unknown]>();
 
 export const benefitPayCheckout = jest.fn<Promise<BenefitPaySession>, [unknown]>();
+export const fetchBenefitPaySession = jest.fn();
 
 export const confirmBenefitPayPayment = jest.fn<Promise<string>, [string]>();
 

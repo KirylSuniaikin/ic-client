@@ -60,24 +60,28 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
 
 describe("CartPopup — payment toggle", () => {
     it("renders the payment options and preselects the passed method (customer)", () => {
-        renderCart();
+        renderCart({ paymentMethod: PAY_ONLINE_METHOD });
 
-        expect(screen.getByRole("button", { name: "At counter" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Benefit (Online)" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Benefit" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "BenefitPay" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "At counter" }).getAttribute("aria-pressed")).toBe("true");
+        expect(screen.getByRole("button", { name: "Benefit" }).getAttribute("aria-pressed")).toBe("true");
     });
 
-    // The labels changed but the wire values did not: "At counter" still sends the historic
-    // DEFAULT_PAYMENT_METHOD, so the cash-drawer gate, the admin dropdown and past stats are
-    // untouched by the relabel.
+    // Customer orders are paid before they reach the kitchen, so there is no pay-at-counter
+    // choice. The tender string still exists for the kiosk — only the option was removed.
+    it("does not offer paying at the counter", () => {
+        renderCart();
+
+        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+    });
+
     it("calls onPaymentChange with the canonical value when a method is selected", () => {
         const onPaymentChange = jest.fn<void, [string]>();
-        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
+        renderCart({ onPaymentChange, paymentMethod: WALLET_METHOD });
 
-        fireEvent.click(screen.getByRole("button", { name: "At counter" }));
+        fireEvent.click(screen.getByRole("button", { name: "Benefit" }));
 
-        expect(onPaymentChange).toHaveBeenCalledWith(DEFAULT_PAYMENT_METHOD);
+        expect(onPaymentChange).toHaveBeenCalledWith(PAY_ONLINE_METHOD);
     });
 
     it("offers the wallet as its own method, distinct from the hosted card page", () => {
@@ -92,7 +96,7 @@ describe("CartPopup — payment toggle", () => {
     it("hides the payment toggle for admin", () => {
         renderCart({ isAdmin: true });
 
-        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
     });
 });
@@ -137,18 +141,18 @@ describe("CartPopup — delivery-type toggle", () => {
         renderCart({ orderType: "Delivery" });
 
         expect(screen.getByRole("button", { name: /delivery/i })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
     });
 
     it("hides both the delivery-type and payment-method toggles on kiosk (always Pickup + Card)", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
-        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByRole("button", { name: "BenefitPay" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Benefit (Online)" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Benefit" })).toBeNull();
         expect(screen.queryByText(/payment method/i)).toBeNull();
     });
 

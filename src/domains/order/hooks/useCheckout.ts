@@ -12,7 +12,7 @@ import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvide
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
 import type { BenefitPaySession } from "../../payment/types";
-import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../types";
+import { ItemsUnavailableError, BranchClosedError, PAY_ONLINE_METHOD, WALLET_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
@@ -121,7 +121,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // Delivery type and payment method are chosen in the cart. Owned here rather than in the cart
     // component so the ClientInfoPopup detour (guests / logged-in customers with no name on file)
     // can recover the customer's choices when it re-enters checkout.
-    const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+    const [paymentMethod, setPaymentMethod] = useState(PAY_ONLINE_METHOD);
     // Set when a wallet checkout succeeds; the page opens BenefitPayDialog on it. Null the rest of
     // the time, including after the customer finishes, so the dialog cannot reopen itself.
     const [walletSession, setWalletSession] = useState<BenefitPaySession | null>(null);
@@ -211,7 +211,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             if (orderData.payment_type === WALLET_METHOD) {
                 const session = await benefitPayCheckout(orderData);
                 setCartItems([]);
-                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPaymentMethod(PAY_ONLINE_METHOD);
                 setPendingOrder(null);
                 setWalletSession(session);
                 return;
@@ -220,7 +220,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             if (orderData.payment_type === PAY_ONLINE_METHOD) {
                 const checkout = await bpgCheckout({method: PAY_ONLINE_METHOD, order: orderData});
                 setCartItems([]);
-                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPaymentMethod(PAY_ONLINE_METHOD);
                 setPendingOrder(null);
                 // A full-page assign, not a route change: the destination is the gateway's own
                 // domain, which is where card details belong.
@@ -237,7 +237,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             // window.ttq is the TikTok pixel SDK; a global.d.ts augmentation would be cleaner but is not available
             (window.ttq as Record<string, unknown> & { identify?: (data: Record<string, unknown>) => void })?.identify?.({ phone_number: "+" + orderData.tel });
             setCartItems([]);
-            setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+            setPaymentMethod(PAY_ONLINE_METHOD);
             setOrderType("Pick Up");
             setPendingOrder(null);
             setPickUpReminder(false);
@@ -301,16 +301,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         return me && me.phone === tel ? me.amountOfOrders ?? null : null;
     }
 
-    // Extracted terminal step shared by the logged-in-from-the-start path and the
-    // freshly-verified-guest path (completeVerifiedCheckout below) -- a customer who has
-    // never completed an order goes through the Pick-Up reminder first; everyone else
-    // has their order created straight away.
     async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
-        // DELIVERY_SPEC.md §1.7: a delivery order must not exist until payment succeeds, so the
-        // funnel stops here and hands the built order to the delivery checkout instead of
-        // creating it. Everything before this point still runs — cross-sell, identity, the
-        // blacklist check and, for a guest, OTP verification, which is also what guarantees a
-        // token by the time the (account-scoped) address book is opened.
         if (order.type === "Delivery") {
             setCartOpen(false);
             setPendingDeliveryOrder(order);

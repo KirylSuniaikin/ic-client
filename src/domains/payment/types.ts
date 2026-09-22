@@ -119,5 +119,16 @@ export type BenefitPaySession = {
     /** Numeric ISO code — `048` for BHD. */
     currency: string;
     secureHash: string;
+    /**
+     * The wallet's own integrity check, and NOT interchangeable with secureHash — it is HMAC'd over
+     * a fixed five parameters with the ALPHABETIC currency, where secureHash uses the numeric one.
+     * Computed server-side because the SDK holds no secret and cannot produce it.
+     */
+    hashedString?: string;
     qrTimeoutMs: number;
+    /**
+     * Where to send a customer to pay. The server decides whether that is BenefitPay's own page or
+     * our bridge page, so no client ever builds a payment URL.
+     */
+    redirectUrl?: string;
 };
