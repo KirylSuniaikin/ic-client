@@ -35,6 +35,8 @@
   "wallet": {
     "title": "Pay with BenefitPay",
     "instruction": "Scan this code with the BenefitPay app on your phone.",
-    "close": "Close"
+    "close": "Close",
+    "waitingTitle": "Waiting for BenefitPay",
+    "waitingSubtitle": "Finish the payment in the BenefitPay app. We'll update this screen as soon as it confirms."
   }
 }
