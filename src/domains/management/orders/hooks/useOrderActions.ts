@@ -59,8 +59,7 @@ export function useOrderActions({ setAlertOrder, setOrders, setError }: UseOrder
         }
         setConfirmingAccept(true);
         try {
-            // "Accepted" is not in the OrderStatus union — cast to pass existing logic unchanged
-            await updateOrderStatus({ orderId, jahezOrderId: String(extId), orderStatus: 'Accepted' as Order['status'], reason: null });
+            await updateOrderStatus({ orderId, jahezOrderId: String(extId), orderStatus: 'Accepted', reason: null });
             setAlertOrder(null);
         } catch (e) {
             setError?.(String(e));

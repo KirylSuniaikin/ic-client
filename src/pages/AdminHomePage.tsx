@@ -145,6 +145,7 @@ function AdminHomePage(): JSX.Element {
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
                     onAccountingOpen={() => ui.setAccountingOpen(true)} onAccountManagerOpen={() => ui.setAccountManagerOpen(true)}
+                    onCourierDispatcherOpen={() => ui.setCourierDispatcherOpen(true)}
                     activeTab={ui.activeAdminTab}
                     onSwitchSurface={() => ui.setActiveAdminTab(ui.activeAdminTab === 'board' ? 'orders' : 'board')}
                     role={role} logout={logout} userName={fullName ?? username ?? ""}
@@ -188,7 +189,9 @@ function AdminHomePage(): JSX.Element {
                 managementPageOpen={ui.managementPageOpen} onManagementPageClose={() => ui.setManagementPageOpen(false)}
                 shiftManagementPageOpen={ui.shiftManagementPageOpen} onShiftManagementPageClose={() => ui.setShiftManagementPageOpen(false)}
                 accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)}
-                accountManagerOpen={ui.accountManagerOpen} onAccountManagerClose={() => ui.setAccountManagerOpen(false)} role={role} />
+                accountManagerOpen={ui.accountManagerOpen} onAccountManagerClose={() => ui.setAccountManagerOpen(false)} role={role}
+                courierDispatcherOpen={ui.courierDispatcherOpen}
+                onCourierDispatcherClose={() => ui.setCourierDispatcherOpen(false)} />
             <ExternalOrderAlert alertOrder={alertOrder} onDismiss={() => { stopSound(); setAlertOrder(null); }} onStopSound={stopSound} {...orderActions} />
             <EditedOrderAlert editedOrder={editedOrder} onClose={() => { stopSound(); setEditedOrder(null); }} />
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />

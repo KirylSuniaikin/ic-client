@@ -48,6 +48,7 @@ const ACTIVE_ORDER: CustomerActiveOrder = {
     id: 42,
     orderNumber: 7,
     status: "Kitchen Phase",
+    type: "Pick Up",
     createdAt: nowAsBahrainTimestamp(),
     estimation: 15,
     branchId: "branch-1",
@@ -146,10 +147,17 @@ describe("useActiveOrderIsland", () => {
         expect(result.current.totalSec).toBe(15 * 60);
     });
 
+    /**
+     * The refetch deliberately answers with the SAME order at its new status rather than `null`.
+     * Stubbing it to `null` — as this test used to — makes `isVisible` false because there is no
+     * active order at all, which is true whatever the terminal-status rule does; the assertion
+     * then passes with the rule deleted. Returning the order forces the terminality check to be
+     * the only thing that can hide the pill.
+     */
     it("hides the pill once a live frame advances the tracked order to Picked Up", async () => {
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
-        mockFetchActiveOrder.mockResolvedValueOnce(null);
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, status: "Picked Up" });
 
         const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
         await waitForAuthReady();
@@ -164,6 +172,51 @@ describe("useActiveOrderIsland", () => {
 
         await waitFor(() => expect(result.current.isVisible).toBe(false));
         expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+    });
+
+    // DELIVERY_SPEC.md §12.1-D: "Delivered" is the delivery branch's terminal status, the
+    // twin of "Picked Up" above. The visibility check used to compare against the pickup
+    // string alone, which left the pill pinned to a finished delivery order indefinitely.
+    it("hides the pill once a live frame advances the tracked order to Delivered", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(ACTIVE_ORDER);
+        // Same reasoning as above: the refetch keeps the order, so only terminality can hide it.
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...ACTIVE_ORDER, status: "Delivered" });
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+
+        await waitFor(() => expect(result.current.isVisible).toBe(true));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: ACTIVE_ORDER.id, status: "Delivered" }) });
+        });
+
+        await waitFor(() => expect(result.current.isVisible).toBe(false));
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+    });
+
+    // The in-transit status must NOT be treated as terminal — the customer is still
+    // waiting and the pill is precisely what they watch during the drive.
+    it("keeps the pill visible while the order is Out for delivery", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValue(ACTIVE_ORDER);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+
+        await waitFor(() => expect(result.current.isVisible).toBe(true));
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: ACTIVE_ORDER.id, status: "Out for delivery" }) });
+        });
+
+        await waitFor(() => expect(result.current.status).toBe("Out for delivery"));
+        expect(result.current.isVisible).toBe(true);
     });
 
     it("handleClick calls openOrderDetail with the active order's id", async () => {
@@ -241,5 +294,140 @@ describe("useActiveOrderIsland", () => {
         await waitFor(() => expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2));
         await waitFor(() => expect(result.current.activeOrder?.status).toBe("Ready"));
         expect(result.current.isVisible).toBe(true);
+    });
+});
+
+
+/**
+ * "Picked Up" ends a pickup order and does NOT end a delivery: there it means the courier has the
+ * food and the customer is still waiting. Marking the order collected on the admin board used to
+ * make the customer's widget disappear at exactly that moment.
+ */
+describe("useActiveOrderIsland — a delivery outlives the hand-over", () => {
+    async function renderWith(order: CustomerActiveOrder) {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(order);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+        await waitFor(() => expect(result.current.activeOrder).not.toBeNull());
+        return result;
+    }
+
+    it("keeps a delivery order on screen once the courier has collected it", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Picked Up" });
+
+        expect(result.current.isVisible).toBe(true);
+    });
+
+    it("drops a delivery order once it reaches the door", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Delivered" });
+
+        expect(result.current.isVisible).toBe(false);
+    });
+
+    it("still ends a pickup order at Picked Up", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Picked Up" });
+
+        expect(result.current.isVisible).toBe(false);
+    });
+
+    /**
+     * manual §04 edge 9 — what the customer sees after a no-show. "Returned Undelivered" is the
+     * other terminal ending, and it is in DELIVERY_TERMINAL_STATUSES with nothing asserting it:
+     * the pill goes quiet rather than counting down forever to a door the rider already left.
+     * The order does not disappear — it stays in their history with the status that explains it,
+     * which is CustomerOrderDetailPopup's half of the same rule.
+     */
+    it("drops a delivery order that came back undelivered", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Delivery", status: "Returned Undelivered" });
+
+        expect(result.current.isVisible).toBe(false);
+        // Still tracked, just not shown: the pill is what goes quiet, not the order.
+        expect(result.current.activeOrder).not.toBeNull();
+    });
+
+    /**
+     * The status that ends a delivery is not the one that ends a pickup, and vice versa. A single
+     * shared terminal set would either strand a delivered order on screen or wipe the pill at
+     * hand-over — both of which have happened.
+     */
+    it("does not treat a returned delivery status as terminal for a pickup order", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Out for delivery" });
+
+        expect(result.current.isVisible).toBe(true);
+    });
+});
+
+
+/**
+ * The hook owns the ride's clock, so the pill can stay presentational. `estimation` is minutes to
+ * Ready and cannot describe the ride, which is why handoverAt/estimatedDeliveredAt exist at all.
+ */
+describe("useActiveOrderIsland — the ride's live progress", () => {
+    /** A Bahrain-local stamp `minutes` from now, in the backend's LocalDateTime (ISO) shape. */
+    function bahrainStampIn(minutes: number): string {
+        const t = new Date(Date.now() + 3 * 60 * 60 * 1000 + minutes * 60_000);
+        const pad = (n: number): string => String(n).padStart(2, "0");
+        return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}:${pad(t.getUTCSeconds())}`;
+    }
+
+    async function renderWith(order: CustomerActiveOrder) {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(order);
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await waitForAuthReady();
+        await waitFor(() => expect(result.current.activeOrder).not.toBeNull());
+        return result;
+    }
+
+    it("derives a mid-ride fill from the two delivery timings", async () => {
+        // 5 minutes into a 20-minute ride -- a quarter, deliberately NOT the halfway point, so a
+        // fill that ignored elapsed time could not accidentally satisfy this.
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+            handoverAt: bahrainStampIn(-5),
+            estimatedDeliveredAt: bahrainStampIn(15),
+        });
+
+        expect(result.current.rideProgress).not.toBeNull();
+        expect(result.current.rideProgress?.fraction).toBeGreaterThan(0.18);
+        expect(result.current.rideProgress?.fraction).toBeLessThan(0.30);
+        expect(result.current.rideProgress?.minutesLeft).toBe(15);
+        expect(result.current.rideProgress?.overdue).toBe(false);
+    });
+
+    it("reports the ride as overdue once the estimate has passed", async () => {
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+            handoverAt: bahrainStampIn(-30),
+            estimatedDeliveredAt: bahrainStampIn(-5),
+        });
+
+        expect(result.current.rideProgress?.overdue).toBe(true);
+        expect(result.current.rideProgress?.minutesLeft).toBe(0);
+    });
+
+    // Absent timings must not be read as "the ride started right now" — toEpochMsBahrain answers
+    // Date.now() for a missing string, so the guard in the hook is what keeps this honest.
+    it("reports no ride progress for a delivery order with no timings yet", async () => {
+        const result = await renderWith({
+            ...ACTIVE_ORDER,
+            type: "Delivery",
+            status: "Out for delivery",
+        });
+
+        expect(result.current.rideProgress).toBeNull();
+    });
+
+    it("reports no ride progress for a pickup order", async () => {
+        const result = await renderWith({ ...ACTIVE_ORDER, type: "Pick Up", status: "Oven" });
+
+        expect(result.current.rideProgress).toBeNull();
     });
 });

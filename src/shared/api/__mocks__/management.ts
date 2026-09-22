@@ -13,10 +13,11 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from "../../../domains/management/purchases/types";
-import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
+import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse } from '../management';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats } from '../../../domains/management/statistics/types';
+import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
@@ -62,6 +63,7 @@ export const getAllBannedCstmrs = jest.fn<Promise<BlackListCstmr[]>, []>();
 
 export const getWorkingHours = jest.fn<Promise<WorkingHoursResponse | null>, [string]>();
 export const putWorkingHours = jest.fn<Promise<WorkingHoursResponse>, [WorkingHoursRequest]>();
+export const putDeliveryEnabled = jest.fn<Promise<DeliveryEnabledResponse>, [string, boolean]>();
 
 // Purchase/Inventory popups (Phase 2 — decimal-placeholder component tests).
 export const fetchProducts = jest.fn<Promise<ProductTO[]>, []>();
@@ -167,3 +169,24 @@ export const patchChannelPerformance =
 export const getMenuCostCards = jest.fn<Promise<MenuCostCardsResponse>, []>();
 export const getComponentCosts = jest.fn<Promise<ComponentCost[]>, []>();
 export const updateComponentCost = jest.fn<Promise<ComponentCost>, [number, UpdateComponentCost]>();
+
+// Delivery availability (Statistics -> Performance).
+export const fetchDeliveryAvailabilityStats =
+    jest.fn<Promise<DeliveryAvailabilityStats>, [string, string, string]>();
+
+// Delivered by weekday/hour (Statistics -> Delivery).
+export const fetchDeliveryHourlyStats =
+    jest.fn<Promise<DeliveryHourBucket[]>, [string, string, string]>();
+
+// Estimate accuracy + skip reasons (Statistics -> Delivery). Chain-wide: no branch argument,
+// because the endpoints take an optional branchId and these two read the whole chain.
+export const fetchDeliveryEstimateAccuracy =
+    jest.fn<Promise<DeliveryEstimateAccuracy>, [string, string]>();
+export const fetchDeliverySkipReasonStats =
+    jest.fn<Promise<DeliverySkipReasonStats>, [string, string]>();
+
+// Delivery zones (Config -> Schedule).
+export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();
+export const createDeliveryZone = jest.fn<Promise<DeliveryZone>, [SaveDeliveryZone]>();
+export const updateDeliveryZone = jest.fn<Promise<DeliveryZone>, [string, SaveDeliveryZone]>();
+export const deleteDeliveryZone = jest.fn<Promise<void>, [string]>();

@@ -14,6 +14,7 @@ import type { BusinessStatsResponse, ComponentCost, StatsResponse } from "../typ
 // Every other heavy tab child is still stubbed, for the same reasons as the sibling suite
 // (TextEncoder polyfill gap in this test environment; unrelated to this file's coverage).
 jest.mock("./tabs/PerformanceTab", () => ({ PerformanceTab: () => null }));
+jest.mock("./tabs/DeliveryTab", () => ({ DeliveryTab: () => null }));
 jest.mock("./PrepPlanTable", () => ({ __esModule: true, default: () => null }));
 jest.mock("./DoughUsageTable", () => ({ DoughUsageTable: () => null }));
 jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ ConsumptionStatistics: () => null }));

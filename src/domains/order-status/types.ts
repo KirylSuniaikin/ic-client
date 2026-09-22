@@ -7,4 +7,50 @@ export type OrderStatusData = {
     error?: boolean;
     message?: string;
     branchId: string;
+    /**
+     * "Delivery" or the pickup type. The screen cannot tell the two apart from the status alone
+     * at "Ready" — and that is exactly where the copy has to switch from "come and collect" to
+     * "waiting for a courier" — so the backend sends it explicitly.
+     */
+    orderType: string;
+    /**
+     * Delivery only, and OMITTED (not null) on a pickup order — `@JsonInclude(NON_NULL)` on the
+     * backend keeps a pickup payload byte-for-byte what it was. Absent means "not knowable yet"
+     * (no courier assigned, or a branch/address without coordinates), never "now".
+     *
+     * Naive Bahrain-local timestamps: parse with formatBahrainClock / toEpochMsBahrain, never
+     * `new Date(s)` — that reads them as UTC and lands three hours out.
+     */
+    handoverAt?: string;
+    estimatedDeliveredAt?: string;
+};
+
+// Mirrors the Phase 6a backend contract exactly:
+// GET /api/customer/orders/{orderId}/courier-location → { couriers: TrackedCourier[], parts?: TrackedPart[] }
+// (runs/6a/task-spec.md §5, already committed and frozen — this type is the frontend's mirror).
+export type TrackedCourier = {
+    name: string;
+    latitude: number;
+    longitude: number;
+    positionAgeSeconds: number;
+    /** One entry per currently-out-for-delivery part, ordered ascending; length 0..N since Phase 6a. */
+    partIndex: number;
+};
+
+/**
+ * One part's coarse progress. Present only when the order's parts have partsTotal > 1 — see
+ * OrderTrackingResponse.parts. Deliberately two states only ("on the way" / "delivered"); a part
+ * with a courier assigned but not yet departed reports delivered: false, indistinguishable from a
+ * genuinely out-for-delivery, undelivered part (backend Requirement 5, runs/6a/task-spec.md §4).
+ */
+export type TrackedPart = {
+    partIndex: number;
+    partsTotal: number;
+    delivered: boolean;
+};
+
+export type OrderTrackingResponse = {
+    couriers: TrackedCourier[]; // 0..N since Phase 6a
+    /** Absent for a single-part order; never present with length <= 1. */
+    parts?: TrackedPart[];
 };

@@ -1,0 +1,40 @@
+{
+  "confirming": {
+    "title": "Confirming your payment",
+    "subtitle": "This usually takes a few seconds. Please don't close this page."
+  },
+  "approved": {
+    "title": "Thank you",
+    "subtitle": "Your payment was approved",
+    "orderNumber": "Order number",
+    "returningIn": "Back to the menu in {{seconds}}s"
+  },
+  "declined": {
+    "title": "Payment didn't go through",
+    "subtitle": "No money has been taken. You can try again.",
+    "retryFailed": "Couldn't start a new payment. Please try again."
+  },
+  "mismatch": {
+    "title": "Something went wrong with your payment",
+    "subtitle": "Please contact us before ordering again so we can sort it out."
+  },
+  "unknown": {
+    "title": "We couldn't confirm your payment",
+    "subtitle": "If money was taken, your order is safe and we'll process it. Please check your order status in a moment."
+  },
+  "receipt": {
+    "amount": "Amount",
+    "card": "Card",
+    "authCode": "Auth code",
+    "reference": "Reference"
+  },
+  "action": {
+    "tryAgain": "Try again",
+    "backToMenu": "Back to menu"
+  },
+  "wallet": {
+    "title": "Pay with BenefitPay",
+    "instruction": "Scan this code with the BenefitPay app on your phone.",
+    "close": "Close"
+  }
+}

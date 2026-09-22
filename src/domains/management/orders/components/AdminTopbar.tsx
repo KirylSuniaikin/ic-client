@@ -46,6 +46,8 @@ interface AdminTopbarProps {
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
     onAccountManagerOpen: () => void;
+    /** Courier dispatcher panel (DELIVERY_SPEC.md §4). */
+    onCourierDispatcherOpen: () => void;
     activeTab: AdminTabKey;
     onSwitchSurface: () => void;
     role: StaffRolesType | null;
@@ -76,6 +78,7 @@ export default function AdminTopbar({
                                         onCashRegisterOpen,
                                         onAccountingOpen,
                                         onAccountManagerOpen,
+                                        onCourierDispatcherOpen,
                                         activeTab,
                                         onSwitchSurface,
                                         role,
@@ -266,6 +269,7 @@ export default function AdminTopbar({
                         onCashRegisterOpen,
                         onAccountingOpen,
                         onAccountManagerOpen,
+                        onCourierDispatcherOpen,
                         onSwitchSurface,
                         onBlacklistopen,
                         logout,

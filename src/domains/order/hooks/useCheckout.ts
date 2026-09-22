@@ -2,16 +2,17 @@ import { logger } from "../../../shared/utils/logger";
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { NavigateFunction } from "react-router-dom";
-import { createOrder, editOrder } from "../../../shared/api/public";
+import { benefitPayCheckout, bpgCheckout, createOrder, editOrder } from "../../../shared/api/public";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { fetchCustomerMe } from "../../../shared/api/customerAuth";
-import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
-import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD } from "../types";
+import type { BenefitPaySession } from "../../payment/types";
+import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
@@ -56,6 +57,9 @@ export interface UseCheckoutResult {
     setPaymentMethod: Dispatch<SetStateAction<string>>;
     orderType: string;
     setOrderType: Dispatch<SetStateAction<string>>;
+    /** Built but deliberately not created — payment comes first for delivery (§1.7). */
+    pendingDeliveryOrder: CreateOrderRequest | null;
+    setPendingDeliveryOrder: Dispatch<SetStateAction<CreateOrderRequest | null>>;
     adminOrderDetailsPopUp: boolean;
     setAdminOrderDetailsPopUpOpen: Dispatch<SetStateAction<boolean>>;
     isCrossSellOpen: boolean;
@@ -81,6 +85,9 @@ export interface UseCheckoutResult {
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null, infoCollected?: boolean) => Promise<void>;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
+    /** Non-null only while a BenefitPay wallet payment is on screen. */
+    walletSession: BenefitPaySession | null;
+    setWalletSession: Dispatch<SetStateAction<BenefitPaySession | null>>;
     // wasCrossSellShown never reset before -- on a long-lived kiosk tab only the day's first
     // customer would see the cross-sell. Called by resetKioskSession at session end.
     resetCrossSellShown: () => void;
@@ -96,6 +103,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const { token } = useCustomerAuth();
     const { openOrderDetail, refreshActiveOrder, openLogin, isLoginOpen } = useCustomerAuthUi();
     const { i18n } = useTranslation();
+    // Req. D (branch-picker-task.txt): a logged-in customer with a name on file re-enters
+    // handleCheckout against the branch the customer actually chose, not DEFAULT_BRANCH_ID --
+    // otherwise the order lands at the default branch's hours regardless of what they browsed.
+    const { chosenBranchId } = useBranchResolution();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     // Synchronous re-entry guard for order submission. checkoutLoading is React state and commits
@@ -111,7 +122,13 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // component so the ClientInfoPopup detour (guests / logged-in customers with no name on file)
     // can recover the customer's choices when it re-enters checkout.
     const [paymentMethod, setPaymentMethod] = useState(DEFAULT_PAYMENT_METHOD);
+    // Set when a wallet checkout succeeds; the page opens BenefitPayDialog on it. Null the rest of
+    // the time, including after the customer finishes, so the dialog cannot reopen itself.
+    const [walletSession, setWalletSession] = useState<BenefitPaySession | null>(null);
     const [orderType, setOrderType] = useState("Pick Up");
+    // The order a delivery customer has reached payment with, held rather than created (§1.7).
+    // Non-null is what opens DeliveryCheckoutDrawer.
+    const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<CreateOrderRequest | null>(null);
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
@@ -179,6 +196,38 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         submittingRef.current = true;
         try {
             setCheckoutLoading(true);
+
+            // "Benefit" on a pickup order means PAY NOW, not "pay with a Benefit card at the
+            // counter". It takes a different route entirely: the order is created Pending Payment
+            // and announced to nobody, and the customer is sent to the gateway. Cash and Card keep
+            // the counter flow below, where the order reaches the kitchen immediately because
+            // someone will pay for it on collection.
+            //
+            // Delivery never reaches here — HomePageModals owns that path, because it also has to
+            // resolve an address and re-check availability.
+            // The wallet is not a redirect — the customer stays here and scans a QR — so the
+            // order is created and the caller opens the dialog. Whether money moved is decided by
+            // the server asking check-status, never by the widget's own callback.
+            if (orderData.payment_type === WALLET_METHOD) {
+                const session = await benefitPayCheckout(orderData);
+                setCartItems([]);
+                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPendingOrder(null);
+                setWalletSession(session);
+                return;
+            }
+
+            if (orderData.payment_type === PAY_ONLINE_METHOD) {
+                const checkout = await bpgCheckout({method: PAY_ONLINE_METHOD, order: orderData});
+                setCartItems([]);
+                setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+                setPendingOrder(null);
+                // A full-page assign, not a route change: the destination is the gateway's own
+                // domain, which is where card details belong.
+                window.location.assign(checkout.redirectUrl);
+                return;
+            }
+
             const response = await createOrder(orderData);
             window.ttq?.track('PlaceAnOrder', { content_id: "PlaceAnOrder", order_id: response.id, currency: 'BHD', value: orderData.amount_paid });
             // eventID must match the event_id MetaService sends server-side for this order
@@ -257,6 +306,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     // never completed an order goes through the Pick-Up reminder first; everyone else
     // has their order created straight away.
     async function finalizeOrder(order: CreateOrderRequest, items: CartItem[]): Promise<void> {
+        // DELIVERY_SPEC.md §1.7: a delivery order must not exist until payment succeeds, so the
+        // funnel stops here and hands the built order to the delivery checkout instead of
+        // creating it. Everything before this point still runs — cross-sell, identity, the
+        // blacklist check and, for a guest, OTP verification, which is also what guarantees a
+        // token by the time the (account-scoped) address book is opened.
+        if (order.type === "Delivery") {
+            setCartOpen(false);
+            setPendingDeliveryOrder(order);
+            return;
+        }
         const orderCount = await resolveOrderCount(order.tel ?? null);
         if (orderCount !== null && orderCount > 0) {
             await executeOrderCreation(order, items);
@@ -380,7 +439,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 // the order runs through the same blacklist / known-customer path as any other
                 // checkout instead of a parallel one.
                 if (me?.name) {
-                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", DEFAULT_BRANCH_ID, true);
+                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", chosenBranchId, true);
                     return;
                 }
                 // No name on file — a legacy account, or the customer closed the popup before
@@ -416,7 +475,12 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         const order: CreateOrderRequest = {
             tel,
             customer_name: customerName,
-            type: "Pick Up",
+            // The customer's cart choice, not a constant. This was hardcoded to "Pick Up"
+            // while deliveryMethod was accepted and then dropped, so no Delivery order could
+            // ever reach the backend (DELIVERY_SPEC.md §12.1-A). Falls back to "Pick Up" for
+            // the callers that legitimately pass null: kiosk (always pickup, toggle hidden)
+            // and the admin popup, which rings the order type separately.
+            type: deliveryMethod ?? "Pick Up",
             payment_type: paymentMethod,
             branchId: isAdmin ? adminBranchId! : branchId!,
             notes,
@@ -498,6 +562,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         customerPrefill,
         paymentMethod, setPaymentMethod,
         orderType, setOrderType,
+        pendingDeliveryOrder, setPendingDeliveryOrder,
         adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen,
         isCrossSellOpen, setIsCrossSellOpen,
         pickUpReminder, setPickUpReminder,
@@ -510,6 +575,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         showOrderConfirmed, setShowOrderConfirmed,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, executeOrderCreation,
+        walletSession, setWalletSession,
         resetCrossSellShown,
     };
 }

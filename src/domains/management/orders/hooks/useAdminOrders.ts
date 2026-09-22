@@ -44,12 +44,41 @@ const EVENT_STAGE_FLOW: Record<string, ShiftEventType> = {
 // status frames (e.g. a backend-retried "Oven" landing after "Ready") that would move
 // an order's status backward on the board. Statuses not listed (e.g. "Cancelled") are
 // treated as applicable.
+//
+// Kept in sync with the copy in customer-auth/hooks/useOrderLiveStatus.ts, which carries
+// the full reasoning. One map covers BOTH fulfilment ladders, because the delivery ladder
+// EXTENDS the pickup one rather than branching away from it:
+//   pickup:   Kitchen Phase → Oven → Ready → Picked Up            (ends here)
+//   delivery: Kitchen Phase → Oven → Ready → Picked Up → Out for delivery
+//             → Delivered | Returned Undelivered
+// On a delivery order "Picked Up" means the COURIER collected the food from the kitchen and
+// the order only THEN goes out (CourierDeliveryService.markPickedUp writes OrderStatus.O),
+// which is also why OrderStatus.CUSTOMER_ACTIVE_EXCLUDED_DELIVERY_LABELS deliberately omits
+// "Picked Up". So the two are NOT mutually-exclusive branches out of "Ready", as the shared
+// rank 3 here used to claim.
+//
+// "Delivered" and "Returned Undelivered" are terminal SIBLINGS — different endings, neither
+// further along than the other — so they share a rank, and the guard below refuses a
+// DIFFERENT status at an equal rank so a late "Delivered" frame cannot overwrite a card that
+// already came back undelivered.
 const STATUS_RANK: Record<string, number> = {
     'Kitchen Phase': 0,
     'Oven': 1,
     'Ready': 2,
     'Picked Up': 3,
+    'Out for delivery': 4,
+    'Delivered': 5,
+    'Returned Undelivered': 5,
 };
+
+// The two /topic/{branchId}/delivery-alert types this board acts on. Both are published by
+// DeliveryAlertPublisher on the real transition only: arrivedAtKitchen when the rider is standing
+// at the pass, and offerAccepted when the order gains a rider at all — every assignment path
+// funnels through that one method (the rider tapping Alright, a manager's manual assign, and the
+// server-side auto-accept that still exists but ships disabled), which is why one frame type
+// covers all of them.
+const COURIER_AT_KITCHEN = 'COURIER_AT_KITCHEN';
+const COURIER_ASSIGNED = 'COURIER_ASSIGNED';
 
 function normalizeId(x: unknown): string {
     return String(x);
@@ -283,9 +312,16 @@ export function useAdminOrders(
                                 // Forward-only guard: ignore a stale/out-of-order frame that
                                 // would move the status backward (e.g. a retried "Oven" landing
                                 // after "Ready"). Unknown statuses fall through and are applied.
+                                // Recomputed from o.status every frame — nothing is remembered
+                                // across frames, so an unknown status cannot poison later ones.
                                 const currentRank = STATUS_RANK[o.status as string] ?? -1;
                                 const incomingRank = STATUS_RANK[status as string] ?? Number.MAX_SAFE_INTEGER;
                                 if (incomingRank < currentRank) return o;
+                                // Equal rank only ever happens between the terminal siblings
+                                // "Delivered" and "Returned Undelivered": a different status at
+                                // the same rank is a different ending, never forward progress.
+                                // Duplicate frames of the SAME status still pass, as before.
+                                if (incomingRank === currentRank && status !== o.status) return o;
                                 return { ...o, status: status as Order['status'] };
                             })
                         );
@@ -295,6 +331,60 @@ export function useAdminOrders(
                         destination: '/app/orders/ack',
                         body: JSON.stringify({ orderId: orderId }),
                     });
+                })
+            );
+
+            subscriptions.push(
+                socket.subscribe(`/topic/${branchId}/delivery-alert`, (frame) => {
+                    const payload = JSON.parse(frame.body) as {
+                        type?: string;
+                        orderId?: unknown;
+                        allPartsAssigned?: boolean;
+                    };
+                    // The branch delivery channel is a discriminated union: NO_COURIER_AVAILABLE,
+                    // PICKUP_OVERDUE and GEOFENCE_WARNING land here too and are the dispatcher's
+                    // business, not the kitchen's. Anything but the two types above is dropped, so
+                    // the channel can grow further without this board reacting to it.
+                    const isArrival = payload.type === COURIER_AT_KITCHEN;
+                    const isAssignment = payload.type === COURIER_ASSIGNED;
+                    if (!isArrival && !isAssignment) return;
+                    const alertedOrderId = getStringId(payload?.orderId ?? payload);
+
+                    // Courier-capacity Phase 5 (task-spec.md §5.7): a COURIER_ASSIGNED frame only
+                    // enables hand-over once EVERY part of the order has a courier — `allPartsAssigned`
+                    // omitted entirely (an old backend build, or the single-part legacy case) is
+                    // read as true, so a stale bundle/backend keeps today's behaviour unchanged.
+                    const allPartsAssigned = payload.allPartsAssigned !== false;
+
+                    // Patches the same two facts ActiveOrdersTO already reports rather than adding
+                    // second copies, so a REST re-hydrate and a live frame can never disagree.
+                    //
+                    // The two are set separately and never together: `courier_assigned` is what
+                    // gates the hand-over button (it mirrors the condition the endpoint 409s on),
+                    // while `courier_at_kitchen` is the advisory badge alone. Conflating them would
+                    // enable hand-over for an order whose rider merely walked into the branch.
+                    //
+                    // Neither needs a rank guard, for different reasons. `courierAtKitchenAt` is
+                    // only ever stamped and never cleared, so a repeat frame is a no-op.
+                    // `courier_assigned` CAN return to false — a manager releasing the order — but
+                    // that release is published to the courier's own topic, never to this one, so
+                    // no frame on this channel can contradict a later one. A release reaches this
+                    // board through the reconnect REST re-hydrate alone.
+                    setOrders(prev =>
+                        prev.map(o => {
+                            if (getStringId(o) !== alertedOrderId) return o;
+                            if (isArrival) return { ...o, courier_at_kitchen: true };
+                            // A part still lacking its own courier: leave courier_assigned as it
+                            // was (never a premature true, and never a regression to false either
+                            // — this frame is silent on that other part's own eventual assignment).
+                            if (!allPartsAssigned) return o;
+                            return { ...o, courier_assigned: true };
+                        })
+                    );
+
+                    // Deliberately NOT acked. This topic has no OrderEvents retry behind it, and
+                    // that ACK map is keyed by orderId ALONE — an ack published from here would
+                    // cancel a genuinely pending order push for the same order.
                 })
             );
 

@@ -9,9 +9,9 @@
   "comingSoon": "Coming soon",
   "paymentTitle": "Payment method",
   "payment": {
-    "cash": "Cash",
-    "card": "Card",
-    "benefit": "Benefit"
+    "atCounter": "At counter",
+    "benefit": "Benefit (Online)",
+    "benefitPay": "BenefitPay"
   },
   "extras": {
     "thinDough": "Thin Dough",

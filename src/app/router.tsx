@@ -5,6 +5,7 @@ import AdminHomePage from '../pages/AdminHomePage';
 import {OrderStatusPage} from '../pages/OrderStatusPage';
 import {AuthPage} from '../pages/AuthPage';
 import {PrivacyPolicyPage} from '../pages/PrivacyPolicyPage';
+import {PaymentResultPage} from '../pages/PaymentResultPage';
 import {ProtectedRoute} from '../domains/auth/components/ProtectedRoute';
 import {captureFbclid} from '../shared/utils/adAttribution';
 
@@ -19,6 +20,14 @@ function MenuRoute(): JSX.Element {
         captureFbclid(fbclid);
     }
     return <HomePage userParam={userId} recommendedIds={recommendedIds} giftId={giftId}/>;
+}
+
+function WatchPaymentResult(): JSX.Element {
+    const [searchParams] = useSearchParams();
+    // The opaque per-attempt reference the backend appended to its REDIRECT= target. The outcome
+    // is NOT read from here — see PaymentResultPage.
+    const reference = searchParams.get('ref');
+    return <PaymentResultPage reference={reference}/>;
 }
 
 function WatchOrderStatus(): JSX.Element {
@@ -39,6 +48,9 @@ export function AppRouter(): JSX.Element {
             }
             />
             <Route path="/order_status" element={<WatchOrderStatus/>}/>
+            {/* Public and unauthenticated by design: the customer arrives straight from the
+                payment gateway holding no session of ours. */}
+            <Route path="/payment_result" element={<WatchPaymentResult/>}/>
             <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
             <Route path="/auth" element={<AuthPage/>}/>
             {/* Public and unauthenticated by design: Google Play requires the privacy policy

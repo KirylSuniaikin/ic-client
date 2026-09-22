@@ -4,17 +4,26 @@ import { Modal, Box, Typography, IconButton, Button, ToggleButtonGroup, ToggleBu
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
-import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
+import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
 
 // Canonical payment values sent to the backend; the visible labels are translated in the toggle.
+//
+// Three choices, two of which take money now:
+//   At counter  — pay on collection. Cash and card were separate options; the customer decides at
+//                 the till either way, and staff record the real tender at the POS. The VALUE is
+//                 unchanged from the old default, deliberately: PaymentService gates the cash
+//                 drawer on the exact string "Cash", the admin edit dropdown offers these three
+//                 literals, and historic stats group by them. Only the label collapsed.
+//   Benefit     — BPG's hosted card page. Card number and PIN on BENEFIT's own domain.
+//   BenefitPay  — the wallet. A QR the customer scans with their phone, on our page.
 const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
-    { value: "Cash", labelKey: "payment.cash" },
-    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.card" },
-    { value: "Benefit", labelKey: "payment.benefit" },
+    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.atCounter" },
+    { value: PAY_ONLINE_METHOD, labelKey: "payment.benefit" },
+    { value: WALLET_METHOD, labelKey: "payment.benefitPay" },
 ];
 
 interface CartPopupProps {
@@ -213,34 +222,37 @@ function CartPopup({
                                     <ToggleButton value="Pick Up" sx={toggleBtnSx}>
                                         {t("pickup")}
                                     </ToggleButton>
-                                    <ToggleButton value="Delivery" disabled sx={toggleBtnSx}>
-                                        <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-                                            <span>{t("delivery")}</span>
-                                            <Typography component="span" sx={{ fontSize: 11, color: "#999" }}>
-                                                {t("comingSoon")}
-                                            </Typography>
-                                        </Box>
+                                    <ToggleButton value="Delivery" sx={toggleBtnSx}>
+                                        {t("delivery")}
                                     </ToggleButton>
                                 </ToggleButtonGroup>
                             </Box>
                         )}
 
-                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                            {t("paymentTitle")}
-                        </Typography>
-                        <ToggleButtonGroup
-                            exclusive
-                            value={paymentMethod}
-                            onChange={(_e, val) => val && onPaymentChange(val)}
-                            sx={toggleGroupSx}
-                            fullWidth
-                        >
-                            {PAYMENT_OPTIONS.map((opt) => (
-                                <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
-                                    {t(opt.labelKey)}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
+                        {/* Delivery is paid online in DeliveryCheckoutDrawer, which asks for the
+                            method itself — leaving this group visible would let a customer pick
+                            Cash here and then be charged by card, so it is hidden rather than
+                            disabled. Mirrors mobile's CartComponent. */}
+                        {orderType !== "Delivery" && (
+                            <>
+                                <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                                    {t("paymentTitle")}
+                                </Typography>
+                                <ToggleButtonGroup
+                                    exclusive
+                                    value={paymentMethod}
+                                    onChange={(_e, val) => val && onPaymentChange(val)}
+                                    sx={toggleGroupSx}
+                                    fullWidth
+                                >
+                                    {PAYMENT_OPTIONS.map((opt) => (
+                                        <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
+                                            {t(opt.labelKey)}
+                                        </ToggleButton>
+                                    ))}
+                                </ToggleButtonGroup>
+                            </>
+                        )}
                     </Box>
                 )}
 
