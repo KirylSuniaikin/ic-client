@@ -41,8 +41,8 @@ const mockComponents = jest.mocked(getComponentCosts);
 const mockBusinessStats = jest.mocked(getBusinessStats);
 const mockUpdateComponentCost = jest.mocked(updateComponentCost);
 
-const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en" };
-const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en" };
+const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en", latitude: null, longitude: null };
+const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en", latitude: null, longitude: null };
 
 const emptyStats = {
     totalPickUpRevenue: 0,
