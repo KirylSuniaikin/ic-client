@@ -13,6 +13,7 @@ import {
     getReports,
     initiateAuth,
     fetchProducts,
+    getUser,
     getVatStats,
     getDoughInventory,
     putDoughInventory,
@@ -385,6 +386,64 @@ describe("fetchProducts", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(fetchProducts()).rejects.toThrow();
+    });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+
+        await fetchProducts();
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
+});
+
+// ── getUser ───────────────────────────────────────────────────────────────────
+
+describe("getUser", () => {
+    it("calls the get_user endpoint with the userId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ id: 1, name: "Test" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await getUser(1);
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("get_user?userId=1");
+    });
+
+    it("returns the parsed user on 200", async () => {
+        const user = { id: 1, name: "Test" };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(user), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await getUser(1);
+
+        expect(result).toEqual(user);
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(getUser(1)).rejects.toThrow();
+    });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+
+        await getUser(1);
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
     });
 });
 
