@@ -12,6 +12,7 @@ import { useActiveOrderIsland } from "../domains/customer-auth/hooks/useActiveOr
 import { ActiveOrderIslandPill } from "../domains/customer-auth/components/ActiveOrderIslandPill";
 import { usePixelTracking } from "../domains/order/hooks/usePixelTracking";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
+import { MenuLoadErrorPage } from "../domains/menu/components/MenuLoadErrorPage";
 import MenuSections from "../domains/menu/components/MenuSections";
 import { FaqSection, FAQ_SECTION_VISIBLE } from "../shared/components/FaqSection";
 import HomePageModals from "./HomePageModals";
@@ -201,7 +202,18 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     );
 
     if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <>{seoHead}<PizzaLoader /></>;
-    if (menu.error) return <>{seoHead}<div>{tr("home:error", { message: menu.error })}</div></>;
+    if (menu.error) {
+        return (
+            <>
+                {seoHead}
+                <MenuLoadErrorPage
+                    title={tr("home:connectionError.title")}
+                    message={tr("home:connectionError.message")}
+                    reloadLabel={tr("home:connectionError.reload")}
+                />
+            </>
+        );
+    }
 
     localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
 

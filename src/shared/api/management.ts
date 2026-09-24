@@ -155,20 +155,29 @@ export async function getBranchInfo(branchId: string): Promise<IBranch> {
     return res.json();
 }
 
+// Retries a transient network blip (see AuthFetchOptions.retryDelaysMs). Both endpoints below are
+// on the app's cold-start path (loaded right after auth, before the admin can do anything useful),
+// the same cold-start/mobile-network window fetchAllBranches and fetchBaseAppInfo (public.ts) are
+// already retried for. Idempotent GETs, safe to retry.
+const FETCH_PRODUCTS_RETRY_DELAYS_MS = [500, 1500];
+const GET_USER_RETRY_DELAYS_MS = [500, 1500];
+
 export async function fetchProducts(): Promise<ProductTO[]> {
-    const res = await authFetch(BASE_URL + `/fetch_products`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-    });
+    const res = await authFetch(
+        BASE_URL + `/fetch_products`,
+        { method: "GET", headers: { "Content-Type": "application/json" } },
+        { retryDelaysMs: FETCH_PRODUCTS_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
 
 export async function getUser(userId: number): Promise<IUser> {
-    const res = await authFetch(BASE_URL + `/get_user?userId=${userId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    });
+    const res = await authFetch(
+        BASE_URL + `/get_user?userId=${userId}`,
+        { method: "GET", headers: { "Content-Type": "application/json" } },
+        { retryDelaysMs: GET_USER_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
