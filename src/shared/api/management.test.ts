@@ -23,6 +23,8 @@ import {
     putWorkingHours,
     updateStaffPayroll,
     downloadSalarySlip,
+    getMonthlyShiftReport,
+    getSalarySlipPreview,
     getCurrentStaff,
     fetchTelegramBotUsername,
     generateTelegramConnectToken,
@@ -789,6 +791,102 @@ describe("updateStaffPayroll", () => {
     });
 });
 
+// ── getMonthlyShiftReport ─────────────────────────────────────────────────────
+
+// Without from/to the backend sums its own default window (the calendar month) and reports it
+// back; a lone from or to is a 400, so the pair travels together or not at all.
+describe("getMonthlyShiftReport", () => {
+    function reportResponse(): Response {
+        return new Response(JSON.stringify({
+            yearMonth: "2026-09", branchNo: 1, periodStart: "2026-09-01", periodEnd: "2026-09-30", summaries: [],
+        }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    it("sends only branchId and yearMonth when no range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(reportResponse());
+
+        await getMonthlyShiftReport("b1", "2026-09");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("shift_monthly_report");
+        expect(url).toContain("branchId=b1");
+        expect(url).toContain("yearMonth=2026-09");
+        expect(url).not.toContain("from=");
+        expect(url).not.toContain("to=");
+    });
+
+    it("sends from and to when a range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(reportResponse());
+
+        await getMonthlyShiftReport("b1", "2026-09", { from: "2026-08-25", to: "2026-09-24" });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("yearMonth=2026-09");
+        expect(url).toContain("from=2026-08-25");
+        expect(url).toContain("to=2026-09-24");
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(getMonthlyShiftReport("b1", "2026-09")).rejects.toThrow("Response: 400");
+    });
+});
+
+// ── getSalarySlipPreview ──────────────────────────────────────────────────────
+
+// Without from/to the backend previews the pay cycle; the popup sends a range only once the owner
+// re-picks the slip's dates.
+describe("getSalarySlipPreview", () => {
+    function previewResponse(): Response {
+        return new Response(JSON.stringify(slipForm()), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    it("sends only yearMonth when no range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        await getSalarySlipPreview(5, "2026-07");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("staff/5/salary_slip/preview");
+        expect(url).toContain("yearMonth=2026-07");
+        expect(url).not.toContain("from=");
+        expect(url).not.toContain("to=");
+    });
+
+    it("sends from and to when a range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        await getSalarySlipPreview(5, "2026-07", { from: "2026-07-01", to: "2026-07-31" });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("yearMonth=2026-07");
+        expect(url).toContain("from=2026-07-01");
+        expect(url).toContain("to=2026-07-31");
+    });
+
+    it("returns the parsed form, window included", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        const result = await getSalarySlipPreview(5, "2026-07");
+
+        expect(result.periodStart).toBe("2026-06-25");
+        expect(result.periodEnd).toBe("2026-07-24");
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(getSalarySlipPreview(5, "2026-07")).rejects.toThrow("HTTP 400");
+    });
+});
+
 // ── downloadSalarySlip ────────────────────────────────────────────────────────
 
 // The confirmed slip body. downloadSalarySlip is a POST now: the popup sends back what the owner
@@ -800,6 +898,8 @@ function slipForm(): SalarySlipForm {
         cprNumber: "850012345",
         payPeriodLabel: "July 2026",
         paymentDate: "2026-07-31",
+        periodStart: "2026-06-25",
+        periodEnd: "2026-07-24",
         basicSalary: 240,
         housingAllowance: 40,
         transportAllowance: null,

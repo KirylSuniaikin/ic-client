@@ -6,7 +6,8 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import ResponsiveSheet from "../../_shared/components/ResponsiveSheet";
 import {BRAND_BUTTON_SX, NEUTRAL_BUTTON_SX, ROUNDED_FIELD_SX} from "../../_shared/components/roundedSelect";
-import type {SalarySlipDeduction, SalarySlipForm} from "../types";
+import ShiftDateRangeFields from "./ShiftDateRangeFields";
+import type {SalarySlipDeduction, SalarySlipForm, ShiftDateRange} from "../types";
 
 // Mirrors the backend's one-page budget (SalarySlipPdfGenerator.fitsOnOnePage). Conservative on
 // purpose: the server does the exact check and rejects an over-full slip, but hitting that only
@@ -17,13 +18,15 @@ const MAX_NOTES = 9;
 
 export interface SalarySlipPopupProps {
     open: boolean;
-    /** Null while the preview is still loading. */
+    /** Null until the first preview arrives; a date change keeps the current one while it reloads. */
     form: SalarySlipForm | null;
     employeeLabel: string;
     loading: boolean;
     submitting: boolean;
     error: string | null;
     onConfirm: (form: SalarySlipForm) => void;
+    /** The owner re-picked the shift dates: the caller re-fetches the preview for that window. */
+    onPeriodChange: (range: ShiftDateRange) => void;
     onClose: () => void;
 }
 
@@ -84,6 +87,7 @@ export default function SalarySlipPopup({
     submitting,
     error,
     onConfirm,
+    onPeriodChange,
     onClose,
 }: SalarySlipPopupProps): React.JSX.Element {
     // Amounts live as strings so a half-typed "24." is not destroyed mid-keystroke.
@@ -194,6 +198,8 @@ export default function SalarySlipPopup({
             cprNumber: cprNumber.trim() === "" ? null : cprNumber.trim(),
             payPeriodLabel: payPeriodLabel.trim(),
             paymentDate,
+            periodStart: form.periodStart,
+            periodEnd: form.periodEnd,
             basicSalary: toAmount(basicSalary),
             housingAllowance: toAmount(housingAllowance),
             transportAllowance: toAmount(transportAllowance),
@@ -230,7 +236,7 @@ export default function SalarySlipPopup({
             testId="salary-slip-popup"
         >
             <Box>
-                {loading && (
+                {loading && form === null && (
                     <Typography variant="body2" sx={{color: "text.secondary"}} data-testid="salary-slip-loading">
                         Loading…
                     </Typography>
@@ -240,12 +246,37 @@ export default function SalarySlipPopup({
                     <Alert severity="error" sx={{mb: 2}} data-testid="salary-slip-error">{error}</Alert>
                 )}
 
-                {!loading && form !== null && (
+                {/* Stays mounted through a date reload: leaving a typed date blurs it on the
+                    mousedown of the next click, and unmounting here would drop that click. */}
+                {form !== null && (
                     <>
                         <Alert severity="info" sx={{mb: 2}}>
                             Anything you change here affects this PDF only — the employee's saved payroll
                             is left as it is.
                         </Alert>
+
+                        <Typography sx={sectionSx}>Shift dates</Typography>
+                        {/* Swapped out rather than disabled while reloading, so they remount seeded
+                            from the slip actually shown -- a rejected range comes back as the dates
+                            the figures below were summed over. */}
+                        {loading ? (
+                            <Typography variant="body2" data-testid="salary-slip-loading"
+                                        sx={{color: "text.secondary", minHeight: 40, display: "flex", alignItems: "center"}}>
+                                Loading…
+                            </Typography>
+                        ) : (
+                            <ShiftDateRangeFields
+                                value={form.periodStart && form.periodEnd
+                                    ? {from: form.periodStart, to: form.periodEnd}
+                                    : null}
+                                onChange={onPeriodChange}
+                                disabled={submitting}
+                            />
+                        )}
+                        <Typography variant="caption" sx={{color: "text.secondary", display: "block", mt: 1}}>
+                            Overtime is summed from shifts in this range. Changing it reloads the slip and
+                            resets your edits.
+                        </Typography>
 
                         <Typography sx={sectionSx}>Employee</Typography>
                         <Stack spacing={2}>
@@ -432,7 +463,7 @@ export default function SalarySlipPopup({
                         )}
 
                         <Button fullWidth variant="contained" disableElevation
-                                disabled={submitting || blocker !== null}
+                                disabled={submitting || loading || blocker !== null}
                                 onClick={handleConfirm}
                                 sx={{...BRAND_BUTTON_SX, mb: 1}}
                                 data-testid="slip-confirm">

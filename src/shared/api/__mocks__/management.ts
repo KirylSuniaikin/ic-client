@@ -17,7 +17,7 @@ import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } fr
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
-import type { MonthlyShiftReport } from '../../../domains/management/shift/types';
+import type { MonthlyShiftReport, ShiftDateRange } from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
 import type {
@@ -132,7 +132,7 @@ type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName:
 export const getVatStats = jest.fn<Promise<VatStatsResponse>, [VatStatePayload]>();
 
 // Monthly shift report (Statistics -> Shifts tab).
-export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [string, string]>();
+export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [string, string, ShiftDateRange?]>();
 
 // Dough inventory (Config -> Menu tab).
 export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();
@@ -152,7 +152,7 @@ export const generateTelegramConnectToken = jest.fn<Promise<TelegramConnectToken
 // Salary slip PDF (Phase F6/F7/F8).
 export const updateStaffPayroll = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffPayrollRequest]>();
 export const updateStaffDetails = jest.fn<Promise<StaffAdminTO>, [number, UpdateStaffDetailsRequest]>();
-export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string]>();
+export const getSalarySlipPreview = jest.fn<Promise<SalarySlipForm>, [number, string, ShiftDateRange?]>();
 export const downloadSalarySlip = jest.fn<Promise<SalarySlipDownload>, [number, string, SalarySlipForm]>();
 
 // Business Stats (Statistics -> Business tab).
