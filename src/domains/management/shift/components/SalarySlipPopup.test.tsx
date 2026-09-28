@@ -2,7 +2,8 @@ import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SalarySlipPopup, { amountInWords } from "./SalarySlipPopup";
-import type { SalarySlipForm } from "../types";
+import type { SalarySlipPopupProps } from "./SalarySlipPopup";
+import type { SalarySlipForm, ShiftDateRange } from "../types";
 
 function makeForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
     return {
@@ -11,6 +12,8 @@ function makeForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
         cprNumber: "850012345",
         payPeriodLabel: "August 2026",
         paymentDate: "2026-08-31",
+        periodStart: "2026-07-25",
+        periodEnd: "2026-08-24",
         basicSalary: 240,
         housingAllowance: 40,
         transportAllowance: 10,
@@ -30,6 +33,8 @@ function makeForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
 function renderPopup(
     form: SalarySlipForm | null = makeForm(),
     onConfirm = jest.fn<void, [SalarySlipForm]>(),
+    onPeriodChange = jest.fn<void, [ShiftDateRange]>(),
+    props: Partial<SalarySlipPopupProps> = {},
 ): typeof onConfirm {
     render(
         <SalarySlipPopup
@@ -40,7 +45,9 @@ function renderPopup(
             submitting={false}
             error={null}
             onConfirm={onConfirm}
+            onPeriodChange={onPeriodChange}
             onClose={jest.fn<void, []>()}
+            {...props}
         />,
     );
     return onConfirm;
@@ -203,6 +210,81 @@ describe("SalarySlipPopup", () => {
         expect(onConfirm.mock.calls[0][0].notes).toEqual([
             "1. Basic Salary of BD 240.000 paid in full with no deduction.",
         ]);
+    });
+
+    // The window is the backend's own (the pay cycle by default); the popup renders it verbatim.
+    it("shows the shift dates the preview was summed over", () => {
+        renderPopup();
+
+        expect(input("shift-range-from").value).toBe("2026-07-25");
+        expect(input("shift-range-to").value).toBe("2026-08-24");
+    });
+
+    it("asks for a reload when a valid range is picked", () => {
+        const onPeriodChange = jest.fn<void, [ShiftDateRange]>();
+        renderPopup(makeForm(), undefined, onPeriodChange);
+
+        fireEvent.change(input("shift-range-from"), { target: { value: "2026-08-01" } });
+
+        expect(onPeriodChange).toHaveBeenCalledTimes(1);
+        expect(onPeriodChange).toHaveBeenCalledWith({ from: "2026-08-01", to: "2026-08-24" });
+    });
+
+    it("does not reload while From is after To, and says why", () => {
+        const onPeriodChange = jest.fn<void, [ShiftDateRange]>();
+        renderPopup(makeForm(), undefined, onPeriodChange);
+
+        fireEvent.change(input("shift-range-from"), { target: { value: "2026-08-30" } });
+
+        expect(onPeriodChange).not.toHaveBeenCalled();
+        expect(screen.getByText("From must be on or before To")).toBeTruthy();
+    });
+
+    // The server ignores these on POST, but the body is typed as the full form -- they are echoed
+    // exactly as previewed rather than dropped or recomputed.
+    it("echoes the previewed shift dates back on confirm", () => {
+        const onConfirm = renderPopup();
+
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+
+        const sent = onConfirm.mock.calls[0][0];
+        expect(sent.periodStart).toBe("2026-07-25");
+        expect(sent.periodEnd).toBe("2026-08-24");
+    });
+
+    // A reload mid-download would swap the figures under a PDF that is already being rendered.
+    it("locks the shift dates while the slip is being generated", () => {
+        renderPopup(makeForm(), undefined, undefined, { submitting: true });
+
+        expect(input("shift-range-from").disabled).toBe(true);
+        expect(input("shift-range-to").disabled).toBe(true);
+    });
+
+    // Leaving a typed date blurs it on the mousedown of the next click, which starts the reload
+    // before that click lands -- so the buttons must still be there to receive it.
+    it("keeps Cancel working but holds Confirm while the new dates load", () => {
+        const onConfirm = jest.fn<void, [SalarySlipForm]>();
+        const onClose = jest.fn<void, []>();
+        renderPopup(makeForm(), onConfirm, undefined, { loading: true, onClose });
+
+        expect(screen.getByTestId("salary-slip-loading")).toBeTruthy();
+        expect(screen.queryByTestId("shift-range-from")).toBeNull();
+        expect((screen.getByTestId("slip-confirm") as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+        fireEvent.click(screen.getByText("Cancel"));
+
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // A failed reload hands back the slip that was already shown; its dates must be those, not the
+    // range that was just rejected.
+    it("shows the error above the current slip so the dates can be corrected", () => {
+        renderPopup(makeForm(), undefined, undefined, { error: "HTTP 400" });
+
+        expect(screen.getByTestId("salary-slip-error").textContent).toBe("HTTP 400");
+        expect(input("shift-range-from").value).toBe("2026-07-25");
+        expect(input("shift-range-from").disabled).toBe(false);
     });
 
     // Mirrors the backend's one-page budget; the server does the exact check, this just stops the

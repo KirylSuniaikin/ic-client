@@ -21,6 +21,7 @@ import type {
     CreateShiftReportTO,
     EditShiftReportTO,
     MonthlyShiftReport,
+    ShiftDateRange,
     ShiftReportTO,
     SalarySlipForm,
     StaffOption
@@ -379,11 +380,21 @@ export async function getBranchEvents({ branchId, page, size }: GetBranchEventsP
     return res.json();
 }
 
+// Both shift endpoints fall back to their own default window when from/to are absent, and reject
+// a lone one with 400 -- so the pair is sent together, and only when the user picked it.
+function appendShiftDateRange(params: URLSearchParams, range: ShiftDateRange | undefined): void {
+    if (range === undefined) return;
+    params.append("from", range.from);
+    params.append("to", range.to);
+}
+
 export async function getMonthlyShiftReport(
     branchId: string,
-    yearMonth: string
+    yearMonth: string,
+    range?: ShiftDateRange
 ): Promise<MonthlyShiftReport> {
     const params = new URLSearchParams({ branchId, yearMonth });
+    appendShiftDateRange(params, range);
     const res = await authFetch(BASE_URL + `/shift_monthly_report?${params}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -500,9 +511,10 @@ function parseContentDispositionFilename(contentDisposition: string | null): str
 }
 
 export async function getSalarySlipPreview(
-    staffId: number, yearMonth: string,
+    staffId: number, yearMonth: string, range?: ShiftDateRange,
 ): Promise<SalarySlipForm> {
     const params = new URLSearchParams({yearMonth});
+    appendShiftDateRange(params, range);
     const res = await authFetch(BASE_URL + `/staff/${staffId}/salary_slip/preview?${params}`, {
         method: "GET",
         headers: {Accept: "application/json"},
