@@ -2,6 +2,7 @@ import React from "react";
 import {
     Autocomplete,
     Box,
+    createFilterOptions,
     IconButton,
     Stack,
     TableCell,
@@ -10,6 +11,7 @@ import {
     Tooltip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Decimal from "decimal.js-light";
 import { PurchaseLineRow } from "../types";
@@ -17,6 +19,7 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
+import { cleanProductName, normalizeProductName } from "../../_shared/utils/productName";
 import {
     binSx,
     ComputedNumber,
@@ -27,6 +30,17 @@ import {
 } from "./cellChrome";
 
 export type NumericField = "quantity" | "finalPrice";
+
+/** The dropdown's trailing "Add “<typed>”" entry, offered when the typed name matches no product. */
+type AddProductOption = { kind: "add-product"; name: string };
+type ProductOption = ProductTO | AddProductOption;
+
+function isAddProductOption(option: ProductOption): option is AddProductOption {
+    return "kind" in option && option.kind === "add-product";
+}
+
+// trim: a stray space typed around a name should still find the product.
+const filterProducts = createFilterOptions<ProductOption>({ trim: true });
 
 type PurchaseTableRowProps = {
     row: PurchaseLineRow;
@@ -47,6 +61,11 @@ type PurchaseTableRowProps = {
     onUpdateRow: (id: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (id: string, field: NumericField, raw: string) => void;
     onApplyProduct: (id: string, val: ProductTO | null) => void;
+    /**
+     * Asks for a new product named as typed, for this line. When absent (a role that may not
+     * create products) the dropdown offers no "Add" entry.
+     */
+    onRequestCreateProduct?: (id: string, name: string) => void;
     onDelete: (id: string) => void;
 };
 
@@ -87,6 +106,7 @@ function PurchaseTableRowInner({
                                    onUpdateRow,
                                    onCommitNumeric,
                                    onApplyProduct,
+                                   onRequestCreateProduct,
                                    onDelete,
                                }: PurchaseTableRowProps) {
     const overTarget = isOverTarget(row, product);
@@ -116,14 +136,59 @@ function PurchaseTableRowInner({
             {/* Product */}
             <TableCell sx={{ minWidth: 180, ...cellErrSx("productId") }}>
                 <Box sx={editableFieldSx}>
-                    <Autocomplete<ProductTO, false, false, false>
+                    <Autocomplete<ProductOption, false, false, false>
                         openOnFocus
                         options={products}
                         value={selectedProduct}
                         autoHighlight
                         getOptionLabel={(o) => o.name}
-                        isOptionEqualToValue={(o, v) => o.id === v.id}
-                        onChange={(_, val) => onApplyProduct(row.id, val)}
+                        isOptionEqualToValue={(o, v) =>
+                            !isAddProductOption(o) && !isAddProductOption(v) && o.id === v.id}
+                        filterOptions={(options, state) => {
+                            const filtered = filterProducts(options, state);
+                            if (!onRequestCreateProduct) return filtered;
+                            // Offered only when nothing matches EXACTLY (by the server's duplicate
+                            // rule), not merely when the fuzzy filter comes up empty: typing
+                            // "tomato" must not offer to create "Tomato" beside the existing one.
+                            const typedKey = normalizeProductName(state.inputValue);
+                            if (typedKey === "") return filtered;
+                            const exists = options.some(o =>
+                                !isAddProductOption(o) && normalizeProductName(o.name) === typedKey);
+                            return exists
+                                ? filtered
+                                : [...filtered, { kind: "add-product", name: cleanProductName(state.inputValue) }];
+                        }}
+                        renderOption={(props, option) => {
+                            const { key, ...optionProps } = props;
+                            return isAddProductOption(option) ? (
+                                <li key={key} {...optionProps}>
+                                    <Box
+                                        component="span"
+                                        sx={{ display: "flex", alignItems: "center", gap: 0.75, color: BRAND, fontWeight: 700 }}
+                                    >
+                                        <AddRoundedIcon fontSize="small" />
+                                        Add “{option.name}”
+                                    </Box>
+                                </li>
+                            ) : (
+                                <li key={key} {...optionProps}>{option.name}</li>
+                            );
+                        }}
+                        onChange={(_, val) => {
+                            // The "Add" entry is a request, not a value: the line keeps its current
+                            // product until the new one exists and the table applies it.
+                            if (val === null) {
+                                onApplyProduct(row.id, null);
+                            } else if (isAddProductOption(val)) {
+                                // The sheet's focus trap restores focus to whatever held it when it
+                                // opened; with openOnFocus, handing it back to this input would pop
+                                // the dropdown open again over the table as the sheet closes.
+                                if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                                onRequestCreateProduct?.(row.id, val.name);
+                            } else {
+                                onApplyProduct(row.id, val);
+                            }
+                        }}
                         renderInput={(p) => (
                             <TextField
                                 {...p}

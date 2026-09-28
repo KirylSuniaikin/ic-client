@@ -14,6 +14,8 @@ type Props = {
      * would 403. Pass undefined for non-OWNER viewers (no refresh attempted).
      */
     onCostSaved?: () => Promise<void>;
+    /** Bumping it refetches the cost cards (e.g. after a product's unit changed elsewhere on the tab). */
+    refreshKey?: number;
 };
 
 /**
@@ -23,8 +25,8 @@ type Props = {
  * costs to make without needing the rest of the business-level report. This component only mounts
  * when the caller renders it, which is the access gate — no internal role check is needed.
  */
-export default function PricingCostCardsSection({onCostSaved}: Props): React.JSX.Element {
-    const costCards = useCostCards();
+export default function PricingCostCardsSection({onCostSaved, refreshKey = 0}: Props): React.JSX.Element {
+    const costCards = useCostCards(refreshKey);
     const [costDrawerOpen, setCostDrawerOpen] = useState<boolean>(false);
 
     const handleSetComponentCost = async (

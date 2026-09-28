@@ -35,12 +35,48 @@ export type ProductTO = {
     id: number;
     name: string;
     targetPrice: number;
-    price: number;
+    // Null for a product created from the UI that has not been bought yet: the price is filled in
+    // by the first purchase (ProductService.overwritePrices), never typed by hand.
+    price: number | null;
     isInventory: boolean;
     isPurchasable: boolean;
     isBundle: boolean;
-    topVendor: string;
+    topVendor: string | null;
     unit?: MeasureUnit | null;
+}
+
+// POST /api/products. Everything a product has that is not listed here starts null/false on the
+// server (price, is_bundle) -- see ProductTO.price.
+export type CreateProductRequest = {
+    name: string;
+    targetPrice: number;
+    unit: MeasureUnit;
+    /** A vendor's exact vendorName, or null for none. */
+    topVendor: string | null;
+    isInventory: boolean;
+    isPurchasable: boolean;
+};
+
+// PATCH /api/products/{id}/settings. Always the FULL set of the four inline-editable fields, so a
+// null topVendor means "clear it". unit may be null because legacy rows were backfilled by hand
+// and some still have none -- toggling a switch on such a row must not be refused for it.
+export type UpdateProductSettingsRequest = {
+    isInventory: boolean;
+    isPurchasable: boolean;
+    unit: MeasureUnit | null;
+    topVendor: string | null;
+};
+
+export const DUPLICATE_PRODUCT_NAME_MESSAGE = "A product with this name already exists";
+
+// Thrown by createProduct on a 409 -- the server compares names trimmed, whitespace-collapsed and
+// case-insensitively (see normalizeProductName), so this can fire even when the client-side check
+// passed against a product list loaded before someone else added the same name.
+export class DuplicateProductNameError extends Error {
+    constructor() {
+        super(DUPLICATE_PRODUCT_NAME_MESSAGE);
+        this.name = "DuplicateProductNameError";
+    }
 }
 
 export type ReportInventoryProductDTO = {

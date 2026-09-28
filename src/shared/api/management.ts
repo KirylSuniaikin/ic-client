@@ -1,6 +1,15 @@
 import { authFetch, BASE_URL } from './client';
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from './clientPlatform';
-import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from '../../domains/management/inventory/types';
+import type {
+    CreateProductRequest,
+    IBranch,
+    IManagementResponse,
+    IUser,
+    ProductTO,
+    ReportTO,
+    UpdateProductSettingsRequest
+} from '../../domains/management/inventory/types';
+import { DuplicateProductNameError } from '../../domains/management/inventory/types';
 import type { DoughAvailabilityFlags, DoughInventory, DoughStatus } from '../../domains/management/dough/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../domains/management/prep-plan/types';
 import type {
@@ -189,6 +198,54 @@ export async function fetchVendors(): Promise<VendorTO[]> {
         headers: { "Content-Type": "application/json" }
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// Spring's default error body carries the ResponseStatusException reason as `message`
+// (server.error.include-message: always). The product endpoints' 400s say WHICH field was refused,
+// and that is worth showing in the form rather than a bare status code.
+async function readServerErrorMessage(res: Response): Promise<string | null> {
+    try {
+        const body: unknown = await res.json();
+        if (typeof body === "object" && body !== null && "message" in body) {
+            const { message } = body;
+            return typeof message === "string" && message.trim() !== "" ? message : null;
+        }
+        return null;
+    } catch {
+        // No body, or not JSON (a proxy's HTML page, an empty 403): the caller falls back to the
+        // status code, which is the only thing left to report.
+        return null;
+    }
+}
+
+async function productRequestError(res: Response): Promise<Error> {
+    if (res.status === 409) return new DuplicateProductNameError();
+    return new Error((await readServerErrorMessage(res)) ?? `HTTP ${res.status}`);
+}
+
+// MANAGER / SUPER_MANAGER / OWNER only server-side. Any 2xx is success (the created ProductTO).
+export async function createProduct(request: CreateProductRequest): Promise<ProductTO> {
+    const res = await authFetch(BASE_URL + `/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await productRequestError(res);
+    return res.json();
+}
+
+// Sends the row's complete four-field state every time -- see UpdateProductSettingsRequest.
+export async function updateProductSettings(
+    id: number,
+    request: UpdateProductSettingsRequest
+): Promise<ProductTO> {
+    const res = await authFetch(BASE_URL + `/products/${id}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await productRequestError(res);
     return res.json();
 }
 

@@ -1,6 +1,14 @@
 import type { SalarySlipForm } from '../../../domains/management/shift/types';
 import { jest } from "@jest/globals";
-import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from "../../../domains/management/inventory/types";
+import type {
+    CreateProductRequest,
+    IBranch,
+    IManagementResponse,
+    IUser,
+    ProductTO,
+    ReportTO,
+    UpdateProductSettingsRequest
+} from "../../../domains/management/inventory/types";
 import type { BlackListCstmr } from "../../../domains/management/blacklist/types";
 import type {
     BasePurchaseResponse,
@@ -66,6 +74,9 @@ export const putWorkingHours = jest.fn<Promise<WorkingHoursResponse>, [WorkingHo
 // Purchase/Inventory popups (Phase 2 — decimal-placeholder component tests).
 export const fetchProducts = jest.fn<Promise<ProductTO[]>, []>();
 export const fetchVendors = jest.fn<Promise<VendorTO[]>, []>();
+// Product catalog (Statistics -> Pricing table, and "Add" from the purchase product dropdown).
+export const createProduct = jest.fn<Promise<ProductTO>, [CreateProductRequest]>();
+export const updateProductSettings = jest.fn<Promise<ProductTO>, [number, UpdateProductSettingsRequest]>();
 export const getUser = jest.fn<Promise<IUser>, [number]>();
 export const createPurchaseReport = jest.fn<Promise<SavePurchaseResponse>, [CreatePurchasePayload]>();
 export const editPurchaseReport = jest.fn<Promise<SavePurchaseResponse>, [EditPurchasePayload]>();
