@@ -1,5 +1,13 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
-import bluetoothPrinterService from "./BluetoothPrinterService";
+import bluetoothPrinterService, { REVERSE_VIDEO_ON, REVERSE_VIDEO_OFF } from "./BluetoothPrinterService";
+
+// Every buildTicketLines() row (dough/crust flags, ADD extras/toppings, REMOVE lines) prints
+// inside reverse-video (black box, white text) so kitchen staff can't skim past a "NO Onion" row
+// the way they could when it was plain text -- see BluetoothPrinterService.ts for the real
+// incident (missed removals costing 1-star reviews) this exists to fix.
+function highlighted(line: string): string {
+    return `${REVERSE_VIDEO_ON}${line}${REVERSE_VIDEO_OFF}`;
+}
 import type { Order, OrderItem } from "../domains/order/types";
 
 // The real cordova plugin talks to a native SPP bridge that does not exist under Jest/jsdom, so
@@ -122,11 +130,24 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
         expect(success).toBe(true);
         const payload = mockWriteCalls[0];
         expect(payload).toContain("1x Pepperoni (Medium)\n");
-        expect(payload).toContain("   + Thin Dough\n");
-        expect(payload).toContain("   + Mushroom\n");
-        expect(payload).toContain("   + Garlic Topping\n");
-        expect(payload).toContain("   - NO Onion\n");
+        expect(payload).toContain(`   ${highlighted("+ Thin Dough")}\n`);
+        expect(payload).toContain(`   ${highlighted("+ Mushroom")}\n`);
+        expect(payload).toContain(`   ${highlighted("+ Garlic Topping")}\n`);
+        expect(payload).toContain(`   ${highlighted("- NO Onion")}\n`);
+        // The note itself is free customer text, not a structured modifier -- never highlighted.
         expect(payload).toContain("   Note: extra crispy\n");
+    });
+
+    it("turns reverse video back off after each modifier row, so it never bleeds into the Note line or the next item", async () => {
+        const order = buildOrder([PIZZA_ITEM]);
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        // Every ON has a matching OFF, and the Note row -- printed right after the last modifier
+        // row on this item -- starts immediately after an OFF, never inside a still-open ON span.
+        expect(payload.split(REVERSE_VIDEO_ON).length - 1).toBe(payload.split(REVERSE_VIDEO_OFF).length - 1);
+        expect(payload).toContain(`${REVERSE_VIDEO_OFF}\n   Note:`);
     });
 
     it("renders an exact minus-NO-Onion row, never a bare removal name", async () => {
@@ -164,7 +185,7 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
 
         const payload = mockWriteCalls[0];
         expect(payload).toContain("    Zaatar Manakish (Small)\n");
-        expect(payload).toContain("      + Cheese\n");
+        expect(payload).toContain(`      ${highlighted("+ Cheese")}\n`);
         expect(payload).toContain("      Note: light salt\n");
     });
 
@@ -181,8 +202,8 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
         await bluetoothPrinterService.printOrder(order);
 
         const payload = mockWriteCalls[0];
-        expect(payload).toContain("   + Cheddar\n");
-        expect(payload).toContain("   + Darblu Cheese\n");
+        expect(payload).toContain(`   ${highlighted("+ Cheddar")}\n`);
+        expect(payload).toContain(`   ${highlighted("+ Darblu Cheese")}\n`);
     });
 
     it("omits the Note line entirely when no note applies", async () => {

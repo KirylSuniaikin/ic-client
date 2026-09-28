@@ -10,6 +10,24 @@ function formatExternalId(id: string | number | null | undefined): string {
     return `${strId.substring(strId.length - 4)}`;
 }
 
+// GS B n ("Select/Cancel white/black reverse print mode") -- one of the most widely supported
+// ESC/POS control sequences across thermal printer firmwares, including the cheap generic ones
+// this app targets (unlike printer-specific bold/underline variants, which are hit-or-miss).
+// Turns modifier rows (extras, toppings, "NO X" removals) into a solid black box with white text
+// on the printed ticket -- kitchen staff missing a "NO Onion" line printed as plain text was
+// producing real 1-star reviews, so these rows need to be impossible to skim past.
+const GS = "\x1D";
+// Exported so tests can assert on the exact bytes without duplicating this magic sequence.
+export const REVERSE_VIDEO_ON = GS + "B" + "\x01";
+export const REVERSE_VIDEO_OFF = GS + "B" + "\x00";
+
+/** Wraps one buildTicketLines() row in reverse-video codes for printing -- never applied inside
+ * orderLines.ts itself, which is shared with the admin OrderCard (a web UI, not a printer) and
+ * must stay plain, printer-format-free text. */
+function highlightModifierLine(line: string): string {
+    return `${REVERSE_VIDEO_ON}${line}${REVERSE_VIDEO_OFF}`;
+}
+
 class BluetoothPrinterService {
     private mac: string = '2C:12:09:96:A3:96';
     private isConnected: boolean = false;
@@ -83,7 +101,7 @@ class BluetoothPrinterService {
                     result += `    ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
 
                     for (const line of buildTicketLines(comboItem)) {
-                        result += `      ${line}\n`;
+                        result += `      ${highlightModifierLine(line)}\n`;
                     }
                     const comboNote = resolveKitchenNote(comboItem);
                     if (comboNote) {
@@ -92,7 +110,7 @@ class BluetoothPrinterService {
                 }
             } else {
                 for (const line of buildTicketLines(item)) {
-                    result += `   ${line}\n`;
+                    result += `   ${highlightModifierLine(line)}\n`;
                 }
                 const itemNote = resolveKitchenNote(item);
                 if (itemNote) {
