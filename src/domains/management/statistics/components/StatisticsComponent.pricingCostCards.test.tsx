@@ -1,12 +1,13 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import StatisticsComponent from "./StatisticsComponent";
 import { ManagementBranchScopeProvider } from "../../_shared/context/ManagementBranchScope";
 import { StaffRoles } from "../../../auth/types";
 import type { IBranch } from "../../inventory/types";
 import type { BusinessStatsResponse, ComponentCost, StatsResponse } from "../types";
+import type { ProductSettingsPatch } from "../hooks/useProductCatalog";
 
 // Unlike StatisticsComponent.test.tsx, PricingCostCardsSection is deliberately left UNSTUBBED
 // here: this file exists to verify its actual mount-gated fetch (useCostCards' own effect, task
@@ -18,7 +19,16 @@ jest.mock("./PrepPlanTable", () => ({ __esModule: true, default: () => null }));
 jest.mock("./DoughUsageTable", () => ({ DoughUsageTable: () => null }));
 jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ ConsumptionStatistics: () => null }));
 jest.mock("./VatReportCard", () => ({ VatReportCard: () => null }));
-jest.mock("./ProductsTable", () => ({ ProductsTable: () => null }));
+// ProductsTable is stubbed, but keeps the props it was given so a test can play the part of a
+// successful inline save through its onSettingsSaved callback.
+type MockProductsTableProps = { onSettingsSaved?: (changed: ProductSettingsPatch) => void };
+const mockProductsTableProps: { current: MockProductsTableProps | null } = { current: null };
+jest.mock("./ProductsTable", () => ({
+    ProductsTable: (props: MockProductsTableProps) => {
+        mockProductsTableProps.current = props;
+        return null;
+    },
+}));
 jest.mock("../../shift/components/StaffSummaryContent", () => ({ StaffSummaryContent: () => null }));
 jest.mock("./business/BusinessTab", () => ({ __esModule: true, default: () => null }));
 
@@ -214,6 +224,51 @@ describe("StatisticsComponent — Pricing cost-card data wiring", () => {
             await saveOreganoCost();
             await waitFor(() => expect(mockComponents).toHaveBeenCalledTimes(2));
 
+            expect(mockBusinessStats).not.toHaveBeenCalled();
+        });
+    });
+
+    // products.unit feeds the batch-ingredient cost the cards print, and the server evicts its
+    // cached cards when it changes -- the section under the products table must follow.
+    describe("product unit change refresh", () => {
+        async function openPricing(role: StaffRoles): Promise<void> {
+            renderAs(role);
+            await waitFor(() => expect(mockBusinessStats).toHaveBeenCalledTimes(1));
+            await switchTab("Pricing");
+            await waitFor(() => expect(mockCostCards).toHaveBeenCalledTimes(1));
+            mockBusinessStats.mockClear();
+        }
+
+        function saveProductSettings(changed: ProductSettingsPatch): void {
+            act(() => mockProductsTableProps.current?.onSettingsSaved?.(changed));
+        }
+
+        it("refetches the cost cards and the Business Stats report when an OWNER saves a unit", async () => {
+            await openPricing(StaffRoles.OWNER);
+
+            saveProductSettings({ unit: "PIECES" });
+
+            await waitFor(() => expect(mockCostCards).toHaveBeenCalledTimes(2));
+            expect(mockComponents).toHaveBeenCalledTimes(2);
+            await waitFor(() => expect(mockBusinessStats).toHaveBeenCalledTimes(1));
+        });
+
+        it("refetches the cost cards but not the Business Stats report when a MANAGER saves a unit", async () => {
+            await openPricing(StaffRoles.MANAGER);
+
+            saveProductSettings({ unit: "PIECES" });
+
+            await waitFor(() => expect(mockCostCards).toHaveBeenCalledTimes(2));
+            expect(mockBusinessStats).not.toHaveBeenCalled();
+        });
+
+        it("leaves the cost cards alone when a save changed no unit", async () => {
+            await openPricing(StaffRoles.OWNER);
+
+            saveProductSettings({ isInventory: false });
+
+            // The refetch would start synchronously inside the effect act() just flushed.
+            expect(mockCostCards).toHaveBeenCalledTimes(1);
             expect(mockBusinessStats).not.toHaveBeenCalled();
         });
     });

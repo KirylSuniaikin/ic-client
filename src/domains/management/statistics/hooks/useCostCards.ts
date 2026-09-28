@@ -18,7 +18,7 @@ type UseCostCards = {
  * <p>Separate from {@code useBusinessStats} because cost cards are period-independent and the
  * payload is large — reloading them every time the month range moves would be pure waste.
  */
-export function useCostCards(): UseCostCards {
+export function useCostCards(refreshKey: number = 0): UseCostCards {
     const [loading, setLoading] = useState<boolean>(false);
     const [cards, setCards] = useState<MenuCostCardsResponse | null>(null);
     const [components, setComponents] = useState<ComponentCost[]>([]);
@@ -53,9 +53,11 @@ export function useCostCards(): UseCostCards {
         }
     }, [refresh]);
 
+    // refreshKey is a dependency only: a caller bumps it to refetch after a change this hook cannot
+    // see, such as a product's unit edited in the table above the cards.
     useEffect(() => {
         void refresh();
-    }, [refresh]);
+    }, [refresh, refreshKey]);
 
     return {
         loading,

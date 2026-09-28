@@ -332,6 +332,31 @@ describe("productTOConverter", () => {
         expect(result[0].targetPrice).toBe(6);
     });
 
+    it("maps the four inline-editable settings for the Pricing table", () => {
+        const products: ProductTO[] = [
+            { ...baseProduct, isInventory: false, isPurchasable: true, unit: "ML", topVendor: "Acme" },
+        ];
+
+        const [row] = productTOConverter(products);
+
+        expect(row.isInventory).toBe(false);
+        expect(row.isPurchasable).toBe(true);
+        expect(row.unit).toBe("ML");
+        expect(row.topVendor).toBe("Acme");
+    });
+
+    it("maps a missing unit, top vendor and price to null rather than undefined", () => {
+        const products: ProductTO[] = [
+            { ...baseProduct, unit: undefined, topVendor: null, price: null },
+        ];
+
+        const [row] = productTOConverter(products);
+
+        expect(row.unit).toBeNull();
+        expect(row.topVendor).toBeNull();
+        expect(row.price).toBeNull();
+    });
+
     it("converts multiple products preserving order", () => {
         const products: ProductTO[] = [
             { ...baseProduct, id: 1, name: "A" },

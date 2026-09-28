@@ -60,6 +60,12 @@ import { PRODUCT_COLUMN_COUNT } from "./cellChrome";
 import Decimal from "decimal.js-light";
 import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
 import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
+import { useAuth } from "../../../auth/context/AuthProvider";
+import { isManagerRole } from "../../../auth/types";
+import CreateProductSheet from "../../_shared/components/CreateProductSheet";
+
+/** The line whose product dropdown asked for a new product, and the name typed there. */
+type CreateProductTarget = { invoiceId: string; lineId: string; name: string };
 
 type Props = {
     open: boolean;
@@ -127,8 +133,17 @@ function SortButton({
 }
 
 export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onSaved, userId}: Props) {
-    const [products, setProducts] = useState<ProductTO[]>([]);
+    // Creating a product is MANAGER / SUPER_MANAGER / OWNER only, like POST /api/products. getUser()
+    // below returns no role, so the caller's own comes from the token.
+    const { role } = useAuth();
+    const canCreateProducts = isManagerRole(role ?? null);
+
+    // Every product is kept, not only the purchasable ones, so the create form can recognise a
+    // name that exists but was left out of the dropdown for not being purchasable.
+    const [allProducts, setAllProducts] = useState<ProductTO[]>([]);
+    const products = useMemo(() => allProducts.filter(p => p.isPurchasable === true), [allProducts]);
     const [vendors, setVendors] = useState<VendorTO[]>([]);
+    const [createProductTarget, setCreateProductTarget] = useState<CreateProductTarget | null>(null);
     const productById = useMemo(() => new Map(products.map(p => [p.id, p] as const)), [products]);
     const isDataLoadedRef = useRef<boolean>(false);
     const vendorByName = useMemo(() => new Map(vendors.map(v => [String(v.vendorName).toLowerCase(), v] as const)), [vendors]);
@@ -163,7 +178,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                 setLoading(true); setError(null);
                 const [ps, vs, adminResponse] = await Promise.all([fetchProducts(), fetchVendors(), getUser(userId)]);
                 if (!alive) return;
-                setProducts(ps.filter(p => p.isPurchasable === true));
+                setAllProducts(ps);
                 setVendors(vs);
                 setAdmin(adminResponse)
 
@@ -334,6 +349,27 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
         }));
         setDirty(true);
     }, [vendorByName]);
+
+    // Passed down to every line, so it follows the same rule as the callbacks above: no dependency
+    // on `invoices`, or its identity would change on every keystroke and break every row memo.
+    const requestCreateProduct = useCallback((invoiceId: string, lineId: string, name: string) => {
+        setCreateProductTarget({ invoiceId, lineId, name });
+    }, []);
+
+    // The new product joins the list and goes straight onto the line that asked for it, through
+    // applyProduct so an empty invoice vendor is filled from its top vendor like any other pick.
+    const handleProductCreated = (product: ProductTO): void => {
+        if (createProductTarget === null) return;
+        setAllProducts(prev => [...prev, product]);
+        applyProduct(createProductTarget.invoiceId, createProductTarget.lineId, product);
+        setCreateProductTarget(null);
+    };
+
+    // The invoice's own vendor is the best guess for the new product's top vendor: it is the one
+    // it is being bought from right now.
+    const createProductInvoiceVendor = createProductTarget === null
+        ? null
+        : invoices.find(inv => inv.id === createProductTarget.invoiceId)?.vendorName ?? null;
 
     // Sorting reorders the invoices once, on tap. It is not a data change, so it must not mark
     // the report dirty — nobody should be asked to save because they re-ordered the view.
@@ -583,6 +619,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                             onUpdateLine={updateLine}
                                             onCommitNumeric={commitNumericCell}
                                             onApplyProduct={applyProduct}
+                                            onRequestCreateProduct={canCreateProducts ? requestCreateProduct : undefined}
                                             onDeleteLine={deleteLine}
                                         />
                                     ))}
@@ -606,6 +643,19 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     </Stack>
                 )}
             </Box>
+
+            {canCreateProducts && (
+                <CreateProductSheet
+                    open={createProductTarget !== null}
+                    initialName={createProductTarget?.name}
+                    lockPurchasable
+                    initialTopVendor={createProductInvoiceVendor}
+                    vendors={vendors}
+                    existingProducts={allProducts}
+                    onCreated={handleProductCreated}
+                    onClose={() => setCreateProductTarget(null)}
+                />
+            )}
         </Dialog>
     );
 }

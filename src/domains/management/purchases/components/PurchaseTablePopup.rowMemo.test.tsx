@@ -10,25 +10,37 @@ import {
 } from "../../../../shared/api/management";
 import type { IBranch, ProductTO } from "../../inventory/types";
 import type { PurchaseTO } from "../types";
+import { StaffRoles } from "../../../auth/types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
 jest.mock("../../../../shared/api/management");
+
+// The role decides whether lines get the create-product callback at all; a manager's lines do,
+// and that callback must be as stable as the others or it breaks every row memo at once.
+type AuthValue = { role: StaffRoles | null };
+const mockUseAuth = jest.fn<AuthValue, []>();
+jest.mock("../../../auth/context/AuthProvider", () => ({
+    useAuth: () => mockUseAuth(),
+}));
 
 // Counting stand-in for the real row, memoized exactly like it. A line that re-renders when an
 // unrelated line is edited is the expensive regression these tests guard — and nesting lines
 // inside invoices is exactly the change that could have reintroduced it.
 // Prefixed `mock*` for the hoisted factory.
 const mockRowRenderCounts: Record<string, number> = {};
+const mockRowCanCreateProduct: Record<string, boolean> = {};
 
 jest.mock("./PurchaseTableRow", () => {
     const react: typeof React = require("react");
     type MockRowProps = {
         row: { id: string };
         onCommitNumeric: (id: string, field: "quantity" | "finalPrice", raw: string) => void;
+        onRequestCreateProduct?: (id: string, name: string) => void;
     };
     return {
-        PurchaseTableRow: react.memo(function MockPurchaseTableRow({ row, onCommitNumeric }: MockRowProps) {
+        PurchaseTableRow: react.memo(function MockPurchaseTableRow({ row, onCommitNumeric, onRequestCreateProduct }: MockRowProps) {
             mockRowRenderCounts[row.id] = (mockRowRenderCounts[row.id] ?? 0) + 1;
+            mockRowCanCreateProduct[row.id] = typeof onRequestCreateProduct === "function";
             return react.createElement(
                 "tr",
                 null,
@@ -100,6 +112,7 @@ describe("PurchaseTablePopup row memoization", () => {
         for (const key of Object.keys(mockRowRenderCounts)) {
             delete mockRowRenderCounts[key];
         }
+        mockUseAuth.mockReturnValue({ role: null });
         jest.mocked(fetchProducts).mockResolvedValue([makeProduct(1, "Flour"), makeProduct(2, "Cheese")]);
         jest.mocked(fetchVendors).mockResolvedValue([{ id: 1, vendorName: "Acme" }]);
         jest.mocked(getUser).mockResolvedValue({ id: 1, userName: "admin" });
@@ -168,5 +181,30 @@ describe("PurchaseTablePopup row memoization", () => {
 
         await waitFor(() => expect(mockRowRenderCounts["inv-0-line-2"]).toBe(2));
         expect(mockRowRenderCounts["inv-1-line-0"]).toBe(1);
+    });
+
+    it("still re-renders only the edited line when the lines carry the create-product callback", async () => {
+        mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER });
+
+        render(
+            <PurchaseTablePopup
+                open={true}
+                mode="edit"
+                purchaseId={7}
+                userId={1}
+                branch={branch}
+                onClose={jest.fn()}
+            />
+        );
+
+        fireEvent.click(await screen.findByTestId("toggle-invoice-inv-0"));
+        await screen.findByTestId("commit-inv-0-line-0");
+        expect(mockRowCanCreateProduct["inv-0-line-1"]).toBe(true);
+
+        fireEvent.click(screen.getByTestId("commit-inv-0-line-2"));
+
+        await waitFor(() => expect(mockRowRenderCounts["inv-0-line-2"]).toBe(2));
+        expect(mockRowRenderCounts["inv-0-line-0"]).toBe(1);
+        expect(mockRowRenderCounts["inv-0-line-1"]).toBe(1);
     });
 });

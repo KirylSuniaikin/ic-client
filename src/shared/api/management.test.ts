@@ -26,7 +26,15 @@ import {
     getCurrentStaff,
     fetchTelegramBotUsername,
     generateTelegramConnectToken,
+    createProduct,
+    updateProductSettings,
 } from "./management";
+import { DuplicateProductNameError } from "../../domains/management/inventory/types";
+import type {
+    CreateProductRequest,
+    ProductTO,
+    UpdateProductSettingsRequest
+} from "../../domains/management/inventory/types";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 import type { StaffAdminTO, UpdateStaffPayrollRequest } from "../../domains/management/staff/types";
@@ -396,6 +404,114 @@ describe("fetchProducts", () => {
         const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
         expect(options?.retryDelaysMs).toBeDefined();
         expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
+});
+
+// ── createProduct / updateProductSettings ─────────────────────────────────────
+
+function productResponse(overrides: Partial<ProductTO> = {}): ProductTO {
+    return {
+        id: 42,
+        name: "Basil",
+        targetPrice: 1.5,
+        price: null,
+        isInventory: false,
+        isPurchasable: true,
+        isBundle: false,
+        topVendor: "Acme",
+        unit: "GRAMS",
+        ...overrides,
+    };
+}
+
+function jsonResponse(body: unknown, status: number): Response {
+    return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+describe("createProduct", () => {
+    const request: CreateProductRequest = {
+        name: "Basil",
+        targetPrice: 1.5,
+        unit: "GRAMS",
+        topVendor: "Acme",
+        isInventory: false,
+        isPurchasable: true,
+    };
+
+    it("POSTs the JSON body to the products endpoint", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(productResponse(), 200));
+
+        await createProduct(request);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/products");
+        expect(init.method).toBe("POST");
+        expect(JSON.parse(init.body as string)).toEqual(request);
+    });
+
+    it("returns the created product on any 2xx, 201 included", async () => {
+        const created = productResponse();
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(created, 201));
+
+        const result = await createProduct(request);
+
+        expect(result).toEqual(created);
+    });
+
+    it("throws a DuplicateProductNameError carrying the fixed message on 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "whatever the server said" }, 409));
+
+        const failure = createProduct(request);
+
+        await expect(failure).rejects.toBeInstanceOf(DuplicateProductNameError);
+        await expect(failure).rejects.toThrow("A product with this name already exists");
+    });
+
+    it("surfaces the server's message on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ status: 400, message: "Unknown vendor: Nobody" }, 400));
+
+        await expect(createProduct(request)).rejects.toThrow("Unknown vendor: Nobody");
+    });
+
+    it("falls back to the status code when the error body is not JSON", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(createProduct(request)).rejects.toThrow("HTTP 403");
+    });
+});
+
+describe("updateProductSettings", () => {
+    const request: UpdateProductSettingsRequest = {
+        isInventory: true,
+        isPurchasable: false,
+        unit: null,
+        topVendor: null,
+    };
+
+    it("PATCHes the full four-field body to products/{id}/settings", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(productResponse({ id: 7 }), 200));
+
+        await updateProductSettings(7, request);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/products/7/settings");
+        expect(init.method).toBe("PATCH");
+        expect(JSON.parse(init.body as string)).toEqual(request);
+    });
+
+    it("returns the updated product on 200", async () => {
+        const updated = productResponse({ id: 7, isInventory: true });
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(updated, 200));
+
+        const result = await updateProductSettings(7, request);
+
+        expect(result).toEqual(updated);
+    });
+
+    it("throws with the status code on 404", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(updateProductSettings(999, request)).rejects.toThrow("HTTP 404");
     });
 });
 

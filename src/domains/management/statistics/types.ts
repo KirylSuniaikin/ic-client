@@ -1,3 +1,5 @@
+import type { MeasureUnit } from "../../../shared/utils/unitFormat";
+
 export type DoughDailyUsageTO = {
     date: string;
     quantity: number;
@@ -98,8 +100,13 @@ export type SourceBreakdown = {
 export type ProductStatRow = {
     id: number;
     name: string;
-    price: number;
+    price: number | null;
     targetPrice: number;
+    // The four settings editable inline on the Pricing table (PATCH /api/products/{id}/settings).
+    isInventory: boolean;
+    isPurchasable: boolean;
+    unit: MeasureUnit | null;
+    topVendor: string | null;
 };
 
 // --- Business Stats -----------------------------------------------------------------------

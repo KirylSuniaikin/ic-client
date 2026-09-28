@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {Box, Button, CircularProgress, ToggleButton, ToggleButtonGroup} from '@mui/material';
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import {ConsumptionStatistics} from "../../consumption/components/ConsumptionStatistics";
@@ -12,6 +12,7 @@ import BusinessTab from "./business/BusinessTab";
 import PricingCostCardsSection from "./PricingCostCardsSection";
 import MonthRangePickerPopover from "./business/MonthRangePickerPopover";
 import {useBusinessStats} from "../hooks/useBusinessStats";
+import type {ProductSettingsPatch} from "../hooks/useProductCatalog";
 import {PerformanceTab} from "./tabs/PerformanceTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
@@ -81,6 +82,18 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
     // Fetches on mount rather than on tab selection: the tab strip is cheap to switch and a
     // report that reloads every time the owner glances away is worse than one extra request.
     const businessStats = useBusinessStats();
+    const refreshBusinessStats = businessStats.refresh;
+
+    // products.unit is a costing input (the per-gram / per-ml division of a batch ingredient's
+    // price), and the server drops its cached cost cards when it changes -- so the cost cards right
+    // under the products table must refetch too, or they keep the old unit's figures on screen.
+    const [costCardsRefreshKey, setCostCardsRefreshKey] = useState<number>(0);
+    const handleProductSettingsSaved = useCallback((changed: ProductSettingsPatch): void => {
+        if (changed.unit === undefined) return;
+        setCostCardsRefreshKey(k => k + 1);
+        // OWNER only, as with onCostSaved: the Business Stats endpoint 403s everyone else.
+        if (role === StaffRoles.OWNER) void refreshBusinessStats();
+    }, [role, refreshBusinessStats]);
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
 
@@ -304,11 +317,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                     {mode === "Reports" && <VatReportCard branchId={singleScope.branch.id}/>}
                     {mode === "Pricing" && (
                         <>
-                            <ProductsTable/>
+                            <ProductsTable role={role} onSettingsSaved={handleProductSettingsSaved}/>
                             {canSeeCostCards && (
                                 <Box sx={{mt: 1}}>
                                     <PricingCostCardsSection
                                         onCostSaved={role === StaffRoles.OWNER ? businessStats.refresh : undefined}
+                                        refreshKey={costCardsRefreshKey}
                                     />
                                 </Box>
                             )}
