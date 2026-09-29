@@ -1,10 +1,11 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {
     Alert,
     Box,
     CircularProgress,
     IconButton,
     Paper,
+    Stack,
     Table,
     TableBody,
     TableCell,
@@ -16,6 +17,7 @@ import {
     Typography,
 } from "@mui/material";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 // First `Capacitor` import anywhere in src/ — used only to hide the salary-slip download on the
 // Android WebView build, where a <a download> on a blob: URL is a silent no-op (no
 // DownloadListener on the host Activity) rather than a visible failure.
@@ -23,7 +25,8 @@ import {Capacitor} from "@capacitor/core";
 import dayjs from "dayjs";
 import {downloadSalarySlip, getMonthlyShiftReport, getSalarySlipPreview} from "../../../../shared/api/management";
 import SalarySlipPopup from "./SalarySlipPopup";
-import type {SalarySlipForm} from "../types";
+import ShiftDateRangeFields from "./ShiftDateRangeFields";
+import type {SalarySlipForm, ShiftDateRange} from "../types";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {shortStaffName, staffDisplayName} from "../../../../shared/utils/staffName";
 import {StaffRoles} from "../../../auth/types";
@@ -49,8 +52,15 @@ const overtimePillSx = {
     text: "#c41c00",
 };
 
+const DATE_RANGE_HINT = "Hours are summed by each shift's own date across all of this branch's shift reports, "
+    + "so a single report card's total won't match. An overnight shift counts on the day it started. "
+    + "Salary slips default to the pay cycle instead — their dates are shown in the slip.";
+
 export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
     const [yearMonth, setYearMonth] = useState<string>(dayjs().format("YYYY-MM"));
+    // Null = let the backend pick its default window for the month; the one it used comes back on
+    // the report, so the UI never has to compute it.
+    const [range, setRange] = useState<ShiftDateRange | null>(null);
     const [report, setReport] = useState<MonthlyShiftReport | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -63,6 +73,9 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
     const [slipForm, setSlipForm] = useState<SalarySlipForm | null>(null);
     const [slipLoading, setSlipLoading] = useState(false);
     const [slipError, setSlipError] = useState<string | null>(null);
+    // Only the latest preview request may touch the popup: one still in flight when the popup
+    // closes (or its dates change again) would otherwise land in whichever slip is open next.
+    const slipRequestRef = useRef(0);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState("");
 
@@ -78,25 +91,33 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
             : e instanceof Error ? e.message : "Failed to generate salary slip";
     }
 
-    async function handleOpenSlip(staffId: number, label: string): Promise<void> {
+    // No range = the backend's pay-cycle default, which is what a row click wants; the popup passes
+    // one only when the owner re-picks the slip's dates.
+    async function handleOpenSlip(staffId: number, label: string, slipRange?: ShiftDateRange): Promise<void> {
+        const requestId = ++slipRequestRef.current;
         setSlipStaffId(staffId);
         setSlipLabel(label);
-        setSlipForm(null);
+        // A date change keeps the current slip up while the new window loads: the sheet's buttons
+        // stay under the pointer, and a rejected range leaves the date fields there to correct.
+        if (slipRange === undefined) setSlipForm(null);
         setSlipError(null);
         setSlipLoading(true);
         try {
-            setSlipForm(await getSalarySlipPreview(staffId, yearMonth));
+            const form = await getSalarySlipPreview(staffId, yearMonth, slipRange);
+            if (requestId === slipRequestRef.current) setSlipForm(form);
         } catch (e: unknown) {
-            setSlipError(slipErrorMessage(e));
+            if (requestId === slipRequestRef.current) setSlipError(slipErrorMessage(e));
         } finally {
-            setSlipLoading(false);
+            if (requestId === slipRequestRef.current) setSlipLoading(false);
         }
     }
 
     function handleCloseSlip(): void {
+        slipRequestRef.current++;
         setSlipStaffId(null);
         setSlipForm(null);
         setSlipError(null);
+        setSlipLoading(false);
     }
 
     async function handleDownloadSlip(staffId: number, form: SalarySlipForm): Promise<void> {
@@ -126,8 +147,11 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
         (async () => {
             setLoading(true);
             setError(null);
+            // Drop the previous report up front so its window never shows as this fetch's -- not
+            // while loading, and not after a failure.
+            setReport(null);
             try {
-                const data = await getMonthlyShiftReport(branchId, yearMonth);
+                const data = await getMonthlyShiftReport(branchId, yearMonth, range ?? undefined);
                 if (alive) setReport(data);
             } catch (e: unknown) {
                 if (alive) setError(e instanceof Error ? e.message : "Failed to load");
@@ -138,22 +162,49 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
         return () => {
             alive = false;
         };
-    }, [branchId, yearMonth]);
+    }, [branchId, yearMonth, range]);
 
     const rows = report?.summaries ?? [];
+    // An older backend omits the window; show empty fields then rather than {from: undefined}.
+    const reportWindow: ShiftDateRange | null = report?.periodStart && report?.periodEnd
+        ? {from: report.periodStart, to: report.periodEnd}
+        : null;
 
     return (
         <Box sx={{p: 2, backgroundColor: "#fff", minHeight: "100%"}}>
-            <Box sx={{mb: 2}}>
+            <Stack direction="row" flexWrap="wrap" gap={1.5} alignItems="center" sx={{mb: 2}}>
                 <TextField
                     type="month"
                     value={yearMonth}
-                    onChange={(e) => setYearMonth(e.target.value)}
+                    onChange={(e) => {
+                        setYearMonth(e.target.value);
+                        setRange(null);
+                    }}
                     size="small"
                     variant="outlined"
                     sx={{"& .MuiOutlinedInput-root": {borderRadius: 2}}}
                 />
-            </Box>
+                <ShiftDateRangeFields
+                    value={range ?? reportWindow}
+                    onChange={setRange}
+                    disabled={loading}
+                />
+                <Tooltip
+                    title={DATE_RANGE_HINT}
+                    // Keeps the hint as a description, so the icon's accessible name stays its
+                    // titleAccess instead of the whole paragraph (see InfoHint).
+                    describeChild
+                    arrow
+                    enterTouchDelay={0}
+                    leaveTouchDelay={6000}
+                >
+                    <InfoOutlinedIcon
+                        titleAccess="About these dates"
+                        tabIndex={0}
+                        sx={{fontSize: 18, color: "text.disabled", cursor: "pointer"}}
+                    />
+                </Tooltip>
+            </Stack>
 
             {error && <Alert severity="error" sx={{mb: 2}}>{error}</Alert>}
 
@@ -327,6 +378,9 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                 error={slipError}
                 onConfirm={(form) => {
                     if (slipStaffId !== null) void handleDownloadSlip(slipStaffId, form);
+                }}
+                onPeriodChange={(r) => {
+                    if (slipStaffId !== null) void handleOpenSlip(slipStaffId, slipLabel, r);
                 }}
                 onClose={handleCloseSlip}
             />

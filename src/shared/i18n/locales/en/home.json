@@ -2,5 +2,9 @@
   "hero": {
     "tagline": "BETTER THAN YOU THINK"
   },
-  "error": "Error: {{message}}"
+  "connectionError": {
+    "title": "Oops, we lost connection",
+    "message": "Our kitchen's servers are taking a quick breather. Please wait a few seconds and reload the page.",
+    "reload": "Reload"
+  }
 }

@@ -2,6 +2,9 @@
 // (product units); both mirror backend com.icpizza.backend.domain.prepplan.Unit.
 export type MeasureUnit = "GRAMS" | "PIECES" | "ML";
 
+// Every unit, in the order a unit picker offers them.
+export const MEASURE_UNITS = ["GRAMS", "PIECES", "ML"] as const satisfies readonly MeasureUnit[];
+
 // Nullable input: Product.unit is a nullable column being backfilled by hand, so a
 // product with no unit yet renders an em dash rather than an empty cell. Unknown
 // non-null strings pass through unchanged (existing prep-plan behaviour).

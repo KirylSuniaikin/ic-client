@@ -91,3 +91,12 @@ export const NEUTRAL_BUTTON_SX: SxProps<Theme> = {
     borderColor: hairline,
     "&:hover": { borderColor: "#d3cec1", backgroundColor: "#f7f5f0" },
 };
+
+/**
+ * A Switch in the brand red. The theme defines no primary palette, so a bare Switch comes out in
+ * MUI's stock blue when on.
+ */
+export const BRAND_SWITCH_SX: SxProps<Theme> = {
+    "& .MuiSwitch-switchBase.Mui-checked": { color: colorRed },
+    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: colorRed, opacity: 0.5 },
+};

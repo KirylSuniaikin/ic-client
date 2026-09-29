@@ -2,6 +2,7 @@
 // rather than restated: an aggregate that classified skips differently from the
 // board a manager reads one rider at a time would be worse than no aggregate.
 import type {NoOfferReason} from "../couriers/types";
+import type { MeasureUnit } from "../../../shared/utils/unitFormat";
 
 export type DoughDailyUsageTO = {
     date: string;
@@ -103,8 +104,13 @@ export type SourceBreakdown = {
 export type ProductStatRow = {
     id: number;
     name: string;
-    price: number;
+    price: number | null;
     targetPrice: number;
+    // The four settings editable inline on the Pricing table (PATCH /api/products/{id}/settings).
+    isInventory: boolean;
+    isPurchasable: boolean;
+    unit: MeasureUnit | null;
+    topVendor: string | null;
 };
 
 // --- Business Stats -----------------------------------------------------------------------

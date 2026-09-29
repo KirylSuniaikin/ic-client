@@ -13,6 +13,7 @@ import {
     getReports,
     initiateAuth,
     fetchProducts,
+    getUser,
     getVatStats,
     getDoughInventory,
     putDoughInventory,
@@ -22,12 +23,22 @@ import {
     putWorkingHours,
     updateStaffPayroll,
     downloadSalarySlip,
+    getMonthlyShiftReport,
+    getSalarySlipPreview,
     getCurrentStaff,
     fetchTelegramBotUsername,
     generateTelegramConnectToken,
     fetchDeliveryEstimateAccuracy,
     fetchDeliverySkipReasonStats,
+    createProduct,
+    updateProductSettings,
 } from "./management";
+import { DuplicateProductNameError } from "../../domains/management/inventory/types";
+import type {
+    CreateProductRequest,
+    ProductTO,
+    UpdateProductSettingsRequest
+} from "../../domains/management/inventory/types";
 import type { WorkingHoursResponse, WorkingHoursRequest } from "./management";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 import type { StaffAdminTO, UpdateStaffPayrollRequest } from "../../domains/management/staff/types";
@@ -388,6 +399,172 @@ describe("fetchProducts", () => {
 
         await expect(fetchProducts()).rejects.toThrow();
     });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+
+        await fetchProducts();
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
+});
+
+// ── createProduct / updateProductSettings ─────────────────────────────────────
+
+function productResponse(overrides: Partial<ProductTO> = {}): ProductTO {
+    return {
+        id: 42,
+        name: "Basil",
+        targetPrice: 1.5,
+        price: null,
+        isInventory: false,
+        isPurchasable: true,
+        isBundle: false,
+        topVendor: "Acme",
+        unit: "GRAMS",
+        ...overrides,
+    };
+}
+
+function jsonResponse(body: unknown, status: number): Response {
+    return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+describe("createProduct", () => {
+    const request: CreateProductRequest = {
+        name: "Basil",
+        targetPrice: 1.5,
+        unit: "GRAMS",
+        topVendor: "Acme",
+        isInventory: false,
+        isPurchasable: true,
+    };
+
+    it("POSTs the JSON body to the products endpoint", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(productResponse(), 200));
+
+        await createProduct(request);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/products");
+        expect(init.method).toBe("POST");
+        expect(JSON.parse(init.body as string)).toEqual(request);
+    });
+
+    it("returns the created product on any 2xx, 201 included", async () => {
+        const created = productResponse();
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(created, 201));
+
+        const result = await createProduct(request);
+
+        expect(result).toEqual(created);
+    });
+
+    it("throws a DuplicateProductNameError carrying the fixed message on 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "whatever the server said" }, 409));
+
+        const failure = createProduct(request);
+
+        await expect(failure).rejects.toBeInstanceOf(DuplicateProductNameError);
+        await expect(failure).rejects.toThrow("A product with this name already exists");
+    });
+
+    it("surfaces the server's message on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ status: 400, message: "Unknown vendor: Nobody" }, 400));
+
+        await expect(createProduct(request)).rejects.toThrow("Unknown vendor: Nobody");
+    });
+
+    it("falls back to the status code when the error body is not JSON", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(createProduct(request)).rejects.toThrow("HTTP 403");
+    });
+});
+
+describe("updateProductSettings", () => {
+    const request: UpdateProductSettingsRequest = {
+        isInventory: true,
+        isPurchasable: false,
+        unit: null,
+        topVendor: null,
+    };
+
+    it("PATCHes the full four-field body to products/{id}/settings", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(productResponse({ id: 7 }), 200));
+
+        await updateProductSettings(7, request);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/products/7/settings");
+        expect(init.method).toBe("PATCH");
+        expect(JSON.parse(init.body as string)).toEqual(request);
+    });
+
+    it("returns the updated product on 200", async () => {
+        const updated = productResponse({ id: 7, isInventory: true });
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(updated, 200));
+
+        const result = await updateProductSettings(7, request);
+
+        expect(result).toEqual(updated);
+    });
+
+    it("throws with the status code on 404", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(updateProductSettings(999, request)).rejects.toThrow("HTTP 404");
+    });
+});
+
+// ── getUser ───────────────────────────────────────────────────────────────────
+
+describe("getUser", () => {
+    it("calls the get_user endpoint with the userId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ id: 1, name: "Test" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await getUser(1);
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("get_user?userId=1");
+    });
+
+    it("returns the parsed user on 200", async () => {
+        const user = { id: 1, name: "Test" };
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify(user), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        const result = await getUser(1);
+
+        expect(result).toEqual(user);
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(getUser(1)).rejects.toThrow();
+    });
+
+    it("opts into authFetch's retry on a transient network blip", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+
+        await getUser(1);
+
+        const [, , options] = mockAuthFetch.mock.calls[0] as [string, RequestInit, { retryDelaysMs?: number[] } | undefined];
+        expect(options?.retryDelaysMs).toBeDefined();
+        expect(options?.retryDelaysMs?.length).toBeGreaterThan(0);
+    });
 });
 
 // ── getVatStats ───────────────────────────────────────────────────────────────
@@ -732,6 +909,102 @@ describe("updateStaffPayroll", () => {
     });
 });
 
+// ── getMonthlyShiftReport ─────────────────────────────────────────────────────
+
+// Without from/to the backend sums its own default window (the calendar month) and reports it
+// back; a lone from or to is a 400, so the pair travels together or not at all.
+describe("getMonthlyShiftReport", () => {
+    function reportResponse(): Response {
+        return new Response(JSON.stringify({
+            yearMonth: "2026-09", branchNo: 1, periodStart: "2026-09-01", periodEnd: "2026-09-30", summaries: [],
+        }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    it("sends only branchId and yearMonth when no range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(reportResponse());
+
+        await getMonthlyShiftReport("b1", "2026-09");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("shift_monthly_report");
+        expect(url).toContain("branchId=b1");
+        expect(url).toContain("yearMonth=2026-09");
+        expect(url).not.toContain("from=");
+        expect(url).not.toContain("to=");
+    });
+
+    it("sends from and to when a range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(reportResponse());
+
+        await getMonthlyShiftReport("b1", "2026-09", { from: "2026-08-25", to: "2026-09-24" });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("yearMonth=2026-09");
+        expect(url).toContain("from=2026-08-25");
+        expect(url).toContain("to=2026-09-24");
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(getMonthlyShiftReport("b1", "2026-09")).rejects.toThrow("Response: 400");
+    });
+});
+
+// ── getSalarySlipPreview ──────────────────────────────────────────────────────
+
+// Without from/to the backend previews the pay cycle; the popup sends a range only once the owner
+// re-picks the slip's dates.
+describe("getSalarySlipPreview", () => {
+    function previewResponse(): Response {
+        return new Response(JSON.stringify(slipForm()), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    it("sends only yearMonth when no range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        await getSalarySlipPreview(5, "2026-07");
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("staff/5/salary_slip/preview");
+        expect(url).toContain("yearMonth=2026-07");
+        expect(url).not.toContain("from=");
+        expect(url).not.toContain("to=");
+    });
+
+    it("sends from and to when a range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        await getSalarySlipPreview(5, "2026-07", { from: "2026-07-01", to: "2026-07-31" });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("yearMonth=2026-07");
+        expect(url).toContain("from=2026-07-01");
+        expect(url).toContain("to=2026-07-31");
+    });
+
+    it("returns the parsed form, window included", async () => {
+        mockAuthFetch.mockResolvedValueOnce(previewResponse());
+
+        const result = await getSalarySlipPreview(5, "2026-07");
+
+        expect(result.periodStart).toBe("2026-06-25");
+        expect(result.periodEnd).toBe("2026-07-24");
+    });
+
+    it("throws on non-ok status", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(getSalarySlipPreview(5, "2026-07")).rejects.toThrow("HTTP 400");
+    });
+});
+
 // ── downloadSalarySlip ────────────────────────────────────────────────────────
 
 // The confirmed slip body. downloadSalarySlip is a POST now: the popup sends back what the owner
@@ -743,6 +1016,8 @@ function slipForm(): SalarySlipForm {
         cprNumber: "850012345",
         payPeriodLabel: "July 2026",
         paymentDate: "2026-07-31",
+        periodStart: "2026-06-25",
+        periodEnd: "2026-07-24",
         basicSalary: 240,
         housingAllowance: 40,
         transportAllowance: null,

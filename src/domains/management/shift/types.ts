@@ -9,7 +9,9 @@ export type BaseShiftResponse = {
 // Inbound: one shift entry from GET /api/get_shift_report
 export type ShiftEntryTO = {
     id: number;
-    shiftDate: string;               // "YYYY-MM-DD"
+    // "YYYY-MM-DD", or null: shift_date is a nullable column, and a date input cleared before a
+    // save reaches it as null (Jackson coerces "" to a null LocalDate).
+    shiftDate: string | null;
     startTime: string | null;        // "HH:mm" or null
     endTime: string | null;
     totalHours: number | null;
@@ -91,8 +93,15 @@ export type StaffShiftSummary = {
 export type MonthlyShiftReport = {
     yearMonth: string;
     branchNo: number;
+    // Inclusive window the backend summed ("YYYY-MM-DD"); rendered verbatim, never recomputed here.
+    periodStart: string;
+    periodEnd: string;
     summaries: StaffShiftSummary[];
 };
+
+// A user-picked From/To window ("YYYY-MM-DD", both inclusive), sent as the from/to query params.
+// Absent means "let the backend choose its own default window".
+export type ShiftDateRange = {from: string; to: string};
 
 // ── Salary slip ──────────────────────────────────────────────────────────────
 // The slip is confirmed in a popup before it downloads: GET .../salary_slip/preview returns these
@@ -110,6 +119,10 @@ export type SalarySlipForm = {
     cprNumber: string | null;
     payPeriodLabel: string;
     paymentDate: string;              // "YYYY-MM-DD"
+    // Inclusive window the backend summed overtime over ("YYYY-MM-DD"); rendered verbatim, never
+    // recomputed here. Read-only: echoed back on POST, where the server ignores it.
+    periodStart: string;
+    periodEnd: string;
     basicSalary: number | null;
     housingAllowance: number | null;
     transportAllowance: number | null;

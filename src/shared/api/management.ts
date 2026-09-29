@@ -1,6 +1,15 @@
 import { authFetch, BASE_URL } from './client';
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from './clientPlatform';
-import type { IBranch, IManagementResponse, IUser, ProductTO, ReportTO } from '../../domains/management/inventory/types';
+import type {
+    CreateProductRequest,
+    IBranch,
+    IManagementResponse,
+    IUser,
+    ProductTO,
+    ReportTO,
+    UpdateProductSettingsRequest
+} from '../../domains/management/inventory/types';
+import { DuplicateProductNameError } from '../../domains/management/inventory/types';
 import type { DoughAvailabilityFlags, DoughInventory, DoughStatus } from '../../domains/management/dough/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../domains/management/prep-plan/types';
 import type {
@@ -21,6 +30,7 @@ import type {
     CreateShiftReportTO,
     EditShiftReportTO,
     MonthlyShiftReport,
+    ShiftDateRange,
     ShiftReportTO,
     SalarySlipForm,
     StaffOption
@@ -156,20 +166,29 @@ export async function getBranchInfo(branchId: string): Promise<IBranch> {
     return res.json();
 }
 
+// Retries a transient network blip (see AuthFetchOptions.retryDelaysMs). Both endpoints below are
+// on the app's cold-start path (loaded right after auth, before the admin can do anything useful),
+// the same cold-start/mobile-network window fetchAllBranches and fetchBaseAppInfo (public.ts) are
+// already retried for. Idempotent GETs, safe to retry.
+const FETCH_PRODUCTS_RETRY_DELAYS_MS = [500, 1500];
+const GET_USER_RETRY_DELAYS_MS = [500, 1500];
+
 export async function fetchProducts(): Promise<ProductTO[]> {
-    const res = await authFetch(BASE_URL + `/fetch_products`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-    });
+    const res = await authFetch(
+        BASE_URL + `/fetch_products`,
+        { method: "GET", headers: { "Content-Type": "application/json" } },
+        { retryDelaysMs: FETCH_PRODUCTS_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
 
 export async function getUser(userId: number): Promise<IUser> {
-    const res = await authFetch(BASE_URL + `/get_user?userId=${userId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    });
+    const res = await authFetch(
+        BASE_URL + `/get_user?userId=${userId}`,
+        { method: "GET", headers: { "Content-Type": "application/json" } },
+        { retryDelaysMs: GET_USER_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
@@ -180,6 +199,54 @@ export async function fetchVendors(): Promise<VendorTO[]> {
         headers: { "Content-Type": "application/json" }
     });
     if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+// Spring's default error body carries the ResponseStatusException reason as `message`
+// (server.error.include-message: always). The product endpoints' 400s say WHICH field was refused,
+// and that is worth showing in the form rather than a bare status code.
+async function readServerErrorMessage(res: Response): Promise<string | null> {
+    try {
+        const body: unknown = await res.json();
+        if (typeof body === "object" && body !== null && "message" in body) {
+            const { message } = body;
+            return typeof message === "string" && message.trim() !== "" ? message : null;
+        }
+        return null;
+    } catch {
+        // No body, or not JSON (a proxy's HTML page, an empty 403): the caller falls back to the
+        // status code, which is the only thing left to report.
+        return null;
+    }
+}
+
+async function productRequestError(res: Response): Promise<Error> {
+    if (res.status === 409) return new DuplicateProductNameError();
+    return new Error((await readServerErrorMessage(res)) ?? `HTTP ${res.status}`);
+}
+
+// MANAGER / SUPER_MANAGER / OWNER only server-side. Any 2xx is success (the created ProductTO).
+export async function createProduct(request: CreateProductRequest): Promise<ProductTO> {
+    const res = await authFetch(BASE_URL + `/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await productRequestError(res);
+    return res.json();
+}
+
+// Sends the row's complete four-field state every time -- see UpdateProductSettingsRequest.
+export async function updateProductSettings(
+    id: number,
+    request: UpdateProductSettingsRequest
+): Promise<ProductTO> {
+    const res = await authFetch(BASE_URL + `/products/${id}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await productRequestError(res);
     return res.json();
 }
 
@@ -371,11 +438,21 @@ export async function getBranchEvents({ branchId, page, size }: GetBranchEventsP
     return res.json();
 }
 
+// Both shift endpoints fall back to their own default window when from/to are absent, and reject
+// a lone one with 400 -- so the pair is sent together, and only when the user picked it.
+function appendShiftDateRange(params: URLSearchParams, range: ShiftDateRange | undefined): void {
+    if (range === undefined) return;
+    params.append("from", range.from);
+    params.append("to", range.to);
+}
+
 export async function getMonthlyShiftReport(
     branchId: string,
-    yearMonth: string
+    yearMonth: string,
+    range?: ShiftDateRange
 ): Promise<MonthlyShiftReport> {
     const params = new URLSearchParams({ branchId, yearMonth });
+    appendShiftDateRange(params, range);
     const res = await authFetch(BASE_URL + `/shift_monthly_report?${params}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -492,9 +569,10 @@ function parseContentDispositionFilename(contentDisposition: string | null): str
 }
 
 export async function getSalarySlipPreview(
-    staffId: number, yearMonth: string,
+    staffId: number, yearMonth: string, range?: ShiftDateRange,
 ): Promise<SalarySlipForm> {
     const params = new URLSearchParams({yearMonth});
+    appendShiftDateRange(params, range);
     const res = await authFetch(BASE_URL + `/staff/${staffId}/salary_slip/preview?${params}`, {
         method: "GET",
         headers: {Accept: "application/json"},

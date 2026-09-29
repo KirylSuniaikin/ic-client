@@ -63,7 +63,11 @@ export function productTOConverter(products: ProductTO[]): ProductStatRow[] {
     return products.map((product: ProductTO) => ({
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: product.price ?? null,
         targetPrice: product.targetPrice,
+        isInventory: !!product.isInventory,
+        isPurchasable: !!product.isPurchasable,
+        unit: product.unit ?? null,
+        topVendor: product.topVendor ?? null,
     }));
 }

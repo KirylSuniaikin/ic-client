@@ -64,6 +64,8 @@ type PurchaseInvoiceGroupProps = {
     onUpdateLine: (invoiceId: string, lineId: string, patch: Partial<PurchaseLineRow>) => void;
     onCommitNumeric: (invoiceId: string, lineId: string, field: NumericField, raw: string) => void;
     onApplyProduct: (invoiceId: string, lineId: string, val: ProductTO | null) => void;
+    /** Absent for a role that may not create products: the lines then offer no "Add" entry. */
+    onRequestCreateProduct?: (invoiceId: string, lineId: string, name: string) => void;
     onDeleteLine: (invoiceId: string, lineId: string) => void;
 };
 
@@ -95,6 +97,7 @@ function PurchaseInvoiceGroupInner({
                                        onUpdateLine,
                                        onCommitNumeric,
                                        onApplyProduct,
+                                       onRequestCreateProduct,
                                        onDeleteLine,
                                    }: PurchaseInvoiceGroupProps) {
     const invoiceId = invoice.id;
@@ -114,6 +117,12 @@ function PurchaseInvoiceGroupInner({
     const boundDeleteLine = useCallback(
         (lineId: string) => onDeleteLine(invoiceId, lineId),
         [onDeleteLine, invoiceId],
+    );
+    const boundRequestCreateProduct = useMemo(
+        () => onRequestCreateProduct
+            ? (lineId: string, name: string) => onRequestCreateProduct(invoiceId, lineId, name)
+            : undefined,
+        [onRequestCreateProduct, invoiceId],
     );
     const boundAddLine = useCallback(() => onAddLine(invoiceId), [onAddLine, invoiceId]);
 
@@ -306,6 +315,7 @@ function PurchaseInvoiceGroupInner({
                     onUpdateRow={boundUpdateLine}
                     onCommitNumeric={boundCommitNumeric}
                     onApplyProduct={boundApplyProduct}
+                    onRequestCreateProduct={boundRequestCreateProduct}
                     onDelete={boundDeleteLine}
                 />
             ))}
