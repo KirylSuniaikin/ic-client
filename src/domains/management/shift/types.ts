@@ -9,7 +9,9 @@ export type BaseShiftResponse = {
 // Inbound: one shift entry from GET /api/get_shift_report
 export type ShiftEntryTO = {
     id: number;
-    shiftDate: string;               // "YYYY-MM-DD"
+    // "YYYY-MM-DD", or null: shift_date is a nullable column, and a date input cleared before a
+    // save reaches it as null (Jackson coerces "" to a null LocalDate).
+    shiftDate: string | null;
     startTime: string | null;        // "HH:mm" or null
     endTime: string | null;
     totalHours: number | null;
