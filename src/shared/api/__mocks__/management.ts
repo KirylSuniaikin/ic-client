@@ -25,7 +25,15 @@ import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } fr
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
-import type { MonthlyShiftReport, ShiftDateRange } from '../../../domains/management/shift/types';
+import type {
+    BaseShiftResponse,
+    CreateShiftReportTO,
+    EditShiftReportTO,
+    MonthlyShiftReport,
+    ShiftDateRange,
+    ShiftReportTO,
+    StaffOption
+} from '../../../domains/management/shift/types';
 import type { GetBranchEventsParams, GetBranchEventsResponse } from '../../../domains/management/cash-register/types';
 import type { DoughStatus, DoughAvailabilityFlags } from '../../../domains/management/dough/types';
 import type {
@@ -144,6 +152,12 @@ export const getVatStats = jest.fn<Promise<VatStatsResponse>, [VatStatePayload]>
 
 // Monthly shift report (Statistics -> Shifts tab).
 export const getMonthlyShiftReport = jest.fn<Promise<MonthlyShiftReport>, [string, string, ShiftDateRange?]>();
+
+// Shift report table (Shifts -> report popup).
+export const getStaffByBranch = jest.fn<Promise<StaffOption[]>, [string]>();
+export const getShiftReport = jest.fn<Promise<ShiftReportTO>, [{ id: number }]>();
+export const createShiftReport = jest.fn<Promise<BaseShiftResponse>, [CreateShiftReportTO]>();
+export const editShiftReport = jest.fn<Promise<BaseShiftResponse>, [EditShiftReportTO]>();
 
 // Dough inventory (Config -> Menu tab).
 export const getDoughInventory = jest.fn<Promise<DoughStatus>, [string]>();

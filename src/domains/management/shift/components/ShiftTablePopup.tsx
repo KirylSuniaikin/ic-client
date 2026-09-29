@@ -68,6 +68,24 @@ function newRow(): ShiftRow {
     };
 }
 
+/**
+ * Newest first: a report holds a month of shifts, and the ones being entered are today's, so they
+ * belong at the top rather than at the end of a long scroll. Applied ONCE when the report loads —
+ * a live sort would make a row jump out from under the cursor the moment its date or start time
+ * is edited. Array.prototype.sort is stable, so full ties keep the server's order; a missing start
+ * time sorts last within its date.
+ */
+function byNewestFirst(a: ShiftRow, b: ShiftRow): number {
+    return b.shiftDate.localeCompare(a.shiftDate)
+        || (b.startTime ?? "").localeCompare(a.startTime ?? "");
+}
+
+// The sticky ManagementTopBar would cover a row scrolled flush to the top edge. The new row is the
+// table's first, so centring it clamps to the top of the sheet, just below the bar.
+function scrollRowIntoView(node: HTMLTableRowElement | null): void {
+    node?.scrollIntoView({behavior: "smooth", block: "center"});
+}
+
 function calculateTotalHours(row: ShiftRow): ShiftRow {
     if (!row.startTime || !row.endTime) return {...row, totalHours: null};
     const start = dayjs(row.startTime, "HH:mm");
@@ -85,9 +103,16 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [loadFailed, setLoadFailed] = useState(false);
     const [creationTimeStamp, setCreationTimeStamp] = useState("");
+    const [addedRowId, setAddedRowId] = useState<string | null>(null);
 
     const isDataLoaded = useRef(false);
+    // `saving` alone cannot stop a double tap: both taps can land before React re-renders the
+    // disabled button. The backend serialises edits of one report, but nothing de-duplicates
+    // creates, so a double tap in "new" mode makes two reports (and in edit mode sends a redundant
+    // second write). The ref flips synchronously.
+    const saveInFlight = useRef(false);
 
     const totalHours = useMemo(
         () => rows.reduce((acc, r) => acc + (r.totalHours ?? 0), 0),
@@ -105,6 +130,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         (async () => {
             try {
                 setError(null);
+                setLoadFailed(false);
                 setLoading(true);
                 const staff = await getStaffByBranch(branch.id.toString());
                 if (!cancelled) setStaffOptions(staff);
@@ -124,18 +150,23 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                         setRows(
                             resp.shifts.map((entry, i) => ({
                                 id: `r-${i}`,
-                                shiftDate: entry.shiftDate,
+                                // "" keeps the date input controlled and the sort's localeCompare
+                                // safe; a dateless row sorts last.
+                                shiftDate: entry.shiftDate ?? "",
                                 startTime: entry.startTime ? entry.startTime.slice(0, 5) : null,
                                 endTime: entry.endTime ? entry.endTime.slice(0, 5) : null,
                                 totalHours: entry.totalHours,
                                 staffId: entry.staffId,
-                            }))
+                            })).sort(byNewestFirst)
                         );
                         isDataLoaded.current = true;
                     }
                 }
             } catch (e: unknown) {
-                if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
+                if (!cancelled) {
+                    setError(e instanceof Error ? e.message : "Load failed");
+                    setLoadFailed(true);
+                }
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -156,14 +187,25 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         setRows(prev => prev.filter(r => r.id !== id));
     }
 
+    function addRow(): void {
+        const row = newRow();
+        // Prepended, matching the newest-first order the report loads in.
+        setRows(prev => [row, ...prev]);
+        setAddedRowId(row.id);
+    }
+
     const handleSave = async (): Promise<void> => {
+        if (saveInFlight.current) return;
         if (rows.some(r => r.staffId === null)) {
             setError("All rows must have a contributor selected.");
             return;
         }
+        saveInFlight.current = true;
         setSaving(true);
         setError(null);
         try {
+            // Sent in on-screen order (newest first). Position carries no meaning to the backend,
+            // which replaces the report's shifts wholesale and reads each one's own date.
             const rowsToSave = rows.map(toShiftEntryPayload);
             let report: BaseShiftResponse;
             if (mode === "new") {
@@ -176,6 +218,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Save failed");
         } finally {
+            saveInFlight.current = false;
             setSaving(false);
         }
     };
@@ -194,7 +237,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                     <>
                         <Button
                             variant="contained"
-                            onClick={() => setRows(prev => [...prev, newRow()])}
+                            onClick={addRow}
                             sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e" }, borderRadius: 4 }}
                         >
                             Add
@@ -203,6 +246,9 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                             variant="contained"
                             sx={{ bgcolor: "#E44B4C", "&:hover": { bgcolor: "#c93d3e" }, borderRadius: 4 }}
                             onClick={handleSave}
+                            // An edit replaces the report's shifts wholesale, so saving the empty
+                            // table a pending or failed load leaves behind would erase them all.
+                            disabled={saving || loading || loadFailed}
                         >
                             {saving ? "Saving..." : "Save"}
                         </Button>
@@ -243,6 +289,7 @@ export function ShiftTablePopup({open, mode, shiftReportId, branch, onSaved, onC
                                 {rows.map((row) => (
                                     <TableRow
                                         key={row.id}
+                                        ref={row.id === addedRowId ? scrollRowIntoView : undefined}
                                         sx={{"&:last-child td, &:last-child th": {border: 0}}}
                                     >
                                         {/* Shift Date */}
