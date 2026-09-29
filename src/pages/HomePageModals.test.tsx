@@ -3,7 +3,7 @@
 // so the children are mocked to probes and only this file's own logic is exercised.
 import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
 import React from "react";
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, waitFor, type RenderResult } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../shared/i18n";
 
@@ -172,12 +172,12 @@ function createBranchSwitch(overrides: Record<string, unknown> = {}): UseBranchS
     } as unknown as UseBranchSwitchResult;
 }
 
-function renderModals(
+function modalsElement(
     cartOverrides: Record<string, unknown> = {},
     checkoutOverrides: Record<string, unknown> = {},
     modalsOverrides: Record<string, unknown> = {}
-): void {
-    render(
+): JSX.Element {
+    return (
         <I18nextProvider i18n={i18n}>
             <HomePageModals
                 cart={createCart(cartOverrides)}
@@ -209,6 +209,14 @@ function renderModals(
             />
         </I18nextProvider>
     );
+}
+
+function renderModals(
+    cartOverrides: Record<string, unknown> = {},
+    checkoutOverrides: Record<string, unknown> = {},
+    modalsOverrides: Record<string, unknown> = {}
+): RenderResult {
+    return render(modalsElement(cartOverrides, checkoutOverrides, modalsOverrides));
 }
 
 function capturedOnConfirm(): (
@@ -673,5 +681,114 @@ describe("HomePageModals — a retried delivery payment", () => {
         );
         expect(keys[0]).toBe("idem-1");
         expect(keys[1]).toBe(keys[0]);
+    });
+});
+
+/**
+ * The courier-count gate (task t3): the cart sends its basket so the server can refuse an order
+ * bigger than the couriers on shift can carry — on the Delivery toggle, and again whenever the
+ * basket changes while Delivery stays selected.
+ */
+describe("HomePageModals — the basket-aware gate", () => {
+    const pizzaLine = (quantity: number): Record<string, unknown> => ({
+        id: 7, name: "Pepperoni", size: "L", category: "Pizza", isThinDough: false, isGarlicCrust: false,
+        extraIngredients: [], toppings: [], note: "", quantity, description: "", amount: 5,
+        discountAmount: 0, comboItems: null, photo: "",
+    });
+    const TOO_BIG: DeliveryAvailability = {
+        available: false, reason: "INSUFFICIENT_COURIERS", branchId: null,
+        etaMinutesMin: null, etaMinutesMax: null,
+    };
+
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockKeetaCard.mockClear();
+        mockGate.mockReset();
+        mockGate.mockResolvedValue(AVAILABLE);
+    });
+
+    function pickOrderType(): (value: string) => Promise<void> {
+        const calls = mockCartPopup.mock.calls;
+        const props = calls[calls.length - 1][0] as { onDeliveryTypeChange: (v: string) => Promise<void> };
+        return props.onDeliveryTypeChange;
+    }
+
+    it("sends the cart's basket when the customer picks Delivery", async () => {
+        renderModals({ cartItems: [pizzaLine(9)] });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(mockGate).toHaveBeenCalledWith(undefined, [{ id: 7, quantity: 9, isThinDough: false }]);
+    });
+
+    it("switches back to Pick Up and opens the Keeta card when the basket is too big", async () => {
+        mockGate.mockResolvedValue(TOO_BIG);
+        const setOrderType = jest.fn();
+        const setKeetaOpen = jest.fn();
+        renderModals({ cartItems: [pizzaLine(9)] }, { setOrderType }, { setKeetaOpen });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(setOrderType).toHaveBeenCalledWith("Pick Up");
+        expect(setOrderType).not.toHaveBeenCalledWith("Delivery");
+        expect(setKeetaOpen).toHaveBeenCalledWith(true);
+        expect(mockKeetaCard).toHaveBeenLastCalledWith(
+            expect.objectContaining({ reason: "INSUFFICIENT_COURIERS" })
+        );
+    });
+
+    it("re-checks with the new basket when it changes while Delivery is selected", async () => {
+        const checkout = { orderType: "Delivery" };
+        const view = renderModals({ cartItems: [pizzaLine(2)] }, checkout);
+        expect(mockGate).not.toHaveBeenCalled();
+
+        await act(async () => {
+            view.rerender(modalsElement({ cartItems: [pizzaLine(9)] }, checkout));
+        });
+
+        await waitFor(() => expect(mockGate).toHaveBeenCalledTimes(1));
+        expect(mockGate).toHaveBeenLastCalledWith(undefined, [{ id: 7, quantity: 9, isThinDough: false }]);
+    });
+
+    it("does not re-check when the basket changes while Pick Up is selected", async () => {
+        const checkout = { orderType: "Pick Up" };
+        const view = renderModals({ cartItems: [pizzaLine(2)] }, checkout);
+
+        await act(async () => {
+            view.rerender(modalsElement({ cartItems: [pizzaLine(9)] }, checkout));
+        });
+
+        expect(mockGate).not.toHaveBeenCalled();
+    });
+
+    it("moves to Pick Up and opens the Keeta card when a basket change makes the order too big", async () => {
+        const setOrderType = jest.fn();
+        const setKeetaOpen = jest.fn();
+        const checkout = { orderType: "Delivery", setOrderType };
+        const view = renderModals({ cartItems: [pizzaLine(2)] }, checkout, { setKeetaOpen });
+        mockGate.mockResolvedValue(TOO_BIG);
+
+        await act(async () => {
+            view.rerender(modalsElement({ cartItems: [pizzaLine(9)] }, checkout, { setKeetaOpen }));
+        });
+
+        await waitFor(() => expect(setOrderType).toHaveBeenCalledWith("Pick Up"));
+        expect(setKeetaOpen).toHaveBeenCalledWith(true);
+    });
+
+    it("ignores a slow earlier answer once the customer has moved on", async () => {
+        let resolveSlow: (value: DeliveryAvailability) => void = () => undefined;
+        mockGate.mockReturnValueOnce(new Promise<DeliveryAvailability>((resolve) => { resolveSlow = resolve; }));
+        const setOrderType = jest.fn();
+        const setKeetaOpen = jest.fn();
+        renderModals({ cartItems: [pizzaLine(9)] }, { setOrderType }, { setKeetaOpen });
+
+        let slowToggle: Promise<void> = Promise.resolve();
+        await act(async () => { slowToggle = pickOrderType()("Delivery"); });
+        await act(async () => { await pickOrderType()("Pick Up"); });
+        await act(async () => { resolveSlow(TOO_BIG); await slowToggle; });
+
+        expect(setKeetaOpen).not.toHaveBeenCalled();
+        expect(setOrderType).not.toHaveBeenCalledWith("Delivery");
     });
 });

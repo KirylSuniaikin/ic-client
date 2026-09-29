@@ -54,7 +54,12 @@ export type UpdateCustomerAddressRequest = {
  * Why delivery is unavailable (mirrors backend `DeliveryAvailabilityTO.Reason`). The copy differs
  * per reason: `OUTSIDE_RADIUS` is a permanent "not here", `NO_COURIER` is "not right now".
  */
-export type DeliveryUnavailableReason = 'NO_BRANCH' | 'OUTSIDE_RADIUS' | 'NO_COURIER';
+export type DeliveryUnavailableReason =
+    | 'NO_BRANCH'
+    | 'OUTSIDE_RADIUS'
+    | 'NO_COURIER'
+    // Couriers are on shift but fewer can be back by ready than this basket needs.
+    | 'INSUFFICIENT_COURIERS';
 
 /**
  * Mirrors backend `DeliveryAvailabilityTO`. A refusal is a 200 with a reason, never an HTTP
@@ -68,6 +73,18 @@ export type DeliveryAvailability = {
     // for exactly that case, so never render these without a null check.
     etaMinutesMin: number | null;
     etaMinutesMax: number | null;
+};
+
+/**
+ * One cart line as the availability gate sizes it — mirrors backend `DeliveryAvailabilityRequestTO`.
+ * Only the menu id, quantity and dough flag: the server takes category and size from its own menu,
+ * so nothing here can under- or over-state what a line weighs.
+ */
+export type DeliveryBasketLine = {
+    id: number;
+    quantity: number;
+    isThinDough: boolean;
+    comboItems?: { id: number; quantity: number; isThinDough: boolean }[];
 };
 
 /** A pin, before it has been saved as an address. */

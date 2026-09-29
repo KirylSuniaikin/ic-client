@@ -69,6 +69,7 @@
     "keetaTitle": "We can't deliver right now",
     "keetaOutsideRadius": "This address is outside our delivery area — but you can still order us on Keeta.",
     "keetaNoCourier": "All our drivers are busy right now. You can order us on Keeta, or switch to pickup.",
+    "keetaNotEnoughCouriers": "Your order is bigger than the drivers on shift can carry right now. You can order us on Keeta, or switch to pickup.",
     "keetaCta": "Order on Keeta",
     "keetaDismiss": "Back to pickup",
     "checkoutTitle": "Delivery",

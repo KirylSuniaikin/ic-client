@@ -30,7 +30,8 @@ const ADDRESS: CustomerAddress = {
 const AVAILABLE = { available: true, reason: null, branchId: "b1", etaMinutesMin: 20, etaMinutesMax: 30 };
 
 // Listed on the §1.6 confirm sheet. Only name/quantity/amount are read there.
-const ITEMS = [{ name: "Pepperoni", quantity: 2, amount: 3.9 } as unknown as CartItem];
+const ITEMS = [{ id: 7, name: "Pepperoni", quantity: 2, amount: 3.9, isThinDough: false, comboItems: null } as unknown as CartItem];
+const BASKET = [{ id: 7, quantity: 2, isThinDough: false }];
 
 beforeEach(() => {
     mockList.mockReset();
@@ -57,7 +58,19 @@ describe("DeliveryCheckoutDrawer", () => {
     it("preselects the newest saved address so a repeat customer can order in one tap", async () => {
         renderDrawer();
         expect(await screen.findByText(/Block 338/)).toBeTruthy();
-        await waitFor(() => expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }));
+        await waitFor(() => expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET));
+    });
+
+    it("sends the basket with the Place order pin check so the server can refuse an order too big for the couriers", async () => {
+        const { onUnavailable } = renderDrawer();
+        await screen.findByText(/20–30 min/);
+        mockGate.mockClear();
+        mockGate.mockResolvedValue({ ...AVAILABLE, available: false, reason: "INSUFFICIENT_COURIERS" });
+
+        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+
+        await waitFor(() => expect(onUnavailable).toHaveBeenCalledTimes(1));
+        expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET);
     });
 
     it("shows the ETA range for the selected pin", async () => {
@@ -90,7 +103,7 @@ describe("DeliveryCheckoutDrawer", () => {
         fireEvent.click(screen.getByRole("button", { name: /place order/i }));
 
         expect(await screen.findByRole("button", { name: /looks good/i })).toBeTruthy();
-        expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 });
+        expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET);
         // The whole point of §1.6: nothing is charged until the customer accepts what it shows.
         expect(onConfirm).not.toHaveBeenCalled();
     });

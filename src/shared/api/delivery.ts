@@ -6,6 +6,7 @@ import type {
     CreateCustomerAddressRequest,
     CustomerAddress,
     DeliveryAvailability,
+    DeliveryBasketLine,
     DeliveryPaymentMethod,
     DeliveryPaymentResult,
     UpdateCustomerAddressRequest,
@@ -35,11 +36,26 @@ async function extractErrorMessage(response: Response): Promise<string> {
  * Pass a pin once one exists (the Place-order pass); omit it for the early cart pass, which then
  * only asks whether any branch can deliver at all. Supplying one coordinate without the other is
  * a client bug and the server rejects it.
+ *
+ * Pass the basket so the server can also ask whether enough couriers can be back for it. With no
+ * (or an empty) basket this is the plain GET, exactly as before; with one it is the POST twin.
  */
-export async function getDeliveryAvailability(pin?: {
-    latitude: number;
-    longitude: number;
-}): Promise<DeliveryAvailability> {
+export async function getDeliveryAvailability(
+    pin?: { latitude: number; longitude: number },
+    basket?: DeliveryBasketLine[]
+): Promise<DeliveryAvailability> {
+    if (basket !== undefined && basket.length > 0) {
+        const response = await fetch(`${BASE_URL}/delivery/availability`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: pin?.latitude, lng: pin?.longitude, items: basket }),
+        });
+        if (!response.ok) {
+            throw new DeliveryApiError(await extractErrorMessage(response), response.status);
+        }
+        return await response.json();
+    }
+
     const query =
         pin === undefined ? '' : `?lat=${encodeURIComponent(pin.latitude)}&lng=${encodeURIComponent(pin.longitude)}`;
 

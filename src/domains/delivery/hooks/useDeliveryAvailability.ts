@@ -1,16 +1,19 @@
 // The §1.2 availability gate, checked at BOTH points (R1) because state changes in between:
 // when Delivery is picked in the cart, and again on Place order.
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { getDeliveryAvailability } from '../../../shared/api/delivery';
 import { logger } from '../../../shared/utils/logger';
-import type { Coordinates, DeliveryAvailability } from '../types';
+import type { Coordinates, DeliveryAvailability, DeliveryBasketLine } from '../types';
 
 export type UseDeliveryAvailabilityResult = {
     /** Last result, or null before the first check. */
     availability: DeliveryAvailability | null;
     checking: boolean;
-    /** Runs a gate pass. Omit the pin for the early cart check (§1.2 step 1). */
-    check: (pin?: Coordinates) => Promise<DeliveryAvailability>;
+    /**
+     * Runs a gate pass. Omit the pin for the early cart check (§1.2 step 1). Pass the basket so
+     * the server can also check there are enough couriers for it.
+     */
+    check: (pin?: Coordinates, basket?: DeliveryBasketLine[]) => Promise<DeliveryAvailability>;
     reset: () => void;
 };
 
@@ -33,18 +36,25 @@ export function useDeliveryAvailability(): UseDeliveryAvailabilityResult {
     const [availability, setAvailability] = useState<DeliveryAvailability | null>(null);
     const [checking, setChecking] = useState(false);
 
-    const check = useCallback(async (pin?: Coordinates): Promise<DeliveryAvailability> => {
+    // Latest-wins: a slow earlier response must not overwrite the state a later call already set.
+    // Every caller still gets its own result back; only the shared state is guarded.
+    const latestCall = useRef(0);
+
+    const check = useCallback(async (pin?: Coordinates, basket?: DeliveryBasketLine[]): Promise<DeliveryAvailability> => {
+        const call = ++latestCall.current;
         setChecking(true);
         try {
-            const result = await getDeliveryAvailability(pin);
-            setAvailability(result);
+            const result = basket === undefined || basket.length === 0
+                ? await getDeliveryAvailability(pin)
+                : await getDeliveryAvailability(pin, basket);
+            if (call === latestCall.current) setAvailability(result);
             return result;
         } catch (error) {
             logger.error('Delivery availability check failed:', error);
-            setAvailability(FAIL_OPEN);
+            if (call === latestCall.current) setAvailability(FAIL_OPEN);
             return FAIL_OPEN;
         } finally {
-            setChecking(false);
+            if (call === latestCall.current) setChecking(false);
         }
     }, []);
 

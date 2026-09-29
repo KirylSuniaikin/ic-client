@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
@@ -27,6 +27,7 @@ import { UnavailablePopup } from "../domains/menu/components/UnavailablePopup";
 import { KeetaFallbackCard } from "../domains/delivery/components/KeetaFallbackCard";
 import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import { useDeliveryAvailability } from "../domains/delivery/hooks/useDeliveryAvailability";
+import { basketSignature, toDeliveryBasket } from "../domains/delivery/basket";
 import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
 import { payForDelivery } from "../shared/api/delivery";
 import { logger } from "../shared/utils/logger";
@@ -102,6 +103,11 @@ export default function HomePageModals({
     // guard belongs here rather than being left to them.
     const deliverySubmittingRef = useRef(false);
 
+    const deliveryBasket = useMemo(() => toDeliveryBasket(cart.cartItems), [cart.cartItems]);
+    const basketKey = basketSignature(deliveryBasket);
+    const gateCallRef = useRef(0);
+    const gatedBasketKeyRef = useRef<string | null>(null);
+
     /**
      * §1.2 step 1 — the early gate. Runs the moment the customer picks Delivery, before they
      * invest any effort in an address, so a branch with no free courier is caught up front.
@@ -168,11 +174,16 @@ export default function HomePageModals({
     }
 
     async function handleDeliveryTypeChange(value: string): Promise<void> {
+        // Latest-wins: any newer toggle or basket check makes this call's answer stale.
+        const call = ++gateCallRef.current;
         if (value !== "Delivery") {
+            gatedBasketKeyRef.current = null;
             checkout.setOrderType(value);
             return;
         }
-        const result = await deliveryAvailability.check();
+        gatedBasketKeyRef.current = basketKey;
+        const result = await deliveryAvailability.check(undefined, deliveryBasket);
+        if (call !== gateCallRef.current) return;
         if (result.available) {
             checkout.setOrderType("Delivery");
             return;
@@ -180,6 +191,30 @@ export default function HomePageModals({
         checkout.setOrderType("Pick Up");
         setKeetaOpen(true);
     }
+
+    // The basket can change while Delivery is already selected (a line added or removed), and a
+    // basket that fitted the couriers a moment ago may not any more. Re-check on every change; the
+    // key ref stops the check the toggle itself just ran from being repeated.
+    useEffect(() => {
+        if (checkout.orderType !== "Delivery") {
+            gatedBasketKeyRef.current = null;
+            return;
+        }
+        if (gatedBasketKeyRef.current === null) {
+            // Delivery was already selected before this ran (the toggle records its own baseline):
+            // adopt the current basket as the baseline instead of asking again on mount.
+            gatedBasketKeyRef.current = basketKey;
+            return;
+        }
+        if (gatedBasketKeyRef.current === basketKey) return;
+        gatedBasketKeyRef.current = basketKey;
+        const call = ++gateCallRef.current;
+        void deliveryAvailability.check(undefined, deliveryBasket).then((result) => {
+            if (call !== gateCallRef.current || result.available) return;
+            checkout.setOrderType("Pick Up");
+            setKeetaOpen(true);
+        });
+    }, [checkout.orderType, basketKey, deliveryBasket, deliveryAvailability.check, checkout.setOrderType, setKeetaOpen]);
 
     function openPizzaEditPopUp(item: CartItem): void {
         cart.setEditItem(item);

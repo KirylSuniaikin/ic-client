@@ -52,6 +52,50 @@ describe("getDeliveryAvailability", () => {
         expect(url).toBe(`${BASE_URL}/delivery/availability?lat=26.2285&lng=50.586`);
     });
 
+    it("keeps the plain GET for an empty basket", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+
+        await getDeliveryAvailability({ latitude: 26.2285, longitude: 50.586 }, []);
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/delivery/availability?lat=26.2285&lng=50.586`);
+        expect(init.method).toBe("GET");
+    });
+
+    it("POSTs the pin and the basket as JSON when a basket is given", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ available: false, reason: "INSUFFICIENT_COURIERS",
+            branchId: "b1", etaMinutesMin: null, etaMinutesMax: null }));
+        const basket = [{ id: 7, quantity: 9, isThinDough: false,
+            comboItems: [{ id: 40, quantity: 1, isThinDough: true }] }];
+
+        const result = await getDeliveryAvailability({ latitude: 26.2285, longitude: 50.586 }, basket);
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/delivery/availability`);
+        expect(init.method).toBe("POST");
+        expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+        expect(JSON.parse(init.body as string)).toEqual({ lat: 26.2285, lng: 50.586, items: basket });
+        expect(result.reason).toBe("INSUFFICIENT_COURIERS");
+    });
+
+    it("POSTs a basket with no pin for the cart pass", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+
+        await getDeliveryAvailability(undefined, [{ id: 7, quantity: 2, isThinDough: false }]);
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(init.body as string)).toEqual({ items: [{ id: 7, quantity: 2, isThinDough: false }] });
+    });
+
+    it("throws a DeliveryApiError when the POST is rejected", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ message: "Too many items" }, 400));
+
+        await expect(getDeliveryAvailability(undefined, [{ id: 1, quantity: 1, isThinDough: false }]))
+            .rejects.toBeInstanceOf(DeliveryApiError);
+    });
+
     /**
      * A refusal is a 200 with a reason, never an HTTP error — the caller renders the Keeta card
      * from it (§1.2). Throwing here would turn an expected outcome into an error path.

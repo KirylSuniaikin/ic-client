@@ -37,6 +37,40 @@ describe("useDeliveryAvailability", () => {
         expect(mockGet).toHaveBeenCalledWith({ latitude: 26.2, longitude: 50.5 });
     });
 
+    it("forwards the pin and the basket when both are given", async () => {
+        mockGet.mockResolvedValueOnce(AVAILABLE);
+        const { result } = renderHook(() => useDeliveryAvailability());
+        const basket = [{ id: 7, quantity: 9, isThinDough: false }];
+
+        await act(async () => { await result.current.check({ latitude: 26.2, longitude: 50.5 }, basket); });
+
+        expect(mockGet).toHaveBeenCalledWith({ latitude: 26.2, longitude: 50.5 }, basket);
+    });
+
+    it("stays fail-open when a basket check errors", async () => {
+        mockGet.mockRejectedValueOnce(new Error("network down"));
+        const { result } = renderHook(() => useDeliveryAvailability());
+
+        let outcome;
+        await act(async () => { outcome = await result.current.check(undefined, [{ id: 7, quantity: 9, isThinDough: false }]); });
+
+        expect(outcome).toMatchObject({ available: true, reason: null });
+    });
+
+    it("does not let a slow earlier answer overwrite a later one in the shared state", async () => {
+        let resolveSlow: (v: typeof AVAILABLE) => void = () => undefined;
+        mockGet.mockReturnValueOnce(new Promise<typeof AVAILABLE>((resolve) => { resolveSlow = resolve; }));
+        mockGet.mockResolvedValueOnce({ ...AVAILABLE, available: false, reason: "INSUFFICIENT_COURIERS" });
+        const { result } = renderHook(() => useDeliveryAvailability());
+
+        let slow: Promise<unknown> = Promise.resolve();
+        await act(async () => { slow = result.current.check(); });
+        await act(async () => { await result.current.check(); });
+        await act(async () => { resolveSlow(AVAILABLE); await slow; });
+
+        expect(result.current.availability).toMatchObject({ reason: "INSUFFICIENT_COURIERS" });
+    });
+
     it("surfaces a refusal with its reason", async () => {
         mockGet.mockResolvedValueOnce({ available: false, reason: "NO_COURIER", branchId: "b1",
             etaMinutesMin: null, etaMinutesMax: null });

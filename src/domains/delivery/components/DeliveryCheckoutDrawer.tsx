@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Drawer, Box, Typography, Button, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,6 +12,7 @@ import {
 } from './sheetStyles';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
 import { useDeliveryAvailability } from '../hooks/useDeliveryAvailability';
+import { toDeliveryBasket } from '../basket';
 import type {
     CreateCustomerAddressRequest, CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod,
     UpdateCustomerAddressRequest,
@@ -93,11 +94,15 @@ export function DeliveryCheckoutDrawer({
      * so a separate endpoint would duplicate it. The two *gating* moments are still cart and
      * Place order; this call is for the number on screen.
      */
+    // The basket rides on every pin check so the server can also refuse an order too big for the
+    // couriers on shift; the gate on Place order is the strict one.
+    const basket = useMemo(() => toDeliveryBasket(items), [items]);
+
     const refreshEta = useCallback(
         (address: CustomerAddress) => {
-            void check({ latitude: address.latitude, longitude: address.longitude });
+            void check({ latitude: address.latitude, longitude: address.longitude }, basket);
         },
-        [check]
+        [check, basket]
     );
 
     useEffect(() => {
@@ -168,7 +173,7 @@ export function DeliveryCheckoutDrawer({
      */
     async function handlePlaceOrder(): Promise<void> {
         if (selected === null) return;
-        const result = await check({ latitude: selected.latitude, longitude: selected.longitude });
+        const result = await check({ latitude: selected.latitude, longitude: selected.longitude }, basket);
         if (!result.available) {
             onUnavailable(result);
             return;

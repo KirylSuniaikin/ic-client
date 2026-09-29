@@ -26,8 +26,11 @@ export interface KeetaFallbackCardProps {
 export function KeetaFallbackCard({ open, reason, onClose }: KeetaFallbackCardProps): JSX.Element {
     const { t } = useTranslation('checkout');
 
+    // Any reason this build does not know (a newer server) falls back to the NO_COURIER copy.
     const bodyKey =
-        reason === 'OUTSIDE_RADIUS' ? 'delivery.keetaOutsideRadius' : 'delivery.keetaNoCourier';
+        reason === 'OUTSIDE_RADIUS' ? 'delivery.keetaOutsideRadius'
+            : reason === 'INSUFFICIENT_COURIERS' ? 'delivery.keetaNotEnoughCouriers'
+                : 'delivery.keetaNoCourier';
 
     return (
         <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 4, m: 2 } }}>

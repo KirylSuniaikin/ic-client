@@ -38,6 +38,17 @@ describe("KeetaFallbackCard", () => {
         expect(screen.getByText(/drivers are busy/i)).toBeTruthy();
     });
 
+    it("says the order is bigger than the drivers on shift can carry for INSUFFICIENT_COURIERS", () => {
+        renderCard("INSUFFICIENT_COURIERS");
+        expect(screen.getByText(/bigger than the drivers on shift/i)).toBeTruthy();
+        expect(screen.queryByText(/drivers are busy/i)).toBeNull();
+    });
+
+    it("falls back to the NO_COURIER copy for a reason this build does not know", () => {
+        renderCard("SOMETHING_NEW" as unknown as DeliveryUnavailableReason);
+        expect(screen.getByText(/drivers are busy/i)).toBeTruthy();
+    });
+
     /** NO_BRANCH is an unseeded-config state the customer can do nothing about; the temporary
         wording is the less misleading of the two. */
     it("falls back to the temporary wording for an unknown reason", () => {
