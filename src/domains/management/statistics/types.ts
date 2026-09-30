@@ -556,12 +556,24 @@ export type DeliveryLegAccuracy = {
     distribution: DeliveryGapBucket[];
 };
 
+export type DeliveryOrderTotalTime = {
+    // Its own denominator (orders with a total) — NOT comparable with deliveredOrders, which
+    // counts part rows on a split order.
+    sampleCount: number;
+    // Unsigned durations in minutes; all null (never 0) when sampleCount is 0.
+    medianMinutes: number | null;
+    meanMinutes: number | null;
+    p90Minutes: number | null;
+};
+
 export type DeliveryEstimateAccuracy = {
     // The denominator for every leg's sampleCount: a leg measured on 12 of 400
     // orders is not evidence, and the reader must see that without asking.
     deliveredOrders: number;
     // Always one entry per leg, always in enum order, even at zero samples.
     legs: DeliveryLegAccuracy[];
+    // Placed → last part's drop-off, one sample per order. Not a leg: it has no quote, so no gap.
+    orderTotalTime: DeliveryOrderTotalTime;
 };
 
 // ---------------------------------------------------------------------------

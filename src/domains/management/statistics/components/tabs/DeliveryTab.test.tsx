@@ -49,6 +49,7 @@ const ACCURACY: DeliveryEstimateAccuracy = {
         toleranceMinutes: 2,
         distribution: [{fromMinutes: null, toMinutes: -20, count: 0}, {fromMinutes: 20, toMinutes: null, count: 1}],
     }],
+    orderTotalTime: {sampleCount: 10, medianMinutes: 40, meanMinutes: 41, p90Minutes: 55},
 };
 
 const SKIPS: DeliverySkipReasonStats = {

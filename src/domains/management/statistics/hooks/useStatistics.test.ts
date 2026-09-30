@@ -34,7 +34,11 @@ const emptyAvailability: DeliveryAvailabilityStats = {
     byHour: [],
 };
 
-const emptyAccuracy: DeliveryEstimateAccuracy = {deliveredOrders: 0, legs: []};
+const emptyAccuracy: DeliveryEstimateAccuracy = {
+    deliveredOrders: 0,
+    legs: [],
+    orderTotalTime: {sampleCount: 0, medianMinutes: null, meanMinutes: null, p90Minutes: null},
+};
 
 const emptySkipReasons: DeliverySkipReasonStats = {
     totalSkips: 0,

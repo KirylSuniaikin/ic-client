@@ -197,7 +197,30 @@ export function DeliveryEstimateAccuracyCard({stats, range}: Props): JSX.Element
                                     </Typography>
                                 </Box>
                             ))}
+                            {/* Not a leg: no quote, so no gap, and it must never take a
+                                leg-headline- / leg-row- testid or join passWaitMinutes. */}
+                            <Box data-testid="order-total-headline">
+                                <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>
+                                    Whole order · placed → last drop-off
+                                </Typography>
+                                <Typography variant="h5" fontWeight="bold" sx={{lineHeight: 1.2}}>
+                                    {formatMinutes(stats.orderTotalTime.medianMinutes)}
+                                    {stats.orderTotalTime.medianMinutes != null && (
+                                        <Typography component="span" variant="body2" sx={{ml: 0.5}}>min</Typography>
+                                    )}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {stats.orderTotalTime.sampleCount === 0
+                                        ? "no measurable orders"
+                                        : `mean ${formatMinutes(stats.orderTotalTime.meanMinutes)} · p90 ${formatMinutes(stats.orderTotalTime.p90Minutes)} · ${stats.orderTotalTime.sampleCount} orders measured`}
+                                </Typography>
+                            </Box>
                         </Box>
+
+                        <Typography variant="caption" color="text.secondary" sx={{display: "block", mb: 1}}>
+                            Whole order is one figure per order with no quote, so it has no gap; a split order ends at
+                            its last part.
+                        </Typography>
 
                         <Typography variant="caption" color="text.secondary" sx={{display: "block", mb: 1}}>
                             Total is measured end to end, not Kitchen + Road: the span between them — food waiting

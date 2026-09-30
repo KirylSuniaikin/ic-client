@@ -78,7 +78,12 @@ const TOTAL: DeliveryLegAccuracy = {
     distribution: distribution([0, 0, 4, 4, 24, 4, 2, 2, 0]),
 };
 
-const STATS: DeliveryEstimateAccuracy = {deliveredOrders: 40, legs: [KITCHEN, ROAD, TOTAL]};
+const ORDER_TOTAL = {sampleCount: 30, medianMinutes: 41.5, meanMinutes: 43.2, p90Minutes: 58};
+const STATS: DeliveryEstimateAccuracy = {
+    deliveredOrders: 40,
+    legs: [KITCHEN, ROAD, TOTAL],
+    orderTotalTime: ORDER_TOTAL,
+};
 
 // A leg nothing could be measured on. Every figure is null and the counts are zero — the shape the
 // backend sends for a leg with no samples at all.
@@ -233,7 +238,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("renders an unmeasurable leg as dashes and never as zeros", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL]}}
+                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -249,7 +254,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("prints the denominator beside every leg's sample count", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, {...ROAD, sampleCount: 12, unmeasurableCount: 28}, TOTAL]}}
+                stats={{deliveredOrders: 40, legs: [KITCHEN, {...ROAD, sampleCount: 12, unmeasurableCount: 28}, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -269,7 +274,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("says nothing about the wait on the pass when it cannot be derived", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL]}}
+                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -301,12 +306,70 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("says nothing was delivered rather than drawing a table of zeros", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 0, legs: [UNMEASURED]}}
+                stats={{deliveredOrders: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
                 range="Aug 1, 2026"
             />
         );
 
         expect(screen.getByText("No delivery orders were completed in this range")).toBeTruthy();
         expect(screen.queryByTestId("estimate-accuracy-table")).toBeNull();
+    });
+
+    describe("whole-order total time", () => {
+        it("renders the median, mean, p90 and the measured count", () => {
+            render(<DeliveryEstimateAccuracyCard stats={STATS} range={null}/>);
+
+            const block = within(screen.getByTestId("order-total-headline"));
+            expect(block.getByText(/Whole order · placed → last drop-off/)).toBeTruthy();
+            expect(block.getByText("41.5")).toBeTruthy();
+            expect(block.getByText(/mean 43\.2 · p90 58\.0 · 30 orders measured/)).toBeTruthy();
+        });
+
+        it("renders dashes and 'no measurable orders' rather than zeros when nothing was measured", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{
+                        ...STATS,
+                        orderTotalTime: {sampleCount: 0, medianMinutes: null, meanMinutes: null, p90Minutes: null},
+                    }}
+                    range={null}
+                />
+            );
+
+            const block = within(screen.getByTestId("order-total-headline"));
+            expect(block.getByText("—")).toBeTruthy();
+            expect(block.getByText(/no measurable orders/)).toBeTruthy();
+            expect(block.queryByText(/0\.0/)).toBeNull();
+        });
+
+        it("adds no fourth leg headline or row", () => {
+            render(<DeliveryEstimateAccuracyCard stats={STATS} range={null}/>);
+
+            expect(screen.getAllByTestId(/^leg-headline-/)).toHaveLength(3);
+            expect(screen.getAllByTestId(/^leg-row-/)).toHaveLength(3);
+        });
+
+        it("keeps the pass-wait text when the order-total sample differs from the legs' counts", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...STATS, orderTotalTime: {...ORDER_TOTAL, sampleCount: 7}}}
+                    range={null}
+                />
+            );
+
+            expect(screen.getByTestId("pass-wait").textContent).toContain("1.0");
+        });
+
+        it("shows the existing empty state and no order-total block when nothing was delivered", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{deliveredOrders: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
+                    range={null}
+                />
+            );
+
+            expect(screen.getByText("No delivery orders were completed in this range")).toBeTruthy();
+            expect(screen.queryByTestId("order-total-headline")).toBeNull();
+        });
     });
 });
