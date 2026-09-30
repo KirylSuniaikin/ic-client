@@ -208,6 +208,7 @@ function adminOrdersValue(): UseAdminOrdersResult {
         doughAlertMessage: "",
         clearDoughAlert: jest.fn(),
         loading: false,
+        refreshOrderParts: jest.fn(),
     };
 }
 

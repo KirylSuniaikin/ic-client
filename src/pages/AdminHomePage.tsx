@@ -92,7 +92,7 @@ function AdminHomePage(): JSX.Element {
     // every frame published while the board was open is gone for good.
     const ordersLive = !isReviewer && ui.activeAdminTab === 'orders';
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
-        cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
+        cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading, refreshOrderParts,
     } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, ordersLive);
     const { stopSound } = useAlertAudio(alertOrder, editedOrder);
     audioStopRef.current = stopSound;
@@ -168,7 +168,8 @@ function AdminHomePage(): JSX.Element {
                         onDeleteClick={() => handleDeleteClick(order)}
                         onPayClick={o => { ui.setSelectedOrder(o); ui.setPaymentDialogOpen(true); }}
                         onPickedUpClick={o => setOrders(prev => prev.filter(x => x.id !== o.id))}
-                        onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))} />)}
+                        onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))}
+                        onPartHandOverConflict={id => { void refreshOrderParts(id); }} />)}
                 </Box>
             )}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (

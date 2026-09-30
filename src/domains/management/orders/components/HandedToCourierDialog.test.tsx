@@ -134,4 +134,33 @@ describe("HandedToCourierDialog — split order part copy", () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
         expect(onCancel).not.toHaveBeenCalled();
     });
+
+    it("names the rider in the copy when the part carries a courierName", () => {
+        render(
+            <HandedToCourierDialog
+                open
+                order={ORDER}
+                onConfirm={jest.fn<void, []>()}
+                onCancel={jest.fn<void, []>()}
+                part={{ partIndex: 1, partsTotal: 2, courierName: "Ali" }}
+            />
+        );
+
+        expect(screen.getByText(/part 1 of 2 of order #4821 has\s+been handed to Ali\./)).toBeTruthy();
+        expect(screen.queryByText(/handed to the courier/)).toBeNull();
+    });
+
+    it("keeps 'the courier' in the copy when the part has no courierName", () => {
+        render(
+            <HandedToCourierDialog
+                open
+                order={ORDER}
+                onConfirm={jest.fn<void, []>()}
+                onCancel={jest.fn<void, []>()}
+                part={{ partIndex: 1, partsTotal: 2, courierName: null }}
+            />
+        );
+
+        expect(screen.getByText(/handed to the courier/)).toBeTruthy();
+    });
 });

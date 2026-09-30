@@ -136,6 +136,7 @@ export type KitchenPartStatus = {
     partId: number;
     partIndex: number;
     handedOver: boolean;
+    courierName?: string | null;
 };
 
 export type Order = {

@@ -26,6 +26,7 @@ import { Order } from "../../../order/types";
 export interface HandedToCourierPart {
     partIndex: number;
     partsTotal: number;
+    courierName?: string | null;
 }
 
 interface Props {
@@ -63,7 +64,7 @@ export function HandedToCourierDialog({ open, order, onConfirm, onCancel, part }
                     {part ? (
                         <>
                             Confirm part {part.partIndex} of {part.partsTotal} of order #{order?.order_no} has
-                            been handed to the courier. The rest of the order stays on this board until its
+                            been handed to {part.courierName ?? "the courier"}. The rest of the order stays on this board until its
                             own part is handed over.
                         </>
                     ) : (

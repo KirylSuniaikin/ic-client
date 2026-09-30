@@ -246,10 +246,13 @@ export async function fetchPartProofPhoto(partId: number): Promise<Blob | null> 
 }
 
 /** Part-primary sibling of {@link markHandedOverToCourier} — same {@link DeliveryApiError} contract. */
-export async function markPartHandedOverToCourier(partId: number): Promise<void> {
+export async function markPartHandedOverToCourier(partId: number, courierName?: string): Promise<void> {
     const res = await authFetch(`${BASE_URL}/kitchen/delivery/parts/${partId}/handed-over`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // The name is the rider the kitchen tapped; the backend refuses it if the part was
+        // reassigned meanwhile. Omitted entirely for a single-part order or an unnamed part.
+        ...(courierName ? { body: JSON.stringify({ courierName }) } : {}),
     });
     if (!res.ok) throw new DeliveryApiError(`Response: ${res.status}`, res.status);
 }

@@ -386,4 +386,26 @@ describe("dispatcher — part-primary siblings", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
         await expect(markPartHandedOverToCourier(501)).rejects.toMatchObject({ status: 409 });
     });
+
+    it("markPartHandedOverToCourier sends {courierName} as the JSON body when a name is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await markPartHandedOverToCourier(501, "Ali");
+
+        expect(calledInit().body).toBe(JSON.stringify({ courierName: "Ali" }));
+    });
+
+    it("markPartHandedOverToCourier sends no body when the name is omitted", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await markPartHandedOverToCourier(501);
+
+        expect(calledInit().body).toBeUndefined();
+    });
+
+    it("markPartHandedOverToCourier with a name still throws a typed error carrying the 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+
+        await expect(markPartHandedOverToCourier(501, "Ali")).rejects.toMatchObject({ status: 409 });
+    });
 });

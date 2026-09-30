@@ -144,6 +144,9 @@ interface OrderCardProps {
     onPayClick?: (order: Order) => void;
     onPickedUpClick?: (order: Order) => void;
     onOvenClick?: (order: Order) => void;
+    // Asked when a per-part hand-over is refused because the shown rider is stale: the board
+    // re-reads this order's parts so the button names the current rider.
+    onPartHandOverConflict?: (orderId: string) => void;
 }
 
 /**
@@ -157,6 +160,10 @@ function handOverErrorMessage(err: unknown): string {
     }
     return `Hand-over failed. ${err instanceof Error ? err.message : String(err)}`;
 }
+
+/** Split-part 409: a reassigned rider or a still-unassigned sibling — distinct from the single-path copy. */
+const SPLIT_PART_CONFLICT_MESSAGE =
+    "This part's rider has changed or another part is still unassigned. The board is refreshing — check the name and try again.";
 
 /**
  * The hand-over button's own label carries the only rider state the kitchen can act on.
@@ -200,9 +207,10 @@ const ALL_PARTS_NEED_A_COURIER_NOTICE =
     "Every part needs its own courier before any of them can be handed over.";
 
 function splitPartButtonLabel(part: KitchenPartStatus, partsTotal: number): string {
-    return part.handedOver
+    const label = part.handedOver
         ? `PART ${part.partIndex}/${partsTotal} HANDED OVER`
         : `HAND OVER PART ${part.partIndex}/${partsTotal}`;
+    return part.courierName ? `${label} · ${part.courierName}` : label;
 }
 
 function isNotKeetaDefaultNotes(notes: string) {
@@ -223,6 +231,8 @@ function OrderCard({
                        onPickedUpClick = () => {
                        },
                        onOvenClick = () => {
+                       },
+                       onPartHandOverConflict = () => {
                        },
                    }: OrderCardProps): JSX.Element {
     const formattedTime = formatTime(order.order_created);
@@ -273,11 +283,19 @@ function OrderCard({
         if (!target) return;
         setHandingOverPartIds(prev => new Set(prev).add(target.partId));
         try {
-            await markPartHandedOverToCourier(target.partId);
+            // No name argument at all for an unnamed part, so the request carries no body.
+            await (target.courierName
+                ? markPartHandedOverToCourier(target.partId, target.courierName)
+                : markPartHandedOverToCourier(target.partId));
             setLocallyHandedOverPartIds(prev => new Set(prev).add(target.partId));
         } catch (err) {
             logger.error("Courier hand-over confirmation failed for part:", target.partId, err);
-            setHandOverError(handOverErrorMessage(err));
+            if (err instanceof DeliveryApiError && err.status === 409) {
+                setHandOverError(SPLIT_PART_CONFLICT_MESSAGE);
+                onPartHandOverConflict(order.id);
+            } else {
+                setHandOverError(handOverErrorMessage(err));
+            }
         } finally {
             setHandingOverPartIds(prev => {
                 const next = new Set(prev);
@@ -725,7 +743,8 @@ function OrderCard({
                 onConfirm={() => { void confirmSplitPartHandOver(); }}
                 onCancel={() => setSplitHandOverTarget(null)}
                 part={splitHandOverTarget
-                    ? {partIndex: splitHandOverTarget.partIndex, partsTotal: order.partsTotal ?? splitHandOverTarget.partIndex}
+                    ? {partIndex: splitHandOverTarget.partIndex, partsTotal: order.partsTotal ?? splitHandOverTarget.partIndex,
+                        courierName: splitHandOverTarget.courierName}
                     : undefined}
             />
             {/* Same failure surface the rest of the admin board uses (AdminHomePage's dough

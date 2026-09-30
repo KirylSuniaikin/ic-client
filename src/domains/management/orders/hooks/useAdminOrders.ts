@@ -25,6 +25,7 @@ export interface UseAdminOrdersResult {
     doughAlertMessage: string;
     clearDoughAlert: () => void;
     loading: boolean;
+    refreshOrderParts: (orderId: string) => Promise<void>;
 }
 
 const SUPPRESS_KEY = 'suppressSoundIds';
@@ -132,6 +133,23 @@ export function useAdminOrders(
     const suppressedIdsRef = useRef(new Set<string>());
     const ordersRef = useRef<Order[]>([]);
     ordersRef.current = orders;
+
+    // A newly assigned/reassigned rider's name is not in any live frame, so a split order's part
+    // buttons are re-read from REST. Patches `parts` and `courier_assigned` of that one order only.
+    const refreshOrderParts = async (orderId: string): Promise<void> => {
+        if (!branchId) return;
+        try {
+            const fresh = (await fetchActiveOrders(branchId)).find(o => getStringId(o) === orderId);
+            if (!fresh) return;
+            setOrders(prev => prev.map(o => getStringId(o) === orderId
+                ? { ...o, parts: fresh.parts, courier_assigned: fresh.courier_assigned }
+                : o));
+        } catch (err) {
+            logger.error('Order parts refresh failed:', err);
+        }
+    };
+    const refreshOrderPartsRef = useRef(refreshOrderParts);
+    refreshOrderPartsRef.current = refreshOrderParts;
 
     const stopSoundRef = useRef(stopSound);
     stopSoundRef.current = stopSound;
@@ -381,6 +399,10 @@ export function useAdminOrders(
                             return { ...o, courier_assigned: true };
                         })
                     );
+                    const alertedOrder = ordersRef.current.find(o => getStringId(o) === alertedOrderId);
+                    if (isAssignment && (alertedOrder?.partsTotal ?? 1) > 1) {
+                        void refreshOrderPartsRef.current(alertedOrderId);
+                    }
 
                     // Deliberately NOT acked. This topic has no OrderEvents retry behind it, and
                     // that ACK map is keyed by orderId ALONE — an ack published from here would
@@ -471,5 +493,6 @@ export function useAdminOrders(
         doughAlertMessage,
         clearDoughAlert,
         loading,
+        refreshOrderParts,
     };
 }

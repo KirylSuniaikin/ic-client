@@ -16,6 +16,7 @@ import { connectSocket, socket } from "../../../../shared/api/socket";
 import { getBaseAdminInfo, getAllActiveOrders } from "../../../../shared/api/public";
 import { useAdminOrders } from "./useAdminOrders";
 import BluetoothPrinterService from "../../../../services/BluetoothPrinterService";
+import { logger } from "../../../../shared/utils/logger";
 
 const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
@@ -680,5 +681,123 @@ describe("useAdminOrders — delivery alerts", () => {
 
             expect(view.result.current.orders[0].courier_assigned).toBe(true);
         });
+    });
+});
+
+/**
+ * T7: a newly assigned rider's name is not in the COURIER_ASSIGNED frame, so a frame for an order
+ * that is already split re-reads that one order's parts from REST.
+ */
+describe("useAdminOrders — split assignment refresh (T7)", () => {
+    const stopSound = jest.fn<void, []>();
+    const TOPIC = "/topic/branch-1/delivery-alert";
+    let handlers: Record<string, (msg: IMessage) => void>;
+
+    const splitOrder = (id: number, parts: Order["parts"], courierAssigned = false): Order =>
+        ({ id, order_type: "Delivery", partsTotal: 2, parts, courier_assigned: courierAssigned, status: "Ready" } as unknown as Order);
+    const plainOrder = (id: number): Order =>
+        ({ id, order_type: "Delivery", partsTotal: 1, courier_assigned: false, status: "Ready" } as unknown as Order);
+
+    const sendAssigned = (orderId: number): void => {
+        handlers[TOPIC]({ body: JSON.stringify({ type: "COURIER_ASSIGNED", orderId }) } as unknown as IMessage);
+    };
+
+    async function boardWith(orders: Order[]): Promise<RenderHookResult<UseAdminOrdersResult, unknown>> {
+        mockGetAllActiveOrders.mockResolvedValue(orders);
+        let view!: RenderHookResult<UseAdminOrdersResult, unknown>;
+        await act(async () => {
+            view = renderHook(() => useAdminOrders("branch-1", stopSound));
+        });
+        return view;
+    }
+
+    beforeEach(() => {
+        handlers = {};
+        mockConnectSocket.mockImplementation((onConnect: () => void) => {
+            onConnect();
+            return jest.fn<void, []>();
+        });
+        mockSubscribe.mockImplementation((destination: string, cb: (msg: IMessage) => void) => {
+            handlers[destination] = cb;
+            return makeSub(destination);
+        });
+        mockGetBaseAdminInfo.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        jest.clearAllMocks();
+    });
+
+    it("refetches and patches only that order's parts and courier_assigned for a split order", async () => {
+        const stale = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Ali" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: null }];
+        const view = await boardWith([splitOrder(7, stale), splitOrder(8, stale)]);
+        const fresh = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Ali" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: "Sara" }];
+        mockGetAllActiveOrders.mockClear();
+        mockGetAllActiveOrders.mockResolvedValue([
+            { ...splitOrder(7, fresh, true), status: "Oven" } as unknown as Order,
+            splitOrder(8, fresh, true),
+        ]);
+
+        await act(async () => { sendAssigned(7); });
+
+        expect(mockGetAllActiveOrders).toHaveBeenCalledTimes(1);
+        const [o7, o8] = view.result.current.orders;
+        expect(o7.parts).toEqual(fresh);
+        expect(o7.courier_assigned).toBe(true);
+        // Only the two named fields move: the refetched status is not adopted.
+        expect(o7.status).toBe("Ready");
+        // The other order is untouched by the refresh.
+        expect(o8.parts).toEqual(stale);
+        expect(o8.courier_assigned).toBe(false);
+    });
+
+    it("does not refetch for a non-split order", async () => {
+        await boardWith([plainOrder(7)]);
+        mockGetAllActiveOrders.mockClear();
+
+        await act(async () => { sendAssigned(7); });
+
+        expect(mockGetAllActiveOrders).not.toHaveBeenCalled();
+    });
+
+    it("logs a failed refetch and leaves state unchanged", async () => {
+        const parts = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Ali" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: "Sara" }];
+        const view = await boardWith([splitOrder(7, parts, false)]);
+        const errorSpy = jest.spyOn(logger, "error").mockImplementation(() => undefined);
+        mockGetAllActiveOrders.mockRejectedValue(new Error("network down"));
+
+        await act(async () => { sendAssigned(7); });
+
+        expect(errorSpy).toHaveBeenCalled();
+        expect(view.result.current.orders[0].parts).toEqual(parts);
+    });
+
+    it("does nothing when the order is gone from the refetched board", async () => {
+        const parts = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Ali" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: "Sara" }];
+        const view = await boardWith([splitOrder(7, parts, false)]);
+        mockGetAllActiveOrders.mockResolvedValue([]);
+
+        await act(async () => { sendAssigned(7); });
+
+        expect(view.result.current.orders).toHaveLength(1);
+        expect(view.result.current.orders[0].parts).toEqual(parts);
+    });
+
+    it("exposes refreshOrderParts for the card's 409 path", async () => {
+        const stale = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Ali" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: "Sara" }];
+        const view = await boardWith([splitOrder(7, stale, true)]);
+        const fresh = [{ partId: 1, partIndex: 1, handedOver: false, courierName: "Omar" },
+            { partId: 2, partIndex: 2, handedOver: false, courierName: "Sara" }];
+        mockGetAllActiveOrders.mockResolvedValue([splitOrder(7, fresh, true)]);
+
+        await act(async () => { await view.result.current.refreshOrderParts("7"); });
+
+        expect(view.result.current.orders[0].parts).toEqual(fresh);
     });
 });

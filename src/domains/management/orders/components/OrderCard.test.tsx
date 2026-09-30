@@ -606,3 +606,134 @@ describe("OrderCard — split order hand-over (courier-capacity Phase 5)", () =>
         expect(screen.queryByText(/PART 2\/3 HANDED OVER/)).toBeNull();
     });
 });
+
+/**
+ * T7 (owner decision Q5-1): each split part's button names its assigned rider, the confirm
+ * repeats the name and sends it, and a stale name (409) tells the board to refresh that order.
+ */
+describe("OrderCard — split order names the rider (T7)", () => {
+    const onPartHandOverConflict = jest.fn<void, [string]>();
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockMarkPartHandedOverToCourier.mockResolvedValue(undefined);
+    });
+
+    function renderNamed(order: Order): void {
+        render(
+            <MemoryRouter>
+                <OrderCard order={order} onDeleteClick={jest.fn()} onPartHandOverConflict={onPartHandOverConflict} />
+            </MemoryRouter>
+        );
+    }
+
+    function makeNamedSplit(): Order {
+        return makeOrder({
+            id: "1234",
+            status: "Ready",
+            order_type: "Delivery",
+            partsTotal: 2,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: true, courierName: "Ali" },
+                { partId: 502, partIndex: 2, handedOver: false, courierName: "Sara" },
+            ],
+            courier_assigned: true,
+        });
+    }
+
+    it("appends the rider's name to each part's label, handed-over or not", () => {
+        renderNamed(makeNamedSplit());
+
+        expect(screen.getByText("HAND OVER PART 2/2 · Sara")).toBeTruthy();
+        expect(screen.getByText("PART 1/2 HANDED OVER · Ali")).toBeTruthy();
+    });
+
+    it("renders today's label for a part with no courierName", () => {
+        renderNamed(makeOrder({
+            status: "Ready",
+            order_type: "Delivery",
+            partsTotal: 2,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: false, courierName: null },
+                { partId: 502, partIndex: 2, handedOver: false },
+            ],
+            courier_assigned: false,
+        }));
+
+        expect(screen.getByText("HAND OVER PART 1/2")).toBeTruthy();
+        expect(screen.getByText("HAND OVER PART 2/2")).toBeTruthy();
+    });
+
+    it("names the rider in the confirm dialog", () => {
+        renderNamed(makeNamedSplit());
+
+        fireEvent.click(screen.getByText("HAND OVER PART 2/2 · Sara"));
+
+        expect(screen.getByText(/part 2 of 2 of order #\d+ has\s+been handed to Sara\./)).toBeTruthy();
+    });
+
+    it("confirms with the tapped part's id and its rider's name", async () => {
+        renderNamed(makeNamedSplit());
+
+        fireEvent.click(screen.getByText("HAND OVER PART 2/2 · Sara"));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkPartHandedOverToCourier).toHaveBeenCalledWith(502, "Sara"));
+    });
+
+    it("sends no name when the tapped part has none", async () => {
+        renderNamed(makeOrder({
+            status: "Ready",
+            order_type: "Delivery",
+            partsTotal: 2,
+            parts: [
+                { partId: 501, partIndex: 1, handedOver: false },
+                { partId: 502, partIndex: 2, handedOver: false },
+            ],
+            courier_assigned: true,
+        }));
+
+        fireEvent.click(screen.getByText("HAND OVER PART 1/2"));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkPartHandedOverToCourier).toHaveBeenCalledTimes(1));
+        expect(mockMarkPartHandedOverToCourier.mock.calls[0]).toEqual([501]);
+    });
+
+    it("keeps a single-part order at one tap: single button, no rider name, no name argument", async () => {
+        mockMarkHandedOverToCourier.mockResolvedValue(undefined);
+        renderNamed(makeReadyDelivery({ id: "77", partsTotal: 1, courier_assigned: true }));
+
+        expect(screen.getByText("HANDED TO COURIER")).toBeTruthy();
+        expect(screen.queryByText(/ · /)).toBeNull();
+        fireEvent.click(screen.getByText("HANDED TO COURIER"));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        await waitFor(() => expect(mockMarkHandedOverToCourier).toHaveBeenCalledWith(77));
+        expect(mockMarkPartHandedOverToCourier).not.toHaveBeenCalled();
+    });
+
+    it("shows the split-specific message and asks the board to refresh once on a 409", async () => {
+        mockMarkPartHandedOverToCourier.mockRejectedValue(new DeliveryApiError("Response: 409", 409));
+        renderNamed(makeNamedSplit());
+
+        fireEvent.click(screen.getByText("HAND OVER PART 2/2 · Sara"));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        expect(await screen.findByText(/This part's rider has changed or another part is still unassigned/)).toBeTruthy();
+        expect(screen.queryByText(/No courier is assigned to this order yet/)).toBeNull();
+        expect(onPartHandOverConflict).toHaveBeenCalledTimes(1);
+        expect(onPartHandOverConflict).toHaveBeenCalledWith("1234");
+    });
+
+    it("does not ask for a refresh on a non-409 failure", async () => {
+        mockMarkPartHandedOverToCourier.mockRejectedValue(new DeliveryApiError("Response: 500", 500));
+        renderNamed(makeNamedSplit());
+
+        fireEvent.click(screen.getByText("HAND OVER PART 2/2 · Sara"));
+        fireEvent.click(screen.getByText("Confirm"));
+
+        expect(await screen.findByText(/Hand-over failed\. Response: 500/)).toBeTruthy();
+        expect(onPartHandOverConflict).not.toHaveBeenCalled();
+    });
+});
