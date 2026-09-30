@@ -19,6 +19,14 @@ const LEG_MEANING: Record<DeliveryLeg, string> = {
     TOTAL: "order placed → drop-off · quoted as the two halves added together",
 };
 
+// KITCHEN is de-duplicated to one sample per order by the backend, so it reads against the distinct
+// orders in its own sample set (measured + unmeasurable). That set includes split orders not yet
+// fully delivered or completed in a later window, which deliveredOrderCount excludes; using that
+// count would let the numerator exceed the denominator. ROAD and TOTAL are per courier part.
+function legDenominator(leg: DeliveryLegAccuracy, stats: DeliveryEstimateAccuracy): number {
+    return leg.leg === "KITCHEN" ? leg.sampleCount + leg.unmeasurableCount : stats.deliveredOrders;
+}
+
 // A status palette, not a categorical one: these three are states (early / on time / late), each
 // carries its own bucket label and count beside it, and none of the values is invented — success
 // green, brand red and the secondary ink are all in DESIGN.md.
@@ -185,7 +193,7 @@ export function DeliveryEstimateAccuracyCard({stats, range}: Props): JSX.Element
                                         {stats.deliveredOrders}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                        one per courier part — the leg rows below read against this
+                                        one per courier part — Road and Total read against this; Kitchen counts each order once
                                     </Typography>
                                 </Box>
                             )}
@@ -282,7 +290,7 @@ export function DeliveryEstimateAccuracyCard({stats, range}: Props): JSX.Element
                                                 orders reads as evidence unless the denominator is
                                                 sitting next to it. */}
                                             <TableCell align="right">
-                                                {leg.sampleCount} of {stats.deliveredOrders}
+                                                {leg.sampleCount} of {legDenominator(leg, stats)}
                                                 {leg.unmeasurableCount > 0 && (
                                                     <Typography variant="caption" color="text.secondary"
                                                                 sx={{display: "block"}}>

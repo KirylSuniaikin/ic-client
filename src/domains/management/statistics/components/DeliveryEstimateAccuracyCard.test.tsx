@@ -374,6 +374,131 @@ describe("DeliveryEstimateAccuracyCard", () => {
         });
     });
 
+    describe("leg row denominators", () => {
+        const SPLIT_LEGS = {
+            ...STATS,
+            deliveredOrders: 40,
+            deliveredOrderCount: 25,
+            legs: [
+                {...KITCHEN, sampleCount: 25, unmeasurableCount: 0},
+                {...ROAD, sampleCount: 12, unmeasurableCount: 28},
+                TOTAL,
+            ],
+            orderTotalTime: {...ORDER_TOTAL, sampleCount: 25},
+        };
+
+        it("reads the kitchen row against orders, not drop-offs, on a split payload", () => {
+            render(<DeliveryEstimateAccuracyCard stats={SPLIT_LEGS} range={null}/>);
+
+            const kitchen = within(screen.getByTestId("leg-row-KITCHEN"));
+            expect(kitchen.getByText(/25 of 25/)).toBeTruthy();
+            expect(kitchen.queryByText(/of 40/)).toBeNull();
+            expect(within(screen.getByTestId("leg-row-ROAD")).getByText(/12 of 40/)).toBeTruthy();
+        });
+
+        it("keeps the total row reading against drop-offs", () => {
+            render(<DeliveryEstimateAccuracyCard stats={SPLIT_LEGS} range={null}/>);
+
+            expect(within(screen.getByTestId("leg-row-TOTAL")).getByText(/of 40/)).toBeTruthy();
+        });
+
+        it("keeps each unmeasurable note beside its own denominator", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...SPLIT_LEGS, legs: [
+                        {...KITCHEN, sampleCount: 20, unmeasurableCount: 5},
+                        SPLIT_LEGS.legs[1],
+                        TOTAL,
+                    ]}}
+                    range={null}
+                />
+            );
+
+            const kitchen = within(screen.getByTestId("leg-row-KITCHEN"));
+            expect(kitchen.getByText(/20 of 25/)).toBeTruthy();
+            expect(kitchen.getByText("5 unmeasurable")).toBeTruthy();
+            const road = within(screen.getByTestId("leg-row-ROAD"));
+            expect(road.getByText(/12 of 40/)).toBeTruthy();
+            expect(road.getByText("28 unmeasurable")).toBeTruthy();
+        });
+
+        it("reads the kitchen against its own sample set, so a half-delivered split order cannot make it 2 of 1", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{
+                        ...SPLIT_LEGS,
+                        deliveredOrders: 3,
+                        deliveredOrderCount: 1,
+                        legs: [{...KITCHEN, sampleCount: 2, unmeasurableCount: 0}, SPLIT_LEGS.legs[1], TOTAL],
+                    }}
+                    range={null}
+                />
+            );
+
+            const kitchen = within(screen.getByTestId("leg-row-KITCHEN"));
+            expect(kitchen.getByText(/2 of 2/)).toBeTruthy();
+            expect(kitchen.queryByText(/of 1/)).toBeNull();
+        });
+
+        it("adds the unmeasurable orders to the kitchen denominator even when delivered orders is larger", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{
+                        ...SPLIT_LEGS,
+                        deliveredOrderCount: 30,
+                        legs: [{...KITCHEN, sampleCount: 20, unmeasurableCount: 5}, SPLIT_LEGS.legs[1], TOTAL],
+                    }}
+                    range={null}
+                />
+            );
+
+            expect(within(screen.getByTestId("leg-row-KITCHEN")).getByText(/20 of 25/)).toBeTruthy();
+        });
+
+        it("reads 40 of 40 on every row when parts and orders are equal", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{
+                        ...SPLIT_LEGS,
+                        deliveredOrderCount: 40,
+                        legs: [
+                            {...KITCHEN, sampleCount: 40},
+                            {...ROAD, sampleCount: 40},
+                            {...TOTAL, sampleCount: 40},
+                        ],
+                    }}
+                    range={null}
+                />
+            );
+
+            for (const leg of ["KITCHEN", "ROAD", "TOTAL"]) {
+                expect(within(screen.getByTestId(`leg-row-${leg}`)).getByText(/40 of 40/)).toBeTruthy();
+            }
+        });
+
+        it("reads 0 of 0 for the kitchen when parts were delivered but no order completed", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{
+                        ...STATS,
+                        deliveredOrders: 5,
+                        deliveredOrderCount: 0,
+                        legs: [
+                            {...KITCHEN, sampleCount: 0, unmeasurableCount: 0},
+                            {...ROAD, sampleCount: 3, unmeasurableCount: 0},
+                            TOTAL,
+                        ],
+                    }}
+                    range={null}
+                />
+            );
+
+            expect(within(screen.getByTestId("leg-row-KITCHEN")).getByText(/0 of 0/)).toBeTruthy();
+            expect(within(screen.getByTestId("leg-row-ROAD")).getByText(/3 of 5/)).toBeTruthy();
+            expect(screen.getAllByTestId(/^leg-row-/)).toHaveLength(3);
+        });
+    });
+
     describe("delivered orders headline", () => {
         const SPLIT_COUNTS = {
             ...STATS,
@@ -405,7 +530,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
             const drops = within(screen.getByTestId("delivery-drop-offs-headline"));
             expect(drops.getByText("Courier drop-offs")).toBeTruthy();
             expect(drops.getByText("40")).toBeTruthy();
-            expect(drops.getByText("one per courier part — the leg rows below read against this")).toBeTruthy();
+            expect(drops.getByText("one per courier part — Road and Total read against this; Kitchen counts each order once")).toBeTruthy();
         });
 
         it("keeps the leg rows reading against the per-part denominator", () => {
