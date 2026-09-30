@@ -251,6 +251,26 @@ describe("BluetoothPrinterService.formatOrderItems -- part marker (courier-capac
         expect(output).toContain("1x Family Deal (Large) [Part 2/2]\n");
     });
 
+    it("prints every share of a line cut across parts, and keeps an uncut line's plain marker", () => {
+        const cutItem: OrderItem = {
+            ...PIZZA_ITEM,
+            quantity: 5,
+            partShares: [{ partIndex: 1, quantity: 3 }, { partIndex: 2, quantity: 2 }],
+        };
+        const uncutItem: OrderItem = { ...COMBO_ITEM, partIndex: 2, partShares: [{ partIndex: 2, quantity: 1 }] };
+
+        const output = bluetoothPrinterService.formatOrderItems([cutItem, uncutItem], 2);
+
+        expect(output).toContain("5x Pepperoni (Medium) [Part 1/2: 3 of 5] [Part 2/2: 2 of 5]\n");
+        expect(output).toContain("1x Family Deal (Large) [Part 2/2]\n");
+    });
+
+    it("ignores shares on an order that is not split", () => {
+        const item: OrderItem = { ...PIZZA_ITEM, partShares: [{ partIndex: 1, quantity: 1 }, { partIndex: 2, quantity: 1 }] };
+
+        expect(bluetoothPrinterService.formatOrderItems([item], 1)).not.toContain("[Part");
+    });
+
     // A drink/side the allocator did not need to pin to one part carries no partIndex at all.
     it("marks nothing for an item with no partIndex, even on a split order", () => {
         const unassignedItem: OrderItem = { ...PIZZA_ITEM, partIndex: undefined };

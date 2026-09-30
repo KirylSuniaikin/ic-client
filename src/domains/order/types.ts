@@ -123,7 +123,13 @@ export type OrderItem = {
     // Courier-capacity Phase 5: 1-based, present only on a split order's items — which of the
     // order's delivery parts this item belongs to. Absent/undefined for every non-split order.
     partIndex?: number;
+    // t6: present only on a split order, ordered by partIndex. A line cut across parts has several
+    // entries (partIndex is then absent); mirrors backend ActiveOrdersTO.ActiveOrderItemTO.PartShareTO.
+    partShares?: OrderItemPartShare[];
 };
+
+/** t6: mirrors backend ActiveOrdersTO.PartShareTO — the units of an item one delivery part carries. */
+export type OrderItemPartShare = { partIndex: number; quantity: number };
 
 /** Courier-capacity Phase 5: mirrors backend ActiveOrdersTO.KitchenPartTO. */
 export type KitchenPartStatus = {

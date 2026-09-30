@@ -465,15 +465,27 @@ function OrderCard({
                                 {/* Courier-capacity Phase 5: "Part k/N" only when the order is
                                     genuinely split — undefined partIndex/partsTotal on every other
                                     order leaves this byte-identical to before the phase. */}
-                                {(order.partsTotal ?? 1) > 1 && item.partIndex != null && (
-                                    <Typography
-                                        component="span"
-                                        variant="body2"
-                                        sx={{ml: 1, fontWeight: 600, color: colorRed}}
-                                    >
-                                        Part {item.partIndex}/{order.partsTotal}
-                                    </Typography>
-                                )}
+                                {(order.partsTotal ?? 1) > 1 && (item.partShares?.length ?? 0) > 1
+                                    // t6: a line cut across parts reads "Part 1/2: 3 of 5", one label per share.
+                                    ? item.partShares?.map((share) => (
+                                        <Typography
+                                            key={share.partIndex}
+                                            component="span"
+                                            variant="body2"
+                                            sx={{ml: 1, fontWeight: 600, color: colorRed}}
+                                        >
+                                            Part {share.partIndex}/{order.partsTotal}: {share.quantity} of {item.quantity}
+                                        </Typography>
+                                    ))
+                                    : (order.partsTotal ?? 1) > 1 && item.partIndex != null && (
+                                        <Typography
+                                            component="span"
+                                            variant="body2"
+                                            sx={{ml: 1, fontWeight: 600, color: colorRed}}
+                                        >
+                                            Part {item.partIndex}/{order.partsTotal}
+                                        </Typography>
+                                    )}
                             </Typography>
 
                             {renderItemDetails(item)}

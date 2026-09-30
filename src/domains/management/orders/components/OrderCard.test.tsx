@@ -482,6 +482,35 @@ describe("OrderCard — split order hand-over (courier-capacity Phase 5)", () =>
         expect(screen.getByText("Part 2/2")).toBeTruthy();
     });
 
+    it("renders 'Part k/N: q of Q' once per share for a line cut across parts", () => {
+        renderCard(makeSplitDelivery({
+            items: [
+                {
+                    name: "Margherita", category: "Pizzas", size: "L", quantity: 5, amount: 25, description: "",
+                    partShares: [{partIndex: 1, quantity: 3}, {partIndex: 2, quantity: 2}],
+                },
+            ],
+        }));
+
+        expect(screen.getByText("Part 1/2: 3 of 5")).toBeTruthy();
+        expect(screen.getByText("Part 2/2: 2 of 5")).toBeTruthy();
+        expect(screen.queryByText("Part 1/2")).toBeNull();
+    });
+
+    it("keeps a plain 'Part k/N' for an uncut line that carries a single share", () => {
+        renderCard(makeSplitDelivery({
+            items: [
+                {
+                    name: "Cola", category: "Beverages", size: "", quantity: 2, amount: 2, description: "",
+                    partIndex: 2, partShares: [{partIndex: 2, quantity: 2}],
+                },
+            ],
+        }));
+
+        expect(screen.getByText("Part 2/2")).toBeTruthy();
+        expect(screen.queryByText(/ of /)).toBeNull();
+    });
+
     it("renders no 'Part k/N' label at all on a non-split order's items", () => {
         renderCard(makeReadyDelivery({
             items: [
