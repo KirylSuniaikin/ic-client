@@ -58,9 +58,10 @@ import {
     EMPTY_FILTERS,
     isDefaultView,
     nextSorts,
+    setSortDir,
     nextTypeFilter,
 } from "../entryView";
-import type { AccountFilterValue, EntryFilters, EntrySort, EntrySortColumn } from "../entryView";
+import type { AccountFilterValue, EntryFilters, EntrySort, EntrySortColumn, SortDir } from "../entryView";
 import { ColumnHeaderFilter } from "./ColumnHeaderFilter";
 import type { HeaderSortState } from "./ColumnHeaderFilter";
 import { MultiSelectFilterPopover } from "./MultiSelectFilterPopover";
@@ -706,6 +707,11 @@ export function AccountingReportPopup({
         requestViewChange(() => setSorts(next));
     }
 
+    function handleSortSet(column: EntrySortColumn, dir: SortDir): void {
+        const next = setSortDir(sorts, column, dir);
+        requestViewChange(() => setSorts(next));
+    }
+
     function handleTypeCycle(): void {
         const next = nextTypeFilter(filters.type);
         requestViewChange(() => setFilters((f) => ({ ...f, type: next })));
@@ -1017,7 +1023,6 @@ export function AccountingReportPopup({
                                                 label="Description"
                                                 testId="header-sort-note"
                                                 sortState={sortStateFor("note")}
-                                                onSort={() => handleSortClick("note")}
                                                 filter={{
                                                     active: filters.note.trim() !== "",
                                                     ariaLabel: "Filter description",
@@ -1028,6 +1033,7 @@ export function AccountingReportPopup({
                                                             value={noteDraft}
                                                             onChange={setNoteDraft}
                                                             ariaLabel="Description contains"
+                                                            sort={{ dir: sortStateFor("note").dir, onSelect: (d) => handleSortSet("note", d) }}
                                                         />
                                                     ),
                                                 }}
@@ -1038,7 +1044,6 @@ export function AccountingReportPopup({
                                                 label="Account"
                                                 testId="header-sort-account"
                                                 sortState={sortStateFor("account")}
-                                                onSort={() => handleSortClick("account")}
                                                 filter={{
                                                     active: filters.accounts.length > 0,
                                                     ariaLabel: "Filter account",
@@ -1049,6 +1054,7 @@ export function AccountingReportPopup({
                                                             options={ACCOUNT_FILTER_OPTIONS}
                                                             selected={filters.accounts}
                                                             onToggle={handleAccountToggle}
+                                                            sort={{ dir: sortStateFor("account").dir, onSelect: (d) => handleSortSet("account", d) }}
                                                         />
                                                     ),
                                                 }}
@@ -1059,7 +1065,6 @@ export function AccountingReportPopup({
                                                 label="Category"
                                                 testId="header-sort-category"
                                                 sortState={sortStateFor("category")}
-                                                onSort={() => handleSortClick("category")}
                                                 filter={{
                                                     active: filters.categoryIds.length > 0,
                                                     ariaLabel: "Filter category",
@@ -1070,6 +1075,7 @@ export function AccountingReportPopup({
                                                             options={categoryFilterOptions}
                                                             selected={filters.categoryIds}
                                                             onToggle={handleCategoryToggle}
+                                                            sort={{ dir: sortStateFor("category").dir, onSelect: (d) => handleSortSet("category", d) }}
                                                             searchable
                                                         />
                                                     ),

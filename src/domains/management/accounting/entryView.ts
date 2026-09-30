@@ -136,6 +136,14 @@ export function nextSorts(sorts: readonly EntrySort[], column: EntrySortColumn):
   return sorts.filter((_, i) => i !== index);
 }
 
+/** Explicit direction (used by the filter popovers): picking the active direction again turns the sort off. */
+export function setSortDir(sorts: readonly EntrySort[], column: EntrySortColumn, dir: SortDir): EntrySort[] {
+  const index = sorts.findIndex((s) => s.column === column);
+  if (index === -1) return [...sorts, { column, dir }];
+  if (sorts[index].dir === dir) return sorts.filter((_, i) => i !== index);
+  return sorts.map((s, i) => (i === index ? { column, dir } : s));
+}
+
 export function nextTypeFilter(t: EntryFilters['type']): EntryFilters['type'] {
   if (t === 'ALL') return 'DEBIT';
   if (t === 'DEBIT') return 'CREDIT';

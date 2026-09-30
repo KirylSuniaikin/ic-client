@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Checkbox, FormControlLabel, Popover, TextField, Typography } from "@mui/material";
 import { BRAND_RED } from "../../../../shared/utils/theme";
+import { SortDirButtons } from "./SortDirButtons";
+import type { PopoverSort } from "./SortDirButtons";
 
 // Same chrome as statistics' DateRangePickerPopover so the two filter families read as one.
 export const FILTER_POPOVER_PAPER_SX = { borderRadius: 3, mt: 0.5, boxShadow: 6 } as const;
@@ -18,6 +20,7 @@ interface Props<V extends string | number> {
     selected: readonly V[];
     onToggle: (value: V) => void;
     searchable?: boolean;
+    sort?: PopoverSort;
 }
 
 export function MultiSelectFilterPopover<V extends string | number>({
@@ -28,6 +31,7 @@ export function MultiSelectFilterPopover<V extends string | number>({
     selected,
     onToggle,
     searchable = false,
+    sort,
 }: Props<V>): React.JSX.Element {
     const [query, setQuery] = React.useState("");
     // Narrows what is LISTED only — a selected option that the search hides stays selected.
@@ -43,6 +47,7 @@ export function MultiSelectFilterPopover<V extends string | number>({
             slotProps={{ paper: { sx: FILTER_POPOVER_PAPER_SX } }}
         >
             <Box sx={{ p: 2, minWidth: 220, maxHeight: 360, overflowY: "auto" }}>
+                {sort && <SortDirButtons {...sort} />}
                 {searchable && (
                     <TextField
                         size="small"

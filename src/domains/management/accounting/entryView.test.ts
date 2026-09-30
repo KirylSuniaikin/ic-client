@@ -7,6 +7,7 @@ import {
     isDefaultView,
     nextSorts,
     nextTypeFilter,
+    setSortDir,
     unsavedRowKeys,
 } from "./entryView";
 import type { DirtyRow, EntryFilters, EntrySort, EntryViewContext } from "./entryView";
@@ -343,5 +344,29 @@ describe("unsavedRowKeys", () => {
     it("is empty when nothing changed", () => {
         const rows = [row(), row()];
         expect(unsavedRowKeys(rows, rows).size).toBe(0);
+    });
+});
+
+describe("setSortDir", () => {
+    it("appends a column that is not sorted yet, keeping priority order", () => {
+        expect(setSortDir([{ column: "date", dir: "desc" }], "note", "asc")).toEqual([
+            { column: "date", dir: "desc" },
+            { column: "note", dir: "asc" },
+        ]);
+    });
+
+    it("switches direction in place, keeping the priority slot", () => {
+        const sorts: EntrySort[] = [
+            { column: "note", dir: "asc" },
+            { column: "date", dir: "desc" },
+        ];
+        expect(setSortDir(sorts, "note", "desc")).toEqual([
+            { column: "note", dir: "desc" },
+            { column: "date", dir: "desc" },
+        ]);
+    });
+
+    it("turns the sort off when the active direction is picked again", () => {
+        expect(setSortDir([{ column: "note", dir: "asc" }], "note", "asc")).toEqual([]);
     });
 });

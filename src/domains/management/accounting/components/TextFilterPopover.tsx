@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Popover, TextField } from "@mui/material";
 import { FILTER_POPOVER_PAPER_SX } from "./MultiSelectFilterPopover";
+import { SortDirButtons } from "./SortDirButtons";
+import type { PopoverSort } from "./SortDirButtons";
 
 interface Props {
     open: boolean;
@@ -9,10 +11,11 @@ interface Props {
     value: string;
     onChange: (value: string) => void;
     ariaLabel: string;
+    sort?: PopoverSort;
 }
 
 /** Controlled text box in a popover; debouncing is the owner's job, so typing stays instant. */
-export function TextFilterPopover({ open, anchorEl, onClose, value, onChange, ariaLabel }: Props): React.JSX.Element {
+export function TextFilterPopover({ open, anchorEl, onClose, value, onChange, ariaLabel, sort }: Props): React.JSX.Element {
     return (
         <Popover
             open={open}
@@ -22,6 +25,7 @@ export function TextFilterPopover({ open, anchorEl, onClose, value, onChange, ar
             slotProps={{ paper: { sx: FILTER_POPOVER_PAPER_SX } }}
         >
             <Box sx={{ p: 2, minWidth: 240 }}>
+                {sort && <SortDirButtons {...sort} />}
                 <TextField
                     autoFocus
                     size="small"

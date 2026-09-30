@@ -142,8 +142,11 @@ const rowDates = (): string[] =>
         (el) => (el as HTMLInputElement).value.slice(0, 10)
     );
 
+// Date and Amount sort from their label; the other three open a filter popover from theirs.
 const ariaSort = (column: string): string | null | undefined =>
-    screen.getByTestId(`header-sort-${column}`).closest("th")?.getAttribute("aria-sort");
+    (screen.queryByTestId(`header-sort-${column}`) ?? screen.getByTestId(`header-filter-${column}`))
+        .closest("th")
+        ?.getAttribute("aria-sort");
 
 // Echoes back whatever the popup sent, assigning an id to rows that arrived without one.
 function echoEntries(payloadEntries: Array<{ id?: number; clientRef?: string }>): AccountingEntryTO[] {
@@ -213,18 +216,36 @@ describe("column-header sort and filters", () => {
     };
 
     describe("header controls", () => {
-        it("gives Date, Amount, Description, Account and Category a sort label, and the last three a separate filter icon", async () => {
+        it("sorts Date and Amount on click, and opens the filter on click for Description, Account and Category", async () => {
             renderPopup();
             await findTable();
 
-            for (const column of ["date", "amount", "note", "account", "category"]) {
+            for (const column of ["date", "amount"]) {
                 expect(screen.getByTestId(`header-sort-${column}`)).toBeTruthy();
             }
             for (const label of ["Filter description", "Filter account", "Filter category"]) {
                 expect(screen.getByRole("button", { name: label })).toBeTruthy();
             }
-            expect(screen.queryByRole("button", { name: /filter (date|amount)/i })).toBeNull();
+            for (const column of ["note", "account", "category"]) {
+                expect(screen.queryByTestId(`header-sort-${column}`)).toBeNull();
+            }
         });
+
+        it("the Description popover also sorts A to Z, Z to A, and off again", async () => {
+            renderPopup();
+            await findTable();
+
+            fireEvent.click(screen.getByRole("button", { name: "Filter description" }));
+            fireEvent.click(await screen.findByTestId("sort-asc"));
+            await waitFor(() => expect(ariaSort("note")).toBe("ascending"), SLOW);
+            await screen.findByTestId("chip-sort-note");
+
+            fireEvent.click(screen.getByTestId("sort-desc"));
+            await waitFor(() => expect(ariaSort("note")).toBe("descending"), SLOW);
+
+            fireEvent.click(screen.getByTestId("sort-desc"));
+            await waitFor(() => expect(ariaSort("note")).toBe("none"), SLOW);
+        }, 30_000);
 
         it("keeps Contributor and Balance free of sort and filter controls, and the header at 10 cells", async () => {
             renderPopup();
@@ -657,10 +678,10 @@ describe("column-header sort and filters", () => {
             await promptGone();
 
             fireEvent.change(screen.getByDisplayValue("25"), { target: { value: "26" } });
-            fireEvent.click(screen.getByTestId("header-sort-note"));
+            fireEvent.click(screen.getByTestId("header-sort-date"));
 
             await screen.findByTestId("unsaved-prompt");
-            expect(ariaSort("note")).toBe("none");
+            expect(ariaSort("date")).toBe("descending");
         });
 
         it("promotes a new report to an edit: the second save updates, never creates again", async () => {
@@ -688,7 +709,7 @@ describe("column-header sort and filters", () => {
             expect(mockCreateReport).toHaveBeenCalledTimes(1);
 
             fireEvent.change(screen.getByDisplayValue("40"), { target: { value: "41" } });
-            fireEvent.click(screen.getByTestId("header-sort-note"));
+            fireEvent.click(screen.getByTestId("header-sort-date"));
             await screen.findByTestId("unsaved-prompt");
             fireEvent.click(screen.getByTestId("unsaved-save"));
 
