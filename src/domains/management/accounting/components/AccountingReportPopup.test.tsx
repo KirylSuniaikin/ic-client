@@ -468,24 +468,35 @@ describe("AccountingReportPopup", () => {
             expect(screen.queryByRole("option", { name: "Supplies" })).toBeNull();
         });
 
-        it("toggles the date sort between newest-first (default) and oldest-first", async () => {
+        it("cycles the date sort: newest-first (default) -> oldest-first -> off -> newest-first", async () => {
             renderPopup();
             await findTable();
 
             // Dates only: this test is about the ORDER the rows come out in, and the times the
-            // entries now carry would just make the expectations noisier without testing more.
-            const rowDates = () =>
+            // entries carry would just make the expectations noisier without testing more.
+            const rowDates = (): string[] =>
                 Array.from(document.querySelectorAll('input[type="datetime-local"]')).map(
                     (el) => (el as HTMLInputElement).value.slice(0, 10)
                 );
+            const ariaSort = (): string | null | undefined =>
+                screen.getByTestId("header-sort-date").closest("th")?.getAttribute("aria-sort");
 
             expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]);
+            expect(ariaSort()).toBe("descending");
 
-            fireEvent.click(screen.getByTestId("sort-toggle"));
+            fireEvent.click(screen.getByTestId("header-sort-date"));
             await waitFor(() => expect(rowDates()).toEqual(["2026-07-01", "2026-07-02"]));
+            expect(ariaSort()).toBe("ascending");
 
-            fireEvent.click(screen.getByTestId("sort-toggle"));
-            await waitFor(() => expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]));
+            // Off: ties fall back to reverse insertion order, and the report loads oldest-first,
+            // so the unsorted order happens to equal newest-first here.
+            fireEvent.click(screen.getByTestId("header-sort-date"));
+            await waitFor(() => expect(ariaSort()).toBe("none"));
+            expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]);
+
+            fireEvent.click(screen.getByTestId("header-sort-date"));
+            await waitFor(() => expect(ariaSort()).toBe("descending"));
+            expect(rowDates()).toEqual(["2026-07-02", "2026-07-01"]);
         });
     });
 

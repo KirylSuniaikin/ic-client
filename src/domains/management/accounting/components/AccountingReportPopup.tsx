@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Box,
+    ButtonBase,
     Button,
+    Chip,
     CircularProgress,
     Dialog,
     IconButton,
@@ -10,7 +12,6 @@ import {
     Paper,
     Select,
     SelectChangeEvent,
-    Stack,
     Table,
     TableBody,
     TableCell,
@@ -20,8 +21,7 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { ManagementTopBar } from "../../_shared/components/ManagementTopBar";
 import type { IBranch } from "../../inventory/types";
 import type {
@@ -49,6 +49,25 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { PreResponseNetworkError } from "../../../../shared/api/client";
 import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList";
 import { InfiniteScrollSentinel } from "../../../../shared/components/InfiniteScrollSentinel";
+import { BRAND_RED } from "../../../../shared/utils/theme";
+import {
+    applyEntryView,
+    unsavedRowKeys,
+    areRowsEqual,
+    DEFAULT_SORTS,
+    EMPTY_FILTERS,
+    isDefaultView,
+    nextSorts,
+    setSortDir,
+    nextTypeFilter,
+} from "../entryView";
+import type { AccountFilterValue, EntryFilters, EntrySort, EntrySortColumn, SortDir } from "../entryView";
+import { ColumnHeaderFilter } from "./ColumnHeaderFilter";
+import type { HeaderSortState } from "./ColumnHeaderFilter";
+import { MultiSelectFilterPopover } from "./MultiSelectFilterPopover";
+import type { FilterOption } from "./MultiSelectFilterPopover";
+import { TextFilterPopover } from "./TextFilterPopover";
+import { UnsavedChangesPrompt } from "./UnsavedChangesPrompt";
 
 /**
  * Null is a real fourth answer, not a missing value: an adjustment or a correction did not move
@@ -179,6 +198,61 @@ function deriveBaseBalance(report: AccountingReportTO): number | null {
         : first.runningBalance + firstAmt;
 }
 
+const SORT_LABELS: Record<EntrySortColumn, string> = {
+    date: "Date",
+    amount: "Amount",
+    note: "Description",
+    account: "Account",
+    category: "Category",
+};
+
+const TYPE_FILTER_LABELS: Record<EntryFilters["type"], string> = {
+    ALL: "All",
+    DEBIT: "Debit",
+    CREDIT: "Credit",
+};
+
+const NOTE_FILTER_DEBOUNCE_MS = 300;
+
+const ACCOUNT_FILTER_OPTIONS: FilterOption<AccountFilterValue>[] = [
+    ...ACCOUNT_OPTIONS.map((value): FilterOption<AccountFilterValue> => ({ value, label: ACCOUNT_LABELS[value] })),
+    { value: "NONE", label: "None" },
+];
+
+function toggled<T>(list: readonly T[], value: T): T[] {
+    return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+/**
+ * Re-syncs local rows to what the server now holds: ids from the clientRef map, and the photo
+ * flags resolved (a pending upload / removal has just been carried out).
+ */
+function adoptRows(rows: EntryRow[], saved: AccountingReportTO): EntryRow[] {
+    const serverIdByRef = new Map<string, number>();
+    for (const entry of saved.entries ?? []) {
+        if (entry.clientRef) serverIdByRef.set(entry.clientRef, entry.id);
+    }
+    return rows.map((r) => ({
+        ...r,
+        id: serverIdByRef.get(r._key) ?? r.id,
+        hasImage: r.pendingImage ? true : r.removeImage ? false : r.hasImage,
+        pendingImage: null,
+        removeImage: false,
+    }));
+}
+
+type SaveOutcome =
+    | { kind: "saved"; saved: AccountingReportTO }
+    | { kind: "photosFailed"; saved: AccountingReportTO; failedPhotos: number }
+    | { kind: "failed" };
+
+function photoFailureMessage(failedPhotos: number): string {
+    return (
+        `Report saved, but ${failedPhotos} photo(s) could not be uploaded. ` +
+        `Re-attach them and save again — the report data is safe.`
+    );
+}
+
 type Props = {
     open: boolean;
     mode: "new" | "edit";
@@ -207,29 +281,51 @@ export function AccountingReportPopup({
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    // Newest-first by default, matching a freshly added row's expected position.
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+    // Newest-first by default, matching a freshly added row's expected position. Ordered by
+    // priority: index 0 is the primary sort.
+    const [sorts, setSorts] = useState<EntrySort[]>([...DEFAULT_SORTS]);
+    const [filters, setFilters] = useState<EntryFilters>(EMPTY_FILTERS);
+    // What the Description box shows; committed to `filters.note` after a debounce so typing
+    // does not re-filter (and re-render) up to 400 rows on every keystroke.
+    const [noteDraft, setNoteDraft] = useState("");
+    // `rows` as of the last load / successful prompt-save. "Dirty" means rows differ from this.
+    const [savedSnapshot, setSavedSnapshot] = useState<EntryRow[]>([]);
+    // The report this popup is editing on the server. Starts as the prop, and becomes the created
+    // id after a first save so a second save UPDATES instead of creating a duplicate report.
+    const [persistedReportId, setPersistedReportId] = useState<number | null>(
+        mode === "edit" ? (reportId ?? null) : null
+    );
+    const [promptOpen, setPromptOpen] = useState(false);
+    // The sort/filter change waiting on the unsaved-changes prompt. A ref: it is never rendered.
+    const pendingChangeRef = useRef<(() => void) | null>(null);
 
     const computedRows = useMemo(
         () => (isOwner ? recomputeBalances(rows, baseBalance) : rows),
         [rows, baseBalance, isOwner]
     );
 
-    // Sorting is for DISPLAY only — computedRows above already carries the correct running
-    // balances (oldest-first internally), so re-sorting it here must never touch balance math.
-    // Ties (same-date rows) are broken by insertion order in `rows`, NOT position within
-    // computedRows (which recomputeBalances may have already re-sorted for an owner) — this is
-    // what lets a freshly added same-date row still show first without needing addRow() to
-    // mutate the underlying array order (see addRow()'s comment for why that was a real bug).
-    const sortedRows = useMemo(() => {
-        const factor = sortDir === "asc" ? 1 : -1;
-        const insertionIndex = new Map(rows.map((r, i) => [r._key, i]));
-        return [...computedRows].sort((a, b) => {
-            const dateCmp = factor * a.date.localeCompare(b.date);
-            if (dateCmp !== 0) return dateCmp;
-            return (insertionIndex.get(b._key) ?? 0) - (insertionIndex.get(a._key) ?? 0);
-        });
-    }, [computedRows, rows, sortDir]);
+    const categoryNameById = useMemo(
+        () => new Map(categories.map((c) => [c.id, c.name] as const)),
+        [categories]
+    );
+    const insertionIndex = useMemo(() => new Map(rows.map((r, i) => [r._key, i] as const)), [rows]);
+
+    // Filtering and sorting are for DISPLAY only — computedRows above already carries the correct
+    // running balances (oldest-first internally), so the view must never touch balance math, and
+    // `rows` (what save sends) is never filtered or re-ordered. Ties are broken by insertion order
+    // in `rows`, NOT position within computedRows (which recomputeBalances may have already
+    // re-sorted for an owner) — this is what lets a freshly added same-date row still show first
+    // without needing addRow() to mutate the underlying array order (see addRow()'s comment).
+    const isDirty = useMemo(() => !areRowsEqual(rows, savedSnapshot), [rows, savedSnapshot]);
+    const pinnedKeys = useMemo(
+        () => (isDirty ? unsavedRowKeys(rows, savedSnapshot) : undefined),
+        [isDirty, rows, savedSnapshot]
+    );
+
+    const sortedRows = useMemo(
+        () => applyEntryView(computedRows, filters, sorts, { categoryNameById, insertionIndex, pinnedKeys }),
+        [computedRows, filters, sorts, categoryNameById, insertionIndex, pinnedKeys]
+    );
 
     // A month-end report runs to ~400 entries, each an editable row of selects and inputs, and
     // rendering them all is what makes this popup crawl. Windows the RENDER only: `rows` stays
@@ -243,15 +339,15 @@ export function AccountingReportPopup({
     // Only SAVED rows are windowed. A row you just added has no id yet, and hiding it behind a
     // scroll is the one thing this must never do -- you would click Add and see nothing.
     //
-    // Keyed on sortDir as well as the report: flipping the order is a new order, and leaving the
-    // window 200 rows into the old one would show an arbitrary slice of the new.
+    // Keyed on the sorts and filters as well as the report: a new order or a new subset is a new
+    // list, and leaving the window 200 rows into the old one would show an arbitrary slice of it.
     const {
         visible: windowSlice,
         hasMore: hasMoreRows,
         sentinelRef,
     } = useIncrementalList(sortedRows, {
         pageSize: 20,
-        resetKey: `${reportId ?? "new"}-${sortDir}`,
+        resetKey: `${reportId ?? "new"}-${JSON.stringify(sorts)}-${JSON.stringify(filters)}`,
     });
 
     // Filtered by INDEX rather than concatenating two slices: sortedRows already carries the
@@ -268,6 +364,14 @@ export function AccountingReportPopup({
         let alive = true;
         setLoading(true);
         setError(null);
+        setSorts([...DEFAULT_SORTS]);
+        setFilters(EMPTY_FILTERS);
+        setNoteDraft("");
+        setPromptOpen(false);
+        pendingChangeRef.current = null;
+        // Deliberately NOT a dependency of this effect: promoting a new report to an edit after
+        // its first save must not refetch or reset the rows the user is looking at.
+        setPersistedReportId(mode === "edit" ? (reportId ?? null) : null);
 
         (async () => {
             try {
@@ -284,8 +388,7 @@ export function AccountingReportPopup({
                     setVersion(report.version);
                     const base = isOwner ? (report.startBalance ?? deriveBaseBalance(report)) : null;
                     setBaseBalance(base);
-                    setRows(
-                        [...(report.entries ?? [])]
+                    const loaded: EntryRow[] = [...(report.entries ?? [])]
                             .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
                             .map((e) => ({
                                 _key: `loaded-${e.id}`,
@@ -305,15 +408,18 @@ export function AccountingReportPopup({
                                 hasImage: e.hasImage,
                                 pendingImage: null,
                                 removeImage: false,
-                            }))
-                    );
+                            }));
+                    setRows(loaded);
+                    setSavedSnapshot(loaded);
                 } else {
                     // Accounting always names the report after the current month — never roll
                     // back near month-start the way Inventory does.
                     setTitle(dateFormatter("-", "en", false).toLowerCase() + "-" + branch.locale.toUpperCase());
                     setVersion(null);
                     setBaseBalance(null);
-                    setRows([newRow()]);
+                    const seeded = [newRow()];
+                    setRows(seeded);
+                    setSavedSnapshot(seeded);
                 }
             } catch (e: unknown) {
                 if (alive) setError(e instanceof Error ? e.message : "Failed to load");
@@ -403,41 +509,64 @@ export function AccountingReportPopup({
      * photo failure without a second save duplicating rows or re-uploading what already landed.
      */
     function adoptSavedReport(saved: AccountingReportTO): void {
-        const serverIdByRef = new Map<string, number>();
-        for (const entry of saved.entries ?? []) {
-            if (entry.clientRef) serverIdByRef.set(entry.clientRef, entry.id);
-        }
         setVersion(saved.version);
-        setRows((prev) =>
-            prev.map((r) => ({
-                ...r,
-                id: serverIdByRef.get(r._key) ?? r.id,
-                hasImage: r.pendingImage ? true : r.removeImage ? false : r.hasImage,
-                pendingImage: null,
-                removeImage: false,
-            }))
-        );
+        setRows((prev) => adoptRows(prev, saved));
     }
 
-    async function handleSave(): Promise<void> {
+    /**
+     * Takes a just-saved report back in as the new baseline — version, ids, photo flags, opening
+     * balance and per-row balances — and snapshots it, so the popup reads clean and a second save
+     * updates in place. Built from the rows that were actually SENT, once, so `rows` and the
+     * snapshot are the same array.
+     */
+    function takeInSavedReport(saved: AccountingReportTO): void {
+        const entryByRef = new Map<string, AccountingReportTO["entries"][number]>();
+        const entryById = new Map<number, AccountingReportTO["entries"][number]>();
+        for (const entry of saved.entries ?? []) {
+            entryById.set(entry.id, entry);
+            if (entry.clientRef) entryByRef.set(entry.clientRef, entry);
+        }
+        const adopted = adoptRows(rows, saved).map((r) => {
+            const entry = entryByRef.get(r._key) ?? (r.id !== undefined ? entryById.get(r.id) : undefined);
+            if (!entry) return r;
+            return {
+                ...r,
+                runningBalance: entry.runningBalance ?? r.runningBalance,
+                contributorName: entry.contributorName ?? r.contributorName,
+            };
+        });
+        setVersion(saved.version);
+        setBaseBalance(isOwner ? (saved.startBalance ?? deriveBaseBalance(saved)) : null);
+        setRows(adopted);
+        setSavedSnapshot(adopted);
+    }
+
+    /**
+     * Validates, saves (with the one network retry) and syncs photos. Reports the outcome instead
+     * of deciding what happens next, because the Save button closes the popup and the unsaved-
+     * changes prompt keeps it open. Failures are surfaced here through the error alert.
+     */
+    async function runSave(): Promise<SaveOutcome> {
         if (!title.trim()) {
             setError("Report title is required.");
-            return;
+            return { kind: "failed" };
         }
         const hasInvalid = rows.some(
             (r) => !r.categoryId || !r.amount || parseFloat(r.amount) <= 0
         );
         if (hasInvalid) {
             setError("Every row needs a category and a positive amount.");
-            return;
+            return { kind: "failed" };
         }
 
-        if (mode === "edit" && version == null) return;
+        // Create vs update follows what is on the server, not the `mode` prop: after a first save
+        // from the prompt the popup is still mounted with mode "new".
+        const target =
+            persistedReportId !== null && version !== null ? { id: persistedReportId, version } : null;
+        if (persistedReportId !== null && target === null) return { kind: "failed" };
 
-        // Kept as nested functions (rather than hoisted to module scope) so the null-check above
-        // narrows `version` for the edit-mode payload below.
         async function saveReportOnce(): Promise<AccountingReportTO> {
-            if (mode === "new") {
+            if (target === null) {
                 const payload: CreateAccountingReportPayload = {
                     branchId: branch.id.toString(),
                     title: title.trim(),
@@ -453,7 +582,7 @@ export function AccountingReportPopup({
                 return createAccountingReport(payload);
             }
             const payload: UpdateAccountingReportPayload = {
-                version,
+                version: target.version,
                 entries: rows.map((r) => ({
                     id: r.id,
                     categoryId: r.categoryId as number,
@@ -464,7 +593,7 @@ export function AccountingReportPopup({
                     clientRef: r._key,
                 })),
             };
-            return updateAccountingReport(reportId as number, payload);
+            return updateAccountingReport(target.id, payload);
         }
 
         // Retries once, but ONLY when no HTTP response was ever received (offline, DNS failure,
@@ -492,15 +621,7 @@ export function AccountingReportPopup({
             // A failed photo must never present itself as a failed save.
             onSaved(saved);
 
-            if (failedPhotos > 0) {
-                adoptSavedReport(saved);
-                setError(
-                    `Report saved, but ${failedPhotos} photo(s) could not be uploaded. ` +
-                    `Re-attach them and save again — the report data is safe.`
-                );
-                return;
-            }
-            onClose();
+            return failedPhotos > 0 ? { kind: "photosFailed", saved, failedPhotos } : { kind: "saved", saved };
         } catch (e: unknown) {
             const status = (e as { status?: number })?.status;
             if (status === 409) {
@@ -512,19 +633,220 @@ export function AccountingReportPopup({
             } else {
                 setError(e instanceof Error ? e.message : "Failed to save.");
             }
+            return { kind: "failed" };
         } finally {
             setSaving(false);
         }
     }
 
+    async function handleSave(): Promise<void> {
+        const outcome = await runSave();
+        if (outcome.kind === "photosFailed") {
+            adoptSavedReport(outcome.saved);
+            setError(photoFailureMessage(outcome.failedPhotos));
+            return;
+        }
+        if (outcome.kind === "saved") onClose();
+    }
+
+    /** The one gate every sort/filter change goes through. */
+    function requestViewChange(apply: () => void): void {
+        if (!isDirty) {
+            apply();
+            return;
+        }
+        pendingChangeRef.current = apply;
+        setPromptOpen(true);
+    }
+    // The debounce timer below outlives the render that created it.
+    const requestViewChangeRef = useRef(requestViewChange);
+    requestViewChangeRef.current = requestViewChange;
+
+    function closePromptAndRunPending(): void {
+        const pending = pendingChangeRef.current;
+        pendingChangeRef.current = null;
+        setPromptOpen(false);
+        pending?.();
+    }
+
+    function handlePromptRevert(): void {
+        setRows(savedSnapshot);
+        closePromptAndRunPending();
+    }
+
+    function handlePromptDismiss(): void {
+        pendingChangeRef.current = null;
+        setPromptOpen(false);
+        setNoteDraft(filters.note);
+    }
+
+    /** Saves and stays open; only then applies the change that opened the prompt. */
+    async function handlePromptSave(): Promise<void> {
+        const outcome = await runSave();
+        if (outcome.kind === "failed") {
+            pendingChangeRef.current = null;
+            setPromptOpen(false);
+            setNoteDraft(filters.note);
+            return;
+        }
+        // The report IS persisted in both remaining cases, so it is taken in either way.
+        if (persistedReportId === null) setPersistedReportId(outcome.saved.id);
+        takeInSavedReport(outcome.saved);
+        if (outcome.kind === "photosFailed") {
+            pendingChangeRef.current = null;
+            setPromptOpen(false);
+            setNoteDraft(filters.note);
+            setError(photoFailureMessage(outcome.failedPhotos));
+            return;
+        }
+        closePromptAndRunPending();
+    }
+
+    function handleSortClick(column: EntrySortColumn): void {
+        const next = nextSorts(sorts, column);
+        requestViewChange(() => setSorts(next));
+    }
+
+    function handleSortSet(column: EntrySortColumn, dir: SortDir): void {
+        const next = setSortDir(sorts, column, dir);
+        requestViewChange(() => setSorts(next));
+    }
+
+    function handleTypeCycle(): void {
+        const next = nextTypeFilter(filters.type);
+        requestViewChange(() => setFilters((f) => ({ ...f, type: next })));
+    }
+
+    function handleAccountToggle(value: AccountFilterValue): void {
+        const next = toggled(filters.accounts, value);
+        requestViewChange(() => setFilters((f) => ({ ...f, accounts: next })));
+    }
+
+    function handleCategoryToggle(id: number): void {
+        const next = toggled(filters.categoryIds, id);
+        requestViewChange(() => setFilters((f) => ({ ...f, categoryIds: next })));
+    }
+
+    function clearFilters(): void {
+        setFilters(EMPTY_FILTERS);
+        setNoteDraft("");
+    }
+
+    function handleClearAll(): void {
+        requestViewChange(() => {
+            clearFilters();
+            setSorts([...DEFAULT_SORTS]);
+        });
+    }
+
+    function handleClearFilters(): void {
+        requestViewChange(clearFilters);
+    }
+
+    function handleRemoveSort(column: EntrySortColumn): void {
+        const next = sorts.filter((s) => s.column !== column);
+        requestViewChange(() => setSorts(next));
+    }
+
+    useEffect(() => {
+        // `filters.note` changing from anywhere else (Clear all, a chip) must reach the input.
+        setNoteDraft(filters.note);
+    }, [filters.note]);
+
+    useEffect(() => {
+        if (noteDraft === filters.note) return;
+        const timer = setTimeout(() => {
+            requestViewChangeRef.current(() => setFilters((f) => ({ ...f, note: noteDraft })));
+        }, NOTE_FILTER_DEBOUNCE_MS);
+        return () => clearTimeout(timer);
+    }, [noteDraft, filters.note]);
+
+    function sortStateFor(column: EntrySortColumn): HeaderSortState {
+        const index = sorts.findIndex((s) => s.column === column);
+        if (index === -1) return { dir: null, priority: null, showBadge: false };
+        return { dir: sorts[index].dir, priority: index + 1, showBadge: sorts.length >= 2 };
+    }
+
+    function ariaSortFor(column: EntrySortColumn): "ascending" | "descending" | "none" {
+        const { dir } = sortStateFor(column);
+        if (dir === null) return "none";
+        return dir === "asc" ? "ascending" : "descending";
+    }
+
+    const categoryFilterOptions = useMemo(
+        (): FilterOption<number>[] => categories.map((c) => ({ value: c.id, label: c.name })),
+        [categories]
+    );
+
+    function filterChips(): { key: string; label: string; onRemove: () => void }[] {
+        const chips: { key: string; label: string; onRemove: () => void }[] = [];
+        if (filters.type !== "ALL") {
+            chips.push({
+                key: "filter-type",
+                label: `Type: ${TYPE_FILTER_LABELS[filters.type]}`,
+                onRemove: () => requestViewChange(() => setFilters((f) => ({ ...f, type: "ALL" }))),
+            });
+        }
+        const note = filters.note.trim();
+        if (note !== "") {
+            chips.push({
+                key: "filter-note",
+                label: `Description: “${note}”`,
+                onRemove: () =>
+                    requestViewChange(() => {
+                        setFilters((f) => ({ ...f, note: "" }));
+                        setNoteDraft("");
+                    }),
+            });
+        }
+        if (filters.accounts.length > 0) {
+            const names = ACCOUNT_FILTER_OPTIONS.filter((o) => filters.accounts.includes(o.value)).map((o) => o.label);
+            chips.push({
+                key: "filter-accounts",
+                label: `Account: ${names.join(", ")} (${names.length})`,
+                onRemove: () => requestViewChange(() => setFilters((f) => ({ ...f, accounts: [] }))),
+            });
+        }
+        if (filters.categoryIds.length > 0) {
+            // Option order, like the Account chip, rather than the order the user ticked them.
+            const position = (id: number): number => {
+                const index = categories.findIndex((c) => c.id === id);
+                return index === -1 ? categories.length : index;
+            };
+            const names = [...filters.categoryIds]
+                .sort((a, b) => position(a) - position(b))
+                .map((id) => categoryNameById.get(id) ?? `#${id}`);
+            chips.push({
+                key: "filter-categories",
+                label: `Category: ${names.join(", ")} (${names.length})`,
+                onRemove: () => requestViewChange(() => setFilters((f) => ({ ...f, categoryIds: [] }))),
+            });
+        }
+        sorts.forEach((s, i) => {
+            chips.push({
+                key: `sort-${s.column}`,
+                label: `${i + 1} ${SORT_LABELS[s.column]} ${s.dir === "asc" ? "↑" : "↓"}`,
+                onRemove: () => handleRemoveSort(s.column),
+            });
+        });
+        return chips;
+    }
+
     const BRAND = "#E44B4C";
 
+    const chips = isDefaultView(filters, sorts) ? [] : filterChips();
+    const emptyColSpan = isOwner ? 10 : 9;
+
     return (
+        <>
         <Dialog
             fullScreen
             open={open}
             onClose={onClose}
-            sx={{ "& .MuiDialog-paper": { backgroundColor: "#fbfaf6" } }}
+            // The paper stops scrolling itself: it was the scroll container for the whole page, so
+            // the table (auto height) never scrolled and the page did. The table region below now
+            // owns vertical scroll.
+            sx={{ "& .MuiDialog-paper": { backgroundColor: "#fbfaf6", overflow: "hidden" } }}
         >
             <ManagementTopBar
                 title="Accounting Report"
@@ -595,9 +917,12 @@ export function AccountingReportPopup({
                 }
             />
 
-            <Box sx={{ p: 2 }}>
+            {/* A bounded flex column: the alert and chips row stay put and the table region below
+                takes what is left, so it (not the page) is what scrolls. minHeight: 0 is what lets a
+                flex child shrink below its content height. */}
+            <Box sx={{ p: 2, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                 {error && (
-                    <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                    <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>
                         {error}
                     </Alert>
                 )}
@@ -608,53 +933,155 @@ export function AccountingReportPopup({
                     </Box>
                 ) : (
                     <>
-                        <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mb: 1 }}>
-                            {/* Labelled toggle matching PurchaseTablePopup's SortButton shape (brand
-                                outline, direction icon as startIcon) rather than a naked IconButton. */}
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                aria-label="toggle date sort"
-                                data-testid="sort-toggle"
-                                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-                                startIcon={
-                                    sortDir === "asc" ? (
-                                        <ArrowUpwardIcon fontSize="small" />
-                                    ) : (
-                                        <ArrowDownwardIcon fontSize="small" />
-                                    )
-                                }
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 16,
-                                    color: BRAND,
-                                    borderColor: `${BRAND}55`,
-                                    "&:hover": { borderColor: BRAND, bgcolor: `${BRAND}14` },
-                                }}
+                        {chips.length > 0 && (
+                            <Box
+                                data-testid="filter-chips"
+                                sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1, flexShrink: 0 }}
                             >
-                                Date
-                            </Button>
-                        </Stack>
+                                {chips.map((chip) => (
+                                    <Chip
+                                        key={chip.key}
+                                        data-testid={`chip-${chip.key}`}
+                                        size="small"
+                                        variant="outlined"
+                                        label={chip.label}
+                                        onDelete={chip.onRemove}
+                                        deleteIcon={<CloseRoundedIcon />}
+                                        sx={{
+                                            color: BRAND_RED,
+                                            borderColor: BRAND_RED,
+                                            "& .MuiChip-deleteIcon": { color: BRAND_RED },
+                                        }}
+                                    />
+                                ))}
+                                <Typography variant="body2" color="text.secondary" data-testid="showing-count">
+                                    {`Showing ${sortedRows.length} of ${rows.length}`}
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    data-testid="clear-all"
+                                    onClick={handleClearAll}
+                                    sx={{ textTransform: "none", fontWeight: 700, color: BRAND_RED }}
+                                >
+                                    Clear all
+                                </Button>
+                            </Box>
+                        )}
                         <TableContainer
                             component={Paper}
                             elevation={0}
-                            sx={{ borderRadius: 4,
-                                overflow: "hidden",
-                                overflowX: "auto",
-                                WebkitOverflowScrolling: "touch"
+                            // Its own bounded, two-axis scroll region: sticky headers stick to the
+                            // nearest scrolling ancestor, so this must be the one that scrolls
+                            // vertically. flexShrink (no grow) so a short table stays short.
+                            sx={{
+                                borderRadius: 4,
+                                flex: "0 1 auto",
+                                minHeight: 0,
+                                overflow: "auto",
+                                overscrollBehavior: "contain",
+                                WebkitOverflowScrolling: "touch",
                             }}
                         >
                             <Table size="small" stickyHeader aria-label="accounting entries">
                                 <TableHead sx={{ bgcolor: "#fff" }}>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Date</TableCell>
+                                        <TableCell aria-sort={ariaSortFor("date")} sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ColumnHeaderFilter
+                                                label="Date"
+                                                testId="header-sort-date"
+                                                sortState={sortStateFor("date")}
+                                                onSort={() => handleSortClick("date")}
+                                            />
+                                        </TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Photo</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Type</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Amount</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Description</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Account</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Category</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ButtonBase
+                                                data-testid="header-type-cycle"
+                                                onClick={handleTypeCycle}
+                                                sx={{
+                                                    fontWeight: "bold",
+                                                    fontSize: "inherit",
+                                                    fontFamily: "inherit",
+                                                    color: filters.type === "ALL" ? "text.secondary" : BRAND_RED,
+                                                    borderRadius: 1,
+                                                    px: 0.5,
+                                                }}
+                                            >
+                                                {`Type: ${TYPE_FILTER_LABELS[filters.type]}`}
+                                            </ButtonBase>
+                                        </TableCell>
+                                        <TableCell aria-sort={ariaSortFor("amount")} sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ColumnHeaderFilter
+                                                label="Amount"
+                                                testId="header-sort-amount"
+                                                sortState={sortStateFor("amount")}
+                                                onSort={() => handleSortClick("amount")}
+                                            />
+                                        </TableCell>
+                                        <TableCell aria-sort={ariaSortFor("note")} sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ColumnHeaderFilter
+                                                label="Description"
+                                                testId="header-sort-note"
+                                                sortState={sortStateFor("note")}
+                                                filter={{
+                                                    active: filters.note.trim() !== "",
+                                                    ariaLabel: "Filter description",
+                                                    testId: "header-filter-note",
+                                                    children: (popover) => (
+                                                        <TextFilterPopover
+                                                            {...popover}
+                                                            value={noteDraft}
+                                                            onChange={setNoteDraft}
+                                                            ariaLabel="Description contains"
+                                                            sort={{ dir: sortStateFor("note").dir, onSelect: (d) => handleSortSet("note", d) }}
+                                                        />
+                                                    ),
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell aria-sort={ariaSortFor("account")} sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ColumnHeaderFilter
+                                                label="Account"
+                                                testId="header-sort-account"
+                                                sortState={sortStateFor("account")}
+                                                filter={{
+                                                    active: filters.accounts.length > 0,
+                                                    ariaLabel: "Filter account",
+                                                    testId: "header-filter-account",
+                                                    children: (popover) => (
+                                                        <MultiSelectFilterPopover
+                                                            {...popover}
+                                                            options={ACCOUNT_FILTER_OPTIONS}
+                                                            selected={filters.accounts}
+                                                            onToggle={handleAccountToggle}
+                                                            sort={{ dir: sortStateFor("account").dir, onSelect: (d) => handleSortSet("account", d) }}
+                                                        />
+                                                    ),
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell aria-sort={ariaSortFor("category")} sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                            <ColumnHeaderFilter
+                                                label="Category"
+                                                testId="header-sort-category"
+                                                sortState={sortStateFor("category")}
+                                                filter={{
+                                                    active: filters.categoryIds.length > 0,
+                                                    ariaLabel: "Filter category",
+                                                    testId: "header-filter-category",
+                                                    children: (popover) => (
+                                                        <MultiSelectFilterPopover
+                                                            {...popover}
+                                                            options={categoryFilterOptions}
+                                                            selected={filters.categoryIds}
+                                                            onToggle={handleCategoryToggle}
+                                                            sort={{ dir: sortStateFor("category").dir, onSelect: (d) => handleSortSet("category", d) }}
+                                                            searchable
+                                                        />
+                                                    ),
+                                                }}
+                                            />
+                                        </TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
                                         {isOwner && (
                                             <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
@@ -942,14 +1369,33 @@ export function AccountingReportPopup({
                                             </TableRow>
                                         );
                                     })}
-                                    {sortedRows.length === 0 && (
+                                    {rows.length === 0 && (
                                         <TableRow>
                                             <TableCell
-                                                colSpan={isOwner ? 10 : 9}
+                                                colSpan={emptyColSpan}
                                                 align="center"
                                                 sx={{ py: 3, color: "text.secondary" }}
                                             >
                                                 No entries yet — click “Add” to create one
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {rows.length > 0 && sortedRows.length === 0 && (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={emptyColSpan}
+                                                align="center"
+                                                sx={{ py: 3, color: "text.secondary" }}
+                                            >
+                                                No entries match the filters{" "}
+                                                <Button
+                                                    size="small"
+                                                    data-testid="filters-empty-clear"
+                                                    onClick={handleClearFilters}
+                                                    sx={{ textTransform: "none", fontWeight: 700, color: BRAND_RED }}
+                                                >
+                                                    Clear filters
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -966,5 +1412,13 @@ export function AccountingReportPopup({
                 )}
             </Box>
         </Dialog>
+        <UnsavedChangesPrompt
+            open={promptOpen}
+            saving={saving}
+            onRevert={handlePromptRevert}
+            onSave={handlePromptSave}
+            onDismiss={handlePromptDismiss}
+        />
+        </>
     );
 }
