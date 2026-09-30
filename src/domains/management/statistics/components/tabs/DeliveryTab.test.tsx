@@ -32,6 +32,7 @@ const HOURLY: DeliveryHourBucket[] = [{dayOfWeek: 5, hour: 19, total: 120, count
 
 const ACCURACY: DeliveryEstimateAccuracy = {
     deliveredOrders: 10,
+    deliveredOrderCount: 10,
     legs: [{
         leg: "KITCHEN",
         sampleCount: 10,

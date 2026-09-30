@@ -83,6 +83,7 @@ const STATS: DeliveryEstimateAccuracy = {
     deliveredOrders: 40,
     legs: [KITCHEN, ROAD, TOTAL],
     orderTotalTime: ORDER_TOTAL,
+    deliveredOrderCount: 30,
 };
 
 // A leg nothing could be measured on. Every figure is null and the counts are zero — the shape the
@@ -238,7 +239,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("renders an unmeasurable leg as dashes and never as zeros", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
+                stats={{deliveredOrders: 40, deliveredOrderCount: 30, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -254,7 +255,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("prints the denominator beside every leg's sample count", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, {...ROAD, sampleCount: 12, unmeasurableCount: 28}, TOTAL], orderTotalTime: ORDER_TOTAL}}
+                stats={{deliveredOrders: 40, deliveredOrderCount: 30, legs: [KITCHEN, {...ROAD, sampleCount: 12, unmeasurableCount: 28}, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -274,7 +275,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("says nothing about the wait on the pass when it cannot be derived", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 40, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
+                stats={{deliveredOrders: 40, deliveredOrderCount: 30, legs: [KITCHEN, UNMEASURED, TOTAL], orderTotalTime: ORDER_TOTAL}}
                 range={null}
             />
         );
@@ -306,7 +307,7 @@ describe("DeliveryEstimateAccuracyCard", () => {
     it("says nothing was delivered rather than drawing a table of zeros", () => {
         render(
             <DeliveryEstimateAccuracyCard
-                stats={{deliveredOrders: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
+                stats={{deliveredOrders: 0, deliveredOrderCount: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
                 range="Aug 1, 2026"
             />
         );
@@ -363,13 +364,86 @@ describe("DeliveryEstimateAccuracyCard", () => {
         it("shows the existing empty state and no order-total block when nothing was delivered", () => {
             render(
                 <DeliveryEstimateAccuracyCard
-                    stats={{deliveredOrders: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
+                    stats={{deliveredOrders: 0, deliveredOrderCount: 0, legs: [UNMEASURED], orderTotalTime: ORDER_TOTAL}}
                     range={null}
                 />
             );
 
             expect(screen.getByText("No delivery orders were completed in this range")).toBeTruthy();
             expect(screen.queryByTestId("order-total-headline")).toBeNull();
+        });
+    });
+
+    describe("delivered orders headline", () => {
+        const SPLIT_COUNTS = {
+            ...STATS,
+            deliveredOrders: 40,
+            deliveredOrderCount: 25,
+            orderTotalTime: {...ORDER_TOTAL, sampleCount: 25},
+        };
+
+        it("shows one headline and no drop-offs box when parts and orders are equal", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...STATS, deliveredOrders: 40, deliveredOrderCount: 40}}
+                    range={null}
+                />
+            );
+
+            expect(within(screen.getByTestId("delivered-orders-headline")).getByText("40")).toBeTruthy();
+            expect(screen.queryByTestId("delivery-drop-offs-headline")).toBeNull();
+            expect(screen.getAllByText("Delivered orders")).toHaveLength(1);
+            expect(screen.queryByText("Courier drop-offs")).toBeNull();
+        });
+
+        it("shows the order count and the drop-off count with its caption when they differ", () => {
+            render(<DeliveryEstimateAccuracyCard stats={SPLIT_COUNTS} range={null}/>);
+
+            const orders = within(screen.getByTestId("delivered-orders-headline"));
+            expect(orders.getByText("Delivered orders")).toBeTruthy();
+            expect(orders.getByText("25")).toBeTruthy();
+            const drops = within(screen.getByTestId("delivery-drop-offs-headline"));
+            expect(drops.getByText("Courier drop-offs")).toBeTruthy();
+            expect(drops.getByText("40")).toBeTruthy();
+            expect(drops.getByText("one per courier part — the leg rows below read against this")).toBeTruthy();
+        });
+
+        it("keeps the leg rows reading against the per-part denominator", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...SPLIT_COUNTS, legs: [KITCHEN, {...ROAD, sampleCount: 12, unmeasurableCount: 28}, TOTAL]}}
+                    range={null}
+                />
+            );
+
+            expect(within(screen.getByTestId("leg-row-ROAD")).getByText(/12 of 40/)).toBeTruthy();
+            expect(screen.getAllByTestId(/^leg-headline-/)).toHaveLength(3);
+            expect(screen.getAllByTestId(/^leg-row-/)).toHaveLength(3);
+        });
+
+        it("renders both headlines and not the empty state when parts were delivered but no order completed", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...STATS, deliveredOrders: 5, deliveredOrderCount: 0}}
+                    range={null}
+                />
+            );
+
+            expect(within(screen.getByTestId("delivered-orders-headline")).getByText("0")).toBeTruthy();
+            expect(within(screen.getByTestId("delivery-drop-offs-headline")).getByText("5")).toBeTruthy();
+            expect(screen.queryByText("No delivery orders were completed in this range")).toBeNull();
+        });
+
+        it("keeps the empty state when no part was delivered", () => {
+            render(
+                <DeliveryEstimateAccuracyCard
+                    stats={{...STATS, deliveredOrders: 0, deliveredOrderCount: 0}}
+                    range={null}
+                />
+            );
+
+            expect(screen.getByText("No delivery orders were completed in this range")).toBeTruthy();
+            expect(screen.queryByTestId("delivered-orders-headline")).toBeNull();
         });
     });
 });

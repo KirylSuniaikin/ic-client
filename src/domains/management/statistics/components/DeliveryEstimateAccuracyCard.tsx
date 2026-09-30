@@ -166,14 +166,29 @@ export function DeliveryEstimateAccuracyCard({stats, range}: Props): JSX.Element
                 ) : (
                     <>
                         <Box sx={{display: "flex", flexWrap: "wrap", gap: 4, mb: 2}}>
-                            <Box>
+                            <Box data-testid="delivered-orders-headline">
                                 <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>
                                     Delivered orders
                                 </Typography>
                                 <Typography variant="h5" fontWeight="bold" sx={{lineHeight: 1.2}}>
-                                    {stats.deliveredOrders}
+                                    {stats.deliveredOrderCount}
                                 </Typography>
                             </Box>
+                            {/* deliveredOrders counts courier drop-offs (parts). When it equals the order
+                                count a second figure would only repeat the first. */}
+                            {stats.deliveredOrderCount !== stats.deliveredOrders && (
+                                <Box data-testid="delivery-drop-offs-headline">
+                                    <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>
+                                        Courier drop-offs
+                                    </Typography>
+                                    <Typography variant="h5" fontWeight="bold" sx={{lineHeight: 1.2}}>
+                                        {stats.deliveredOrders}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        one per courier part — the leg rows below read against this
+                                    </Typography>
+                                </Box>
+                            )}
                             {stats.legs.map((leg) => (
                                 <Box key={leg.leg} data-testid={`leg-headline-${leg.leg}`}>
                                     <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>

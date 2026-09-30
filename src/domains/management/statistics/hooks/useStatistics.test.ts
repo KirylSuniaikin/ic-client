@@ -36,6 +36,7 @@ const emptyAvailability: DeliveryAvailabilityStats = {
 
 const emptyAccuracy: DeliveryEstimateAccuracy = {
     deliveredOrders: 0,
+    deliveredOrderCount: 0,
     legs: [],
     orderTotalTime: {sampleCount: 0, medianMinutes: null, meanMinutes: null, p90Minutes: null},
 };

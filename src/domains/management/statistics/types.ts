@@ -557,8 +557,8 @@ export type DeliveryLegAccuracy = {
 };
 
 export type DeliveryOrderTotalTime = {
-    // Its own denominator (orders with a total) — NOT comparable with deliveredOrders, which
-    // counts part rows on a split order.
+    // Its own denominator (orders with a total). Equals deliveredOrderCount and is NOT
+    // comparable with deliveredOrders, which counts delivered parts (courier drop-offs).
     sampleCount: number;
     // Unsigned durations in minutes; all null (never 0) when sampleCount is 0.
     medianMinutes: number | null;
@@ -567,13 +567,18 @@ export type DeliveryOrderTotalTime = {
 };
 
 export type DeliveryEstimateAccuracy = {
-    // The denominator for every leg's sampleCount: a leg measured on 12 of 400
-    // orders is not evidence, and the reader must see that without asking.
+    // Delivered PARTS (courier drop-offs), one row per part; equals the order count only
+    // when every order has one part. The denominator for every leg's sampleCount: a leg
+    // measured on 12 of 400 drop-offs is not evidence, and the reader must see that
+    // without asking.
     deliveredOrders: number;
     // Always one entry per leg, always in enum order, even at zero samples.
     legs: DeliveryLegAccuracy[];
     // Placed → last part's drop-off, one sample per order. Not a leg: it has no quote, so no gap.
     orderTotalTime: DeliveryOrderTotalTime;
+    // Delivered ORDERS, each once (status Delivered, every part delivered); always
+    // equals orderTotalTime.sampleCount. Not deliveredOrders ÷ parts-per-order.
+    deliveredOrderCount: number;
 };
 
 // ---------------------------------------------------------------------------
