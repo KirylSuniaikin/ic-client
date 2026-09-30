@@ -1,10 +1,10 @@
-import { describe, it, expect, jest } from "@jest/globals";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, jest, afterEach } from "@jest/globals";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 // i18n instance (side-effect import) so keys resolve to English under the default language.
 import "../../../shared/i18n";
 import { ActiveOrderIslandPill } from "./ActiveOrderIslandPill";
 import { MAX_RIDE_FILL } from "../../../shared/utils/orderStages";
-import type { RideProgress } from "../../../shared/utils/orderStages";
+import type { RideProgress, RiderSlots } from "../../../shared/utils/orderStages";
 
 type PillOverrides = {
     branchName?: string;
@@ -14,11 +14,12 @@ type PillOverrides = {
     timeLeft?: number;
     arrivalTimeLeft?: number | null;
     rideProgress?: RideProgress | null;
+    riderSlots?: RiderSlots | null;
     onClick?: () => void;
 };
 
-function renderPill(overrides: PillOverrides = {}): void {
-    render(
+function renderPill(overrides: PillOverrides = {}): HTMLElement {
+    return render(
         <ActiveOrderIslandPill
             branchName={overrides.branchName ?? "Downtown"}
             orderNumber={overrides.orderNumber ?? 7}
@@ -27,9 +28,10 @@ function renderPill(overrides: PillOverrides = {}): void {
             timeLeft={overrides.timeLeft ?? 300}
             arrivalTimeLeft={overrides.arrivalTimeLeft ?? null}
             rideProgress={overrides.rideProgress ?? null}
+            riderSlots={overrides.riderSlots}
             onClick={overrides.onClick ?? ((): void => undefined)}
         />
-    );
+    ).container;
 }
 
 /** The rendered fill, as a share of the whole track (0..1). */
@@ -248,5 +250,86 @@ describe("ActiveOrderIslandPill — a delivery counts to the door", () => {
 
         expect(screen.getByText("5 min")).toBeTruthy();
         expect(screen.getByText("Estimated Ready in")).toBeTruthy();
+    });
+});
+
+describe("ActiveOrderIslandPill rider row", () => {
+    const THREE: RiderSlots = { slots: ["delivered", "onRoad", "waiting"], overflow: 0 };
+
+    afterEach(cleanup);
+
+    it.each([
+        ["a pickup order", { orderType: "Pick Up", status: "Oven" }],
+        ["a one-part delivery", { orderType: "Delivery", status: "Kitchen Phase" }],
+        ["a delivery out for delivery", { orderType: "Delivery", status: "Out for delivery" }],
+    ])("renders %s exactly as before when riderSlots is omitted or null", (_name, props) => {
+        const omitted = renderPill(props).innerHTML;
+        expect(screen.queryByTestId("island-rider-row")).toBeNull();
+        cleanup();
+
+        const withNull = renderPill({ ...props, riderSlots: null }).innerHTML;
+
+        expect(screen.queryByTestId("island-rider-row")).toBeNull();
+        expect(withNull).toBe(omitted);
+    });
+
+    it("draws one slot per part with its state, in order, and no overflow marker", () => {
+        renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: THREE });
+
+        expect([0, 1, 2].map((i) => screen.getByTestId(`island-rider-${i}`).getAttribute("data-state")))
+            .toEqual(["delivered", "onRoad", "waiting"]);
+        expect(screen.queryByTestId("island-rider-more")).toBeNull();
+    });
+
+    it("shows +N after three slots when there are more parts", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Out for delivery",
+            riderSlots: { slots: ["delivered", "onRoad", "waiting"], overflow: 2 },
+        });
+
+        expect(screen.queryByTestId("island-rider-3")).toBeNull();
+        expect(screen.getByTestId("island-rider-more").textContent).toBe("+2");
+    });
+
+    it("leaves the track fill and marker untouched by the row", () => {
+        const waiting: RiderSlots = { slots: ["waiting", "waiting"], overflow: 0 };
+        renderPill({ orderType: "Delivery", status: "Kitchen Phase" });
+        const before = [
+            screen.getByTestId("island-track-fill").outerHTML,
+            screen.getByTestId("island-track-marker").outerHTML,
+        ];
+        cleanup();
+
+        renderPill({ orderType: "Delivery", status: "Kitchen Phase", riderSlots: waiting });
+
+        expect(screen.getAllByTestId(/^island-rider-\d$/).map((e) => e.getAttribute("data-state")))
+            .toEqual(["waiting", "waiting"]);
+        expect([
+            screen.getByTestId("island-track-fill").outerHTML,
+            screen.getByTestId("island-track-marker").outerHTML,
+        ]).toEqual(before);
+    });
+
+    it("is aria-hidden and adds no text other than +N", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Out for delivery",
+            riderSlots: { slots: ["delivered", "onRoad", "waiting"], overflow: 2 },
+        });
+
+        const row = screen.getByTestId("island-rider-row");
+        expect(row.getAttribute("aria-hidden")).toBe("true");
+        expect(row.textContent).toBe("+2");
+        expect(row.querySelector("[title], [aria-label]")).toBeNull();
+    });
+
+    it("keeps the order number, branch name and end labels", () => {
+        renderPill({ orderType: "Delivery", status: "Kitchen Phase", riderSlots: THREE });
+
+        expect(screen.getByText("Order #7")).toBeTruthy();
+        expect(screen.getByText("Downtown")).toBeTruthy();
+        expect(screen.getByText("Preparing")).toBeTruthy();
+        expect(screen.getByText("Delivered")).toBeTruthy();
     });
 });

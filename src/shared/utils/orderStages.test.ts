@@ -1,10 +1,12 @@
 import { describe, it, expect } from "@jest/globals";
 import {
     DELIVERY_STAGES,
+    MAX_RIDER_SLOTS,
     MAX_RIDE_FILL,
     PICKUP_STAGES,
     computeRideProgress,
     isDeliveryOrder,
+    riderSlotsFor,
     stageIndexIn,
     stagesFor,
 } from "./orderStages";
@@ -116,5 +118,51 @@ describe("computeRideProgress", () => {
     it("returns null for a non-positive ride window rather than dividing by zero", () => {
         expect(computeRideProgress(handoverMs, handoverMs, 0)).toBeNull();
         expect(computeRideProgress(arrivalMs, handoverMs, 0)).toBeNull();
+    });
+});
+
+describe("stage ladders (drift pin)", () => {
+    it("keeps the delivery and pickup stage keys and their order", () => {
+        expect(DELIVERY_STAGES.map((s) => s.key)).toEqual([
+            "Kitchen Phase", "Oven", "Ready", "Out for delivery", "Delivered",
+        ]);
+        expect(PICKUP_STAGES.map((s) => s.key)).toEqual(["Kitchen Phase", "Oven", "Ready"]);
+    });
+});
+
+describe("riderSlotsFor", () => {
+    it("caps the slots at three", () => {
+        expect(MAX_RIDER_SLOTS).toBe(3);
+    });
+
+    it.each([
+        ["one part is not a split", 1, 0, 0, null],
+        ["two parts all waiting", 2, 0, 0, { slots: ["waiting", "waiting"], overflow: 0 }],
+        ["three parts, one delivered, one on the road", 3, 1, 1,
+            { slots: ["delivered", "onRoad", "waiting"], overflow: 0 }],
+        ["five parts overflow by two", 5, 1, 1, { slots: ["delivered", "onRoad", "waiting"], overflow: 2 }],
+        ["seven parts waiting overflow by four", 7, 0, 0,
+            { slots: ["waiting", "waiting", "waiting"], overflow: 4 }],
+        ["three parts all waiting", 3, 0, 0, { slots: ["waiting", "waiting", "waiting"], overflow: 0 }],
+    ])("%s", (_name, total, onRoad, delivered, expected) => {
+        expect(riderSlotsFor(total, onRoad, delivered)).toEqual(expected);
+    });
+
+    it("returns null when any input is missing", () => {
+        expect(riderSlotsFor(undefined, 0, 0)).toBeNull();
+        expect(riderSlotsFor(3, undefined, 0)).toBeNull();
+        expect(riderSlotsFor(3, 0, undefined)).toBeNull();
+    });
+
+    it("returns null for negative or non-integer counts", () => {
+        expect(riderSlotsFor(-3, 0, 0)).toBeNull();
+        expect(riderSlotsFor(3, -1, 0)).toBeNull();
+        expect(riderSlotsFor(3, 0, -1)).toBeNull();
+        expect(riderSlotsFor(3, 1.5, 0)).toBeNull();
+        expect(riderSlotsFor(2.5, 0, 0)).toBeNull();
+    });
+
+    it("returns null when more riders are out or delivered than there are parts", () => {
+        expect(riderSlotsFor(3, 2, 2)).toBeNull();
     });
 });

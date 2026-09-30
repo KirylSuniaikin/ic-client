@@ -111,3 +111,35 @@ export function computeRideProgress(
         overdue: rawFraction >= 1,
     };
 }
+
+// Rider slots for a split delivery. This is a hand-copied twin of mobile `utils/orderStages.ts`
+// and of the backend `PartProgress`. Nothing automated keeps them in sync, so the cases in
+// orderStages.test.ts are the drift guard.
+export const MAX_RIDER_SLOTS = 3;
+export type RiderState = "delivered" | "onRoad" | "waiting";
+export type RiderSlots = { readonly slots: ReadonlyArray<RiderState>; readonly overflow: number };
+
+function isCount(n: number | undefined): n is number {
+    return n !== undefined && Number.isInteger(n) && n >= 0;
+}
+
+/**
+ * One slot per part, delivered first, then on the road, then still waiting at the kitchen — capped
+ * at MAX_RIDER_SLOTS with the rest reported as `overflow`. Null whenever the counts cannot describe
+ * a split order (missing, malformed, a single part, or more riders than parts).
+ */
+export function riderSlotsFor(
+    total: number | undefined,
+    onRoad: number | undefined,
+    delivered: number | undefined,
+): RiderSlots | null {
+    if (!isCount(total) || !isCount(onRoad) || !isCount(delivered)) return null;
+    if (total < 2 || onRoad + delivered > total) return null;
+
+    const all: RiderState[] = [
+        ...Array<RiderState>(delivered).fill("delivered"),
+        ...Array<RiderState>(onRoad).fill("onRoad"),
+        ...Array<RiderState>(total - onRoad - delivered).fill("waiting"),
+    ];
+    return { slots: all.slice(0, MAX_RIDER_SLOTS), overflow: Math.max(total - MAX_RIDER_SLOTS, 0) };
+}

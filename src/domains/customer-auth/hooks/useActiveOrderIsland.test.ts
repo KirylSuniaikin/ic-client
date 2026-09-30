@@ -431,3 +431,179 @@ describe("useActiveOrderIsland — the ride's live progress", () => {
         expect(result.current.rideProgress).toBeNull();
     });
 });
+
+describe("useActiveOrderIsland rider slots and refresh", () => {
+    const SPLIT: CustomerActiveOrder = {
+        ...ACTIVE_ORDER,
+        type: "Delivery",
+        status: "Out for delivery",
+        partsTotal: 3,
+        partsOnRoad: 1,
+        partsDelivered: 1,
+    };
+    const TICK = 20_000;
+
+    function setVisibility(state: "visible" | "hidden"): void {
+        Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+        document.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    async function advance(ms: number): Promise<void> {
+        // Jest 27 has no advanceTimersByTimeAsync: advance, then let the awaited fetch settle.
+        await act(async () => {
+            jest.advanceTimersByTime(ms);
+            for (let i = 0; i < 10; i++) await Promise.resolve();
+        });
+    }
+
+    // Fake timers only in this block; the first load is flushed inside act so the auth refresh
+    // and the fetch have settled before any timer is advanced.
+    async function mount(first: CustomerActiveOrder | null) {
+        mockRefreshCustomerToken.mockResolvedValue({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockResolvedValueOnce(first);
+        const hook = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await advance(0);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+        return hook;
+    }
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        setVisibility("visible");
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+        setVisibility("visible");
+    });
+
+    it("derives one rider slot per part for a split delivery", async () => {
+        const { result } = await mount(SPLIT);
+
+        expect(result.current.riderSlots).toEqual({
+            slots: ["delivered", "onRoad", "waiting"],
+            overflow: 0,
+        });
+    });
+
+    it.each([
+        ["a pickup order", { ...ACTIVE_ORDER, status: "Oven" }],
+        ["a one-part delivery", { ...ACTIVE_ORDER, type: "Delivery", status: "Out for delivery" }],
+        ["a delivery with partsTotal 1", {
+            ...ACTIVE_ORDER, type: "Delivery", status: "Out for delivery",
+            partsTotal: 1, partsOnRoad: 1, partsDelivered: 0,
+        }],
+        ["a pickup order with stray parts fields", {
+            ...ACTIVE_ORDER, status: "Out for delivery", partsTotal: 3, partsOnRoad: 1, partsDelivered: 1,
+        }],
+    ])("has no riders and never polls for %s", async (_name, order) => {
+        const { result } = await mount(order);
+
+        await advance(60_000);
+
+        expect(result.current.riderSlots).toBeNull();
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes a split out-for-delivery order every 20s and shows the new counts", async () => {
+        const { result } = await mount(SPLIT);
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...SPLIT, partsOnRoad: 0, partsDelivered: 2 });
+
+        await advance(TICK - 1);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+        await advance(1);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+        expect(result.current.riderSlots?.slots).toEqual(["delivered", "delivered", "waiting"]);
+
+        mockFetchActiveOrder.mockResolvedValueOnce({ ...SPLIT, partsOnRoad: 0, partsDelivered: 2 });
+        await advance(TICK);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(3);
+    });
+
+    it.each(["Kitchen Phase", "Oven", "Ready"])("does not poll a split order in %s", async (status) => {
+        await mount({ ...SPLIT, status, partsOnRoad: 0, partsDelivered: 0 });
+
+        await advance(60_000);
+
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+    });
+
+    it("pauses while the tab is hidden and resumes when it is visible again", async () => {
+        await mount(SPLIT);
+        mockFetchActiveOrder.mockResolvedValue(SPLIT);
+
+        act(() => setVisibility("hidden"));
+        await advance(60_000);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+
+        act(() => setVisibility("visible"));
+        await advance(TICK);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops polling on unmount", async () => {
+        const { unmount } = await mount(SPLIT);
+
+        unmount();
+        await advance(60_000);
+
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the order and its counts when a poll fails with a generic error", async () => {
+        const { result } = await mount(SPLIT);
+        jest.mocked(console.error).mockClear();
+        mockFetchActiveOrder.mockRejectedValueOnce(new Error("502"));
+
+        await advance(TICK);
+
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+        expect(result.current.activeOrder).toEqual(SPLIT);
+        expect(result.current.isVisible).toBe(true);
+        expect(result.current.riderSlots?.slots).toEqual(["delivered", "onRoad", "waiting"]);
+        expect(console.error).toHaveBeenCalled();
+
+        // and the next tick retries
+        mockFetchActiveOrder.mockResolvedValueOnce(SPLIT);
+        await advance(TICK);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(3);
+    });
+
+    it("clears the order when a poll gets a 401", async () => {
+        const { result } = await mount(SPLIT);
+        mockFetchActiveOrder.mockRejectedValueOnce(new CustomerAuthApiError("unauthorized", 401));
+
+        await advance(TICK);
+
+        expect(result.current.activeOrder).toBeNull();
+    });
+
+    it("still hides the pill when the first load fails with a generic error", async () => {
+        mockRefreshCustomerToken.mockResolvedValue({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchActiveOrder.mockRejectedValueOnce(new Error("boom"));
+
+        const { result } = renderHook(() => useActiveOrderIsland(), { wrapper });
+        await advance(0);
+
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
+        expect(result.current.activeOrder).toBeNull();
+    });
+
+    it("drops a response that lands after unmount and schedules nothing further", async () => {
+        const { unmount } = await mount(SPLIT);
+        let resolveLate: (o: CustomerActiveOrder) => void = () => undefined;
+        mockFetchActiveOrder.mockImplementationOnce(
+            () => new Promise<CustomerActiveOrder>((resolve) => { resolveLate = resolve; }),
+        );
+
+        await advance(TICK);
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+        unmount();
+        await act(async () => {
+            resolveLate(SPLIT);
+        });
+        await advance(60_000);
+
+        expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+    });
+});

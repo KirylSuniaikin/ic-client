@@ -3,15 +3,15 @@
 // Phase 4a's fetchActiveOrder, tracks live status via Phase 3's shared
 // useOrderLiveStatus (same STOMP topic/subscription — no second subscription
 // pattern), and derives the CircularTimer's countdown using OrderCard's exact math.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchActiveOrder } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { useOrderLiveStatus } from "./useOrderLiveStatus";
 import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
 import { toEpochMsBahrain } from "../../../shared/utils/timeUtils";
-import { computeRideProgress } from "../../../shared/utils/orderStages";
-import type { RideProgress } from "../../../shared/utils/orderStages";
+import { OUT_FOR_DELIVERY_STATUS, computeRideProgress, isDeliveryOrder, riderSlotsFor } from "../../../shared/utils/orderStages";
+import type { RideProgress, RiderSlots } from "../../../shared/utils/orderStages";
 import { logger } from "../../../shared/utils/logger";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerActiveOrder } from "../types";
@@ -47,6 +47,29 @@ function isTerminalStatus(status: string | null, orderType: string | undefined):
         : PICKUP_TERMINAL_STATUSES.has(status);
 }
 
+// Same cadence as useCourierTracking's POLL_INTERVAL_MS (order-status domain); not imported, to
+// avoid a cross-domain dependency.
+const RIDER_REFRESH_INTERVAL_MS = 20_000;
+
+type LoadOptions = {
+    /** A failed background refresh keeps the last-known order instead of hiding the pill. */
+    keepOnError: boolean;
+    /** Lets a poll drop a response that lands after its effect was cleaned up. */
+    isCancelled?: () => boolean;
+};
+
+// Duplicates the private useVisibility in useCourierTracking (order-status domain) for the same
+// reason as the interval above; extracting a shared hook is a separate change.
+function useDocumentVisible(): boolean {
+    const [visible, setVisible] = useState<boolean>(document.visibilityState === "visible");
+    useEffect(() => {
+        const onChange = (): void => setVisible(document.visibilityState === "visible");
+        document.addEventListener("visibilitychange", onChange);
+        return () => document.removeEventListener("visibilitychange", onChange);
+    }, []);
+    return visible;
+}
+
 export type UseActiveOrderIslandResult = {
     /** Seconds until the estimated arrival, or null when there is no arrival estimate. */
     arrivalTimeLeft: number | null;
@@ -61,6 +84,8 @@ export type UseActiveOrderIslandResult = {
      * clock. Always null for a pickup order — the backend sends it no delivery timings at all.
      */
     rideProgress: RideProgress | null;
+    /** One rider per part of a split delivery, or null for anything else. */
+    riderSlots: RiderSlots | null;
     handleClick: () => void;
 };
 
@@ -69,9 +94,13 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     const { openOrderDetail, activeOrderRefreshKey } = useCustomerAuthUi();
     const [activeOrder, setActiveOrder] = useState<CustomerActiveOrder | null>(null);
 
-    const loadActiveOrder = useCallback(async (accessToken: string): Promise<void> => {
+    const loadActiveOrder = useCallback(async (
+        accessToken: string,
+        options: LoadOptions = { keepOnError: false },
+    ): Promise<void> => {
         try {
             const result = await fetchActiveOrder(accessToken);
+            if (options.isCancelled?.()) return;
             if (result !== null && NEVER_PAID_STATUSES.has(result.status)) {
                 setActiveOrder(null);
                 return;
@@ -83,11 +112,12 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
             // any other failure is ambient (mirrors CustomerAuthProvider's silent-refresh pattern) —
             // this is a passive homepage feature, so it just hides the pill rather than surfacing
             // an error UI, logging for diagnosability instead of a silent catch.
+            if (options.isCancelled?.()) return;
             if (err instanceof CustomerAuthApiError && err.status === 401) {
                 setActiveOrder(null);
             } else {
                 logger.error("useActiveOrderIsland: fetchActiveOrder failed", err);
-                setActiveOrder(null);
+                if (!options.keepOnError) setActiveOrder(null);
             }
         }
     }, []);
@@ -118,6 +148,46 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
 
     const effectiveStatus = liveStatus ?? activeOrder?.status ?? null;
     const isVisible = activeOrder !== null && !isTerminalStatus(effectiveStatus, activeOrder.type);
+
+    const documentVisible = useDocumentVisible();
+    // A boolean, not the order: a poll result must not restart the timer that produced it.
+    // Part progress fires no STOMP frame (only first-departure and last-delivery change the
+    // status), so without this the icons would freeze at "part 1 on the road".
+    const shouldPoll = Boolean(token)
+        && isVisible
+        && isDeliveryOrder(activeOrder?.type)
+        && effectiveStatus === OUT_FOR_DELIVERY_STATUS
+        && (activeOrder?.partsTotal ?? 0) >= 2
+        && documentVisible;
+
+    useEffect(() => {
+        if (!shouldPoll || !token) return;
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+
+        const schedule = (): void => {
+            timer = setTimeout(() => {
+                void loadActiveOrder(token, { keepOnError: true, isCancelled: () => cancelled }).then(() => {
+                    if (!cancelled) schedule();
+                });
+            }, RIDER_REFRESH_INTERVAL_MS);
+        };
+        schedule();
+
+        return () => {
+            cancelled = true;
+            if (timer !== undefined) clearTimeout(timer);
+        };
+    }, [shouldPoll, token, loadActiveOrder]);
+
+    const partsTotal = activeOrder?.partsTotal;
+    const partsOnRoad = activeOrder?.partsOnRoad;
+    const partsDelivered = activeOrder?.partsDelivered;
+    const orderType = activeOrder?.type;
+    const riderSlots = useMemo<RiderSlots | null>(
+        () => (isDeliveryOrder(orderType) ? riderSlotsFor(partsTotal, partsOnRoad, partsDelivered) : null),
+        [orderType, partsTotal, partsOnRoad, partsDelivered],
+    );
 
     const totalSec = (activeOrder?.estimation ?? 15) * 60;
     const createdMs = toEpochMsBahrain(activeOrder?.createdAt);
@@ -151,6 +221,6 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
 
     return {
         activeOrder, status: effectiveStatus, timeLeft, arrivalTimeLeft, totalSec, isVisible,
-        rideProgress, handleClick,
+        rideProgress, riderSlots, handleClick,
     };
 }

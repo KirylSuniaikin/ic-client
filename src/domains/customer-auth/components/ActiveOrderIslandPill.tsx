@@ -15,7 +15,7 @@ import {
     stageIndexIn,
     stagesFor,
 } from "../../../shared/utils/orderStages";
-import type { RideProgress } from "../../../shared/utils/orderStages";
+import type { RideProgress, RiderSlots, RiderState } from "../../../shared/utils/orderStages";
 
 const brandRed = "#E44B4C";
 const track = "rgba(0, 0, 0, 0.08)";
@@ -41,8 +41,49 @@ type ActiveOrderIslandPillProps = {
      * as 0%, which would claim the courier has not set off.
      */
     rideProgress: RideProgress | null;
+    /**
+     * One rider per part of a split delivery, or null/omitted when the order is not split.
+     * Null renders exactly as the pill always has.
+     */
+    riderSlots?: RiderSlots | null;
     onClick: () => void;
 };
+
+const RIDER_ICON_SX: Record<RiderState, Record<string, string | number>> = {
+    delivered: { color: brandRed },
+    // The ring is what reads as "current" against the plain delivered rider.
+    onRoad: { color: brandRed, borderRadius: "50%", boxShadow: `0 0 0 2px ${brandRed}`, padding: "1px" },
+    waiting: { color: "#8a8a8a", opacity: 0.4 },
+};
+
+/** Decorative: counts only, no accessible text (an a11y label would need a locked-namespace key). */
+function RiderRow({ riderSlots }: { riderSlots: RiderSlots }): React.JSX.Element {
+    return (
+        <Box
+            data-testid="island-rider-row"
+            aria-hidden="true"
+            sx={{ display: "flex", alignItems: "center", gap: 0.5, marginInlineStart: "auto", flexShrink: 0 }}
+        >
+            {riderSlots.slots.map((state, i) => (
+                <DeliveryDiningRoundedIcon
+                    // eslint-disable-next-line react/no-array-index-key -- slots have no identity beyond position
+                    key={i}
+                    data-testid={`island-rider-${i}`}
+                    data-state={state}
+                    sx={{ fontSize: 18, ...RIDER_ICON_SX[state] }}
+                />
+            ))}
+            {riderSlots.overflow > 0 && (
+                <Typography
+                    data-testid="island-rider-more"
+                    sx={{ color: "#8a8a8a", fontSize: 12, fontWeight: 700 }}
+                >
+                    {`+${riderSlots.overflow}`}
+                </Typography>
+            )}
+        </Box>
+    );
+}
 
 /**
  * The caption above the big figure: what the figure is counting down to, or nothing.
@@ -111,6 +152,7 @@ export function ActiveOrderIslandPill({
     timeLeft,
     arrivalTimeLeft,
     rideProgress,
+    riderSlots,
     onClick,
 }: ActiveOrderIslandPillProps): React.JSX.Element {
     const { t } = useTranslation("customerAuth");
@@ -207,6 +249,7 @@ export function ActiveOrderIslandPill({
                 <Typography sx={{ color: "#1A1A1A", fontSize: 17, fontWeight: 800 }}>
                     {t("island.orderNumber", { number: orderNumber })}
                 </Typography>
+                {riderSlots && <RiderRow riderSlots={riderSlots} />}
             </Box>
 
             {/* Status progress track */}

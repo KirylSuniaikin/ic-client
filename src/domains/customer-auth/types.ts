@@ -115,6 +115,13 @@ export type CustomerActiveOrder = {
      */
     handoverAt?: string;
     estimatedDeliveredAt?: string;
+    /**
+     * Split delivery only, and OMITTED (not null) otherwise — backend @JsonInclude(NON_NULL).
+     * Counts only: no courier name, id or phone ever appears on this surface.
+     */
+    partsTotal?: number;
+    partsOnRoad?: number;
+    partsDelivered?: number;
 };
 
 // GET /customer/review-prompt — the post-order Google review ask. A 204 (nothing

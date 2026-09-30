@@ -324,6 +324,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     timeLeft={activeOrderIsland.timeLeft}
                     arrivalTimeLeft={activeOrderIsland.arrivalTimeLeft}
                     rideProgress={activeOrderIsland.rideProgress}
+                    riderSlots={activeOrderIsland.riderSlots}
                     onClick={activeOrderIsland.handleClick}
                 />
             )}
