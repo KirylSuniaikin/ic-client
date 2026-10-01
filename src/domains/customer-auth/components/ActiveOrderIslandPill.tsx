@@ -85,51 +85,6 @@ function RiderRow({ riderSlots }: { riderSlots: RiderSlots }): React.JSX.Element
     );
 }
 
-const RIDER_NAME_MAX_WIDTH_PX = 96;
-
-/** Read by screen readers (unlike the icon row), so no aria-hidden and no new copy. */
-function RiderNamesRow({ names }: { names: ReadonlyArray<string | null> }): React.JSX.Element {
-    return (
-        <Box
-            data-testid="island-rider-names"
-            sx={{
-                display: "flex",
-                flexWrap: "nowrap",
-                minWidth: 0,
-                overflow: "hidden",
-                gap: 0.5,
-                justifyContent: "flex-end",
-                marginBlockStart: -0.75,
-                marginBlockEnd: 1.5,
-            }}
-        >
-            {names.map((name, i) =>
-                name === null ? null : (
-                    <Typography
-                        // eslint-disable-next-line react/no-array-index-key -- slots have no identity beyond position
-                        key={i}
-                        data-testid={`island-rider-name-${i}`}
-                        dir="auto"
-                        sx={{
-                            maxWidth: RIDER_NAME_MAX_WIDTH_PX,
-                            flexShrink: 1,
-                            minWidth: 0,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            color: "#8a8a8a",
-                            fontSize: 12,
-                            fontWeight: 700,
-                        }}
-                    >
-                        {name}
-                    </Typography>
-                ),
-            )}
-        </Box>
-    );
-}
-
 /**
  * The caption above the big figure: what the figure is counting down to, or nothing.
  *
@@ -296,7 +251,6 @@ export function ActiveOrderIslandPill({
                 </Typography>
                 {riderSlots && <RiderRow riderSlots={riderSlots} />}
             </Box>
-            {riderSlots?.names?.some((name) => name !== null) && <RiderNamesRow names={riderSlots.names} />}
 
             {/* Status progress track */}
             <Box sx={{ position: "relative", height: 22, mx: 1.25 }}>

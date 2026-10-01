@@ -183,16 +183,10 @@ export function useActiveOrderIsland(): UseActiveOrderIslandResult {
     const partsTotal = activeOrder?.partsTotal;
     const partsOnRoad = activeOrder?.partsOnRoad;
     const partsDelivered = activeOrder?.partsDelivered;
-    const onRoadCourierNames = activeOrder?.onRoadCourierNames;
-    // Every poll returns a fresh array; keying on identity would rebuild riderSlots every 20 s.
-    const onRoadNamesKey = JSON.stringify(onRoadCourierNames ?? null);
     const orderType = activeOrder?.type;
     const riderSlots = useMemo<RiderSlots | null>(
-        () => (isDeliveryOrder(orderType)
-            ? riderSlotsFor(partsTotal, partsOnRoad, partsDelivered, onRoadCourierNames)
-            : null),
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- onRoadNamesKey stands in for the array's identity
-        [orderType, partsTotal, partsOnRoad, partsDelivered, onRoadNamesKey],
+        () => (isDeliveryOrder(orderType) ? riderSlotsFor(partsTotal, partsOnRoad, partsDelivered) : null),
+        [orderType, partsTotal, partsOnRoad, partsDelivered],
     );
 
     const totalSec = (activeOrder?.estimation ?? 15) * 60;

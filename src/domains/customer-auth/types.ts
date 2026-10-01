@@ -117,15 +117,11 @@ export type CustomerActiveOrder = {
     estimatedDeliveredAt?: string;
     /**
      * Split delivery only, and OMITTED (not null) otherwise — backend @JsonInclude(NON_NULL).
-     * The counts are plain counts; the only courier data here is `onRoadCourierNames`
-     * (the display name the tracking map already shows) — never an id or phone.
+     * Counts only: no courier name, id or phone ever appears on this surface.
      */
     partsTotal?: number;
     partsOnRoad?: number;
     partsDelivered?: number;
-    /** Split delivery only, OMITTED otherwise (backend NON_NULL). One display name per part that is
-     *  out for delivery, in partIndex order. Show exactly as received. */
-    onRoadCourierNames?: string[];
 };
 
 // GET /customer/review-prompt — the post-order Google review ask. A 204 (nothing
