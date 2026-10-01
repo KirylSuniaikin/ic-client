@@ -117,7 +117,13 @@ export function computeRideProgress(
 // orderStages.test.ts are the drift guard.
 export const MAX_RIDER_SLOTS = 3;
 export type RiderState = "delivered" | "onRoad" | "waiting";
-export type RiderSlots = { readonly slots: ReadonlyArray<RiderState>; readonly overflow: number };
+export type RiderSlots = {
+    readonly slots: ReadonlyArray<RiderState>;
+    readonly overflow: number;
+    /** Parallel to `slots`: the name for an "onRoad" slot, otherwise null. Omitted entirely
+     *  when there are no usable names, so every existing RiderSlots value is unchanged. */
+    readonly names?: ReadonlyArray<string | null>;
+};
 
 function isCount(n: number | undefined): n is number {
     return n !== undefined && Number.isInteger(n) && n >= 0;
@@ -132,6 +138,7 @@ export function riderSlotsFor(
     total: number | undefined,
     onRoad: number | undefined,
     delivered: number | undefined,
+    onRoadNames?: ReadonlyArray<string>,
 ): RiderSlots | null {
     if (!isCount(total) || !isCount(onRoad) || !isCount(delivered)) return null;
     if (total < 2 || onRoad + delivered > total) return null;
@@ -141,5 +148,20 @@ export function riderSlotsFor(
         ...Array<RiderState>(onRoad).fill("onRoad"),
         ...Array<RiderState>(total - onRoad - delivered).fill("waiting"),
     ];
-    return { slots: all.slice(0, MAX_RIDER_SLOTS), overflow: Math.max(total - MAX_RIDER_SLOTS, 0) };
+    const slots = all.slice(0, MAX_RIDER_SLOTS);
+    const overflow = Math.max(total - MAX_RIDER_SLOTS, 0);
+    const names = namesForSlots(slots, onRoad, onRoadNames);
+    return names ? { slots, overflow, names } : { slots, overflow };
+}
+
+// A count/name disagreement (a poll race) shows no names rather than misplacing one.
+function namesForSlots(
+    slots: ReadonlyArray<RiderState>,
+    onRoad: number,
+    onRoadNames: ReadonlyArray<string> | undefined,
+): ReadonlyArray<string | null> | undefined {
+    if (!onRoadNames || onRoad < 1 || onRoadNames.length !== onRoad) return undefined;
+    if (!onRoadNames.every((name) => typeof name === "string" && name.trim() !== "")) return undefined;
+    let nextName = 0;
+    return slots.map((state) => (state === "onRoad" ? onRoadNames[nextName++] : null));
 }

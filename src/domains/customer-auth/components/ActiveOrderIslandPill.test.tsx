@@ -333,3 +333,111 @@ describe("ActiveOrderIslandPill rider row", () => {
         expect(screen.getByText("Delivered")).toBeTruthy();
     });
 });
+
+describe("ActiveOrderIslandPill courier names", () => {
+    const NAMED: RiderSlots = {
+        slots: ["delivered", "onRoad", "onRoad"],
+        overflow: 2,
+        names: [null, "Ali", "Your courier"],
+    };
+
+    afterEach(cleanup);
+
+    it("renders a name on each on-road slot only, and none on delivered slots or +N", () => {
+        renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: NAMED });
+
+        expect(screen.queryByTestId("island-rider-name-0")).toBeNull();
+        expect(screen.getByTestId("island-rider-name-1").textContent).toBe("Ali");
+        expect(screen.getByTestId("island-rider-name-2").textContent).toBe("Your courier");
+        expect(screen.getByTestId("island-rider-more").textContent).toBe("+2");
+        expect(screen.getByTestId("island-rider-names").textContent).toBe("AliYour courier");
+    });
+
+    it("leaves the names row readable and the icon row aria-hidden", () => {
+        renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: NAMED });
+
+        expect(screen.getByTestId("island-rider-names").getAttribute("aria-hidden")).toBeNull();
+        expect(screen.getByTestId("island-rider-row").getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("keeps each name on one line, ellipsised at a fixed width, with dir=auto", () => {
+        renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: NAMED });
+
+        const name = screen.getByTestId("island-rider-name-1");
+        const style = window.getComputedStyle(name);
+        expect(style.whiteSpace).toBe("nowrap");
+        expect(style.textOverflow).toBe("ellipsis");
+        expect(style.maxWidth).toBe("96px");
+        expect(style.overflow).toBe("hidden");
+        expect(name.getAttribute("dir")).toBe("auto");
+    });
+
+    it("uses no physical left/right properties on the names row", () => {
+        renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: NAMED });
+
+        const row = screen.getByTestId("island-rider-names");
+        const physical = [row, ...Array.from(row.children)].flatMap((el) => {
+            const style = window.getComputedStyle(el);
+            return [style.left, style.right, style.marginLeft, style.marginRight, style.textAlign]
+                .filter((v) => v !== "" && v !== "auto" && v !== "0px" && v !== "start");
+        });
+        expect(physical).toEqual([]);
+    });
+
+    it("renders a name as text, never as HTML", () => {
+        renderPill({
+            orderType: "Delivery",
+            status: "Out for delivery",
+            riderSlots: { slots: ["onRoad", "waiting"], overflow: 0, names: ["<b>x</b>", null] },
+        });
+
+        const name = screen.getByTestId("island-rider-name-0");
+        expect(name.textContent).toBe("<b>x</b>");
+        expect(name.querySelector("b")).toBeNull();
+    });
+
+    it("does not throw when rendered inside an RTL tree", () => {
+        document.documentElement.setAttribute("dir", "rtl");
+        try {
+            expect(() => renderPill({
+                orderType: "Delivery", status: "Out for delivery", riderSlots: NAMED,
+            })).not.toThrow();
+            expect(screen.getByTestId("island-rider-names")).toBeTruthy();
+        } finally {
+            document.documentElement.removeAttribute("dir");
+        }
+    });
+
+    it("renders undefined names exactly like a pill without names", () => {
+        const slots: RiderSlots = { slots: ["delivered", "onRoad", "waiting"], overflow: 0 };
+        const without = renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: slots }).innerHTML;
+        cleanup();
+        const explicit = renderPill({
+            orderType: "Delivery", status: "Out for delivery", riderSlots: { ...slots, names: undefined },
+        }).innerHTML;
+
+        expect(screen.queryByTestId("island-rider-names")).toBeNull();
+        expect(explicit).toBe(without);
+    });
+
+    it("skips the names row when every entry is null", () => {
+        renderPill({
+            orderType: "Delivery", status: "Out for delivery",
+            riderSlots: { slots: ["delivered", "delivered", "delivered"], overflow: 1, names: [null, null, null] },
+        });
+
+        expect(screen.queryByTestId("island-rider-names")).toBeNull();
+    });
+
+    it("renders a names row only when names exist, leaving the rest of the pill identical", () => {
+        const slots: RiderSlots = { slots: ["onRoad", "waiting"], overflow: 0 };
+        const plain = renderPill({ orderType: "Delivery", status: "Out for delivery", riderSlots: slots }).innerHTML;
+        cleanup();
+        const named = renderPill({
+            orderType: "Delivery", status: "Out for delivery", riderSlots: { ...slots, names: ["Ali", null] },
+        }).innerHTML;
+
+        expect(named).not.toBe(plain);
+        expect(named).toContain(plain.slice(0, plain.indexOf("island-rider-row")));
+    });
+});

@@ -166,3 +166,48 @@ describe("riderSlotsFor", () => {
         expect(riderSlotsFor(3, 2, 2)).toBeNull();
     });
 });
+
+describe("riderSlotsFor with courier names", () => {
+    it("maps names onto the on-road slots in order and null onto the others", () => {
+        expect(riderSlotsFor(4, 2, 1, ["Ali", "Sara"])).toEqual({
+            slots: ["delivered", "onRoad", "onRoad"],
+            overflow: 1,
+            names: [null, "Ali", "Sara"],
+        });
+    });
+
+    it("gives the on-road part past the third slot no name and leaves overflow unchanged", () => {
+        const result = riderSlotsFor(6, 4, 0, ["A", "B", "C", "D"]);
+
+        expect(result?.slots).toEqual(["onRoad", "onRoad", "onRoad"]);
+        expect(result?.names).toEqual(["A", "B", "C"]);
+        expect(result?.overflow).toBe(3);
+    });
+
+    it.each([
+        ["more names than on-road parts", 3, 1, 1, ["A", "B"]],
+        ["fewer names than on-road parts", 3, 2, 0, ["A"]],
+        ["an empty entry", 3, 2, 0, ["A", ""]],
+        ["a blank entry", 3, 2, 0, ["A", "   "]],
+        ["an empty list", 3, 1, 0, []],
+        ["nobody on the road", 3, 0, 0, ["A"]],
+    ])("omits names for %s", (_name, total, onRoad, delivered, names) => {
+        const result = riderSlotsFor(total, onRoad, delivered, names);
+
+        expect(result).not.toBeNull();
+        expect(result).not.toHaveProperty("names");
+    });
+
+    it("returns the same value as before when names are undefined", () => {
+        expect(riderSlotsFor(3, 1, 1, undefined)).toEqual({
+            slots: ["delivered", "onRoad", "waiting"],
+            overflow: 0,
+        });
+    });
+
+    it("still returns null for counts that cannot describe a split, names or not", () => {
+        expect(riderSlotsFor(1, 1, 0, ["A"])).toBeNull();
+        expect(riderSlotsFor(3, 2, 2, ["A", "B"])).toBeNull();
+        expect(riderSlotsFor(undefined, 1, 0, ["A"])).toBeNull();
+    });
+});

@@ -486,6 +486,50 @@ describe("useActiveOrderIsland rider slots and refresh", () => {
         });
     });
 
+    describe("courier names", () => {
+        const NAMED: CustomerActiveOrder = { ...SPLIT, onRoadCourierNames: ["Ali"] };
+
+        it("passes the names into riderSlots", async () => {
+            const { result } = await mount(NAMED);
+
+            expect(result.current.riderSlots?.names).toEqual([null, "Ali", null]);
+        });
+
+        it("leaves no names when the field is missing", async () => {
+            const { result } = await mount(SPLIT);
+
+            expect(result.current.riderSlots).not.toHaveProperty("names");
+        });
+
+        it("leaves no names for a pickup order carrying the field", async () => {
+            const { result } = await mount({ ...NAMED, type: "Pick Up", status: "Oven" });
+
+            expect(result.current.riderSlots).toBeNull();
+        });
+
+        it("builds a new riderSlots when a name changes with identical counts", async () => {
+            const { result } = await mount(NAMED);
+            const before = result.current.riderSlots;
+            mockFetchActiveOrder.mockResolvedValueOnce({ ...NAMED, onRoadCourierNames: ["Omar"] });
+
+            await advance(TICK);
+
+            expect(result.current.riderSlots).not.toBe(before);
+            expect(result.current.riderSlots?.names).toEqual([null, "Omar", null]);
+        });
+
+        it("keeps the same riderSlots object across a poll with identical content", async () => {
+            const { result } = await mount(NAMED);
+            const before = result.current.riderSlots;
+            mockFetchActiveOrder.mockResolvedValueOnce({ ...NAMED, onRoadCourierNames: ["Ali"] });
+
+            await advance(TICK);
+
+            expect(mockFetchActiveOrder).toHaveBeenCalledTimes(2);
+            expect(result.current.riderSlots).toBe(before);
+        });
+    });
+
     it.each([
         ["a pickup order", { ...ACTIVE_ORDER, status: "Oven" }],
         ["a one-part delivery", { ...ACTIVE_ORDER, type: "Delivery", status: "Out for delivery" }],
