@@ -232,6 +232,23 @@ describe("AccountingReportPopup", () => {
             expect(screen.getByText("130.000")).toBeTruthy();
         });
 
+        it("explains the Balance header in a tooltip", async () => {
+            renderPopup();
+            await findTable();
+
+            fireEvent.mouseOver(screen.getByText("Balance"));
+
+            expect(await screen.findByText("Balance after this transaction")).toBeTruthy();
+        });
+
+        it("says the balance appears after save instead of '?' on a not-yet-saved report", async () => {
+            renderPopup({ mode: "new", reportId: undefined });
+            await findTable();
+
+            expect(screen.getByText("After save")).toBeTruthy();
+            expect(screen.queryByText("?")).toBeNull();
+        });
+
         it("hides the running-balance column for MANAGER", async () => {
             mockUseAuth.mockReturnValue({ role: StaffRoles.MANAGER, username: "amal" });
             renderPopup();
