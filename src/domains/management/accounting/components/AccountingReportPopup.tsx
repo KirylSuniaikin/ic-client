@@ -19,6 +19,7 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -1084,7 +1085,11 @@ export function AccountingReportPopup({
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Contributor</TableCell>
                                         {isOwner && (
-                                            <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>Balance</TableCell>
+                                            <TableCell sx={{ fontWeight: "bold", color: "text.secondary" }}>
+                                                <Tooltip title="Balance after this transaction" arrow>
+                                                    <span>Balance</span>
+                                                </Tooltip>
+                                            </TableCell>
                                         )}
                                         {/* Header for the delete-button column: unlabelled visually,
                                             but it has to exist so head and body column counts match. */}
@@ -1350,7 +1355,9 @@ export function AccountingReportPopup({
                                                             >
                                                                 {row.runningBalance != null
                                                                     ? row.runningBalance.toFixed(3)
-                                                                    : "?"}
+                                                                    : persistedReportId === null
+                                                                        ? "After save"
+                                                                        : "?"}
                                                             </Typography>
                                                         </Box>
                                                     </TableCell>
