@@ -10,7 +10,12 @@ import "../../../shared/i18n";
 // these without tripping babel-plugin-jest-hoist's out-of-scope check.
 const mockLoaderState: { isLoaded: boolean } = { isLoaded: true };
 
-type MockGoogleMapProps = { onLoad?: (map: unknown) => void };
+type MockMapOptions = { gestureHandling?: string };
+type MockGoogleMapProps = { onLoad?: (map: unknown) => void; options?: MockMapOptions };
+
+// Every `options` object GoogleMap was rendered with, in render order — the gesture mode is only
+// observable through it, and comparing identities across renders is what proves the memo holds.
+let mockRenderedOptions: Array<MockMapOptions | undefined> = [];
 
 // The component creates its marker against the instance onLoad hands it, so the fake map has to
 // be handed over the same way — a mock that only rendered children would exercise nothing.
@@ -21,7 +26,8 @@ jest.mock("@react-google-maps/api", () => {
     const { useEffect } = require("react") as typeof import("react");
     return {
         useJsApiLoader: () => mockLoaderState,
-        GoogleMap: ({ onLoad }: MockGoogleMapProps) => {
+        GoogleMap: ({ onLoad, options }: MockGoogleMapProps) => {
+            mockRenderedOptions.push(options);
             useEffect(() => {
                 onLoad?.(mockMapInstance);
                 // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,6 +162,7 @@ beforeEach(() => {
     rafCallbacks = [];
     rafCallCount = 0;
     cancelledFrames = [];
+    mockRenderedOptions = [];
 });
 
 describe("CourierTrackingMap", () => {
@@ -253,6 +260,29 @@ describe("CourierTrackingMap", () => {
             render(<CourierTrackingMap couriers={[courier()]} />);
             expect(screen.queryByTestId(/^courier-caption-/)).toBeNull();
             expect(screen.queryByText(/Part 1/)).toBeNull();
+        });
+    });
+
+    describe("gesture handling", () => {
+        it('keeps one-finger "greedy" panning by default, so the status page is unchanged', () => {
+            render(<CourierTrackingMap couriers={[courier()]} />);
+
+            expect(mockRenderedOptions[mockRenderedOptions.length - 1]?.gestureHandling).toBe("greedy");
+        });
+
+        it('passes "cooperative" through when the caller asks for it', () => {
+            render(<CourierTrackingMap couriers={[courier()]} gestureHandling="cooperative" />);
+
+            expect(mockRenderedOptions[mockRenderedOptions.length - 1]?.gestureHandling).toBe("cooperative");
+        });
+
+        it("hands GoogleMap the same options object across a poll tick, so the map is not re-configured", () => {
+            const { rerender } = render(<CourierTrackingMap couriers={[courier()]} gestureHandling="cooperative" />);
+            const first = mockRenderedOptions[mockRenderedOptions.length - 1];
+
+            rerender(<CourierTrackingMap couriers={[courier({ latitude: 26.3, longitude: 50.7 })]} gestureHandling="cooperative" />);
+
+            expect(mockRenderedOptions[mockRenderedOptions.length - 1]).toBe(first);
         });
     });
 

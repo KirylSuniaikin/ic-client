@@ -15,6 +15,10 @@ import { getStatusLabel } from "../utils/orderStatusLabel";
 import { buildDisplay, OPTION_VALUES } from "../../menu/utils/buildDisplay";
 import type { BuildDisplayMenuData } from "../../menu/utils/buildDisplay";
 import { useOptionLabel } from "../../../shared/hooks/useOptionLabel";
+import { OUT_FOR_DELIVERY_STATUS, isDeliveryOrder } from "../../../shared/utils/orderStages";
+import { useCourierTracking } from "../../order-status/hooks/useCourierTracking";
+import { CourierTrackingMap } from "../../order-status/components/CourierTrackingMap";
+import { DeliveryPartsProgress } from "../../order-status/components/DeliveryPartsProgress";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerOrderDetail, CustomerOrderDetailComboItem, CustomerOrderDetailItem } from "../types";
 import { statusStyle } from "./CustomerProfilePopup";
@@ -203,6 +207,19 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
         }
     }, [resyncTick, orderId]);
 
+    // The home screen's active-order pill opens THIS popup, so during a ride it is where the
+    // customer looks for the courier — the status page is not on that path. `detail` outlives a
+    // close (it is only cleared on the next open), so the id is withheld while closed: that is
+    // what stops the hook polling for a sheet nobody can see. It is also withheld until the
+    // detail is the one requested: the open effect clears `detail` only AFTER the first render of
+    // a reopen, so on that render it still holds the previous order, and passing its id would
+    // poll that order and could paint its rider under the new one. The live resync above
+    // refetches `detail`, which is how the status reaches "Out for delivery" without a reopen.
+    const isDelivery = isDeliveryOrder(detail?.orderType);
+    const trackedOrderId = open && orderId !== null && detail?.id === orderId ? orderId : null;
+    const { couriers, parts } = useCourierTracking(trackedOrderId, isDelivery, detail?.status ?? null);
+    const isRiding = isDelivery && detail?.status === OUT_FOR_DELIVERY_STATUS;
+
     const chip = detail ? statusStyle(detail.status) : null;
     const hasNotes = Boolean(detail?.notes && detail.notes.trim().length > 0);
 
@@ -286,6 +303,16 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                                 <Typography sx={{ color: "#8a8a8a", fontSize: 13, mb: 2.5 }}>
                                     {formatDateLabel(detail.createdAt)} - {formatTime12Hour(detail.createdAt)}
                                 </Typography>
+
+                                {isRiding && (
+                                    // Both children render nothing until the first fix arrives
+                                    // (and the parts list only for a split order); `:empty` stops
+                                    // that from leaving a blank gap above the items.
+                                    <Box data-testid="order-detail-courier-tracking" sx={{ mb: 2.5, "&:empty": { display: "none" } }}>
+                                        <CourierTrackingMap couriers={couriers} gestureHandling="cooperative" />
+                                        <DeliveryPartsProgress parts={parts} />
+                                    </Box>
+                                )}
 
                                 <Stack spacing={0} sx={{ mb: 2.5 }}>
                                     {detail.items.map((item, index) => (

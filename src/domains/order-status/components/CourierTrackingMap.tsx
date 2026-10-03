@@ -50,7 +50,18 @@ function markerTitleFor(courier: TrackedCourier, multi: boolean): string {
     return multi ? `${courier.name} — Part ${courier.partIndex}` : courier.name;
 }
 
-export function CourierTrackingMap({ couriers }: { couriers: TrackedCourier[] }): JSX.Element | null {
+type CourierTrackingMapProps = {
+    couriers: TrackedCourier[];
+    /**
+     * "greedy" (the default) suits the full-screen status page, where the map is the only thing to
+     * drag. Inside a scrolling sheet one-finger drags must keep scrolling the sheet, or a customer
+     * on a phone gets stuck on the map — "cooperative" is Google's own answer to that (one finger
+     * scrolls the page, two move the map).
+     */
+    gestureHandling?: "greedy" | "cooperative";
+};
+
+export function CourierTrackingMap({ couriers, gestureHandling = "greedy" }: CourierTrackingMapProps): JSX.Element | null {
     const { t } = useTranslation("customerAuth");
 
     // Identical option set to OrderRouteMap/BranchMapView. useJsApiLoader is a singleton: a
@@ -198,16 +209,18 @@ export function CourierTrackingMap({ couriers }: { couriers: TrackedCourier[] })
         };
     }, []);
 
+    // Keyed on the primitive prop only, so the object keeps its identity across poll ticks and
+    // GoogleMap does not re-apply its options on every render.
     const options = useMemo<google.maps.MapOptions>(
         () => ({
             disableDefaultUI: true,
-            gestureHandling: "greedy",
+            gestureHandling,
             clickableIcons: false,
             ...(GOOGLE_MAPS_MAP_ID
                 ? { mapId: GOOGLE_MAPS_MAP_ID }
                 : { styles: LIGHT_MAP_STYLES }),
         }),
-        []
+        [gestureHandling]
     );
 
     if (!GOOGLE_MAPS_API_KEY || !isLoaded || couriers.length === 0) {

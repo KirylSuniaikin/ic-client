@@ -11,18 +11,87 @@ jest.mock("../../../shared/api/customerAuth");
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/socket.ts
 jest.mock("../../../shared/api/socket");
 
-import { refreshCustomerToken, logoutCustomer, fetchOrderDetail } from "../../../shared/api/customerAuth";
+// The courier map is the real CourierTrackingMap, so Google is mocked the way
+// CourierTrackingMap.test.tsx / OrderStatusContent.test.tsx do it: one hoisted factory whose
+// GoogleMap hands the fake map to onLoad and records the `options` it was given (the gesture
+// mode is only observable there).
+type MockMapOptions = { gestureHandling?: string };
+type MockGoogleMapProps = { onLoad?: (map: unknown) => void; options?: MockMapOptions };
+let mockRenderedMapOptions: Array<MockMapOptions | undefined> = [];
+
+jest.mock("@react-google-maps/api", () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useEffect } = require("react") as typeof import("react");
+    return {
+        useJsApiLoader: () => ({ isLoaded: true }),
+        GoogleMap: ({ onLoad, options }: MockGoogleMapProps) => {
+            mockRenderedMapOptions.push(options);
+            useEffect(() => {
+                onLoad?.(mockMapInstance);
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, []);
+            return <div data-testid="google-map" />;
+        },
+    };
+});
+
+// The real key is read from process.env at import time and is absent under test, which would
+// make the map render nothing and every "shows the map" assertion below vacuous.
+jest.mock("../../branch/utils/mapsConfig", () => ({
+    GOOGLE_MAPS_API_KEY: "test-key",
+    GOOGLE_MAPS_MAP_ID: undefined,
+    LIGHT_MAP_STYLES: [],
+}));
+
+import { refreshCustomerToken, logoutCustomer, fetchOrderDetail, fetchCourierLocation } from "../../../shared/api/customerAuth";
 import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
+import * as courierTracking from "../../order-status/hooks/useCourierTracking";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
 import type { CustomerOrderDetail, MenuLocalizationCatalog } from "../types";
+import type { OrderTrackingResponse } from "../../order-status/types";
 
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockLogoutCustomer = jest.mocked(logoutCustomer);
 const mockFetchOrderDetail = jest.mocked(fetchOrderDetail);
+const mockFetchCourierLocation = jest.mocked(fetchCourierLocation);
 const mockConnectSocket = jest.mocked(connectSocket);
 const mockSubscribe = jest.mocked(socket.subscribe);
+// Captured before any spy is installed: the popup keeps running the REAL hook (so polling and
+// the map behave as in production) while the spy records the arguments it was given. CRA's
+// `resetMocks: true` strips a spy's call-through before every test, hence re-installing it in
+// beforeEach.
+const realUseCourierTracking = courierTracking.useCourierTracking;
+
+class FakeMarker {
+    map: unknown;
+
+    constructor(public options: { map?: unknown }) {
+        this.map = options.map;
+    }
+
+    setMap(map: unknown): void {
+        this.map = map;
+    }
+
+    setPosition(): void {
+        // Positioning is CourierTrackingMap.test.tsx's concern, not this popup's.
+    }
+}
+
+class FakeLatLngBounds {
+    extend(): void {
+        // Bounds contents are CourierTrackingMap.test.tsx's concern, not this popup's.
+    }
+}
+
+const mockMapInstance = {
+    setCenter: (): void => undefined,
+    setZoom: (): void => undefined,
+    fitBounds: (): void => undefined,
+    getZoom: (): number | undefined => undefined,
+};
 
 // Captures the frame handler passed to socket.subscribe so a test can simulate a live frame.
 function getFrameHandler(): (frame: { body: string }) => void {
@@ -124,6 +193,9 @@ async function renderPopup(
 
 beforeAll(() => {
     jest.spyOn(console, "debug").mockImplementation(() => undefined);
+    (globalThis as unknown as { google: unknown }).google = {
+        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds },
+    };
 });
 
 beforeEach(() => {
@@ -141,6 +213,11 @@ beforeEach(() => {
     });
     mockSubscribe.mockReset();
     mockSubscribe.mockReturnValue({ id: "detail-sub", unsubscribe: jest.fn() });
+
+    jest.spyOn(courierTracking, "useCourierTracking").mockImplementation(realUseCourierTracking);
+    mockFetchCourierLocation.mockReset();
+    mockFetchCourierLocation.mockResolvedValue({ couriers: [] });
+    mockRenderedMapOptions = [];
 });
 
 afterEach(async () => {
@@ -717,5 +794,275 @@ describe("CustomerOrderDetailPopup — structural display + note (task RW)", () 
         await screen.findByText("Margherita");
         expect(screen.queryByText("LEGACY-RAW-TEXT-SHOULD-NOT-RENDER")).toBeNull();
         expect(screen.getByText("+ Thin Dough", { exact: false })).toBeTruthy();
+    });
+});
+
+// The active-order pill on the home screen opens this popup, so it is where a customer looks for
+// the courier during a ride. The map and the per-part rows must appear only for a delivery that
+// is actually on the road.
+describe("CustomerOrderDetailPopup — courier tracking", () => {
+    const RIDING_HISTORY = [
+        { status: "Ready", changedAt: "2026-06-20 18:35" },
+        { status: "Out for delivery", changedAt: "2026-06-20 18:42" },
+    ];
+
+    function ridingDetail(overrides: Partial<CustomerOrderDetail> = {}): CustomerOrderDetail {
+        return detail({ orderType: "Delivery", status: "Out for delivery", statusHistory: RIDING_HISTORY, ...overrides });
+    }
+
+    // A split order on the road: two riders, two parts — the shape the owner asked to see in full.
+    function twoRiderResponse(): OrderTrackingResponse {
+        return {
+            couriers: [
+                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
+                { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 10, partIndex: 2 },
+            ],
+            parts: [
+                { partIndex: 1, partsTotal: 2, delivered: false },
+                { partIndex: 2, partsTotal: 2, delivered: false },
+            ],
+        };
+    }
+
+    function lastMapOptions(): MockMapOptions | undefined {
+        return mockRenderedMapOptions[mockRenderedMapOptions.length - 1];
+    }
+
+    it("shows the courier map and the per-part progress for a delivery that is out for delivery", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+
+        expect(await screen.findByTestId("google-map")).toBeTruthy();
+        expect(mockFetchCourierLocation).toHaveBeenCalledWith("detail-token", 1234);
+        expect(screen.getByTestId("courier-caption-1").textContent).toBe("Part 1 · Ali");
+        expect(screen.getByTestId("courier-caption-2").textContent).toBe("Part 2 · Sara");
+        expect(screen.getByTestId("delivery-part-progress-1")).toBeTruthy();
+        expect(screen.getByTestId("delivery-part-progress-2")).toBeTruthy();
+    });
+
+    it("places the tracking block after the date line and before the items list", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+
+        const tracking = await screen.findByTestId("order-detail-courier-tracking");
+        await screen.findByTestId("google-map");
+        const dateLine = screen.getByText("2026-06-20 - 6:42 PM");
+        const firstItem = screen.getByText("Pepperoni");
+        // DOCUMENT_POSITION_FOLLOWING: the argument comes after the node it is called on.
+        expect(dateLine.compareDocumentPosition(tracking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(tracking.compareDocumentPosition(firstItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // Inside a scrolling sheet a one-finger drag has to scroll the sheet, not pan the map.
+    it('asks the map for "cooperative" gesture handling', async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+
+        await screen.findByTestId("google-map");
+        expect(lastMapOptions()?.gestureHandling).toBe("cooperative");
+    });
+
+    // "Out for delivery" never happens to a pickup order; pairing them anyway is what isolates
+    // the order-type gate from the status gate.
+    it("shows neither the map nor the parts progress for a pickup order, and never asks for a location", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail({ orderType: "Pick Up" }));
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+
+        await screen.findByText("Order ID #88");
+        expect(screen.queryByTestId("order-detail-courier-tracking")).toBeNull();
+        expect(screen.queryByTestId("google-map")).toBeNull();
+        expect(screen.queryByTestId(/^delivery-part-progress-/)).toBeNull();
+        expect(mockFetchCourierLocation).not.toHaveBeenCalled();
+    });
+
+    it.each(["Kitchen Phase", "Ready", "Picked Up", "Delivered", "Returned Undelivered"])(
+        "shows neither the map nor the parts progress for a delivery whose status is %s",
+        async (status) => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+            mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail({ status }));
+            mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+            await renderPopup();
+
+            await screen.findByText("Order ID #88");
+            expect(screen.queryByTestId("order-detail-courier-tracking")).toBeNull();
+            expect(screen.queryByTestId("google-map")).toBeNull();
+            expect(screen.queryByTestId(/^delivery-part-progress-/)).toBeNull();
+            expect(mockFetchCourierLocation).not.toHaveBeenCalled();
+        }
+    );
+
+    it("shows neither while the detail is still loading", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        // Never-resolving promise: only the loading state is under test here.
+        mockFetchOrderDetail.mockImplementationOnce(() => new Promise<CustomerOrderDetail>(() => undefined));
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+
+        expect(await screen.findByRole("progressbar")).toBeTruthy();
+        expect(screen.queryByTestId("order-detail-courier-tracking")).toBeNull();
+        expect(screen.queryByTestId("google-map")).toBeNull();
+        expect(mockFetchCourierLocation).not.toHaveBeenCalled();
+    });
+
+    // `detail` survives a close, so the id is the only thing standing between a closed sheet and
+    // a poll that never stops.
+    it("passes the hook a null order id while closed and the loaded order's id while open", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        const tracking = jest.mocked(courierTracking.useCourierTracking);
+
+        await renderPopup();
+
+        expect(tracking.mock.calls[0]).toEqual([null, false, null]);
+
+        await screen.findByTestId("google-map");
+        expect(tracking).toHaveBeenLastCalledWith(1234, true, "Out for delivery");
+
+        fireEvent.click(screen.getByLabelText("Close"));
+
+        await waitFor(() => expect(screen.queryByTestId("google-map")).toBeNull());
+        expect(tracking).toHaveBeenLastCalledWith(null, true, "Out for delivery");
+    });
+
+    it("shows the map once a live status frame flips the order to out for delivery", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail({ status: "Ready", statusHistory: RIDING_HISTORY.slice(0, 1) }));
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        mockFetchCourierLocation.mockResolvedValue(twoRiderResponse());
+
+        await renderPopup();
+        await screen.findByText("Order ID #88");
+        expect(screen.queryByTestId("google-map")).toBeNull();
+        expect(mockFetchCourierLocation).not.toHaveBeenCalled();
+
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+        const handler = getFrameHandler();
+        act(() => {
+            handler({ body: JSON.stringify({ id: 1234, status: "Out for delivery" }) });
+        });
+
+        expect(await screen.findByTestId("google-map")).toBeTruthy();
+        expect(mockFetchOrderDetail).toHaveBeenCalledTimes(2);
+        expect(mockFetchCourierLocation).toHaveBeenCalledWith("detail-token", 1234);
+        expect(screen.getByTestId("delivery-part-progress-1")).toBeTruthy();
+    });
+
+    describe("reopened on another order", () => {
+        const ORDER_A = 1234;
+        const ORDER_B = 5678;
+
+        // Wired the way CustomerProfilePopup wires it: ONE selected id drives both `open` and
+        // `orderId`, and closing clears it. The popup therefore stays mounted and its `detail`
+        // carries over from one order to the next — the condition the stale-rider bug needs.
+        function SelectedOrderHarness(): React.JSX.Element {
+            const { isAuthLoading } = useCustomerAuth();
+            const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+            return (
+                <>
+                    {!isAuthLoading && (
+                        <>
+                            <button onClick={() => setSelectedOrderId(ORDER_A)}>open-order-a</button>
+                            <button onClick={() => setSelectedOrderId(ORDER_B)}>open-order-b</button>
+                        </>
+                    )}
+                    <CustomerOrderDetailPopup
+                        open={selectedOrderId !== null}
+                        orderId={selectedOrderId}
+                        onClose={() => setSelectedOrderId(null)}
+                    />
+                </>
+            );
+        }
+
+        function riderResponse(name: string): OrderTrackingResponse {
+            return { couriers: [{ name, latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }] };
+        }
+
+        async function openOrderA(): Promise<void> {
+            render(
+                <CustomerAuthProvider>
+                    <CustomerAuthUiProvider>
+                        <SelectedOrderHarness />
+                    </CustomerAuthUiProvider>
+                </CustomerAuthProvider>
+            );
+            fireEvent.click(await screen.findByRole("button", { name: "open-order-a" }));
+            await screen.findByText("Order ID #88");
+        }
+
+        async function closeThenOpenOrderB(): Promise<void> {
+            fireEvent.click(screen.getByLabelText("Close"));
+            await waitFor(() => expect(screen.queryByText("Order ID #88")).toBeNull());
+            // By text, not role: the closing Modal may still mark its siblings aria-hidden.
+            fireEvent.click(screen.getByText("open-order-b"));
+            await screen.findByText("Order ID #99");
+        }
+
+        beforeEach(() => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+            mockFetchOrderDetail.mockImplementation((_token: string, id: number) =>
+                Promise.resolve(ridingDetail({ id, orderNumber: id === ORDER_A ? 88 : 99 }))
+            );
+        });
+
+        // On the first render of a reopen `detail` is still order A's; its id must not reach the
+        // hook, or a poll goes out for an order nobody is looking at.
+        it("never polls the previous order once the sheet is reopened on another one", async () => {
+            mockFetchCourierLocation.mockImplementation((_token: string, id: number) =>
+                Promise.resolve(riderResponse(id === ORDER_A ? "Ali" : "Sara"))
+            );
+
+            await openOrderA();
+            expect(await screen.findByText("Ali")).toBeTruthy();
+            const callsBeforeReopen = mockFetchCourierLocation.mock.calls.length;
+
+            await closeThenOpenOrderB();
+
+            expect(await screen.findByText("Sara")).toBeTruthy();
+            expect(mockFetchCourierLocation.mock.calls.slice(callsBeforeReopen)).toEqual([["detail-token", ORDER_B]]);
+            expect(screen.queryByText("Ali")).toBeNull();
+        });
+
+        // A's request is still in flight when the sheet closes and only answers once B's rider is
+        // on the map. Applying it would put A's rider under B's header until B's next poll.
+        it("keeps a late answer for the previous order off the next order's map", async () => {
+            let answerOrderA: (response: OrderTrackingResponse) => void = () => undefined;
+            mockFetchCourierLocation.mockImplementation((_token: string, id: number) =>
+                id === ORDER_A
+                    ? new Promise<OrderTrackingResponse>((resolve) => {
+                          answerOrderA = resolve;
+                      })
+                    : Promise.resolve(riderResponse("Sara"))
+            );
+
+            await openOrderA();
+            await waitFor(() => expect(mockFetchCourierLocation).toHaveBeenCalledWith("detail-token", ORDER_A));
+
+            await closeThenOpenOrderB();
+            expect(await screen.findByText("Sara")).toBeTruthy();
+
+            await act(async () => {
+                answerOrderA(riderResponse("Ali"));
+            });
+
+            expect(screen.queryByText("Ali")).toBeNull();
+            expect(screen.getByText("Sara")).toBeTruthy();
+        });
     });
 });

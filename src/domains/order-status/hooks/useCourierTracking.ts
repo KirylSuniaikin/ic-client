@@ -6,9 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { fetchCourierLocation } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { logger } from "../../../shared/utils/logger";
+import { OUT_FOR_DELIVERY_STATUS } from "../../../shared/utils/orderStages";
 import type { TrackedCourier, TrackedPart } from "../types";
-
-const OUT_FOR_DELIVERY_STATUS = "Out for delivery";
 
 // Upper end of the allowed 15-20s range (task-spec.md §4.1): minimizes Google Maps script/billing
 // load and backend request volume against a courier position that itself only changes ~once a
@@ -86,14 +85,22 @@ export function useCourierTracking(
         const currentToken = token as string;
         const currentOrderId = orderId as number;
 
+        // Set by this run's cleanup. A request still in flight when the order id (or token) changes
+        // answers for an order this hook no longer tracks; if it were applied, the order-detail
+        // sheet reopened on another order would show the previous order's rider until the next
+        // poll, up to POLL_INTERVAL_MS later.
+        let cancelled = false;
+
         async function poll(): Promise<void> {
             try {
                 const response = await fetchCourierLocation(currentToken, currentOrderId);
+                if (cancelled) return;
                 setState({ couriers: response.couriers, parts: response.parts ?? [] });
             } catch (error) {
                 // Explicit, never a silent catch — self-healing for a transient network blip; a
                 // persistent 404/401 simply keeps the map hidden without spamming an error state.
                 logger.debug("useCourierTracking: fetchCourierLocation failed", error);
+                if (cancelled) return;
                 setState(EMPTY_STATE);
             }
         }
@@ -103,7 +110,10 @@ export function useCourierTracking(
             void poll();
         }, POLL_INTERVAL_MS);
 
-        return clearRunningInterval;
+        return () => {
+            cancelled = true;
+            clearRunningInterval();
+        };
     }, [trackable, visible, orderId, token]);
 
     return state;

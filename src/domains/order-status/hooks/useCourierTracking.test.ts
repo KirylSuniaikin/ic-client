@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { renderHook, act } from "@testing-library/react";
+import type { RenderHookResult } from "@testing-library/react";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/customerAuth.ts
 jest.mock("../../../shared/api/customerAuth");
@@ -9,6 +10,7 @@ import { fetchCourierLocation, refreshCustomerToken } from "../../../shared/api/
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthApiError } from "../../customer-auth/types";
 import { POLL_INTERVAL_MS, useCourierTracking } from "./useCourierTracking";
+import type { UseCourierTrackingResult } from "./useCourierTracking";
 import type { OrderTrackingResponse } from "../types";
 import type { TrackedCourier, TrackedPart } from "../types";
 
@@ -241,6 +243,98 @@ describe("useCourierTracking", () => {
 
         expect(result.current.couriers).toEqual([]);
         expect(result.current.parts).toEqual([]);
+    });
+
+    // The order-detail sheet hands the hook another order id when it is reopened on another order,
+    // and null when it closes. A request still in flight at that moment answers for an order the
+    // hook no longer tracks; applying it would paint (or blank) the wrong riders until the next poll.
+    describe("a late answer for an order it no longer tracks", () => {
+        type Deferred = { resolve: (response: OrderTrackingResponse) => void; reject: (error: Error) => void };
+
+        function deferNextFetch(): Deferred {
+            const deferred: Deferred = { resolve: () => undefined, reject: () => undefined };
+            mockFetchCourierLocation.mockImplementationOnce(
+                () =>
+                    new Promise<OrderTrackingResponse>((resolve, reject) => {
+                        deferred.resolve = resolve;
+                        deferred.reject = reject;
+                    })
+            );
+            return deferred;
+        }
+
+        function renderForOrder(
+            orderId: number | null,
+        ): RenderHookResult<UseCourierTrackingResult, { id: number | null }> {
+            return renderHook(
+                ({ id }: { id: number | null }) => useCourierTracking(id, true, "Out for delivery"),
+                { wrapper, initialProps: { id: orderId } }
+            );
+        }
+
+        it("does not replace the new order's riders when the old order's answer lands after them", async () => {
+            loginWithToken();
+            const orderOne = deferNextFetch();
+            mockFetchCourierLocation.mockResolvedValueOnce(courierResponse({ couriers: [COURIER_2], parts: PARTS_2 }));
+
+            const { result, rerender } = renderForOrder(1);
+            await flush();
+            expect(mockFetchCourierLocation).toHaveBeenLastCalledWith("tok-1", 1);
+
+            rerender({ id: 2 });
+            await flush();
+            expect(mockFetchCourierLocation).toHaveBeenLastCalledWith("tok-1", 2);
+            expect(result.current.couriers).toEqual([COURIER_2]);
+
+            await act(async () => {
+                orderOne.resolve(courierResponse({ couriers: [COURIER] }));
+            });
+            await flush();
+
+            expect(result.current.couriers).toEqual([COURIER_2]);
+            expect(result.current.parts).toEqual(PARTS_2);
+        });
+
+        it("does not blank the new order's riders when the old order's request fails late", async () => {
+            loginWithToken();
+            const orderOne = deferNextFetch();
+            mockFetchCourierLocation.mockResolvedValueOnce(courierResponse({ couriers: [COURIER_2], parts: PARTS_2 }));
+
+            const { result, rerender } = renderForOrder(1);
+            await flush();
+
+            rerender({ id: 2 });
+            await flush();
+            expect(result.current.couriers).toEqual([COURIER_2]);
+
+            await act(async () => {
+                orderOne.reject(new Error("network down"));
+            });
+            await flush();
+
+            expect(result.current.couriers).toEqual([COURIER_2]);
+            expect(result.current.parts).toEqual(PARTS_2);
+        });
+
+        it("stays empty when an answer lands after the order id was withdrawn", async () => {
+            loginWithToken();
+            const orderOne = deferNextFetch();
+
+            const { result, rerender } = renderForOrder(1);
+            await flush();
+            expect(mockFetchCourierLocation).toHaveBeenCalledTimes(1);
+
+            rerender({ id: null });
+            await flush();
+
+            await act(async () => {
+                orderOne.resolve(courierResponse({ couriers: [COURIER], parts: PARTS_2 }));
+            });
+            await flush();
+
+            expect(result.current.couriers).toEqual([]);
+            expect(result.current.parts).toEqual([]);
+        });
     });
 
     it("clears the interval and the visibility listener on unmount — no further calls after unmount + timer advance", async () => {
