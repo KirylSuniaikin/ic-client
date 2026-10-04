@@ -67,8 +67,8 @@ const PRESETS: { label: string; months: number }[] = [
 /**
  * Picks a range of MONTHS from a grid of twelve.
  *
- * <p>One grid, clicked twice — first click sets the start and arms the end, second click closes the
- * range. Two side-by-side calendars was the obvious way to build it and the wrong way to use it: the
+ * <p>One grid. The first click selects that month on its own and arms the end; an optional second
+ * click widens it into a range. Two side-by-side calendars was the obvious way to build it and the wrong way to use it: the
  * day-range picker next to it on the same filter row is a single calendar, so two was inconsistent
  * as well as twice the width on a POS tablet.
  *
@@ -103,8 +103,11 @@ export default function MonthRangePickerPopover(
     const pick = (monthIndex: number): void => {
         const picked = new Date(year, monthIndex, 1);
 
+        // The first click already selects that one month, as the day calendar on the Performance tab
+        // does with a day: looking at last month is one click, not the same month clicked twice.
         if (pendingFrom === null) {
             setPendingFrom(picked);
+            onRangeChange({from: picked, to: picked});
             return;
         }
 
@@ -120,11 +123,8 @@ export default function MonthRangePickerPopover(
     const label = (d: Date): string =>
         d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
 
-    // While a range is half-picked, the armed month is the only thing highlighted -- showing the
-    // old range underneath it would make the click that is about to happen look like it has already
-    // happened.
-    const lo = pendingFrom ? ordinal(pendingFrom) : ordinal(range.from);
-    const hi = pendingFrom ? ordinal(pendingFrom) : ordinal(range.to);
+    const lo = ordinal(range.from);
+    const hi = ordinal(range.to);
 
     const monthState = (monthIndex: number): RangePosition =>
         rangePosition(year * 12 + monthIndex, lo, hi);
@@ -170,13 +170,11 @@ export default function MonthRangePickerPopover(
                 </Stack>
 
                 <Typography variant="body2" fontWeight="bold" sx={{color: '#3b352c'}}>
-                    {pendingFrom
-                        ? `${label(pendingFrom)} — pick the end month`
-                        : `${label(range.from)} — ${label(range.to)}`}
+                    {`${label(range.from)} — ${label(range.to)}`}
                 </Typography>
                 <Typography variant="caption" sx={{display: 'block', color: '#8a807a', mb: 1}}>
-                    {pendingFrom ? "Click a second month to close the range."
-                                 : "Click a month to start a new range."}
+                    {pendingFrom ? "Apply for this month, or click another month for a range."
+                                 : "Click a month to see it, or two months for a range."}
                 </Typography>
 
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.5}}>
