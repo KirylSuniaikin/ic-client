@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { cleanProductName, normalizeProductName } from "./productName";
+import { cleanProductName, cleanVendorName, normalizeProductName, normalizeVendorName } from "./productName";
 
 describe("cleanProductName", () => {
     it("trims and collapses internal whitespace to single spaces, keeping the case", () => {
@@ -18,5 +18,17 @@ describe("normalizeProductName", () => {
 
     it("keeps genuinely different names apart", () => {
         expect(normalizeProductName("Mozzarella")).not.toBe(normalizeProductName("Mozzarella Cheese"));
+    });
+});
+
+// POST /api/vendors stores and compares vendor names by the product rule.
+describe("vendor names", () => {
+    it("are cleaned like product names, keeping the case", () => {
+        expect(cleanVendorName("  Fresh   Farms\t")).toBe("Fresh Farms");
+    });
+
+    it("treat names differing only in case and spacing as the same vendor", () => {
+        expect(normalizeVendorName(" FRESH  farms ")).toBe(normalizeVendorName("Fresh Farms"));
+        expect(normalizeVendorName("Fresh")).not.toBe(normalizeVendorName("Fresh Farms"));
     });
 });

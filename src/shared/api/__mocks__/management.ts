@@ -82,6 +82,8 @@ export const putWorkingHours = jest.fn<Promise<WorkingHoursResponse>, [WorkingHo
 // Purchase/Inventory popups (Phase 2 — decimal-placeholder component tests).
 export const fetchProducts = jest.fn<Promise<ProductTO[]>, []>();
 export const fetchVendors = jest.fn<Promise<VendorTO[]>, []>();
+// "Add" from the purchase invoice's vendor dropdown.
+export const createVendor = jest.fn<Promise<VendorTO>, [string]>();
 // Product catalog (Statistics -> Pricing table, and "Add" from the purchase product dropdown).
 export const createProduct = jest.fn<Promise<ProductTO>, [CreateProductRequest]>();
 export const updateProductSettings = jest.fn<Promise<ProductTO>, [number, UpdateProductSettingsRequest]>();

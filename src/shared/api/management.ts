@@ -15,6 +15,7 @@ import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../domains/ma
 import type {
     BasePurchaseResponse,
     CreatePurchasePayload,
+    CreateVendorRequest,
     EditPurchasePayload,
     InvoiceImageMetaTO,
     PurchaseTO,
@@ -23,6 +24,7 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from '../../domains/management/purchases/types';
+import { DuplicateVendorNameError } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
 import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
 import { ChannelRowConflictError } from '../../domains/management/statistics/types';
@@ -257,6 +259,19 @@ export async function updateProductSettings(
         body: JSON.stringify(request),
     });
     if (!res.ok) throw await productRequestError(res);
+    return res.json();
+}
+
+// MANAGER / SUPER_MANAGER / OWNER only server-side. Answers 200 with the created VendorTO, its name
+// stored cleaned (see cleanVendorName).
+export async function createVendor(vendorName: string): Promise<VendorTO> {
+    const res = await authFetch(BASE_URL + `/vendors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ vendorName } satisfies CreateVendorRequest),
+    });
+    if (res.status === 409) throw new DuplicateVendorNameError();
+    if (!res.ok) throw new Error((await readServerErrorMessage(res)) ?? `HTTP ${res.status}`);
     return res.json();
 }
 
