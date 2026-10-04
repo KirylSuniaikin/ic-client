@@ -11,3 +11,16 @@ export function cleanProductName(name: string): string {
 export function normalizeProductName(name: string): string {
     return cleanProductName(name).toLowerCase();
 }
+
+// POST /api/vendors applies the very same rule to vendor names, so vendors share the
+// implementation rather than keep a copy that could drift from it.
+
+/** The form a vendor name is stored in. Same rule as {@link cleanProductName}. */
+export function cleanVendorName(name: string): string {
+    return cleanProductName(name);
+}
+
+/** The vendor duplicate key. Same rule as {@link normalizeProductName}. */
+export function normalizeVendorName(name: string): string {
+    return normalizeProductName(name);
+}

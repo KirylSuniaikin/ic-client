@@ -33,8 +33,10 @@ import {
     patchChannelOverride,
     updateCategoryClassification,
     updateComponentCost,
+    createVendor,
 } from "./management";
 import { DuplicateProductNameError } from "../../domains/management/inventory/types";
+import { DuplicateVendorNameError } from "../../domains/management/purchases/types";
 import { ChannelRowConflictError } from "../../domains/management/statistics/types";
 import type { ChannelOverridePatch, ChannelPerformanceMonth } from "../../domains/management/statistics/types";
 import type {
@@ -519,6 +521,51 @@ describe("updateProductSettings", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
 
         await expect(updateProductSettings(999, request)).rejects.toThrow("HTTP 404");
+    });
+});
+
+// ── createVendor ──────────────────────────────────────────────────────────────
+
+describe("createVendor", () => {
+    it("POSTs the name as {vendorName} to the vendors endpoint", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ id: 9, vendorName: "Fresh Farms" }, 200));
+
+        await createVendor("Fresh Farms");
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/vendors");
+        expect(init.method).toBe("POST");
+        expect(JSON.parse(init.body as string)).toEqual({ vendorName: "Fresh Farms" });
+    });
+
+    it("returns the created vendor on 200", async () => {
+        const created = { id: 9, vendorName: "Fresh Farms" };
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(created, 200));
+
+        const result = await createVendor("Fresh Farms");
+
+        expect(result).toEqual(created);
+    });
+
+    it("throws a DuplicateVendorNameError carrying the fixed message on 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "whatever the server said" }, 409));
+
+        const failure = createVendor("Acme");
+
+        await expect(failure).rejects.toBeInstanceOf(DuplicateVendorNameError);
+        await expect(failure).rejects.toThrow("A vendor with this name already exists");
+    });
+
+    it("surfaces the server's message on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ status: 400, message: "Vendor name is required" }, 400));
+
+        await expect(createVendor(" ")).rejects.toThrow("Vendor name is required");
+    });
+
+    it("falls back to the status code when the error body is not JSON", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(createVendor("Fresh Farms")).rejects.toThrow("HTTP 403");
     });
 });
 

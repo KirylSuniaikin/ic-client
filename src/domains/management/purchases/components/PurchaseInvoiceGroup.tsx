@@ -3,6 +3,7 @@ import {
     Autocomplete,
     Box,
     Checkbox,
+    createFilterOptions,
     IconButton,
     Stack,
     TableCell,
@@ -11,9 +12,11 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
+import type { FilterOptionsState } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import AddIcon from "@mui/icons-material/Add";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -24,6 +27,8 @@ import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { NumericField, PurchaseTableRow } from "./PurchaseTableRow";
 import { InvoiceImageField } from "./InvoiceImageField";
+import { cleanVendorName, normalizeVendorName } from "../../_shared/utils/productName";
+import { BRAND_RED } from "../../../../shared/utils/theme";
 import {
     binSx,
     editableFieldSx,
@@ -50,6 +55,33 @@ const paidCheckboxSx = {
     },
 } as const;
 
+/** The vendor dropdown's trailing "Add “<typed>”" entry, offered when the typed name matches no vendor. */
+type AddVendorOption = { kind: "add-vendor"; vendorName: string };
+type VendorOption = VendorTO | AddVendorOption;
+
+function isAddVendorOption(option: VendorOption): option is AddVendorOption {
+    return "kind" in option && option.kind === "add-vendor";
+}
+
+// trim: a stray space typed around a name should still find the vendor.
+const filterVendors = createFilterOptions<VendorOption>({ trim: true });
+
+// Offered only when nothing matches EXACTLY (by the server's duplicate rule), not merely when the
+// fuzzy filter comes up empty: typing "acme" must not offer to create "acme" beside "Acme".
+function filterVendorsWithAdd(options: VendorOption[], state: FilterOptionsState<VendorOption>): VendorOption[] {
+    const filtered = filterVendors(options, state);
+    const typedKey = normalizeVendorName(state.inputValue);
+    if (typedKey === "") return filtered;
+    const match = options.find(o =>
+        !isAddVendorOption(o) && normalizeVendorName(o.vendorName) === typedKey);
+    if (match === undefined) {
+        return [...filtered, { kind: "add-vendor", vendorName: cleanVendorName(state.inputValue) }];
+    }
+    // MUI's filter only trims the ends, so "fine  foods" would match nothing it lists while the Add
+    // entry is rightly withheld as a duplicate: nothing to pick and nothing to add. List the vendor.
+    return filtered.includes(match) ? filtered : [match, ...filtered];
+}
+
 type PurchaseInvoiceGroupProps = {
     invoice: PurchaseInvoiceRow;
     products: ProductTO[];
@@ -66,6 +98,8 @@ type PurchaseInvoiceGroupProps = {
     onApplyProduct: (invoiceId: string, lineId: string, val: ProductTO | null) => void;
     /** Absent for a role that may not create products: the lines then offer no "Add" entry. */
     onRequestCreateProduct?: (invoiceId: string, lineId: string, name: string) => void;
+    /** Absent for a role that may not create vendors: the vendor field then offers no "Add" entry. */
+    onRequestCreateVendor?: (invoiceId: string, name: string) => void;
     onDeleteLine: (invoiceId: string, lineId: string) => void;
 };
 
@@ -98,6 +132,7 @@ function PurchaseInvoiceGroupInner({
                                        onCommitNumeric,
                                        onApplyProduct,
                                        onRequestCreateProduct,
+                                       onRequestCreateVendor,
                                        onDeleteLine,
                                    }: PurchaseInvoiceGroupProps) {
     const invoiceId = invoice.id;
@@ -182,13 +217,44 @@ function PurchaseInvoiceGroupInner({
                     </Box>
 
                     <Box sx={{ ...editableFieldSx, minWidth: 170 }}>
-                        <Autocomplete<VendorTO, false, false, false>
+                        <Autocomplete<VendorOption, false, false, false>
                             openOnFocus
                             options={vendors}
                             value={selectedVendor}
                             getOptionLabel={(o) => o.vendorName}
                             isOptionEqualToValue={(o, v) => !!v && o.vendorName === v.vendorName}
-                            onChange={(_, val) => onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" })}
+                            // Without the callback the field keeps MUI's default filter, so a role
+                            // that may not create vendors sees exactly what it always has.
+                            filterOptions={onRequestCreateVendor ? filterVendorsWithAdd : undefined}
+                            renderOption={(props, option) => {
+                                const { key, ...optionProps } = props;
+                                return isAddVendorOption(option) ? (
+                                    <li key={key} {...optionProps}>
+                                        <Box
+                                            component="span"
+                                            sx={{ display: "flex", alignItems: "center", gap: 0.75, color: BRAND_RED, fontWeight: 700 }}
+                                        >
+                                            <AddRoundedIcon fontSize="small" />
+                                            Add “{option.vendorName}”
+                                        </Box>
+                                    </li>
+                                ) : (
+                                    <li key={key} {...optionProps}>{option.vendorName}</li>
+                                );
+                            }}
+                            onChange={(_, val) => {
+                                // The "Add" entry is a request, not a value: the invoice keeps its
+                                // current vendor until the new one exists and the table applies it.
+                                if (val !== null && isAddVendorOption(val)) {
+                                    // The sheet's focus trap restores focus to whatever held it when
+                                    // it opened; with openOnFocus, handing it back to this input
+                                    // would pop the list open again over the table as it closes.
+                                    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                                    onRequestCreateVendor?.(invoiceId, val.vendorName);
+                                    return;
+                                }
+                                onUpdateInvoice(invoiceId, { vendorName: val?.vendorName ?? "" });
+                            }}
                             renderInput={(p) => (
                                 <TextField
                                     {...p}

@@ -63,9 +63,13 @@ import { useIncrementalList } from "../../../../shared/hooks/useIncrementalList"
 import { useAuth } from "../../../auth/context/AuthProvider";
 import { isManagerRole } from "../../../auth/types";
 import CreateProductSheet from "../../_shared/components/CreateProductSheet";
+import CreateVendorSheet from "../../_shared/components/CreateVendorSheet";
 
 /** The line whose product dropdown asked for a new product, and the name typed there. */
 type CreateProductTarget = { invoiceId: string; lineId: string; name: string };
+
+/** The invoice whose vendor dropdown asked for a new vendor, and the name typed there. */
+type CreateVendorTarget = { invoiceId: string; name: string };
 
 type Props = {
     open: boolean;
@@ -137,6 +141,8 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     // below returns no role, so the caller's own comes from the token.
     const { role } = useAuth();
     const canCreateProducts = isManagerRole(role ?? null);
+    // Same roles for POST /api/vendors.
+    const canCreateVendors = isManagerRole(role ?? null);
 
     // Every product is kept, not only the purchasable ones, so the create form can recognise a
     // name that exists but was left out of the dropdown for not being purchasable.
@@ -144,6 +150,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const products = useMemo(() => allProducts.filter(p => p.isPurchasable === true), [allProducts]);
     const [vendors, setVendors] = useState<VendorTO[]>([]);
     const [createProductTarget, setCreateProductTarget] = useState<CreateProductTarget | null>(null);
+    const [createVendorTarget, setCreateVendorTarget] = useState<CreateVendorTarget | null>(null);
     const productById = useMemo(() => new Map(products.map(p => [p.id, p] as const)), [products]);
     const isDataLoadedRef = useRef<boolean>(false);
     const vendorByName = useMemo(() => new Map(vendors.map(v => [String(v.vendorName).toLowerCase(), v] as const)), [vendors]);
@@ -370,6 +377,22 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
     const createProductInvoiceVendor = createProductTarget === null
         ? null
         : invoices.find(inv => inv.id === createProductTarget.invoiceId)?.vendorName ?? null;
+
+    // Passed down to every invoice group, so it follows the same rule as the callbacks above: no
+    // dependency on `invoices`, or its identity would change on every keystroke and break every
+    // group memo.
+    const requestCreateVendor = useCallback((invoiceId: string, name: string) => {
+        setCreateVendorTarget({ invoiceId, name });
+    }, []);
+
+    // The new vendor joins the list, so every invoice can pick it, and goes straight onto the
+    // invoice that asked for it -- through updateInvoice, like any other vendor pick.
+    const handleVendorCreated = (vendor: VendorTO): void => {
+        if (createVendorTarget === null) return;
+        setVendors(prev => [...prev, vendor]);
+        updateInvoice(createVendorTarget.invoiceId, { vendorName: vendor.vendorName });
+        setCreateVendorTarget(null);
+    };
 
     // Sorting reorders the invoices once, on tap. It is not a data change, so it must not mark
     // the report dirty — nobody should be asked to save because they re-ordered the view.
@@ -620,6 +643,7 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                                             onCommitNumeric={commitNumericCell}
                                             onApplyProduct={applyProduct}
                                             onRequestCreateProduct={canCreateProducts ? requestCreateProduct : undefined}
+                                            onRequestCreateVendor={canCreateVendors ? requestCreateVendor : undefined}
                                             onDeleteLine={deleteLine}
                                         />
                                     ))}
@@ -654,6 +678,16 @@ export function PurchaseTablePopup({open, mode, purchaseId, branch, onClose, onS
                     existingProducts={allProducts}
                     onCreated={handleProductCreated}
                     onClose={() => setCreateProductTarget(null)}
+                />
+            )}
+
+            {canCreateVendors && (
+                <CreateVendorSheet
+                    open={createVendorTarget !== null}
+                    initialName={createVendorTarget?.name}
+                    vendors={vendors}
+                    onCreated={handleVendorCreated}
+                    onClose={() => setCreateVendorTarget(null)}
                 />
             )}
         </Dialog>

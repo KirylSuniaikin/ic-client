@@ -14,6 +14,23 @@ export type VendorTO = {
     vendorName: string;
 }
 
+// POST /api/vendors. MANAGER / SUPER_MANAGER / OWNER only, like POST /api/products.
+export type CreateVendorRequest = {
+    vendorName: string;
+}
+
+export const DUPLICATE_VENDOR_NAME_MESSAGE = "A vendor with this name already exists";
+
+// Thrown by createVendor on a 409 -- the server compares names trimmed, whitespace-collapsed and
+// case-insensitively (see normalizeVendorName), so this can fire even when the client-side check
+// passed against a vendor list loaded before someone else added the same name.
+export class DuplicateVendorNameError extends Error {
+    constructor() {
+        super(DUPLICATE_VENDOR_NAME_MESSAGE);
+        this.name = "DuplicateVendorNameError";
+    }
+}
+
 // ── Wire types (backend read contract) ──────────────────────────────────────
 
 export type PurchaseLineTO = {
