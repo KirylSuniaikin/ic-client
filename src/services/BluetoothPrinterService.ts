@@ -13,18 +13,19 @@ function formatExternalId(id: string | number | null | undefined): string {
 // GS B n ("Select/Cancel white/black reverse print mode") -- one of the most widely supported
 // ESC/POS control sequences across thermal printer firmwares, including the cheap generic ones
 // this app targets (unlike printer-specific bold/underline variants, which are hit-or-miss).
-// Turns modifier rows (extras, toppings, "NO X" removals) into a solid black box with white text
-// on the printed ticket -- kitchen staff missing a "NO Onion" line printed as plain text was
-// producing real 1-star reviews, so these rows need to be impossible to skim past.
+// Turns modifier rows (extras, toppings, "NO X" removals) and notes into a solid black box with
+// white text on the printed ticket -- kitchen staff missing a "NO Onion" line printed as plain text
+// was producing real 1-star reviews, so these rows need to be impossible to skim past. Notes are
+// kitchen instructions in the customer's own words ("well done", "no sauce"), just as easy to miss.
 const GS = "\x1D";
 // Exported so tests can assert on the exact bytes without duplicating this magic sequence.
 export const REVERSE_VIDEO_ON = GS + "B" + "\x01";
 export const REVERSE_VIDEO_OFF = GS + "B" + "\x00";
 
-/** Wraps one buildTicketLines() row in reverse-video codes for printing -- never applied inside
- * orderLines.ts itself, which is shared with the admin OrderCard (a web UI, not a printer) and
- * must stay plain, printer-format-free text. */
-function highlightModifierLine(line: string): string {
+/** Wraps one ticket row (a buildTicketLines() modifier or a note) in reverse-video codes for
+ * printing -- never applied inside orderLines.ts itself, which is shared with the admin OrderCard
+ * (a web UI, not a printer) and must stay plain, printer-format-free text. */
+function highlightLine(line: string): string {
     return `${REVERSE_VIDEO_ON}${line}${REVERSE_VIDEO_OFF}`;
 }
 
@@ -101,20 +102,20 @@ class BluetoothPrinterService {
                     result += `    ${comboItem.name}${comboItem.size ? " (" + comboItem.size + ")" : ""}\n`;
 
                     for (const line of buildTicketLines(comboItem)) {
-                        result += `      ${highlightModifierLine(line)}\n`;
+                        result += `      ${highlightLine(line)}\n`;
                     }
                     const comboNote = resolveKitchenNote(comboItem);
                     if (comboNote) {
-                        result += `      Note: ${comboNote}\n`;
+                        result += `      ${highlightLine(`Note: ${comboNote}`)}\n`;
                     }
                 }
             } else {
                 for (const line of buildTicketLines(item)) {
-                    result += `   ${highlightModifierLine(line)}\n`;
+                    result += `   ${highlightLine(line)}\n`;
                 }
                 const itemNote = resolveKitchenNote(item);
                 if (itemNote) {
-                    result += `   Note: ${itemNote}\n`;
+                    result += `   ${highlightLine(`Note: ${itemNote}`)}\n`;
                 }
             }
 
@@ -217,7 +218,7 @@ class BluetoothPrinterService {
                 ? `Customer Info: ${order.customer_name || "—"}\n                 (${order.phone_number})\n`
                 : "",
             order.notes.length > 0
-                ? `Notes: ${order.notes || "—"}\n`
+                ? `${highlightLine(`Notes: ${order.notes || "—"}`)}\n`
                 : "",
             `Payment type: ${order.payment_type || "N/A"}\n`,
             "--------------------------\n",
