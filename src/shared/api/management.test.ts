@@ -30,8 +30,13 @@ import {
     generateTelegramConnectToken,
     createProduct,
     updateProductSettings,
+    patchChannelOverride,
+    updateCategoryClassification,
+    updateComponentCost,
 } from "./management";
 import { DuplicateProductNameError } from "../../domains/management/inventory/types";
+import { ChannelRowConflictError } from "../../domains/management/statistics/types";
+import type { ChannelOverridePatch, ChannelPerformanceMonth } from "../../domains/management/statistics/types";
 import type {
     CreateProductRequest,
     ProductTO,
@@ -1101,5 +1106,95 @@ describe("downloadSalarySlip", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
 
         await expect(downloadSalarySlip(5, "2026-07", slipForm())).rejects.toThrow("HTTP 409");
+    });
+});
+
+// ── patchChannelOverride ──────────────────────────────────────────────────────
+
+describe("patchChannelOverride", () => {
+    const payload: ChannelOverridePatch = {
+        period: "2026-09", channelKey: "pick up", version: 3,
+        orders: 120, grossRevenue: null, appFees: 12.5, note: null,
+        clearOrders: false, clearGrossRevenue: false, clearAppFees: false,
+    };
+
+    const month: ChannelPerformanceMonth = {
+        period: "2026-09", rows: [], totalOrders: 120, totalGrossRevenue: 800,
+        totalAppFees: 12.5, totalNetRevenue: 787.5, appFeesMissing: false,
+    };
+
+    it("PATCHes the whole upsert body to the channels endpoint, keyed by period and channel", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(month, 200));
+
+        await patchChannelOverride(payload);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe("http://test-api.com/api/business-stats/channels");
+        expect(init.method).toBe("PATCH");
+        expect(JSON.parse(init.body as string)).toEqual(payload);
+    });
+
+    it("returns the server's month, which carries the post-save versions", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(month, 200));
+
+        const result = await patchChannelOverride(payload);
+
+        expect(result).toEqual(month);
+    });
+
+    it("throws a ChannelRowConflictError on 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "stale" }, 409));
+
+        await expect(patchChannelOverride(payload)).rejects.toBeInstanceOf(ChannelRowConflictError);
+    });
+
+    it("surfaces the server's reason on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "App fees cannot be negative" }, 400));
+
+        await expect(patchChannelOverride(payload)).rejects.toThrow("App fees cannot be negative");
+    });
+
+    it("says the server had a problem on a 5xx, rather than showing the exception's own text", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            jsonResponse({ message: "could not execute statement [ERROR: numeric field overflow]" }, 500));
+
+        await expect(patchChannelOverride(payload)).rejects.toThrow("the server had a problem — try again in a minute");
+    });
+
+    it("names the status when a 4xx carries no readable reason", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(patchChannelOverride(payload)).rejects.toThrow("the server refused it (error 400)");
+    });
+});
+
+// ── Business Stats saves: error wording ───────────────────────────────────────
+
+describe.each([
+    ["updateCategoryClassification", () => updateCategoryClassification(7, { pnlClass: "OPEX", kpiTag: null })],
+    ["updateComponentCost", () => updateComponentCost(7, { cost: 1.5 })],
+])("%s errors", (_name, save) => {
+    it("surfaces the server's reason on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Batch yield must be positive" }, 400));
+
+        await expect(save()).rejects.toThrow("Batch yield must be positive");
+    });
+
+    it("says the server had a problem on a 500, never 'Response: 500'", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(save()).rejects.toThrow("the server had a problem — try again in a minute");
+    });
+
+    it("says the row no longer exists on a 404", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Category not found" }, 404));
+
+        await expect(save()).rejects.toThrow("it no longer exists — reload the page");
+    });
+
+    it("says it is a permission problem on a 403", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+        await expect(save()).rejects.toThrow("you don't have permission to change this");
     });
 });

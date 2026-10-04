@@ -3,7 +3,7 @@ import {
     Box, Card, CardContent, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography
 } from "@mui/material";
 import type {ExpenseBlock, ExpensePivot} from "../../types";
-import {formatBd} from "./businessFormat";
+import {formatBd, isLedgerIncomeBlock} from "./businessFormat";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
 
 type Props = {
@@ -25,6 +25,10 @@ function monthLabel(period: string): string {
  * months, which is the only reason to lay it out this way at all.
  */
 export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): React.JSX.Element {
+    // Income has its own card (BusinessIncomeCard). In this table of costs a credit is negative, so
+    // payouts read as "-3,000.500" at the top of a list of expenses.
+    const blocks = pivot.blocks.filter(block => !isLedgerIncomeBlock(block));
+
     const renderBlock = (block: ExpenseBlock): React.JSX.Element => {
         const unclassified = block.pnlClass === "UNCLASSIFIED";
 
@@ -90,9 +94,9 @@ export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): Re
 
     return (
         <>
-            {pivot.blocks.length === 0 ? (
+            {blocks.length === 0 ? (
                 <Typography variant="body2" sx={{color: '#8a807a'}}>
-                    No ledger entries in this range.
+                    No expenses recorded in this range.
                 </Typography>
             ) : (
                 <TableContainer sx={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
@@ -108,7 +112,7 @@ export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): Re
                                 <TableCell align="right" sx={{fontWeight: 'bold'}}>Total</TableCell>
                             </TableRow>
                         </TableHead>
-                        <TableBody>{pivot.blocks.map(renderBlock)}</TableBody>
+                        <TableBody>{blocks.map(renderBlock)}</TableBody>
                     </Table>
                 </TableContainer>
             )}

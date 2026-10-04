@@ -1,12 +1,13 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BusinessTab from "./BusinessTab";
-import type { BusinessStatsResponse, CategoryClassification } from "../../types";
+import type { BusinessStatsResponse, CategoryClassification, ChannelField } from "../../types";
+import { PreResponseNetworkError } from "../../../../../shared/api/client";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts. useBusinessCategories
-// runs for real, so the fetch -> classify -> refetch wiring is genuine.
+// runs for real, so the fetch -> classify -> report refresh wiring is genuine.
 jest.mock("../../../../../shared/api/management");
 
 import {
@@ -30,6 +31,18 @@ const report: BusinessStatsResponse = {
     expensePivot: {
         months: ["2026-06", "2026-07"],
         blocks: [
+            // First, as the server sends it (REVENUE is the first PnlClass), and signed negative
+            // because the pivot treats a credit as a negative cost.
+            {
+                pnlClass: "REVENUE", label: "Revenue (ledger)",
+                note: "Shown for reconciliation only — the P&L takes revenue from orders, not from the ledger.",
+                includedInOperatingExpenses: false,
+                rows: [
+                    { categoryId: 13, categoryName: "Business Income", kpiTag: null, amounts: [-3000.5, -3500], total: -6500.5 },
+                    { categoryId: 14, categoryName: "Gateway payouts", kpiTag: null, amounts: [-120, 0], total: -120 },
+                ],
+                totals: [-3120.5, -3500], grandTotal: -6620.5,
+            },
             {
                 pnlClass: "OPEX", label: "Operating expenses", note: null,
                 includedInOperatingExpenses: true,
@@ -118,7 +131,7 @@ const report: BusinessStatsResponse = {
                 ledgerCogsPurchases: 808.69, invoicePurchases: 808.69, ledgerVsInvoices: 0,
                 openingInventory: 553.679, endingInventory: 522.673, inventoryDelta: 31.006,
                 movementCogs: 839.696, recipeCogs: 800.0, unexplainedVariance: 39.696,
-                variancePercentOfNetRevenue: 1.53, netCashMovement: 58.644, complete: true,
+                variancePercentOfGrossRevenue: 1.53, netCashMovement: 58.644, complete: true,
             },
             flags: ["UNCLASSIFIED_SPEND"],
         },
@@ -133,7 +146,7 @@ const report: BusinessStatsResponse = {
                 ledgerCogsPurchases: 1119.317, invoicePurchases: null, ledgerVsInvoices: null,
                 openingInventory: 522.673, endingInventory: 896.003, inventoryDelta: -373.33,
                 movementCogs: null, recipeCogs: 1000.0, unexplainedVariance: null,
-                variancePercentOfNetRevenue: null, netCashMovement: null, complete: false,
+                variancePercentOfGrossRevenue: null, netCashMovement: null, complete: false,
             },
             flags: ["RECONCILIATION_INCOMPLETE"],
         },
@@ -163,7 +176,7 @@ const report: BusinessStatsResponse = {
             kpis: [
                 {
                     key: "tradingDays", label: "Trading days", value: 23, unit: "days",
-                    previousValue: null, unavailableReason: null, detail: "shifts opened",
+                    previousValue: null, unavailableReason: null, detail: "days with a shift opening or orders",
                 },
                 {
                     key: "grossProfitMargin", label: "Gross profit margin", value: 67.5, unit: "%",
@@ -192,18 +205,36 @@ const report: BusinessStatsResponse = {
     notices: ["Revenue here includes orders recorded before branches existed."],
 };
 
-const mockPatchChannel = jest.fn<Promise<void>, [number, unknown]>();
-const mockRegenerateChannels = jest.fn<Promise<void>, []>();
+const mockRefresh = jest.fn<Promise<void>, []>();
+const mockSaveChannelCell = jest.fn<void, [string, string, ChannelField, number | null]>();
+const mockRevertChannelRow = jest.fn<void, [string, string]>();
+const mockDismissChannelSaveError = jest.fn<void, []>();
 
-function renderTab(data: BusinessStatsResponse | null = report): ReturnType<typeof render> {
+type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+
+function deferred<T>(): Deferred<T> {
+    let resolve: (value: T) => void = () => undefined;
+    const promise = new Promise<T>(res => {
+        resolve = res;
+    });
+    return { promise, resolve };
+}
+
+function renderTab(
+    data: BusinessStatsResponse | null = report,
+    channelSaveError: string | null = null
+): ReturnType<typeof render> {
     return render(
         <BusinessTab
             data={data}
             loading={false}
-            rangeLabel="Jun 2026 — Jul 2026"
-            onRefresh={jest.fn(async () => undefined)}
-            onPatchChannel={mockPatchChannel as never}
-            onRegenerateChannels={mockRegenerateChannels as never}
+            onRefresh={mockRefresh}
+            channelSaving={new Set()}
+            channelErrors={new Map()}
+            channelSaveError={channelSaveError}
+            onSaveChannelCell={mockSaveChannelCell}
+            onRevertChannelRow={mockRevertChannelRow}
+            onDismissChannelSaveError={mockDismissChannelSaveError}
         />
     );
 }
@@ -220,6 +251,7 @@ describe("BusinessTab", () => {
         jest.clearAllMocks();
         mockGet.mockResolvedValue([marketing, rent]);
         mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX" });
+        mockRefresh.mockResolvedValue(undefined);
     });
 
     describe("classification", () => {
@@ -244,21 +276,113 @@ describe("BusinessTab", () => {
             expect(screen.queryByText(/categories classified/)).toBeNull();
         });
 
-        it("patches only the chosen category and refetches when a class is picked", async () => {
-            // The drawer is now reached from the warning badge on the Monthly expenses card, which
-            // is the report the classification actually distorts.
-            renderTab();
-            const badge = await screen.findByText(/1 unclassified/);
-            await userEvent.click(badge);
+        describe("in the drawer", () => {
+            // The drawer is reached from the warning badge on the Monthly expenses card, which is
+            // the report the classification actually distorts.
+            async function openDrawer(): Promise<void> {
+                renderTab();
+                await userEvent.click(await screen.findByText(/1 unclassified/));
+            }
 
-            const row = await screen.findByTestId("category-row-1");
-            await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
-            await userEvent.click(await screen.findByRole("option", { name: /Operating expense/ }));
+            function picker(rowId: number, name: RegExp): HTMLElement {
+                return within(screen.getByTestId(`category-row-${rowId}`)).getByRole("combobox", { name });
+            }
 
-            await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
-            // Both fields go every time: sending only the changed one would clear the other.
-            expect(mockUpdate).toHaveBeenCalledWith(1, { pnlClass: "OPEX", kpiTag: null });
-            await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
+            async function pick(rowId: number, name: RegExp, option: RegExp): Promise<void> {
+                await userEvent.click(picker(rowId, name));
+                await userEvent.click(await screen.findByRole("option", { name: option }));
+            }
+
+            function rowOrder(): string[] {
+                return screen.getAllByTestId(/^category-row-/).map(row => row.getAttribute("data-testid") ?? "");
+            }
+
+            it("patches only the chosen category and puts the server's copy in place, without refetching the list", async () => {
+                // The server re-sorts the list (unclassified first), so a refetch after every pick
+                // moved the row just classified out from under the cursor.
+                mockGet.mockResolvedValueOnce([marketing, rent]).mockResolvedValue([rent, { ...marketing, pnlClass: "OPEX" }]);
+                await openDrawer();
+
+                await pick(1, /P&L class/i, /Operating expense/);
+
+                await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+                // Both fields go every time: sending only the changed one would clear the other.
+                expect(mockUpdate).toHaveBeenCalledTimes(1);
+                expect(mockUpdate).toHaveBeenCalledWith(1, { pnlClass: "OPEX", kpiTag: null });
+                expect(mockGet).toHaveBeenCalledTimes(1);
+                expect(rowOrder()).toEqual(["category-row-1", "category-row-2"]);
+                expect(picker(1, /P&L class/i).textContent).toMatch(/Operating expense/);
+            });
+
+            it("shows the picked class at once and locks only that row until the server answers", async () => {
+                const save = deferred<CategoryClassification>();
+                mockUpdate.mockReturnValue(save.promise);
+                await openDrawer();
+
+                await pick(1, /P&L class/i, /Operating expense/);
+
+                expect(picker(1, /P&L class/i).textContent).toMatch(/Operating expense/);
+                expect(picker(1, /P&L class/i).getAttribute("aria-disabled")).toBe("true");
+                expect(picker(1, /KPI tag/i).getAttribute("aria-disabled")).toBe("true");
+                expect(picker(2, /P&L class/i).getAttribute("aria-disabled")).toBeNull();
+
+                await act(async () => save.resolve({ ...marketing, pnlClass: "OPEX" }));
+
+                await waitFor(() => expect(picker(1, /KPI tag/i).getAttribute("aria-disabled")).toBeNull());
+                expect(picker(1, /P&L class/i).textContent).toMatch(/Operating expense/);
+            });
+
+            it("sends the class just saved when the KPI tag is picked next, not the class the row loaded with", async () => {
+                // The old drawer built the body from its stale prop, so this second pick sent
+                // pnlClass: null and quietly undid the first one.
+                await openDrawer();
+                await pick(1, /P&L class/i, /Operating expense/);
+                await waitFor(() => expect(picker(1, /KPI tag/i).getAttribute("aria-disabled")).toBeNull());
+
+                mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX", kpiTag: "MARKETING" });
+                await pick(1, /KPI tag/i, /Marketing \(drives MER\)/);
+
+                await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2));
+                expect(mockUpdate).toHaveBeenLastCalledWith(1, { pnlClass: "OPEX", kpiTag: "MARKETING" });
+            });
+
+            it("puts the row back and says why when the save is refused", async () => {
+                mockUpdate.mockRejectedValue(new Error("the server had a problem — try again in a minute"));
+                await openDrawer();
+
+                await pick(1, /P&L class/i, /Operating expense/);
+
+                expect(await screen.findByText(
+                    "Couldn't save “Marketing”: the server had a problem — try again in a minute")).toBeTruthy();
+                expect(picker(1, /P&L class/i).textContent).not.toMatch(/Operating expense/);
+                expect(within(screen.getByTestId("category-row-1")).getByText("Unclassified")).toBeTruthy();
+                expect(picker(1, /P&L class/i).getAttribute("aria-disabled")).toBeNull();
+                expect(mockRefresh).not.toHaveBeenCalled();
+            });
+
+            it("says the connection dropped, not the browser's 'Failed to fetch', when the save never reached the server", async () => {
+                mockUpdate.mockRejectedValue(new PreResponseNetworkError(new TypeError("Failed to fetch")));
+                await openDrawer();
+
+                await pick(1, /P&L class/i, /Operating expense/);
+
+                expect(await screen.findByText(
+                    "Couldn't save “Marketing”: no connection to the server — check the internet and try again"))
+                    .toBeTruthy();
+            });
+
+            it("unlocks the row as soon as the save answers, without waiting for the report to refresh", async () => {
+                // The report refresh recomputes every month of the report; the drawer must not
+                // hold a row that is already saved while it runs.
+                mockRefresh.mockReturnValue(new Promise<void>(() => undefined));
+                await openDrawer();
+
+                await pick(1, /P&L class/i, /Operating expense/);
+
+                await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+                await waitFor(() => expect(picker(1, /KPI tag/i).getAttribute("aria-disabled")).toBeNull());
+                expect(screen.getByTestId("category-row-1").getAttribute("aria-busy")).toBe("false");
+            });
         });
 
         it("keeps rendering when the categories request fails", async () => {
@@ -289,6 +413,86 @@ describe("BusinessTab", () => {
 
             expect(await screen.findByText(/not in Operating Expenses/)).toBeTruthy();
         });
+
+        it("no longer lists business income, and counts only the expense blocks", async () => {
+            renderTab();
+
+            expect(await screen.findByText("2 blocks")).toBeTruthy();
+            await openCard("🧾 Monthly expenses");
+
+            expect(await screen.findByText("Rent")).toBeTruthy();
+            expect(screen.queryByText("Business Income")).toBeNull();
+            expect(screen.queryByText("Revenue (ledger)")).toBeNull();
+        });
+    });
+
+    describe("business income", () => {
+        function incomeRow(name: RegExp): string[] {
+            const table = screen.getByRole("table", { name: "Business income" });
+            return within(within(table).getByRole("row", { name }))
+                .getAllByRole("cell")
+                .map(cell => cell.textContent ?? "");
+        }
+
+        it("shows ledger income in its own card as positive amounts, one row per category", async () => {
+            // The pivot signs a credit negative; read as income, "-3,000.500" says money went out.
+            renderTab();
+            await openCard("💰 Business income");
+
+            expect(incomeRow(/^Business Income/)).toEqual(["Business Income", "3,000.500", "3,500.000", "6,500.500"]);
+            expect(incomeRow(/^Gateway payouts/)).toEqual(["Gateway payouts", "120.000", "—", "120.000"]);
+            expect(screen.getByRole("table", { name: "Business income" }).textContent).not.toMatch(/-\d/);
+        });
+
+        it("totals each month across the income categories", async () => {
+            renderTab();
+            await openCard("💰 Business income");
+
+            expect(incomeRow(/^Total/)).toEqual(["Total", "3,120.500", "3,500.000", "6,620.500"]);
+        });
+
+        it("says the figures are for reference and counted in no total", async () => {
+            renderTab();
+            await openCard("💰 Business income");
+
+            expect(screen.getByText(
+                "Payouts received from platforms and payment gateways, as recorded in the ledger. "
+                + "Shown for reference — not part of any total; the profit statement takes revenue from orders."
+            )).toBeTruthy();
+        });
+
+        it("carries the range's income on the closed card", async () => {
+            renderTab();
+
+            expect(await screen.findByText("6,620.500 BHD in this range")).toBeTruthy();
+        });
+
+        it("says so when no business income was recorded", async () => {
+            const withoutIncome: BusinessStatsResponse = {
+                ...report,
+                expensePivot: {
+                    ...report.expensePivot,
+                    blocks: report.expensePivot.blocks.filter(block => block.pnlClass !== "REVENUE"),
+                },
+            };
+            renderTab(withoutIncome);
+
+            expect(await screen.findByText("none in this range")).toBeTruthy();
+            await openCard("💰 Business income");
+
+            expect(screen.getByText("No business income recorded in this range.")).toBeTruthy();
+            expect(screen.queryByRole("table", { name: "Business income" })).toBeNull();
+        });
+
+        it("sits right after Profit & loss and before Monthly expenses", async () => {
+            renderTab();
+
+            const cards = (await screen.findAllByRole("button", { name: /^Expand / }))
+                .map(button => button.getAttribute("aria-label"));
+
+            expect(cards.indexOf("Expand 💰 Business income")).toBe(cards.indexOf("Expand 📈 Profit & loss") + 1);
+            expect(cards.indexOf("Expand 🧾 Monthly expenses")).toBe(cards.indexOf("Expand 💰 Business income") + 1);
+        });
     });
 
     describe("inventory COGS", () => {
@@ -310,27 +514,25 @@ describe("BusinessTab", () => {
     });
 
     describe("channel performance", () => {
-        it("opens an input when an empty app fees cell is clicked", async () => {
+        it("keeps an input in an empty app fees cell, so the fee can be typed straight in", async () => {
             // Keeta's fee is unset, so the cell reads "—". It must still be editable: there is no
             // other way into that number, and nothing computes it.
             renderTab();
             await openCard("🛵 Channel performance");
 
-            await userEvent.click(screen.getByTestId("cell-appFees-11"));
-
-            expect(screen.queryByLabelText("appFees Keeta")).toBeTruthy();
+            const input = screen.getByLabelText("app fees Keeta") as HTMLInputElement;
+            expect(input.value).toBe("");
+            expect(input.placeholder).toBe("—");
         });
 
-        it("patches the fee when one is typed", async () => {
+        it("saves the fee once, as a number, when one is typed and Enter is pressed", async () => {
             renderTab();
             await openCard("🛵 Channel performance");
-            await userEvent.click(screen.getByTestId("cell-appFees-11"));
 
-            await userEvent.type(screen.getByLabelText("appFees Keeta"), "88.5{Enter}");
+            await userEvent.type(screen.getByLabelText("app fees Keeta"), "88.5{Enter}");
 
-            await waitFor(() => expect(mockPatchChannel).toHaveBeenCalled());
-            expect(mockPatchChannel).toHaveBeenCalledWith(11,
-                expect.objectContaining({ appFees: 88.5 }));
+            expect(mockSaveChannelCell).toHaveBeenCalledTimes(1);
+            expect(mockSaveChannelCell).toHaveBeenCalledWith("2026-06", "keeta", "appFees", 88.5);
         });
 
         it("warns when a channel has revenue but no app fee", async () => {
@@ -342,57 +544,76 @@ describe("BusinessTab", () => {
             expect(await screen.findByText(/no app fee entered/)).toBeTruthy();
         });
 
+        it("puts the missing-fee warning below the table, so it cannot move the rows when it comes or goes", async () => {
+            renderTab();
+            await openCard("🛵 Channel performance");
+
+            const warning = await screen.findByText(/no app fee entered/);
+            const table = screen.getByTestId("cell-orders-keeta").closest("table") as HTMLTableElement;
+            expect(table.compareDocumentPosition(warning) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
         it("marks an overridden cell so an edited figure cannot pass for a measured one", async () => {
             renderTab();
             await openCard("🛵 Channel performance");
 
-            const cell = await screen.findByTestId("cell-grossRevenue-11");
-            expect(cell.textContent).toContain("530.000");
+            const cell = await screen.findByTestId("cell-grossRevenue-keeta");
+            expect((within(cell).getByRole("textbox") as HTMLInputElement).value).toBe("530.000");
         });
 
-        it("sends the clear flags when a row is reverted", async () => {
-            // Without them an override could be changed forever but never removed, because a JSON
-            // null in a PATCH is indistinguishable from an absent field.
+        it("asks the hook to revert the row when Revert is pressed", async () => {
             renderTab();
             await openCard("🛵 Channel performance");
 
             await userEvent.click(await screen.findByRole("button", { name: "Revert Keeta" }));
 
-            expect(mockPatchChannel).toHaveBeenCalledWith(11, {
-                version: 5, clearOrders: true, clearGrossRevenue: true, clearAppFees: true,
-            });
+            expect(mockRevertChannelRow).toHaveBeenCalledWith("2026-06", "keeta");
         });
 
-        it("enables revert only on a row that actually carries an override", async () => {
-            // Talabat's fee is hand-entered, so its revert is live. A row with nothing overridden
-            // has nothing to revert TO, and offering the action would imply otherwise.
+        it("enables revert only on a row whose orders or gross revenue are overridden", async () => {
+            // Revert no longer touches the app fee, so a row whose only edit is its fee (Talabat)
+            // has nothing to revert, and offering the action would imply otherwise.
             renderTab();
             await openCard("🛵 Channel performance");
 
-            expect((await screen.findByRole("button", { name: "Revert Talabat" })).hasAttribute("disabled"))
+            expect((await screen.findByRole("button", { name: "Revert Keeta" })).hasAttribute("disabled"))
                 .toBe(false);
+            expect(screen.getByRole("button", { name: "Revert Talabat" }).hasAttribute("disabled"))
+                .toBe(true);
         });
 
-        it("only regenerates after the confirm is accepted", async () => {
+        it("has no Refresh channel data button: the figures are live", async () => {
             renderTab();
             await openCard("🛵 Channel performance");
 
-            await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
-            expect(mockRegenerateChannels).not.toHaveBeenCalled();
-
-            await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
-            expect(mockRegenerateChannels).toHaveBeenCalledTimes(1);
+            expect(screen.queryByRole("button", { name: /Refresh channel data/ })).toBeNull();
         });
 
-        it("promises that manual edits survive a refresh", async () => {
-            // Prep-plan's "this will replace the current plan" would be a lie here and would make
-            // the owner afraid to press the button.
+        it("says how to edit in one legend line above the table", async () => {
             renderTab();
             await openCard("🛵 Channel performance");
 
-            await userEvent.click(await screen.findByRole("button", { name: /Refresh channel data/ }));
+            expect(screen.getByText("Figures in the boxes are editable · Enter saves and moves down · Esc cancels"))
+                .toBeTruthy();
+        });
 
-            expect(await screen.findByText(/Your manual edits are kept/)).toBeTruthy();
+        it("explains that the figures are live and why the Performance tab can differ", async () => {
+            renderTab();
+
+            await userEvent.hover(await screen.findByRole("img", { name: /About .*Channel performance/ }));
+
+            expect(await screen.findByText(/live from our own order records/)).toBeTruthy();
+            expect(screen.getByText(/counts once it has been picked/)).toBeTruthy();
+            expect(screen.getByText(/also counts orders still open and only the/)).toBeTruthy();
+        });
+
+        it("shows a save error in a snackbar until it is dismissed", async () => {
+            renderTab(report, "Couldn't save Keeta orders (Jun 26): HTTP 500");
+
+            expect(await screen.findByText("Couldn't save Keeta orders (Jun 26): HTTP 500")).toBeTruthy();
+
+            await userEvent.click(screen.getByRole("button", { name: /close/i }));
+            expect(mockDismissChannelSaveError).toHaveBeenCalled();
         });
     });
 
@@ -419,6 +640,16 @@ describe("BusinessTab", () => {
             expect(await screen.findByText(/COGS is recipe-costed, not cash/)).toBeTruthy();
         });
 
+        it("states the variance as a share of gross revenue, with a dash for a month that has none", async () => {
+            renderTab();
+            await openCard("📈 Profit & loss");
+
+            const row = await screen.findByRole("row", { name: /^as % of gross revenue/ });
+            expect(within(row).getAllByRole("cell").map(cell => cell.textContent))
+                .toEqual(["as % of gross revenue", "1.53%", "—"]);
+            expect(screen.queryByText("as % of net revenue")).toBeNull();
+        });
+
         it("shows an em dash rather than a variance when a stock count is missing", async () => {
             // Computing one anyway would invent a waste figure out of missing paperwork.
             renderTab();
@@ -443,14 +674,13 @@ describe("BusinessTab", () => {
         });
 
         it("shows how many days the business actually opened", async () => {
-            // Counted from shift openings, not from orders: a day the kitchen opened and sold
-            // nothing is still a day that was paid for, and it is the divisor every per-day figure
-            // rests on.
+            // Days with a shift opening or an order: a day the kitchen opened and sold nothing is
+            // still a day that was paid for, and it is the divisor every per-day figure rests on.
             renderTab();
 
             const tile = await screen.findByTestId("kpi-tradingDays");
             expect(tile.textContent).toContain("23");
-            expect(tile.textContent).toContain("shifts opened");
+            expect(tile.textContent).toContain("days with a shift opening or orders");
         });
 
         it("prints the divisor beside a KPI that has one", async () => {
@@ -464,6 +694,18 @@ describe("BusinessTab", () => {
             renderTab();
 
             expect(await screen.findByText("July 2026")).toBeTruthy();
+        });
+
+        it("explains which revenue each ratio divides by, and where trading days come from", async () => {
+            // Margins and cost ratios sit side by side but have different bases, so a gross margin
+            // and a food cost no longer add up to 100%; the card has to say why.
+            renderTab();
+
+            await userEvent.hover(await screen.findByRole("img", { name: "About 📊 Key metrics" }));
+
+            expect(await screen.findByText(/Margins divide by net revenue/)).toBeTruthy();
+            expect(screen.getByText(/food cost, COGS and labour divide by gross revenue/)).toBeTruthy();
+            expect(screen.getByText(/Trading days are the days with a shift opening or any order/)).toBeTruthy();
         });
     });
 

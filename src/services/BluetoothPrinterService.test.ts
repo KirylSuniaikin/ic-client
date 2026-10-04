@@ -1,10 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import bluetoothPrinterService, { REVERSE_VIDEO_ON, REVERSE_VIDEO_OFF } from "./BluetoothPrinterService";
 
-// Every buildTicketLines() row (dough/crust flags, ADD extras/toppings, REMOVE lines) prints
-// inside reverse-video (black box, white text) so kitchen staff can't skim past a "NO Onion" row
-// the way they could when it was plain text -- see BluetoothPrinterService.ts for the real
-// incident (missed removals costing 1-star reviews) this exists to fix.
+// Every buildTicketLines() row (dough/crust flags, ADD extras/toppings, REMOVE lines) and every
+// note prints inside reverse-video (black box, white text) so kitchen staff can't skim past a
+// "NO Onion" row the way they could when it was plain text -- see BluetoothPrinterService.ts for
+// the real incident (missed removals costing 1-star reviews) this exists to fix.
 function highlighted(line: string): string {
     return `${REVERSE_VIDEO_ON}${line}${REVERSE_VIDEO_OFF}`;
 }
@@ -134,20 +134,29 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
         expect(payload).toContain(`   ${highlighted("+ Mushroom")}\n`);
         expect(payload).toContain(`   ${highlighted("+ Garlic Topping")}\n`);
         expect(payload).toContain(`   ${highlighted("- NO Onion")}\n`);
-        // The note itself is free customer text, not a structured modifier -- never highlighted.
-        expect(payload).toContain("   Note: extra crispy\n");
+        expect(payload).toContain(`   ${highlighted("Note: extra crispy")}\n`);
     });
 
-    it("turns reverse video back off after each modifier row, so it never bleeds into the Note line or the next item", async () => {
-        const order = buildOrder([PIZZA_ITEM]);
+    it("turns reverse video back off after each highlighted row, so it never bleeds into the next row or item", async () => {
+        const order = buildOrder([PIZZA_ITEM, COMBO_ITEM]);
 
         await bluetoothPrinterService.printOrder(order);
 
         const payload = mockWriteCalls[0];
-        // Every ON has a matching OFF, and the Note row -- printed right after the last modifier
-        // row on this item -- starts immediately after an OFF, never inside a still-open ON span.
+        // Every ON has a matching OFF; the Note row opens its own span right after the last
+        // modifier's OFF, and the next item's name line starts outside any span.
         expect(payload.split(REVERSE_VIDEO_ON).length - 1).toBe(payload.split(REVERSE_VIDEO_OFF).length - 1);
-        expect(payload).toContain(`${REVERSE_VIDEO_OFF}\n   Note:`);
+        expect(payload).toContain(`${REVERSE_VIDEO_OFF}\n   ${REVERSE_VIDEO_ON}Note:`);
+        expect(payload).toContain(`Note: extra crispy${REVERSE_VIDEO_OFF}\n\n1x Family Deal (Large)\n`);
+    });
+
+    it("highlights the order-level Notes line in the header", async () => {
+        const order = { ...buildOrder([PIZZA_ITEM]), notes: "ring the bell twice" };
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        expect(payload).toContain(`${highlighted("Notes: ring the bell twice")}\nPayment type:`);
     });
 
     it("renders an exact minus-NO-Onion row, never a bare removal name", async () => {
@@ -186,7 +195,7 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
         const payload = mockWriteCalls[0];
         expect(payload).toContain("    Zaatar Manakish (Small)\n");
         expect(payload).toContain(`      ${highlighted("+ Cheese")}\n`);
-        expect(payload).toContain("      Note: light salt\n");
+        expect(payload).toContain(`      ${highlighted("Note: light salt")}\n`);
     });
 
     it("prints the raw description rows for an aggregator item with no structured customizations", async () => {

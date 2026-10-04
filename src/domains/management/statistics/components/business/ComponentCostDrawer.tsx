@@ -4,13 +4,21 @@ import {
 } from "@mui/material";
 import type {ComponentCost, UpdateComponentCost} from "../../types";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
+import {describeSaveError, parseCellInput} from "./businessFormat";
 
 type Props = {
     open: boolean;
     components: ComponentCost[];
     onClose: () => void;
+    /** Rejects when the cost is refused: the drawer then keeps what was typed and says why. */
     onChange: (id: number, payload: UpdateComponentCost) => Promise<void>;
 };
+
+function without<T>(record: Readonly<Record<number, T>>, id: number): Record<number, T> {
+    const next = {...record};
+    delete next[id];
+    return next;
+}
 
 /**
  * Gives each recipe component a cost.
@@ -27,21 +35,44 @@ export default function ComponentCostDrawer(
     {open, components, onClose, onChange}: Props
 ): React.JSX.Element {
     const [drafts, setDrafts] = useState<Record<number, string>>({});
+    const [errors, setErrors] = useState<Record<number, string>>({});
+    const [savingIds, setSavingIds] = useState<ReadonlySet<number>>(new Set());
 
+    const markSaving = (id: number, saving: boolean): void => {
+        setSavingIds(prev => {
+            const next = new Set(prev);
+            if (saving) next.add(id); else next.delete(id);
+            return next;
+        });
+    };
+
+    // Blur is the only place a save starts -- Enter just blurs -- and the field is locked until the
+    // save answers, so one edit can never be sent twice. The draft stays on screen until then, and
+    // after a refusal, so a failed save never looks like the old cost coming back.
     const commit = async (component: ComponentCost): Promise<void> => {
         const raw = drafts[component.id];
         if (raw === undefined) return;
 
-        const trimmed = raw.trim();
-        const parsed = trimmed === "" ? null : Number(trimmed);
-        if (parsed !== null && Number.isNaN(parsed)) return;
+        const parsed = parseCellInput(raw, false);
+        if (parsed.kind === "invalid") {
+            setErrors(prev => ({...prev, [component.id]: `Not saved: the cost ${parsed.reason}.`}));
+            return;
+        }
+        // Leaving the field with the stored figure in it is not an edit.
+        if (parsed.value === component.cost) {
+            setDrafts(prev => without(prev, component.id));
+            return;
+        }
 
-        await onChange(component.id, {cost: parsed, clearCost: parsed === null});
-        setDrafts(prev => {
-            const next = {...prev};
-            delete next[component.id];
-            return next;
-        });
+        markSaving(component.id, true);
+        try {
+            await onChange(component.id, {cost: parsed.value, clearCost: parsed.value === null});
+            setDrafts(prev => without(prev, component.id));
+        } catch (e) {
+            setErrors(prev => ({...prev, [component.id]: `Not saved: ${describeSaveError(e)}`}));
+        } finally {
+            markSaving(component.id, false);
+        }
     };
 
     const uncosted = components.filter(c => c.costSource === "MISSING").length;
@@ -119,12 +150,20 @@ export default function ComponentCostDrawer(
                                     fullWidth
                                     label="Cost per kg / litre / piece"
                                     value={drafts[component.id] ?? (component.cost ?? "")}
-                                    onChange={e => setDrafts(prev => ({...prev, [component.id]: e.target.value}))}
-                                    onBlur={() => void commit(component)}
-                                    onKeyDown={e => {
-                                        if (e.key === "Enter") void commit(component);
+                                    disabled={savingIds.has(component.id)}
+                                    error={errors[component.id] !== undefined}
+                                    helperText={errors[component.id]}
+                                    onChange={e => {
+                                        setDrafts(prev => ({...prev, [component.id]: e.target.value}));
+                                        setErrors(prev => without(prev, component.id));
                                     }}
-                                    inputProps={{'aria-label': `Cost for ${component.name}`}}
+                                    onBlur={() => void commit(component)}
+                                    inputProps={{
+                                        'aria-label': `Cost for ${component.name}`,
+                                        onKeyDown: e => {
+                                            if (e.key === "Enter") e.currentTarget.blur();
+                                        },
+                                    }}
                                 />
 
                                 {/* The pairing that catches a 1000x error: a gram of anything costing

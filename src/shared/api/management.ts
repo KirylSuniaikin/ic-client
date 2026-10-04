@@ -24,7 +24,8 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
-import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
+import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
+import { ChannelRowConflictError } from '../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -217,6 +218,16 @@ async function readServerErrorMessage(res: Response): Promise<string | null> {
         // status code, which is the only thing left to report.
         return null;
     }
+}
+
+// A failed Business Stats save, worded for the person who pressed Enter. A 4xx reason is written for
+// people (which field, what was wrong) and is shown as is; a 5xx message is an exception's own text,
+// meaningless to staff, so it is replaced rather than shown.
+async function saveRequestError(res: Response): Promise<Error> {
+    if (res.status >= 500) return new Error("the server had a problem — try again in a minute");
+    if (res.status === 403) return new Error("you don't have permission to change this");
+    if (res.status === 404) return new Error("it no longer exists — reload the page");
+    return new Error((await readServerErrorMessage(res)) ?? `the server refused it (error ${res.status})`);
 }
 
 async function productRequestError(res: Response): Promise<Error> {
@@ -1003,7 +1014,7 @@ export async function updateCategoryClassification(
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    if (!res.ok) throw await saveRequestError(res);
     return await res.json();
 }
 
@@ -1019,32 +1030,23 @@ export async function getBusinessStats(from: string, to: string): Promise<Busine
     return await res.json();
 }
 
-export async function regenerateChannelPerformance(
-    from: string,
-    to: string
-): Promise<ChannelRegenerateResponse> {
-    const params = new URLSearchParams({ from, to });
-
-    const res = await authFetch(BASE_URL + `/business-stats/channels/regenerate?${params}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    });
-
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
-    return await res.json();
+// A 409 gets its own type so the caller can tell "your copy was stale, the latest is loaded" from
+// a refused value; a 400 carries the server's reason (a negative fee, fractional orders).
+async function channelOverrideError(res: Response): Promise<Error> {
+    if (res.status === 409) return new ChannelRowConflictError();
+    return saveRequestError(res);
 }
 
-export async function patchChannelPerformance(
-    id: number,
-    payload: ChannelOverridePatch
-): Promise<ChannelPerformanceRow> {
-    const res = await authFetch(BASE_URL + `/business-stats/channels/${id}`, {
+// Answers with the whole month rather than the one row: the totals and the fee warning change with
+// every edit, and the month carries the post-save versions the next edit has to send.
+export async function patchChannelOverride(payload: ChannelOverridePatch): Promise<ChannelPerformanceMonth> {
+    const res = await authFetch(BASE_URL + `/business-stats/channels`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    if (!res.ok) throw await channelOverrideError(res);
     return await res.json();
 }
 
@@ -1078,6 +1080,6 @@ export async function updateComponentCost(
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    if (!res.ok) throw await saveRequestError(res);
     return await res.json();
 }

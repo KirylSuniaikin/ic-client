@@ -237,10 +237,13 @@ export type BusinessStatsResponse = {
 };
 
 export type ChannelPerformanceRow = {
-    id: number;
+    // Null while a channel has live orders but nobody has edited it yet: nothing is stored until
+    // the first override, so there is no row to carry an id.
+    id: number | null;
     period: string;
     channelKey: string;
     channelLabel: string;
+    // Live from the orders on every read, not a stored snapshot.
     generatedOrders: number | null;
     generatedGrossRevenue: number | null;
     overrideOrders: number | null;
@@ -255,10 +258,12 @@ export type ChannelPerformanceRow = {
     netRevenue: number | null;
     appCommissionPercent: number | null;
     note: string | null;
+    // Always null now that the figures are live; kept so the shape still matches the server's.
     generatedAt: string | null;
     updatedAt: string | null;
     updatedByName: string | null;
-    version: number;
+    // Null exactly when id is: the first write creates the row and must say it expects none.
+    version: number | null;
 };
 
 export type ChannelPerformanceMonth = {
@@ -271,24 +276,37 @@ export type ChannelPerformanceMonth = {
     appFeesMissing: boolean;
 };
 
-// The clear* flags exist because in a PATCH a JSON null is indistinguishable from an absent field,
-// so "revert this cell to the generated figure" would otherwise be inexpressible.
+// An upsert keyed on (period, channelKey), because a channel with live orders has no stored row
+// until its first edit. The clear* flags exist because in a PATCH a JSON null is indistinguishable
+// from an absent field, so "revert this cell to the figure from orders" would otherwise be
+// inexpressible.
 export type ChannelOverridePatch = {
-    orders?: number | null;
-    grossRevenue?: number | null;
-    appFees?: number | null;
-    note?: string | null;
-    clearOrders?: boolean;
-    clearGrossRevenue?: boolean;
-    clearAppFees?: boolean;
-    version: number;
+    period: string;
+    channelKey: string;
+    // The stored row's version, or null when the caller believes no row exists yet. Either being
+    // wrong is a 409, never a silent overwrite.
+    version: number | null;
+    orders: number | null;
+    grossRevenue: number | null;
+    appFees: number | null;
+    note: string | null;
+    clearOrders: boolean;
+    clearGrossRevenue: boolean;
+    clearAppFees: boolean;
 };
 
-export type ChannelRegenerateResponse = {
-    succeeded: number;
-    failed: number;
-    failedPeriods: string[];
-};
+export type ChannelField = "orders" | "grossRevenue" | "appFees";
+
+export const CHANNEL_ROW_CONFLICT_MESSAGE = "This row changed since it was loaded";
+
+// A 409 from the channel override PATCH. Deliberately does not say "someone else": the conflicting
+// write can just as well be the owner's own edit from another tab.
+export class ChannelRowConflictError extends Error {
+    constructor() {
+        super(CHANNEL_ROW_CONFLICT_MESSAGE);
+        this.name = "ChannelRowConflictError";
+    }
+}
 
 export type CostSource = "BATCH" | "PRODUCT" | "MANUAL" | "MISSING";
 
@@ -317,7 +335,7 @@ export type CogsReconciliation = {
     recipeCogs: number | null;
     // Positive means more was consumed than the recipes predict: waste, over-portioning or theft.
     unexplainedVariance: number | null;
-    variancePercentOfNetRevenue: number | null;
+    variancePercentOfGrossRevenue: number | null;
     // netProfit + recipeCogs − invoicePurchases: what the bank balance actually moved by.
     netCashMovement: number | null;
     complete: boolean;

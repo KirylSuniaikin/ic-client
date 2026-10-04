@@ -6,20 +6,26 @@ import InventoryCogsCard from "./InventoryCogsCard";
 import ChannelPerformanceCard from "./ChannelPerformanceCard";
 import KpiBlockCard from "./KpiBlockCard";
 import ProfitAndLossCard from "./ProfitAndLossCard";
+import BusinessIncomeCard from "./BusinessIncomeCard";
 import CollapsibleCard from "./CollapsibleCard";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
-import {formatBd} from "./businessFormat";
+import type {CategoryClassificationPatch} from "../../hooks/useBusinessCategories";
+import {asIncome, formatBd, isLedgerIncomeBlock} from "./businessFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
-import type {BusinessStatsResponse, ChannelOverridePatch} from "../../types";
+import ErrorSnackbar from "../../../../../shared/components/ErrorSnackbar";
+import type {BusinessStatsResponse, ChannelField} from "../../types";
 
 type Props = {
     data: BusinessStatsResponse | null;
     loading: boolean;
-    rangeLabel: string;
     onRefresh: () => Promise<void>;
-    onPatchChannel: (id: number, payload: ChannelOverridePatch) => Promise<void>;
-    onRegenerateChannels: () => Promise<void>;
+    channelSaving: ReadonlySet<string>;
+    channelErrors: ReadonlyMap<string, string>;
+    channelSaveError: string | null;
+    onSaveChannelCell: (period: string, channelKey: string, field: ChannelField, value: number | null) => void;
+    onRevertChannelRow: (period: string, channelKey: string) => void;
+    onDismissChannelSaveError: () => void;
 };
 
 /**
@@ -40,10 +46,13 @@ function monthLabel(period: string | undefined): string {
         .toLocaleDateString("en-US", {month: "long", year: "numeric"});
 }
 
-export default function BusinessTab(
-    {data, loading, rangeLabel, onRefresh, onPatchChannel, onRegenerateChannels}: Props
-): React.JSX.Element {
-    const {categories, classify} = useBusinessCategories();
+export default function BusinessTab({
+                                        data, loading, onRefresh, channelSaving, channelErrors, channelSaveError,
+                                        onSaveChannelCell, onRevertChannelRow, onDismissChannelSaveError,
+                                    }: Props): React.JSX.Element {
+    const {
+        categories, savingIds: classifyingIds, saveError: classifyError, clearSaveError: clearClassifyError, classify,
+    } = useBusinessCategories();
     const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
 
     // A card that shows nothing while shut just forces you to open all six, so each carries the
@@ -52,16 +61,22 @@ export default function BusinessTab(
     const pnlSummary = latestPnl
         ? `net profit ${formatBd(latestPnl.netProfit)} BHD in ${monthLabel(latestPnl.period)}`
         : undefined;
-    const needsChannels = (data?.channels ?? []).every(m => m.rows.length === 0);
+    const noChannels = (data?.channels ?? []).every(m => m.rows.length === 0);
     const feesMissing = (data?.channels ?? []).some(m => m.appFeesMissing);
-    const channelSummary = needsChannels
-        ? "press Refresh channel data — the profit statement reads zero until you do"
+    const channelSummary = noChannels
+        ? "no orders in this range yet"
         : `${data?.channels[data.channels.length - 1]?.rows.length ?? 0} channels`;
     const blockedMonths = (data?.inventoryCogs ?? [])
         .filter(m => m.movementCogs === null && !m.monthInProgress).length;
     const inventorySummary = blockedMonths > 0
         ? `${blockedMonths} month${blockedMonths === 1 ? "" : "s"} missing a count`
         : "complete";
+    const pivotBlocks = data?.expensePivot.blocks ?? [];
+    const expenseBlockCount = pivotBlocks.filter(block => !isLedgerIncomeBlock(block)).length;
+    const incomeBlock = pivotBlocks.find(isLedgerIncomeBlock);
+    const incomeSummary = incomeBlock && incomeBlock.rows.length > 0
+        ? `${formatBd(asIncome(incomeBlock.grandTotal))} BHD in this range`
+        : "none in this range";
 
     // The unclassified count and total used to be computed here for the setup card at the top.
     // The badge that replaced it takes both straight from the report's own pivot, which is the
@@ -69,10 +84,10 @@ export default function BusinessTab(
 
     // A classification change rewrites every month of the report, so the figures below have to be
     // refetched -- the server evicts its cache on the write, but this client still holds the old
-    // payload.
-    const handleClassify = async (id: number, payload: Parameters<typeof classify>[1]): Promise<void> => {
-        await classify(id, payload);
-        await onRefresh();
+    // payload. The refetch is not awaited: the row is saved and unlocked once the PATCH answers, and
+    // a full report recompute must not hold the drawer.
+    const handleClassify = async (id: number, patch: CategoryClassificationPatch): Promise<void> => {
+        if (await classify(id, patch)) void onRefresh();
     };
 
     return (
@@ -108,38 +123,35 @@ export default function BusinessTab(
                     ))}
 
                     <CollapsibleCard title="📊 Key metrics" defaultExpanded
-                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees), and trading days are counted from the orders themselves, not assumed."
+                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees); food cost, COGS and labour divide by gross revenue. Trading days are the days with a shift opening or any order, counted rather than assumed."
                                      summary={monthLabel(data.months[data.months.length - 1])}>
                         <KpiBlockCard blocks={data.kpi}/>
                     </CollapsibleCard>
 
                     {/* Above the profit statement on purpose: the P&L takes its revenue from here,
-                        so until this card has been refreshed the statement below reads zeros. The
-                        button that fixes it must not sit underneath the thing it fixes. */}
+                        edits included, so this is where a wrong revenue figure gets corrected. */}
                     <CollapsibleCard
                         title="🛵 Channel performance"
                         summary={channelSummary}
                         info={<>
-                            Orders and revenue come from our own order records. App fees have no
-                            other source — they are whatever you enter here.
+                            Orders and gross revenue are live from our own order records, counted
+                            for the whole business. A Pick Up order counts once it has been picked
+                            up. The Performance tab also counts orders still open and only the
+                            branches selected there, so its figures can differ from these.
                             <br/><br/>
-                            Click any underlined figure to edit it, then press Enter to save. Your
-                            edits survive a refresh: regenerating rewrites the generated figures and
-                            never touches yours.
+                            App fees have no other source — they are whatever you enter here. Every
+                            figure in a box can be edited. An edited figure is tinted and replaces
+                            the live one until you revert it; hover it to see what the orders say.
+                            Revert puts orders and gross revenue back and keeps the app fee.
                         </>}
-                        badge={needsChannels
-                            ? <Chip label="⚠ not generated yet"
-                                    sx={{backgroundColor: BRAND_RED, color: '#fff', fontWeight: 'bold'}}/>
-                            : feesMissing
-                                ? <Chip label="⚠ app fees missing" color="warning"/>
-                                : undefined}
-                        defaultExpanded={needsChannels}
+                        badge={feesMissing ? <Chip label="⚠ app fees missing" color="warning"/> : undefined}
                     >
                         <ChannelPerformanceCard
                             months={data.channels}
-                            rangeLabel={rangeLabel}
-                            onPatch={onPatchChannel}
-                            onRegenerate={onRegenerateChannels}
+                            saving={channelSaving}
+                            errors={channelErrors}
+                            onSaveCell={onSaveChannelCell}
+                            onRevertRow={onRevertChannelRow}
                         />
                     </CollapsibleCard>
 
@@ -151,10 +163,16 @@ export default function BusinessTab(
                         <ProfitAndLossCard months={data.profitAndLoss}/>
                     </CollapsibleCard>
 
+                    {/* Right after the profit statement, whose revenue comes from orders, and before
+                        Monthly expenses, where these payouts used to open the table as negatives. */}
+                    <CollapsibleCard title="💰 Business income" summary={incomeSummary}>
+                        <BusinessIncomeCard pivot={data.expensePivot}/>
+                    </CollapsibleCard>
+
                     <CollapsibleCard
                         title="🧾 Monthly expenses"
-                        summary={`${data.expensePivot.blocks.length} blocks`}
-                        info="Every ledger entry in the range, grouped by its category's P&L class. Groceries and packaging appear here but are deliberately kept out of operating expenses — they reach the statement through COGS. Spend in an unclassified category is shown and counted in no total."
+                        summary={`${expenseBlockCount} blocks`}
+                        info="Every ledger entry in the range apart from business income, which has its own card, grouped by its category's P&L class. Groceries and packaging appear here but are deliberately kept out of operating expenses — they reach the statement through COGS. Spend in an unclassified category is shown and counted in no total."
                         badge={data.expensePivot.unclassifiedCategoryCount > 0
                             ? <Chip
                                 label={`⚠ ${data.expensePivot.unclassifiedCategoryCount} unclassified · ${formatBd(data.expensePivot.unclassifiedTotal)} BHD`}
@@ -181,8 +199,19 @@ export default function BusinessTab(
             <CategoryClassificationDrawer
                 open={drawerOpen}
                 categories={categories}
+                savingIds={classifyingIds}
+                saveError={classifyError}
+                onDismissSaveError={clearClassifyError}
                 onClose={() => setDrawerOpen(false)}
-                onChange={handleClassify}
+                onChange={(id, patch) => void handleClassify(id, patch)}
+            />
+
+            <ErrorSnackbar
+                open={channelSaveError !== null}
+                severity="error"
+                message={channelSaveError ?? ""}
+                handleClose={onDismissChannelSaveError}
+                duration={6000}
             />
         </Box>
     );
