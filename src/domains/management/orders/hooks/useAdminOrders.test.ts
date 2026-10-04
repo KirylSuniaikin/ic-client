@@ -319,13 +319,15 @@ describe("useAdminOrders — order removal does not silence an unrelated alarm",
     });
 });
 
-describe("useAdminOrders — Keeta orders must not auto-print", () => {
+// Keeta used to be skipped here (Keeta's own app printed the ticket). That stopped, so Keeta
+// orders now auto-print like every other channel.
+describe("useAdminOrders — auto-print", () => {
     const stopSound = jest.fn<void, []>();
     const NEW_ORDER_TOPIC = "/topic/branch-1/orders";
     const ORDER_UPDATES_TOPIC = "/topic/branch-1/order-updates";
     let handlers: Record<string, (msg: IMessage) => void>;
 
-    // Minimal Order shape; only id/order_type are read by the auto-print guard.
+    // Minimal Order shape; only id/order_type matter here.
     const orderWith = (id: number, orderType: string): Order =>
         ({ id, order_type: orderType } as unknown as Order);
 
@@ -354,43 +356,20 @@ describe("useAdminOrders — Keeta orders must not auto-print", () => {
         jest.clearAllMocks();
     });
 
-    it("does not print a Keeta order on the new-order topic", async () => {
+    it.each([
+        [NEW_ORDER_TOPIC, "Keeta"],
+        [NEW_ORDER_TOPIC, "Pick Up"],
+        [ORDER_UPDATES_TOPIC, "Keeta"],
+        [ORDER_UPDATES_TOPIC, "Pick Up"],
+    ])("prints an order arriving on %s with order type %s", async (topic, orderType) => {
         await act(async () => {
             renderHook(() => useAdminOrders("branch-1", stopSound));
         });
+        const order = orderWith(1, orderType);
 
-        act(() => sendFrame(NEW_ORDER_TOPIC, orderWith(1, "Keeta")));
-
-        expect(mockPrintOrder).not.toHaveBeenCalled();
-    });
-
-    it("prints a non-Keeta order on the new-order topic", async () => {
-        await act(async () => {
-            renderHook(() => useAdminOrders("branch-1", stopSound));
-        });
-
-        act(() => sendFrame(NEW_ORDER_TOPIC, orderWith(1, "Pick Up")));
+        act(() => sendFrame(topic, order));
 
         expect(mockPrintOrder).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not print a Keeta order on the order-updates topic", async () => {
-        await act(async () => {
-            renderHook(() => useAdminOrders("branch-1", stopSound));
-        });
-
-        act(() => sendFrame(ORDER_UPDATES_TOPIC, orderWith(2, "Keeta")));
-
-        expect(mockPrintOrder).not.toHaveBeenCalled();
-    });
-
-    it("prints a non-Keeta order on the order-updates topic", async () => {
-        await act(async () => {
-            renderHook(() => useAdminOrders("branch-1", stopSound));
-        });
-
-        act(() => sendFrame(ORDER_UPDATES_TOPIC, orderWith(2, "Pick Up")));
-
-        expect(mockPrintOrder).toHaveBeenCalledTimes(1);
+        expect(mockPrintOrder).toHaveBeenCalledWith(order);
     });
 });
