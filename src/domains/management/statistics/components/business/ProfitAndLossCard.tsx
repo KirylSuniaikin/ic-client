@@ -128,12 +128,15 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
                     <TableBody>
                         {RECONCILIATION.map(renderRow)}
                         <TableRow>
-                            <TableCell sx={{pl: 4}}>as % of net revenue</TableCell>
+                            <TableCell sx={{pl: 4}}>as % of gross revenue</TableCell>
                             {months.map(m => (
                                 <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                    {m.reconciliation.variancePercentOfNetRevenue === null
+                                    {/* == null, not === null: a backend that predates the rename
+                                        sends no such field, and undefined.toFixed would take the
+                                        whole card down instead of printing a dash. */}
+                                    {m.reconciliation.variancePercentOfGrossRevenue == null
                                         ? "—"
-                                        : `${m.reconciliation.variancePercentOfNetRevenue.toFixed(2)}%`}
+                                        : `${m.reconciliation.variancePercentOfGrossRevenue.toFixed(2)}%`}
                                 </TableCell>
                             ))}
                         </TableRow>

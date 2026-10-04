@@ -34,8 +34,10 @@ export default function PricingCostCardsSection({onCostSaved, refreshKey = 0}: P
         payload: UpdateComponentCost
     ): Promise<void> => {
         await costCards.setComponentCost(id, payload);
+        // Not awaited: it recomputes the whole Business Stats report, and the drawer must not hold
+        // the field for that once the cost itself is saved.
         if (onCostSaved) {
-            await onCostSaved();
+            void onCostSaved();
         }
     };
 

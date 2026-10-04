@@ -1,18 +1,25 @@
-import React, {useState} from "react";
+import React from "react";
 import {
     Box, Chip, Drawer, FormControl, InputLabel, MenuItem, Select, Stack, Typography
 } from "@mui/material";
-import type {CategoryClassification, KpiTag, PnlClass, UpdateCategoryClassification} from "../../types";
+import type {CategoryClassification, KpiTag, PnlClass} from "../../types";
+import type {CategoryClassificationPatch} from "../../hooks/useBusinessCategories";
 import {
     formatBd, KPI_TAG_LABELS, KPI_TAGS, PNL_CLASS_HINTS, PNL_CLASS_LABELS, PNL_CLASSES
 } from "./businessFormat";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
+import ErrorSnackbar from "../../../../../shared/components/ErrorSnackbar";
 
 type Props = {
     open: boolean;
+    /** The rows as last changed on this client: a pick shows here before the server answers. */
     categories: CategoryClassification[];
+    savingIds: ReadonlySet<number>;
+    saveError: string | null;
+    onDismissSaveError: () => void;
     onClose: () => void;
-    onChange: (id: number, payload: UpdateCategoryClassification) => Promise<void>;
+    /** Only the field that was picked: the owner of the rows fills in the other from its latest copy. */
+    onChange: (id: number, patch: CategoryClassificationPatch) => void;
 };
 
 /**
@@ -25,27 +32,11 @@ type Props = {
  * rows jump out from under the finger mid-triage.
  *
  * <p>Saves per row rather than in bulk, so one failure costs one row instead of the whole session.
+ * A row's pickers are locked while its save is in flight, and a refused save puts the row back.
  */
 export default function CategoryClassificationDrawer(
-    {open, categories, onClose, onChange}: Props
+    {open, categories, savingIds, saveError, onDismissSaveError, onClose, onChange}: Props
 ): React.JSX.Element {
-    const [savingId, setSavingId] = useState<number | null>(null);
-
-    const handleChange = async (
-        row: CategoryClassification,
-        patch: Partial<UpdateCategoryClassification>
-    ): Promise<void> => {
-        setSavingId(row.id);
-        try {
-            await onChange(row.id, {
-                pnlClass: patch.pnlClass !== undefined ? patch.pnlClass : row.pnlClass,
-                kpiTag: patch.kpiTag !== undefined ? patch.kpiTag : row.kpiTag,
-            });
-        } finally {
-            setSavingId(null);
-        }
-    };
-
     const unclassified = categories.filter(c => c.pnlClass === null).length;
 
     return (
@@ -89,11 +80,12 @@ export default function CategoryClassificationDrawer(
                         <Box
                             key={row.id}
                             data-testid={`category-row-${row.id}`}
+                            aria-busy={savingIds.has(row.id)}
                             sx={{
                                 border: '1px solid #f1eae4',
                                 borderRadius: 3,
                                 p: 2,
-                                opacity: savingId === row.id ? 0.6 : 1,
+                                opacity: savingIds.has(row.id) ? 0.6 : 1,
                                 backgroundColor: row.pnlClass === null ? '#FCE9E9' : '#fff',
                             }}
                         >
@@ -117,7 +109,7 @@ export default function CategoryClassificationDrawer(
                             </Box>
 
                             <Stack direction={{xs: 'column', sm: 'row'}} spacing={2}>
-                                <FormControl size="small" fullWidth>
+                                <FormControl size="small" fullWidth disabled={savingIds.has(row.id)}>
                                     <InputLabel id={`pnl-${row.id}`}>P&L class</InputLabel>
                                     <Select<PnlClass | "">
                                         labelId={`pnl-${row.id}`}
@@ -125,7 +117,7 @@ export default function CategoryClassificationDrawer(
                                         value={row.pnlClass ?? ""}
                                         onChange={e => {
                                             const v = e.target.value;
-                                            void handleChange(row, {pnlClass: v === "" ? null : v});
+                                            onChange(row.id, {pnlClass: v === "" ? null : v});
                                         }}
                                     >
                                         <MenuItem value="">Unclassified</MenuItem>
@@ -135,7 +127,7 @@ export default function CategoryClassificationDrawer(
                                     </Select>
                                 </FormControl>
 
-                                <FormControl size="small" fullWidth>
+                                <FormControl size="small" fullWidth disabled={savingIds.has(row.id)}>
                                     <InputLabel id={`kpi-${row.id}`}>KPI tag</InputLabel>
                                     <Select<KpiTag | "">
                                         labelId={`kpi-${row.id}`}
@@ -143,7 +135,7 @@ export default function CategoryClassificationDrawer(
                                         value={row.kpiTag ?? ""}
                                         onChange={e => {
                                             const v = e.target.value;
-                                            void handleChange(row, {kpiTag: v === "" ? null : v});
+                                            onChange(row.id, {kpiTag: v === "" ? null : v});
                                         }}
                                     >
                                         <MenuItem value="">None</MenuItem>
@@ -163,6 +155,16 @@ export default function CategoryClassificationDrawer(
                     ))}
                 </Stack>
             </Box>
+
+            {/* Inside the sheet rather than beside it: the open drawer hides everything outside
+                its portal from assistive tech, and this is where the owner is looking. */}
+            <ErrorSnackbar
+                open={saveError !== null}
+                severity="error"
+                message={saveError ?? ""}
+                handleClose={onDismissSaveError}
+                duration={6000}
+            />
         </Drawer>
     );
 }

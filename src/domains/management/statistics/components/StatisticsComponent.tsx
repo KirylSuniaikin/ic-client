@@ -300,10 +300,13 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         <BusinessTab
                             data={businessStats.data}
                             loading={businessStats.loading}
-                            rangeLabel={businessStats.rangeLabel}
                             onRefresh={businessStats.refresh}
-                            onPatchChannel={businessStats.patchChannel}
-                            onRegenerateChannels={businessStats.regenerateChannels}
+                            channelSaving={businessStats.channelSaving}
+                            channelErrors={businessStats.channelErrors}
+                            channelSaveError={businessStats.channelSaveError}
+                            onSaveChannelCell={businessStats.saveChannelCell}
+                            onRevertChannelRow={businessStats.revertChannelRow}
+                            onDismissChannelSaveError={businessStats.clearChannelSaveError}
                         />
                     )}
                     {mode === "Consumption" && (

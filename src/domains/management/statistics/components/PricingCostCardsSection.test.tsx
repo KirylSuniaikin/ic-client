@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PricingCostCardsSection from "./PricingCostCardsSection";
 import type { ComponentCost } from "../types";
@@ -18,6 +18,22 @@ const mockUpdateComponentCost = jest.mocked(updateComponentCost);
 // asserts on a card's contents has to open it first.
 async function openCard(title: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: `Expand ${title}` }));
+}
+
+function costInput(name: string): HTMLInputElement {
+    const input = screen.getByLabelText(`Cost for ${name}`);
+    if (!(input instanceof HTMLInputElement)) throw new Error(`Cost for ${name} is not an input`);
+    return input;
+}
+
+type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+
+function deferred<T>(): Deferred<T> {
+    let resolve: (value: T) => void = () => undefined;
+    const promise = new Promise<T>(res => {
+        resolve = res;
+    });
+    return { promise, resolve };
 }
 
 describe("PricingCostCardsSection", () => {
@@ -135,6 +151,7 @@ describe("PricingCostCardsSection", () => {
             productPrice: null, cost: null, batchYield: null, ingredients: [],
             resolvedUnitCost: 0, costSource: "MISSING",
         };
+        const basil: ComponentCost = { ...oregano, id: 6, name: "Basil" };
 
         const openDrawer = async (): Promise<void> => {
             const badge = await screen.findByText(/1 ingredients with no cost/);
@@ -156,6 +173,113 @@ describe("PricingCostCardsSection", () => {
             await waitFor(() => expect(mockUpdateComponentCost)
                 .toHaveBeenCalledWith(5, {cost: 5, clearCost: false}));
             await waitFor(() => expect(onCostSaved).toHaveBeenCalledTimes(1));
+        });
+
+        it("releases the field once the cost is saved, without waiting for onCostSaved", async () => {
+            // onCostSaved recomputes the whole Business Stats report; the drawer used to hold the
+            // field (and the typed draft) until that finished.
+            mockComponents.mockResolvedValue([oregano]);
+            mockUpdateComponentCost.mockResolvedValue({
+                ...oregano, cost: 5, costSource: "MANUAL", resolvedUnitCost: 0.005,
+            });
+            const onCostSaved = jest.fn<Promise<void>, []>().mockReturnValue(new Promise<void>(() => undefined));
+
+            render(<PricingCostCardsSection onCostSaved={onCostSaved}/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "5{Enter}");
+
+            await waitFor(() => expect(onCostSaved).toHaveBeenCalledTimes(1));
+            await waitFor(() => expect(costInput("Oregano").disabled).toBe(false));
+        });
+
+        it("saves once when Enter is pressed and the field is touched again while the save is in flight", async () => {
+            // Enter used to save AND leave the field focused with the draft still in it, so the
+            // blur that followed sent the same cost a second time.
+            mockComponents.mockResolvedValue([oregano]);
+            const save = deferred<ComponentCost>();
+            mockUpdateComponentCost.mockReturnValue(save.promise);
+
+            render(<PricingCostCardsSection/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "5{Enter}");
+            userEvent.click(costInput("Oregano"));
+            userEvent.tab();
+
+            expect(costInput("Oregano").value).toBe("5");
+            await act(async () => save.resolve({ ...oregano, cost: 5, costSource: "MANUAL", resolvedUnitCost: 0.005 }));
+
+            await waitFor(() => expect(costInput("Oregano").disabled).toBe(false));
+            expect(mockUpdateComponentCost).toHaveBeenCalledTimes(1);
+            expect(mockUpdateComponentCost).toHaveBeenCalledWith(5, {cost: 5, clearCost: false});
+        });
+
+        it("sends nothing when the field is left with the stored cost in it", async () => {
+            // Basil only keeps the "no cost" badge, the way into the drawer, on screen.
+            mockComponents.mockResolvedValue([{ ...oregano, cost: 5, costSource: "MANUAL" }, basil]);
+
+            render(<PricingCostCardsSection/>);
+            await openDrawer();
+            userEvent.click(await screen.findByLabelText("Cost for Oregano"));
+            userEvent.tab();
+            userEvent.clear(costInput("Oregano"));
+            await userEvent.type(costInput("Oregano"), "5.000{Enter}");
+
+            expect(mockUpdateComponentCost).not.toHaveBeenCalled();
+            expect(costInput("Oregano").value).toBe("5");
+        });
+
+        it("reads a comma as the decimal point", async () => {
+            mockComponents.mockResolvedValue([oregano]);
+            mockUpdateComponentCost.mockResolvedValue({
+                ...oregano, cost: 12.5, costSource: "MANUAL", resolvedUnitCost: 0.0125,
+            });
+
+            render(<PricingCostCardsSection/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "12,5{Enter}");
+
+            await waitFor(() => expect(mockUpdateComponentCost)
+                .toHaveBeenCalledWith(5, {cost: 12.5, clearCost: false}));
+        });
+
+        it("keeps what was typed and says so when the input is not a number, instead of dropping it", async () => {
+            mockComponents.mockResolvedValue([oregano]);
+
+            render(<PricingCostCardsSection/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "abc{Enter}");
+
+            expect(await screen.findByText("Not saved: the cost is not a number.")).toBeTruthy();
+            expect(costInput("Oregano").value).toBe("abc");
+            expect(mockUpdateComponentCost).not.toHaveBeenCalled();
+        });
+
+        it("refuses a negative cost", async () => {
+            mockComponents.mockResolvedValue([oregano]);
+
+            render(<PricingCostCardsSection/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "-3{Enter}");
+
+            expect(await screen.findByText("Not saved: the cost cannot be negative.")).toBeTruthy();
+            expect(mockUpdateComponentCost).not.toHaveBeenCalled();
+        });
+
+        it("keeps the typed cost and says why when the server refuses it", async () => {
+            // The hook used to swallow the failure, so the drawer dropped the draft and showed the
+            // old cost again as if it had been saved.
+            mockComponents.mockResolvedValue([oregano]);
+            mockUpdateComponentCost.mockRejectedValue(new Error("the server had a problem — try again in a minute"));
+            const onCostSaved = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+
+            render(<PricingCostCardsSection onCostSaved={onCostSaved}/>);
+            await openDrawer();
+            await userEvent.type(await screen.findByLabelText("Cost for Oregano"), "5{Enter}");
+
+            expect(await screen.findByText("Not saved: the server had a problem — try again in a minute")).toBeTruthy();
+            expect(costInput("Oregano").value).toBe("5");
+            expect(costInput("Oregano").disabled).toBe(false);
+            expect(onCostSaved).not.toHaveBeenCalled();
         });
 
         it("saves and refreshes locally without error when no onCostSaved was passed (MANAGER/SUPER_MANAGER)", async () => {

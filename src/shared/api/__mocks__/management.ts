@@ -24,7 +24,7 @@ import type {
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -185,10 +185,8 @@ export const getBusinessCategories = jest.fn<Promise<CategoryClassification[]>, 
 export const updateCategoryClassification =
     jest.fn<Promise<CategoryClassification>, [number, UpdateCategoryClassification]>();
 export const getBusinessStats = jest.fn<Promise<BusinessStatsResponse>, [string, string]>();
-export const regenerateChannelPerformance =
-    jest.fn<Promise<ChannelRegenerateResponse>, [string, string]>();
-export const patchChannelPerformance =
-    jest.fn<Promise<ChannelPerformanceRow>, [number, ChannelOverridePatch]>();
+export const patchChannelOverride =
+    jest.fn<Promise<ChannelPerformanceMonth>, [ChannelOverridePatch]>();
 export const getMenuCostCards = jest.fn<Promise<MenuCostCardsResponse>, []>();
 export const getComponentCosts = jest.fn<Promise<ComponentCost[]>, []>();
 export const updateComponentCost = jest.fn<Promise<ComponentCost>, [number, UpdateComponentCost]>();
