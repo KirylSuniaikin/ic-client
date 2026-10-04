@@ -15,5 +15,6 @@
   "extras": {
     "thinDough": "عجينة رقيقة",
     "garlicCrust": "حافة بالثوم"
-  }
+  },
+  "pickupFrom": "الاستلام من"
 }

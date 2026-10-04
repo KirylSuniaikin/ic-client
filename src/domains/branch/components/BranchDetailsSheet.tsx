@@ -47,10 +47,11 @@ export function BranchDetailsSheet({ branch, cartItems, onClose, onConfirm }: Br
             onClose={onClose}
             // This sheet is opened from INSIDE BranchPickerDrawer, i.e. one MUI Drawer on top of
             // another. MUI does not raise a nested modal: ModalManager only manages `aria-hidden`
-            // and the scroll lock, so both roots land on theme.zIndex.drawer (1200) and which one
-            // paints is decided purely by which portal `document.body` happens to hold last. The
-            // rest of this app never leaves that to chance — CashInputDrawer, UnpaidInvoicesDrawer,
-            // BanCstmrDrawer and ShiftPopup all declare 1350 for exactly this reason.
+            // and the scroll lock, never z-index. The picker sits at theme.zIndex.modal + 1 (1301)
+            // so it clears the cart Modal it can be opened from, and this sheet must stay above
+            // that. The rest of this app never leaves stacking to chance — CashInputDrawer,
+            // UnpaidInvoicesDrawer, BanCstmrDrawer and ShiftPopup all declare 1350 for exactly
+            // this reason.
             sx={{zIndex: 1350}}
             PaperProps={{
                 sx: {

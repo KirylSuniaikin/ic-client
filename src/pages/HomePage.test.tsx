@@ -570,6 +570,50 @@ describe("HomePage -- branch chip and cart-loss switch warning", () => {
         expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
     });
 
+    // The owner's complaint on mobile: changing branch from the cart dropped the customer on the
+    // menu. On web the picker opens over the cart and the cart never closes, so every exit from
+    // the picker — and from the warning that follows — lands back in it.
+    it("changing branch from the cart's 'Pick up from' card returns the customer to the cart", async () => {
+        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
+        // Cola is on the target's menu too, so the switch keeps the cart non-empty.
+        mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
+        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
+        // Opened on top: the cart is still mounted underneath.
+        expect(screen.getByText("Pick up from")).toBeTruthy();
+
+        fireEvent.click(screen.getByTestId(`branch-option-${TARGET_BRANCH.id}`));
+        fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
+        await waitFor(() => expect(screen.getByText("Switch to New Branch?")).toBeTruthy());
+        fireEvent.click(await screen.findByRole("button", { name: "Switch branch" }));
+
+        await waitFor(() => expect(screen.queryByText("Switch to New Branch?")).toBeNull());
+        expect(screen.queryByText("Choose your branch")).toBeNull();
+        expect(await screen.findByRole("button", { name: "Pick up from New Branch" })).toBeTruthy();
+        expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(TARGET_BRANCH);
+    });
+
+    it("dismissing the picker opened from the cart leaves the cart open", async () => {
+        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
+        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
+
+        fireEvent.click(screen.getByRole("button", { name: /close/i }));
+
+        await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
+        expect(screen.getByRole("button", { name: "Pick up from Chosen Branch" })).toBeTruthy();
+    });
+
     it("does not render the chip in kiosk mode", async () => {
         seedKioskBranchSelected();
         renderHomePage(["/menu?mode=kiosk"]);

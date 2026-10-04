@@ -23,6 +23,10 @@ export interface IBranch {
     externalId: string;
     branchNo: number;
     branchName: string;
+    // Mirrors BranchTO.branchNameAr. Optional AND nullable: an older backend omits the field, and a
+    // branch nobody has translated yet sends null. Never read it directly for display — go through
+    // domains/branch/utils/branchDisplayName, which falls back to branchName the way the server does.
+    branchNameAr?: string | null;
     locale: string;
     // Mirrors BranchTO's nullable latitude/longitude (task-spec.md §5.2) — a branch is often
     // genuinely unseeded with coordinates; both fields must survive null end to end.

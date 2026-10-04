@@ -12,6 +12,7 @@ import { writeKioskBranch } from "../domains/kiosk/utils/kioskBranch";
 import { BranchPickerDrawer } from "../domains/branch/components/BranchPickerDrawer";
 import { BranchSwitchWarningDrawer } from "../domains/branch/components/BranchSwitchWarningDrawer";
 import type { UseBranchSwitchResult } from "../domains/branch/hooks/useBranchSwitch";
+import { useBranchResolution } from "../domains/branch/hooks/useBranchResolution";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
@@ -84,6 +85,12 @@ export default function HomePageModals({
     // Local const so the null-check below narrows inside PickUpReminderPopup's onClick
     // (narrowing a property access would not survive into the callback).
     const pendingOrder = checkout.pendingOrder;
+
+    // The branch a pickup order is filed against: useCheckout sends chosenBranchId, so the cart
+    // names that same branch. Looked up in the fresh branch list rather than the stored copy, which
+    // was frozen at selection time and can predate fields like the address or the Arabic name.
+    const { chosenBranchId } = useBranchResolution();
+    const pickupBranch = availableBranches.find(b => String(b.id) === chosenBranchId) ?? null;
 
     const deliveryAvailability = useDeliveryAvailability();
     // The pickup path seeds the homepage island from useCheckout the moment an order is created;
@@ -412,6 +419,10 @@ export default function HomePageModals({
                     orderType={checkout.orderType}
                     onDeliveryTypeChange={handleDeliveryTypeChange}
                     isKiosk={isKiosk}
+                    pickupBranch={pickupBranch}
+                    // The picker opens ON TOP of the still-open cart rather than replacing it, so
+                    // closing or confirming it lands the customer back in the cart, not the menu.
+                    onChangeBranch={branchSwitch.openPicker}
                 />
             )}
 

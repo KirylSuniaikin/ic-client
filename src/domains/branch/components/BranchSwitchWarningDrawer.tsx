@@ -29,6 +29,11 @@ export function BranchSwitchWarningDrawer({
             anchor="bottom"
             open={open}
             onClose={onCancel}
+            // A switch started from the cart's "Pick up from" card always has items, so this
+            // warning opens over the still-open cart — a MUI Modal at theme.zIndex.modal (1300),
+            // above a Drawer's default zIndex.drawer (1200). Without this the warning takes focus
+            // while painting invisibly behind the cart.
+            sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
             PaperProps={{
                 sx: {
                     borderTopLeftRadius: 16,

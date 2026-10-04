@@ -1,7 +1,7 @@
 // Covers the delivery wiring HomePageModals owns (DELIVERY_SPEC.md §1.5 / §1.7): who receives the
 // cart's checkout tap, and what is paid for afterwards. Every popup it composes has its own suite,
 // so the children are mocked to probes and only this file's own logic is exercised.
-import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React from "react";
 import { act, render, waitFor, type RenderResult } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
@@ -82,6 +82,7 @@ import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { UseBranchSwitchResult } from "../domains/branch/hooks/useBranchSwitch";
 import type { IBranch } from "../domains/management/inventory/types";
+import { clearChosenBranch, writeChosenBranch } from "../domains/branch/utils/customerBranch";
 
 const mockPay = jest.mocked(payForDelivery);
 const mockGate = jest.mocked(getDeliveryAvailability);
@@ -511,6 +512,50 @@ describe("HomePageModals — branch-switch cart-loss warning", () => {
             onConfirm: branchSwitch.confirmSwitch,
             onCancel: branchSwitch.cancelSwitch,
         }));
+    });
+});
+
+// The cart's "Pick up from" card: which branch it names, and that tapping it reopens the same
+// voluntary picker the menu header uses — on top of the cart, which stays open.
+describe("HomePageModals — the cart's pick-up branch card", () => {
+    const BRANCHES: IBranch[] = [
+        { id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Downtown", locale: "en", latitude: null, longitude: null, address: "Road 1" },
+        { id: "b-2", externalId: "ext-2", branchNo: 2, branchName: "Seef", branchNameAr: "السيف", locale: "en", latitude: null, longitude: null, address: "Seef Mall" },
+    ];
+
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        clearChosenBranch();
+    });
+
+    afterEach(() => {
+        clearChosenBranch();
+    });
+
+    it("names the branch the order is filed against and wires the card to the branch picker", () => {
+        writeChosenBranch(BRANCHES[1]);
+        const branchSwitch = createBranchSwitch();
+        renderModals({}, {}, { availableBranches: BRANCHES, branchSwitch });
+
+        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({
+            pickupBranch: BRANCHES[1],
+            onChangeBranch: branchSwitch.openPicker,
+        }));
+    });
+
+    // The stored copy is frozen at the moment of choice; the list is what the server says now.
+    it("takes the branch from the fresh list, not the copy stored when it was chosen", () => {
+        writeChosenBranch({ ...BRANCHES[1], address: null, branchNameAr: null });
+        renderModals({}, {}, { availableBranches: BRANCHES });
+
+        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({ pickupBranch: BRANCHES[1] }));
+    });
+
+    it("passes no branch when the chosen one is not in the list", () => {
+        writeChosenBranch({ ...BRANCHES[0], id: "b-gone" });
+        renderModals({}, {}, { availableBranches: BRANCHES });
+
+        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({ pickupBranch: null }));
     });
 });
 

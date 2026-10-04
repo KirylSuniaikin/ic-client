@@ -146,6 +146,13 @@ export function BranchPickerDrawer({
             anchor="bottom"
             open={open}
             onClose={dismissable ? () => onClose?.() : undefined}
+            // The cart's "Pick up from" card opens this ON TOP of the still-open cart, a MUI Modal
+            // at theme.zIndex.modal (1300), while a Drawer defaults to zIndex.drawer (1200). MUI's
+            // ModalManager never raises a later modal, so without this the picker opens behind the
+            // cart and the tap looks like it did nothing. modal + 1 rather than the 1350 nested
+            // drawers use: BranchDetailsSheet already sits at 1350 inside this picker and must
+            // stay above it.
+            sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
             PaperProps={{
                 sx: {
                     borderTopLeftRadius: 16,
