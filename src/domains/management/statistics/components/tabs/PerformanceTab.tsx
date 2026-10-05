@@ -16,7 +16,7 @@ function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
     const newOrders = stats.newCustomerOrderedCount;
     const returningOrders = stats.oldCstmrOrderCount;
     const unknownOrders = stats.unknownCustomerOrderCount;
-    // Share of 89 (Pick Up + Keeta), not 88 (New + Returning) -- unknownOrders is part of the
+    // Share of all the card's orders, not just New + Returning -- unknownOrders is part of the
     // same platform total, so it must be in the percentage denominator too.
     const totalOrders = newOrders + returningOrders + unknownOrders;
     const returningCustomers = stats.oldCustomerOrderedCount;
@@ -71,7 +71,8 @@ export function PerformanceTab({
     return (
         <>
             <CustomerStatCard
-                title="Customers · Pick Up + Keeta"
+                // Must name exactly the types the backend counts (StatsService.CUSTOMER_CARD_TYPES).
+                title="Customers · Pick Up + Delivery + Talabat + Keeta"
                 columns={rangeStats ? buildCustomerColumns(rangeStats) : null}
             />
 

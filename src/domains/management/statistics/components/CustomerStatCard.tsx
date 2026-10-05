@@ -33,7 +33,7 @@ const metricLegend = (
         </Typography>
         <Typography variant="caption" component="div">
             <b>Unknown / No phone</b> — orders with no phone on file can&apos;t be attributed to a
-            customer (Keeta masks some numbers)
+            customer (Keeta masks some numbers, and Talabat orders usually arrive without one)
         </Typography>
     </Box>
 );
