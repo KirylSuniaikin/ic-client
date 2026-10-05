@@ -49,7 +49,7 @@ function isTerminalStatus(status: string | null, orderType: string | undefined):
 
 // Same cadence as useCourierTracking's POLL_INTERVAL_MS (order-status domain); not imported, to
 // avoid a cross-domain dependency.
-const RIDER_REFRESH_INTERVAL_MS = 20_000;
+const RIDER_REFRESH_INTERVAL_MS = 15_000;
 
 type LoadOptions = {
     /** A failed background refresh keeps the last-known order instead of hiding the pill. */

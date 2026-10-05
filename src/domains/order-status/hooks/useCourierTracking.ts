@@ -7,16 +7,17 @@ import { fetchCourierLocation } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
 import { logger } from "../../../shared/utils/logger";
 import { OUT_FOR_DELIVERY_STATUS } from "../../../shared/utils/orderStages";
-import type { TrackedCourier, TrackedPart } from "../types";
+import type { TrackedCourier, TrackedPart, TrackingDestination } from "../types";
 
-// Upper end of the allowed 15-20s range (task-spec.md §4.1): minimizes Google Maps script/billing
-// load and backend request volume against a courier position that itself only changes ~once a
-// minute (the courier app's own 60s reporting cadence).
-export const POLL_INTERVAL_MS = 20_000;
+// Matches the courier app's 15 s reporting cadence while it carries an order, so each poll
+// usually brings a fresh fix and the moped never sits still for a whole cycle. Polling faster
+// would only re-read the same fix.
+export const POLL_INTERVAL_MS = 15_000;
 
 export type UseCourierTrackingResult = {
     couriers: TrackedCourier[];
     parts: TrackedPart[];
+    destination: TrackingDestination | null;
 };
 
 // runs/6b/task-spec.md §6: a render must never show new couriers paired with stale parts (or vice
@@ -24,9 +25,10 @@ export type UseCourierTrackingResult = {
 type TrackingState = {
     couriers: TrackedCourier[];
     parts: TrackedPart[];
+    destination: TrackingDestination | null;
 };
 
-const EMPTY_STATE: TrackingState = { couriers: [], parts: [] };
+const EMPTY_STATE: TrackingState = { couriers: [], parts: [], destination: null };
 
 function useVisibility(): boolean {
     const [visible, setVisible] = useState<boolean>(() => document.visibilityState === "visible");
@@ -95,7 +97,12 @@ export function useCourierTracking(
             try {
                 const response = await fetchCourierLocation(currentToken, currentOrderId);
                 if (cancelled) return;
-                setState({ couriers: response.couriers, parts: response.parts ?? [] });
+                setState({
+                    couriers: response.couriers,
+                    parts: response.parts ?? [],
+                    // `?? null`: a backend from before the pin was added omits the key entirely.
+                    destination: response.destination ?? null,
+                });
             } catch (error) {
                 // Explicit, never a silent catch — self-healing for a transient network blip; a
                 // persistent 404/401 simply keeps the map hidden without spamming an error state.

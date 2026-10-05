@@ -106,7 +106,12 @@
     "courierUpdatedAgo": "آخر تحديث قبل {{minutes}} دقيقة",
     "courierPartCaption": "الجزء {{index}} · {{name}}",
     "partDelivered": "الجزء {{index}} من {{total}}: تم التوصيل",
-    "partOnTheWay": "الجزء {{index}} من {{total}}: في الطريق"
+    "partOnTheWay": "الجزء {{index}} من {{total}}: في الطريق",
+    "courierOnTheWay": "{{name}} في الطريق إليك · حوالي {{minutes}} دقيقة",
+    "courierOnTheWayNoEta": "{{name}} في الطريق إليك",
+    "courierPartOnTheWay": "الجزء {{index}} · {{name}} · حوالي {{minutes}} دقيقة",
+    "courierUpdatedSecondsAgo": "آخر تحديث قبل {{seconds}} ثانية",
+    "deliveryAddressMarker": "عنوانك"
   },
   "errors": {
     "tooManyAttempts": "محاولات كثيرة جداً — يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.",

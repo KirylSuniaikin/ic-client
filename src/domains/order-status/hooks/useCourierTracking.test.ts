@@ -23,6 +23,8 @@ const COURIER: TrackedCourier = {
     longitude: 50.586,
     positionAgeSeconds: 10,
     partIndex: 1,
+    bearingDegrees: 90,
+    etaSeconds: 300,
 };
 
 const COURIER_2: TrackedCourier = {
@@ -31,6 +33,8 @@ const COURIER_2: TrackedCourier = {
     longitude: 50.59,
     positionAgeSeconds: 12,
     partIndex: 2,
+    bearingDegrees: null,
+    etaSeconds: null,
 };
 
 const PARTS_2: TrackedPart[] = [
@@ -45,7 +49,7 @@ function wrapper({ children }: { children: React.ReactNode }): React.JSX.Element
 }
 
 function courierResponse(overrides: Partial<OrderTrackingResponse> = {}): OrderTrackingResponse {
-    return { couriers: [], ...overrides };
+    return { couriers: [], destination: null, ...overrides };
 }
 
 function loginWithToken(): void {
@@ -115,7 +119,11 @@ describe("useCourierTracking", () => {
         expect(mockFetchCourierLocation).not.toHaveBeenCalled();
     });
 
-    it("fetches immediately on entering the trackable state, then again after 20000ms, and exactly once per tick thereafter", async () => {
+    it("polls every 15 s, the courier app's reporting cadence while it carries an order", () => {
+        expect(POLL_INTERVAL_MS).toBe(15_000);
+    });
+
+    it("fetches immediately on entering the trackable state, then again after POLL_INTERVAL_MS, and exactly once per tick thereafter", async () => {
         loginWithToken();
         renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
         await flush();
@@ -421,6 +429,69 @@ describe("useCourierTracking", () => {
         expect({ couriers: result.current.couriers, parts: result.current.parts }).toEqual({
             couriers: [COURIER_2],
             parts: PARTS_2,
+        });
+    });
+
+    describe("the customer's drop-off pin", () => {
+        const HOME = { latitude: 26.24, longitude: 50.6 };
+
+        it("hands over the destination with the couriers and parts of the same response", async () => {
+            loginWithToken();
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({ couriers: [COURIER], destination: HOME }));
+
+            const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+            await flush();
+
+            expect(result.current.couriers).toEqual([COURIER]);
+            expect(result.current.destination).toEqual(HOME);
+        });
+
+        it("reads a response from a backend that predates the pin (no destination key) as no pin", async () => {
+            loginWithToken();
+            // The old wire shape, deliberately not an OrderTrackingResponse.
+            const legacy = { couriers: [COURIER] } as unknown as OrderTrackingResponse;
+            mockFetchCourierLocation.mockResolvedValue(legacy);
+
+            const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+            await flush();
+
+            expect(result.current.couriers).toEqual([COURIER]);
+            expect(result.current.destination).toBeNull();
+        });
+
+        it("clears the destination with the couriers when the order leaves 'Out for delivery'", async () => {
+            loginWithToken();
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({ couriers: [COURIER], destination: HOME }));
+
+            const { result, rerender } = renderHook(
+                ({ status }: { status: string }) => useCourierTracking(1, true, status),
+                { wrapper, initialProps: { status: "Out for delivery" } }
+            );
+            await flush();
+            expect(result.current.destination).toEqual(HOME);
+
+            rerender({ status: "Delivered" });
+            await flush();
+
+            expect(result.current.destination).toBeNull();
+        });
+
+        it("clears the destination on a failed poll, with the couriers", async () => {
+            loginWithToken();
+            mockFetchCourierLocation.mockResolvedValueOnce(courierResponse({ couriers: [COURIER], destination: HOME }));
+            mockFetchCourierLocation.mockRejectedValueOnce(new Error("network down"));
+
+            const { result } = renderHook(() => useCourierTracking(1, true, "Out for delivery"), { wrapper });
+            await flush();
+            expect(result.current.destination).toEqual(HOME);
+
+            act(() => {
+                jest.advanceTimersByTime(POLL_INTERVAL_MS);
+            });
+            await flush();
+
+            expect(result.current.couriers).toEqual([]);
+            expect(result.current.destination).toBeNull();
         });
     });
 });

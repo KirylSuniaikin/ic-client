@@ -47,6 +47,7 @@ jest.mock("../../branch/utils/mapsConfig", () => ({
 import { fetchCourierLocation, refreshCustomerToken } from "../../../shared/api/customerAuth";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../../customer-auth/context/CustomerAuthProvider";
 import { OrderStatusContent } from "./OrderStatusContent";
+import * as trackingMap from "./CourierTrackingMap";
 import type { OrderStatusData, OrderTrackingResponse } from "../types";
 
 const mockFetchCourierLocation = jest.mocked(fetchCourierLocation);
@@ -66,12 +67,26 @@ class FakeMarker {
     setPosition(): void {
         // Positioning isn't asserted from this file — CourierTrackingMap.test.tsx owns that.
     }
+
+    setIcon(): void {
+        // The moped's heading is CourierTrackingMap.test.tsx's concern.
+    }
 }
 
 class FakeLatLngBounds {
     extend(): void {
         // Bounds contents aren't asserted from this file — CourierTrackingMap.test.tsx owns that.
     }
+}
+
+// The moped and home icons are sized and anchored with these; their values are
+// CourierTrackingMap.test.tsx's concern.
+class FakeSize {
+    constructor(public width: number, public height: number) {}
+}
+
+class FakePoint {
+    constructor(public x: number, public y: number) {}
 }
 
 const mockMapInstance = {
@@ -83,7 +98,7 @@ const mockMapInstance = {
 
 function installGoogleStub(): void {
     (globalThis as unknown as { google: unknown }).google = {
-        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds },
+        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds, Size: FakeSize, Point: FakePoint },
     };
 }
 
@@ -103,7 +118,7 @@ function order(overrides: Partial<OrderStatusData> = {}): OrderStatusData {
 }
 
 function courierResponse(overrides: Partial<OrderTrackingResponse> = {}): OrderTrackingResponse {
-    return { couriers: [], ...overrides };
+    return { couriers: [], destination: null, ...overrides };
 }
 
 function renderStatus(props: { order: OrderStatusData | null; remainingSeconds: number }): ReturnType<typeof render> {
@@ -259,7 +274,7 @@ describe("OrderStatusContent", () => {
         it("renders the map when out for delivery with a mocked non-empty fetchCourierLocation response", async () => {
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
             mockFetchCourierLocation.mockResolvedValue(courierResponse({
-                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }],
+                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null }],
             }));
 
             renderStatus({
@@ -269,6 +284,33 @@ describe("OrderStatusContent", () => {
 
             await waitFor(() => expect(mockFetchCourierLocation).toHaveBeenCalledWith("tok-1", 7));
             await waitFor(() => expect(screen.getByTestId("google-map")).toBeTruthy());
+        });
+
+        // The status page is the map a customer explores, so it is framed once and then left alone
+        // (no keepInFrame), but it still shows home.
+        it("hands the map the customer's own pin, as an explorable map that is not re-framed on every poll", async () => {
+            const home = { latitude: 26.24, longitude: 50.6 };
+            // Called through: the real map still renders; the spy only records its props.
+            const mapSpy = jest.spyOn(trackingMap, "CourierTrackingMap");
+            try {
+                mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+                mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                    couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: 90, etaSeconds: 300 }],
+                    destination: home,
+                }));
+
+                renderStatus({
+                    order: order({ orderType: "Delivery", orderStatus: "Out for delivery", id: 7 }),
+                    remainingSeconds: 0,
+                });
+
+                expect(await screen.findByText("Ali is on the way · ~5 min")).toBeTruthy();
+                const lastProps = mapSpy.mock.calls[mapSpy.mock.calls.length - 1]?.[0];
+                expect(lastProps?.destination).toEqual(home);
+                expect(lastProps?.keepInFrame).toBeFalsy();
+            } finally {
+                mapSpy.mockRestore();
+            }
         });
 
         it("does not render a map (nor an error) when out for delivery but fetchCourierLocation resolves an empty couriers list", async () => {
@@ -289,7 +331,7 @@ describe("OrderStatusContent", () => {
             mockMapsKey.value = undefined;
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
             mockFetchCourierLocation.mockResolvedValue(courierResponse({
-                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }],
+                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null }],
             }));
 
             renderStatus({
@@ -309,8 +351,8 @@ describe("OrderStatusContent", () => {
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
             mockFetchCourierLocation.mockResolvedValue(courierResponse({
                 couriers: [
-                    { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
-                    { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 12, partIndex: 2 },
+                    { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null },
+                    { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 12, partIndex: 2, bearingDegrees: null, etaSeconds: null },
                 ],
                 parts: [
                     { partIndex: 1, partsTotal: 2, delivered: false },
@@ -330,10 +372,30 @@ describe("OrderStatusContent", () => {
             expect(screen.getByTestId("delivery-part-progress-2").textContent).toBe("Part 2 of 2 on the way");
         });
 
+        it("labels the only rider out by part while the order's other part is still in the kitchen", async () => {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+            mockFetchCourierLocation.mockResolvedValue(courierResponse({
+                couriers: [
+                    { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: 360 },
+                ],
+                parts: [
+                    { partIndex: 1, partsTotal: 2, delivered: false },
+                    { partIndex: 2, partsTotal: 2, delivered: false },
+                ],
+            }));
+
+            renderStatus({
+                order: order({ orderType: "Delivery", orderStatus: "Out for delivery", id: 7 }),
+                remainingSeconds: 0,
+            });
+
+            await waitFor(() => expect(screen.getByTestId("courier-caption-1").textContent).toBe("Part 1 · Ali · ~6 min"));
+        });
+
         it("does not render a DeliveryPartsProgress container for a mocked single-courier, no-parts response (today's production shape)", async () => {
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
             mockFetchCourierLocation.mockResolvedValue(courierResponse({
-                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }],
+                couriers: [{ name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null }],
             }));
 
             renderStatus({

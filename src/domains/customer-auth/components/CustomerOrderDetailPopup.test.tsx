@@ -48,6 +48,7 @@ import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import * as courierTracking from "../../order-status/hooks/useCourierTracking";
+import * as trackingMap from "../../order-status/components/CourierTrackingMap";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
 import type { CustomerOrderDetail, MenuLocalizationCatalog } from "../types";
 import type { OrderTrackingResponse } from "../../order-status/types";
@@ -78,12 +79,26 @@ class FakeMarker {
     setPosition(): void {
         // Positioning is CourierTrackingMap.test.tsx's concern, not this popup's.
     }
+
+    setIcon(): void {
+        // The moped's heading is CourierTrackingMap.test.tsx's concern.
+    }
 }
 
 class FakeLatLngBounds {
     extend(): void {
         // Bounds contents are CourierTrackingMap.test.tsx's concern, not this popup's.
     }
+}
+
+// The moped and home icons are sized and anchored with these; their values are
+// CourierTrackingMap.test.tsx's concern.
+class FakeSize {
+    constructor(public width: number, public height: number) {}
+}
+
+class FakePoint {
+    constructor(public x: number, public y: number) {}
 }
 
 const mockMapInstance = {
@@ -194,7 +209,7 @@ async function renderPopup(
 beforeAll(() => {
     jest.spyOn(console, "debug").mockImplementation(() => undefined);
     (globalThis as unknown as { google: unknown }).google = {
-        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds },
+        maps: { Marker: FakeMarker, LatLngBounds: FakeLatLngBounds, Size: FakeSize, Point: FakePoint },
     };
 });
 
@@ -216,7 +231,7 @@ beforeEach(() => {
 
     jest.spyOn(courierTracking, "useCourierTracking").mockImplementation(realUseCourierTracking);
     mockFetchCourierLocation.mockReset();
-    mockFetchCourierLocation.mockResolvedValue({ couriers: [] });
+    mockFetchCourierLocation.mockResolvedValue({ couriers: [], destination: null });
     mockRenderedMapOptions = [];
 });
 
@@ -814,13 +829,14 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
     function twoRiderResponse(): OrderTrackingResponse {
         return {
             couriers: [
-                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
-                { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 10, partIndex: 2 },
+                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null },
+                { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 10, partIndex: 2, bearingDegrees: null, etaSeconds: null },
             ],
             parts: [
                 { partIndex: 1, partsTotal: 2, delivered: false },
                 { partIndex: 2, partsTotal: 2, delivered: false },
             ],
+            destination: null,
         };
     }
 
@@ -857,6 +873,59 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
         // DOCUMENT_POSITION_FOLLOWING: the argument comes after the node it is called on.
         expect(dateLine.compareDocumentPosition(tracking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(tracking.compareDocumentPosition(firstItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // The sheet is a glance: the customer reads it while scrolling, so the map itself has to keep
+    // the riders and the customer's own home in view on every poll.
+    it("hands the map the customer's own pin and asks it to keep riders and home in frame", async () => {
+        const home = { latitude: 26.24, longitude: 50.6 };
+        // Called through: the real map still renders; the spy only records its props.
+        const mapSpy = jest.spyOn(trackingMap, "CourierTrackingMap");
+        try {
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+            mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+            mockFetchCourierLocation.mockResolvedValue({ ...twoRiderResponse(), destination: home });
+
+            await renderPopup();
+            await screen.findByTestId("google-map");
+
+            const lastProps = (): Parameters<typeof trackingMap.CourierTrackingMap>[0] | undefined =>
+                mapSpy.mock.calls[mapSpy.mock.calls.length - 1]?.[0];
+            await waitFor(() => expect(lastProps()?.destination).toEqual(home));
+            expect(lastProps()?.keepInFrame).toBe(true);
+        } finally {
+            mapSpy.mockRestore();
+        }
+    });
+
+    it("says under the map how many minutes each rider is from the door", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        const response = twoRiderResponse();
+        mockFetchCourierLocation.mockResolvedValue({
+            ...response,
+            couriers: [{ ...response.couriers[0], etaSeconds: 420 }, response.couriers[1]],
+        });
+
+        await renderPopup();
+
+        expect(await screen.findByText("Part 1 · Ali · ~7 min")).toBeTruthy();
+        expect(screen.getByTestId("courier-caption-2").textContent).toBe("Part 2 · Sara");
+        expect(screen.getByTestId("courier-updated-1").textContent).toBe("Updated 10 s ago");
+    });
+
+    it("labels the only rider out by part while the order's other part is still in the kitchen", async () => {
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+        mockFetchOrderDetail.mockResolvedValueOnce(ridingDetail());
+        const response = twoRiderResponse();
+        mockFetchCourierLocation.mockResolvedValue({
+            ...response,
+            couriers: [{ ...response.couriers[0], etaSeconds: 360 }],
+        });
+
+        await renderPopup();
+
+        expect(await screen.findByText("Part 1 · Ali · ~6 min")).toBeTruthy();
     });
 
     // Inside a scrolling sheet a one-finger drag has to scroll the sheet, not pan the map.
@@ -991,7 +1060,7 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
         }
 
         function riderResponse(name: string): OrderTrackingResponse {
-            return { couriers: [{ name, latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 }] };
+            return { couriers: [{ name, latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1, bearingDegrees: null, etaSeconds: null }], destination: null };
         }
 
         async function openOrderA(): Promise<void> {
@@ -1029,14 +1098,14 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
             );
 
             await openOrderA();
-            expect(await screen.findByText("Ali")).toBeTruthy();
+            expect(await screen.findByText("Ali is on the way")).toBeTruthy();
             const callsBeforeReopen = mockFetchCourierLocation.mock.calls.length;
 
             await closeThenOpenOrderB();
 
-            expect(await screen.findByText("Sara")).toBeTruthy();
+            expect(await screen.findByText("Sara is on the way")).toBeTruthy();
             expect(mockFetchCourierLocation.mock.calls.slice(callsBeforeReopen)).toEqual([["detail-token", ORDER_B]]);
-            expect(screen.queryByText("Ali")).toBeNull();
+            expect(screen.queryByText("Ali is on the way")).toBeNull();
         });
 
         // A's request is still in flight when the sheet closes and only answers once B's rider is
@@ -1055,14 +1124,14 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
             await waitFor(() => expect(mockFetchCourierLocation).toHaveBeenCalledWith("detail-token", ORDER_A));
 
             await closeThenOpenOrderB();
-            expect(await screen.findByText("Sara")).toBeTruthy();
+            expect(await screen.findByText("Sara is on the way")).toBeTruthy();
 
             await act(async () => {
                 answerOrderA(riderResponse("Ali"));
             });
 
-            expect(screen.queryByText("Ali")).toBeNull();
-            expect(screen.getByText("Sara")).toBeTruthy();
+            expect(screen.queryByText("Ali is on the way")).toBeNull();
+            expect(screen.getByText("Sara is on the way")).toBeTruthy();
         });
     });
 });

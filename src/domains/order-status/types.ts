@@ -35,6 +35,25 @@ export type TrackedCourier = {
     positionAgeSeconds: number;
     /** One entry per currently-out-for-delivery part, ordered ascending; length 0..N since Phase 6a. */
     partIndex: number;
+    /**
+     * Course over ground, degrees clockwise from north in [0, 360) — what the moped is turned to.
+     * Null when the backend cannot tell (the rider is standing still, or the fix is stale); the
+     * map then keeps the heading it last showed rather than snapping the moped back to north.
+     */
+    bearingDegrees: number | null;
+    /**
+     * Whole seconds until this part is expected at the door, never below 0 — the same forecast
+     * the active-order pill shows, run for this part's own rider. A duration measured on the
+     * server's clock, never a timestamp, because the phone's clock cannot be trusted to subtract
+     * from. Null when there is nothing to forecast from (e.g. the order has no saved pin).
+     */
+    etaSeconds: number | null;
+};
+
+/** The order's drop-off pin: on the customer's own order, their own saved address. */
+export type TrackingDestination = {
+    latitude: number;
+    longitude: number;
 };
 
 /**
@@ -53,4 +72,9 @@ export type OrderTrackingResponse = {
     couriers: TrackedCourier[]; // 0..N since Phase 6a
     /** Absent for a single-part order; never present with length <= 1. */
     parts?: TrackedPart[];
+    /**
+     * Always serialised, null included (unlike `parts`). Null when the order has no saved pin,
+     * and whenever a tracking gate closes the response. Present even while `couriers` is empty.
+     */
+    destination: TrackingDestination | null;
 };

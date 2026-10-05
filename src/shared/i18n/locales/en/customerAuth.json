@@ -106,7 +106,12 @@
     "courierUpdatedAgo": "Updated {{minutes}} min ago",
     "courierPartCaption": "Part {{index}} · {{name}}",
     "partDelivered": "Part {{index}} of {{total}} delivered",
-    "partOnTheWay": "Part {{index}} of {{total}} on the way"
+    "partOnTheWay": "Part {{index}} of {{total}} on the way",
+    "courierOnTheWay": "{{name}} is on the way · ~{{minutes}} min",
+    "courierOnTheWayNoEta": "{{name}} is on the way",
+    "courierPartOnTheWay": "Part {{index}} · {{name}} · ~{{minutes}} min",
+    "courierUpdatedSecondsAgo": "Updated {{seconds}} s ago",
+    "deliveryAddressMarker": "Your address"
   },
   "errors": {
     "tooManyAttempts": "Too many attempts — please wait a bit before trying again.",

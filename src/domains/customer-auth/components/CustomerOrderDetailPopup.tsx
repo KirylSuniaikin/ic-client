@@ -217,7 +217,7 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
     // refetches `detail`, which is how the status reaches "Out for delivery" without a reopen.
     const isDelivery = isDeliveryOrder(detail?.orderType);
     const trackedOrderId = open && orderId !== null && detail?.id === orderId ? orderId : null;
-    const { couriers, parts } = useCourierTracking(trackedOrderId, isDelivery, detail?.status ?? null);
+    const { couriers, parts, destination } = useCourierTracking(trackedOrderId, isDelivery, detail?.status ?? null);
     const isRiding = isDelivery && detail?.status === OUT_FOR_DELIVERY_STATUS;
 
     const chip = detail ? statusStyle(detail.status) : null;
@@ -307,9 +307,17 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                                 {isRiding && (
                                     // Both children render nothing until the first fix arrives
                                     // (and the parts list only for a split order); `:empty` stops
-                                    // that from leaving a blank gap above the items.
+                                    // that from leaving a blank gap above the items. It is a glance
+                                    // map, read while scrolling the sheet, so it keeps the riders and
+                                    // home in frame itself (`keepInFrame`).
                                     <Box data-testid="order-detail-courier-tracking" sx={{ mb: 2.5, "&:empty": { display: "none" } }}>
-                                        <CourierTrackingMap couriers={couriers} gestureHandling="cooperative" />
+                                        <CourierTrackingMap
+                                            couriers={couriers}
+                                            destination={destination}
+                                            split={parts.length > 1}
+                                            gestureHandling="cooperative"
+                                            keepInFrame
+                                        />
                                         <DeliveryPartsProgress parts={parts} />
                                     </Box>
                                 )}

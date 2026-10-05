@@ -46,7 +46,7 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
     const delivered = status === DELIVERED_STATUS;
 
     // Called unconditionally — hooks cannot be called inside the `riding` branch below.
-    const { couriers, parts } = useCourierTracking(order?.id ?? null, delivery, status);
+    const { couriers, parts, destination } = useCourierTracking(order?.id ?? null, delivery, status);
 
     // A wall-clock arrival needs no ticking: left alone it simply falls into the past, which is
     // an honest way to say "running late". The moving, elapsed-time bar lives on the island pill.
@@ -95,7 +95,7 @@ export function OrderStatusContent({ order, remainingSeconds }: OrderStatusConte
             {riding && (
                 <Box sx={{ mt: 1 }}>
                     <DeliveryRideAnimation />
-                    <CourierTrackingMap couriers={couriers} />
+                    <CourierTrackingMap couriers={couriers} destination={destination} split={parts.length > 1} />
                     <DeliveryPartsProgress parts={parts} />
                 </Box>
             )}

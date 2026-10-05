@@ -441,7 +441,7 @@ describe("useActiveOrderIsland rider slots and refresh", () => {
         partsOnRoad: 1,
         partsDelivered: 1,
     };
-    const TICK = 20_000;
+    const TICK = 15_000;
 
     function setVisibility(state: "visible" | "hidden"): void {
         Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -505,7 +505,7 @@ describe("useActiveOrderIsland rider slots and refresh", () => {
         expect(mockFetchActiveOrder).toHaveBeenCalledTimes(1);
     });
 
-    it("refreshes a split out-for-delivery order every 20s and shows the new counts", async () => {
+    it("refreshes a split out-for-delivery order every 15s and shows the new counts", async () => {
         const { result } = await mount(SPLIT);
         mockFetchActiveOrder.mockResolvedValueOnce({ ...SPLIT, partsOnRoad: 0, partsDelivered: 2 });
 
