@@ -610,3 +610,54 @@ export type DeliverySkipReasonStats = {
     // zero reads as a real zero rather than as missing data.
     byReason: DeliverySkipReasonBucket[];
 };
+
+// ---------------------------------------------------------------------------
+// Delivery zones — mirrors backend DeliveryZoneStatsTO (GET /stats/zones).
+//
+// The same delivered in-house orders as the estimate-accuracy report, placed on
+// a hexagon grid by their drop-off pin. Only cells with at least one order are
+// sent, and an order whose pin is unusable is counted in `unlocatedOrders`
+// instead of being dropped, so the map can say how much of the window it is
+// not showing.
+// ---------------------------------------------------------------------------
+
+// The hexagon's circumradius (= edge length), in metres. Only these three are
+// accepted; anything else is a 400.
+export type DeliveryZoneCellMeters = 250 | 500 | 1000;
+
+export type DeliveryZonePoint = {
+    latitude: number;
+    longitude: number;
+};
+
+export type DeliveryZoneCell = {
+    // Axial "q:r", stable for one cellMeters across requests — but "0:0" at 250 m
+    // and "0:0" at 1000 m are different places, so an id is only meaningful
+    // together with the cellMeters of the response it came from.
+    id: string;
+    center: DeliveryZonePoint;
+    // Six corners, an open ring (first != last).
+    vertices: DeliveryZonePoint[];
+    orders: number;
+    // BHD, three decimals.
+    revenue: number;
+    // Minutes. Null means no sample, never zero.
+    avgTotalMinutes: number | null;
+    p90TotalMinutes: number | null;
+    avgRoadMinutes: number | null;
+    // Share of `lateSampleSize` delivered after the customer promise, 0..1.
+    // Null exactly when lateSampleSize is 0.
+    lateShare: number | null;
+    // Orders in the cell with a promise on record — the denominator of lateShare,
+    // which can be smaller than `orders`.
+    lateSampleSize: number;
+};
+
+export type DeliveryZoneStats = {
+    cellMeters: DeliveryZoneCellMeters;
+    // Orders placed on the map, i.e. the sum of every cell's `orders`.
+    totalOrders: number;
+    // Delivered orders with no usable drop-off coordinates; on no cell.
+    unlocatedOrders: number;
+    cells: DeliveryZoneCell[];
+};

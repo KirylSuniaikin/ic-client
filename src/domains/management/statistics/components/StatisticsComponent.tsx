@@ -361,6 +361,7 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             estimateAccuracy={deliveryEstimateAccuracy}
                             skipReasons={deliverySkipReasons}
                             chainRange={deliveryChainRange}
+                            chainScope={deliveryChainScope}
                         />
                     )}
                     {mode === "Consumption" && (

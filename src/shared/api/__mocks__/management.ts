@@ -24,7 +24,7 @@ import type {
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse } from '../management';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats } from '../../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type {
     BaseShiftResponse,
@@ -209,6 +209,11 @@ export const fetchDeliveryEstimateAccuracy =
     jest.fn<Promise<DeliveryEstimateAccuracy>, [string, string]>();
 export const fetchDeliverySkipReasonStats =
     jest.fn<Promise<DeliverySkipReasonStats>, [string, string]>();
+
+// Delivered orders per hexagon (Statistics -> Delivery). The branch argument is optional, as on
+// the endpoint: omitted reads the whole chain.
+export const fetchDeliveryZoneStats =
+    jest.fn<Promise<DeliveryZoneStats>, [string, string, DeliveryZoneCellMeters, string?]>();
 
 // Delivery zones (Config -> Schedule).
 export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();

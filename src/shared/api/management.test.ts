@@ -30,6 +30,7 @@ import {
     generateTelegramConnectToken,
     fetchDeliveryEstimateAccuracy,
     fetchDeliverySkipReasonStats,
+    fetchDeliveryZoneStats,
     createProduct,
     updateProductSettings,
 } from "./management";
@@ -1219,5 +1220,112 @@ describe("fetchDeliverySkipReasonStats", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
         await expect(fetchDeliverySkipReasonStats("2026-08-01", "2026-08-30")).rejects.toThrow("HTTP 500");
+    });
+});
+
+// ── fetchDeliveryZoneStats ────────────────────────────────────────────────────
+
+describe("fetchDeliveryZoneStats", () => {
+    const EMPTY_ZONES = { cellMeters: 500, totalOrders: 0, unlocatedOrders: 0, cells: [] };
+
+    function okResponse(body: unknown): Response {
+        return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    function requestedUrl(): URL {
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        return new URL(url);
+    }
+
+    // Same names as estimate-accuracy, the card it is read beside: one date range, one spelling.
+    it("asks the zones endpoint for the window and the cell size", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse(EMPTY_ZONES));
+
+        await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 250);
+
+        const url = requestedUrl();
+        expect(url.pathname).toMatch(/\/management\/delivery\/stats\/zones$/);
+        expect(url.searchParams.get("start_date")).toBe("2026-08-01");
+        expect(url.searchParams.get("finish_date")).toBe("2026-08-30");
+        expect(url.searchParams.get("cellMeters")).toBe("250");
+    });
+
+    /**
+     * Omitting the branch is the chain-wide read, exactly as on estimate-accuracy — the card it is
+     * reconciled against.
+     */
+    it("sends no branch filter when no branch is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse(EMPTY_ZONES));
+
+        await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500);
+
+        expect(requestedUrl().searchParams.has("branchId")).toBe(false);
+    });
+
+    // An empty selection has no branch to scope to; a bare `branchId=` must not reach the server.
+    it("treats an empty branch string as no branch filter", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse(EMPTY_ZONES));
+
+        await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500, "");
+
+        expect(requestedUrl().searchParams.has("branchId")).toBe(false);
+    });
+
+    /**
+     * Several branches travel as ONE comma-joined `branchId`, the shape every multi-branch call on
+     * the statistics page sends — never as a repeated parameter from this client, though the
+     * endpoint would bind either.
+     */
+    it("sends several branches as one comma-joined branchId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse(EMPTY_ZONES));
+
+        await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 1000, "branch-1,branch-2");
+
+        const url = requestedUrl();
+        expect(url.searchParams.getAll("branchId")).toEqual(["branch-1,branch-2"]);
+        expect(url.searchParams.get("cellMeters")).toBe("1000");
+    });
+
+    it("sends a single branch as a single branchId", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse(EMPTY_ZONES));
+
+        await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500, "branch-1");
+
+        expect(requestedUrl().searchParams.getAll("branchId")).toEqual(["branch-1"]);
+    });
+
+    it("returns the parsed report on a 200", async () => {
+        const report = {
+            cellMeters: 500,
+            totalOrders: 9,
+            unlocatedOrders: 1,
+            cells: [{
+                id: "12:-7",
+                center: { latitude: 26.2, longitude: 50.58 },
+                vertices: [],
+                orders: 9,
+                revenue: 41.25,
+                avgTotalMinutes: 31.5,
+                p90TotalMinutes: 44,
+                avgRoadMinutes: 12.1,
+                lateShare: 0.222,
+                lateSampleSize: 9,
+            }],
+        };
+        mockAuthFetch.mockResolvedValueOnce(okResponse(report));
+
+        const result = await fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500);
+
+        expect(result).toEqual(report);
+    });
+
+    // An unsupported cell size is a 400 on this endpoint; it must surface, not read as an empty map.
+    it("throws rather than resolving to an empty map when the server refuses", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500)).rejects.toThrow("HTTP 400");
     });
 });

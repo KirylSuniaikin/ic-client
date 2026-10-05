@@ -4,8 +4,10 @@ import {DeliveredByHourTable} from "../DeliveredByHourTable";
 import {DeliveryAvailabilityCard} from "../performance/DeliveryAvailabilityCard";
 import {DeliveryEstimateAccuracyCard} from "../DeliveryEstimateAccuracyCard";
 import {DeliverySkipReasonsCard} from "../DeliverySkipReasonsCard";
+import {DeliveryZoneStatsCard} from "../DeliveryZoneStatsCard";
 import {StatEmptyState} from "../performance/statPlaceholders";
 import type {AvailabilityScope} from "../performance/DeliveryAvailabilityCard";
+import type {DeliveryStatsScope} from "../../hooks/useStatistics";
 import type {
     DeliveryAvailabilityStats,
     DeliveryEstimateAccuracy,
@@ -26,6 +28,11 @@ type Props = {
      * branch half of a scope label would be false on them.
      */
     chainRange: string | null;
+    /**
+     * The same applied range as `chainRange`, unformatted. The zones card fetches its own figures
+     * (its cell-size control refetches them), so it needs the dates themselves, not their label.
+     */
+    chainScope: DeliveryStatsScope | null;
 };
 
 /**
@@ -47,6 +54,7 @@ export function DeliveryTab({
     estimateAccuracy,
     skipReasons,
     chainRange,
+    chainScope,
 }: Props): JSX.Element {
     return (
         <>
@@ -66,6 +74,11 @@ export function DeliveryTab({
             </Card>
 
             <DeliveryAvailabilityCard stats={availability} scope={availabilityScope}/>
+
+            {/* WHERE the delivered orders went, beside the card that says how late they were: both
+                count the same orders over the same chain-wide range, so a slow area on the map can
+                be checked against the road leg below it. */}
+            <DeliveryZoneStatsCard scope={chainScope}/>
 
             {/* The two feedback loops the manual lists as open (section 06, D and E): what we
                 promised against what happened, and why riders were passed over. Both are read

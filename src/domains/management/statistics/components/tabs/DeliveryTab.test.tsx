@@ -17,6 +17,14 @@ jest.mock("../DeliveredByHourTable", () => ({
     ),
 }));
 
+// The zones card fetches for itself and draws a Google map; both are covered by
+// DeliveryZoneStatsCard.test.tsx. Here it is a probe on what the tab hands it.
+jest.mock("../DeliveryZoneStatsCard", () => ({
+    DeliveryZoneStatsCard: ({scope}: {scope: {startDate: string; finishDate: string} | null}) => (
+        <div data-testid="zone-stats-probe">{scope === null ? "none" : `${scope.startDate}..${scope.finishDate}`}</div>
+    ),
+}));
+
 const AVAILABILITY: DeliveryAvailabilityStats = {
     observedSeconds: 3600,
     unavailableSeconds: 600,
@@ -61,7 +69,7 @@ const SKIPS: DeliverySkipReasonStats = {
 };
 
 // The four cards are independent; a case that only cares about one passes nothing for the rest.
-const NO_CHAIN_STATS = {estimateAccuracy: null, skipReasons: null, chainRange: null};
+const NO_CHAIN_STATS = {estimateAccuracy: null, skipReasons: null, chainRange: null, chainScope: null};
 
 describe("DeliveryTab", () => {
     /**
@@ -127,6 +135,7 @@ describe("DeliveryTab", () => {
                 estimateAccuracy={ACCURACY}
                 skipReasons={SKIPS}
                 chainRange={null}
+                chainScope={null}
             />
         );
 
@@ -148,6 +157,7 @@ describe("DeliveryTab", () => {
                 estimateAccuracy={ACCURACY}
                 skipReasons={SKIPS}
                 chainRange="Aug 1, 2026 — Aug 30, 2026"
+                chainScope={{startDate: "2026-08-01", finishDate: "2026-08-30"}}
             />
         );
 
@@ -172,10 +182,40 @@ describe("DeliveryTab", () => {
                 estimateAccuracy={null}
                 skipReasons={SKIPS}
                 chainRange="Aug 1, 2026"
+                chainScope={{startDate: "2026-08-01", finishDate: "2026-08-01"}}
             />
         );
 
         expect(screen.queryByTestId("estimate-accuracy-table")).toBeNull();
         expect(screen.getByTestId("skip-reason-table")).toBeTruthy();
+    });
+
+    /**
+     * The zones map counts the same delivered orders as the estimate-accuracy card, so it has to be
+     * read over the same window: the APPLIED chain-wide range, which is all the tab hands it. It is
+     * given no branch selection on purpose — the branch filter above does not narrow the card it is
+     * reconciled against either.
+     */
+    it("gives the zones card the applied chain-wide range and no branch selection", () => {
+        render(
+            <DeliveryTab
+                hourly={HOURLY}
+                availability={AVAILABILITY}
+                availabilityScope={{branches: "Seef", range: "Aug 1, 2026 — Aug 30, 2026"}}
+                estimateAccuracy={ACCURACY}
+                skipReasons={SKIPS}
+                chainRange="Aug 1, 2026 — Aug 30, 2026"
+                chainScope={{startDate: "2026-08-01", finishDate: "2026-08-30"}}
+            />
+        );
+
+        expect(screen.getByTestId("zone-stats-probe").textContent).toBe("2026-08-01..2026-08-30");
+    });
+
+    // Before the first refresh lands there is no applied range, and the card must not invent one.
+    it("gives the zones card no range before one has been applied", () => {
+        render(<DeliveryTab hourly={HOURLY} availability={AVAILABILITY} availabilityScope={null} {...NO_CHAIN_STATS}/>);
+
+        expect(screen.getByTestId("zone-stats-probe").textContent).toBe("none");
     });
 });

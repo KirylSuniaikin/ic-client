@@ -35,7 +35,7 @@ import type {
     SalarySlipForm,
     StaffOption
 } from '../../domains/management/shift/types';
-import type { DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, VatStatePayload } from '../../domains/management/statistics/types';
+import type { DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, VatStatePayload } from '../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../domains/management/config/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
 import type {
@@ -836,6 +836,32 @@ export async function fetchDeliverySkipReasonStats(
     const res = await authFetch(
         BASE_URL + `/management/delivery/stats/skip-reasons?start_date=${startDate}` +
         `&finish_date=${finishDate}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Delivered in-house orders per hexagon of a fixed grid over Bahrain, with each cell's revenue,
+ * timings and late share (Statistics -> Delivery).
+ *
+ * `joinedBranchIds` follows `fetchDeliveryEstimateAccuracy`'s rule rather than the hourly call's:
+ * omitted (or empty) means the whole chain, so the map can be read against the estimate-accuracy
+ * card beside it, which is fetched unscoped. An empty string is treated as omitted: an empty
+ * selection has no branch to scope to, and a bare `branchId=` would leave its meaning to the
+ * server's binder.
+ */
+export async function fetchDeliveryZoneStats(
+    startDate: string,
+    finishDate: string,
+    cellMeters: DeliveryZoneCellMeters,
+    joinedBranchIds?: string
+): Promise<DeliveryZoneStats> {
+    const branchParam = joinedBranchIds ? `&branchId=${joinedBranchIds}` : "";
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/zones?start_date=${startDate}` +
+        `&finish_date=${finishDate}&cellMeters=${cellMeters}${branchParam}`,
         { method: "GET", headers: { Accept: "application/json" } }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
