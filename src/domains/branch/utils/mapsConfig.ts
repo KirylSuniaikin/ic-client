@@ -44,9 +44,11 @@ export const LIGHT_MAP_STYLES: google.maps.MapTypeStyle[] = [
 ];
 
 /**
- * The branch pin: the IC Pizza badge inside a brand-red ring, served from `public/`.
+ * The branch pin, served from `public/`: a classic map pin whose round head is the IC Pizza badge
+ * inside a brand-red ring, with a pointed tip whose apex is the image's bottom-centre — the point
+ * BranchMapView anchors on the branch's coordinate.
  *
- * A generated 128px asset rather than the 4500x4501 source logo — at marker size the original
- * would still decode to a ~80MB bitmap for a 40px circle.
+ * A generated 104x136 asset (2x its 52x68 CSS size) rather than the 4500x4501 source logo — at
+ * marker size the original would still decode to a ~80MB bitmap for a 52px head.
  */
 export const BRANCH_PIN_URL: string = `${process.env.PUBLIC_URL}/branch-pin.png`;

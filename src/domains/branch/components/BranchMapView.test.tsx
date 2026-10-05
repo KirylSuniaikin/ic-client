@@ -1,6 +1,8 @@
 import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, act } from "@testing-library/react";
+import { readFileSync } from "fs";
+import { join } from "path";
 import type { IBranch } from "../../management/inventory/types";
 
 import { BranchMapView } from "./BranchMapView";
@@ -45,7 +47,12 @@ jest.mock("@react-google-maps/api", () => {
     };
 });
 
-type FakeMarkerOptions = { title?: string; map?: unknown };
+type FakePoint = { x: number; y: number };
+type FakeMarkerOptions = {
+    title?: string;
+    map?: unknown;
+    icon?: { url: string; scaledSize: { width: number; height: number }; anchor: FakePoint; labelOrigin: FakePoint };
+};
 
 /** Every marker the component builds during a test, in creation order. */
 const mockCreatedMarkers: FakeMarker[] = [];
@@ -119,6 +126,13 @@ function installGoogleStub(): void {
 }
 
 beforeAll(installGoogleStub);
+
+/** A PNG's pixel size, read from its IHDR chunk (big-endian width and height at bytes 16 and 20). */
+function pngSize(path: string): { width: number; height: number } {
+    const bytes = readFileSync(path);
+    expect(bytes.subarray(12, 16).toString("ascii")).toBe("IHDR");
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
 
 function branch(overrides: Partial<IBranch> = {}): IBranch {
     return {
@@ -214,6 +228,36 @@ describe("BranchMapView", () => {
 
         expect(first.map).toBeNull();
         expect(mockCreatedMarkers[mockCreatedMarkers.length - 1].options.title).toBe("Karlin");
+    });
+
+    /**
+     * The owner's report: a badge anchored at its centre "gives slightly false information, as if
+     * the point is lower". The pin is now a head with a pointed tip, and the tip — the bottom
+     * centre of the icon — is what sits on the branch, at every zoom. The name hangs 11px under it.
+     */
+    it("puts the pin's tip on the branch and the name's centre 11px under the tip", () => {
+        render(<BranchMapView branches={[branch()]} onSelectBranch={jest.fn<void, [IBranch]>()} />);
+
+        const icon = mockCreatedMarkers[0].options.icon;
+        if (icon === undefined) throw new Error("the branch marker has no custom icon");
+        // 52x68 is half the asset's 104x136: the head keeps the old badge's 52px.
+        expect(icon.scaledSize).toEqual({ width: 52, height: 68 });
+        // Both points are measured from the icon's top-left.
+        expect(icon.anchor).toEqual({ x: icon.scaledSize.width / 2, y: icon.scaledSize.height });
+        expect(icon.labelOrigin).toEqual({ x: icon.anchor.x, y: icon.anchor.y + 11 });
+    });
+
+    // The anchor is in CSS px of the scaledSize box, so it is only the tip if the shipped image has
+    // that box's aspect: Google stretches the PNG to fit, and a regenerated asset of another aspect
+    // would move the apex off the anchor with every option above still passing.
+    it("ships the pin asset at 2x the icon's box, so the anchor stays on the tip", () => {
+        render(<BranchMapView branches={[branch()]} onSelectBranch={jest.fn<void, [IBranch]>()} />);
+
+        const icon = mockCreatedMarkers[0].options.icon;
+        if (icon === undefined) throw new Error("the branch marker has no custom icon");
+        expect(icon.url).toMatch(/\/branch-pin\.png$/);
+        const asset = pngSize(join(__dirname, "..", "..", "..", "..", "public", "branch-pin.png"));
+        expect(asset).toEqual({ width: icon.scaledSize.width * 2, height: icon.scaledSize.height * 2 });
     });
 
     // Tapping a pin now opens a details sheet; the bounce is what ties that sheet back to the pin

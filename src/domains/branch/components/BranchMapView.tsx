@@ -20,11 +20,16 @@ const BOUNDS_PADDING = { top: 96, right: 48, bottom: 160, left: 48 };
 /** Above this the view is a single branch zoomed to street level, which reads as an error. */
 const MAX_SINGLE_BRANCH_ZOOM = 15;
 
-/** Rendered size of the branch pin, in CSS pixels. The asset itself is 128px for retina. */
-const PIN_SIZE = 52;
-/** Baseline of the branch name. Measured from the icon's TOP-LEFT, which is where Google anchors
- * labelOrigin — measuring from the centre puts the text inside the circle. */
-const LABEL_OFFSET = PIN_SIZE + 11;
+/**
+ * Rendered size of the branch pin, in CSS pixels: the old 52px badge as a round head, with a
+ * pointed tip under it. The asset is 2x this (104x136) for retina, and its tip's apex is the
+ * image's bottom-centre pixel row.
+ */
+const PIN_WIDTH = 52;
+const PIN_HEIGHT = 68;
+/** Centre of the branch name, 11px below the tip. Measured from the icon's TOP-LEFT, which is
+ * where Google anchors labelOrigin — measuring from the anchor puts the text inside the pin. */
+const LABEL_OFFSET = PIN_HEIGHT + 11;
 
 export interface BranchMapViewProps {
     branches: IBranch[]; // markers rendered only for entries with non-null lat/lng
@@ -152,11 +157,13 @@ export function BranchMapView({
                 },
                 icon: {
                     url: BRANCH_PIN_URL,
-                    scaledSize: new google.maps.Size(PIN_SIZE, PIN_SIZE),
-                    // Both default to the image's bottom centre, which would hang the badge above
-                    // its branch and print the name across it.
-                    anchor: new google.maps.Point(PIN_SIZE / 2, PIN_SIZE / 2),
-                    labelOrigin: new google.maps.Point(PIN_SIZE / 2, LABEL_OFFSET),
+                    scaledSize: new google.maps.Size(PIN_WIDTH, PIN_HEIGHT),
+                    // The tip, so the pin points at its branch at every zoom. A badge anchored at
+                    // its centre read as sitting lower than the branch. Google's default anchor is
+                    // the same point; it is spelled out because it is the whole job of this art.
+                    anchor: new google.maps.Point(PIN_WIDTH / 2, PIN_HEIGHT),
+                    // Defaults to the image's centre, which would print the name across the head.
+                    labelOrigin: new google.maps.Point(PIN_WIDTH / 2, LABEL_OFFSET),
                 },
             });
             marker.addListener("click", () => selectBranchRef.current(branch));
