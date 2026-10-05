@@ -471,7 +471,12 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             // ever reach the backend (DELIVERY_SPEC.md §12.1-A). Falls back to "Pick Up" for
             // the callers that legitimately pass null: kiosk (always pickup, toggle hidden)
             // and the admin popup, which rings the order type separately.
-            type: deliveryMethod ?? "Pick Up",
+            // The admin POS popup's "Delivery Method" select (Take Out, Talabat, Jahez...) has never
+            // been an order type: on main the POS always filed "Pick Up" and the backend ignores the
+            // field. Only the customer cart's choice (Pick Up / Delivery) is a type. Reading the POS
+            // select here filed every counter order as "Take Out", which no report, VAT total or
+            // review prompt recognises.
+            type: isAdmin ? "Pick Up" : (deliveryMethod ?? "Pick Up"),
             payment_type: paymentMethod,
             branchId: isAdmin ? adminBranchId! : branchId!,
             notes,

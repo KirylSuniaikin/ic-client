@@ -980,6 +980,25 @@ describe("useCheckout — admin flow (handleCheckout)", () => {
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     });
 
+    // The POS popup's "Delivery Method" select defaults to "Take Out" and offers aggregator names;
+    // none of them is an order type, so a counter order must still be filed as "Pick Up".
+    it.each(["Take Out", "Talabat", "Jahez", "Delivery"])(
+        "files an admin POS order as Pick Up even when the popup's Delivery Method is %s",
+        async (posDeliveryMethod) => {
+            mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+            const params = makeParams({ isAdmin: true, adminBranchId: "branch-admin" });
+            const { result } = renderHook(() => useCheckout(params), { wrapper });
+            await waitForAuthReady();
+
+            await act(async () => {
+                await result.current.handleCheckout(ITEMS, "12345678", "Walk-in", posDeliveryMethod, "Cash", "", null, true);
+            });
+
+            expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ type: "Pick Up" }));
+        },
+    );
+
     // The backend dedupes retried requests on this client-generated key (a network-level resend of
     // the same body must not create a second order), so every create payload must carry one.
     it("sends a non-empty idempotency_key on the create payload", async () => {
