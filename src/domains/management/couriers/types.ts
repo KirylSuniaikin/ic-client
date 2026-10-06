@@ -1,5 +1,6 @@
 // Dispatcher panel types (DELIVERY_SPEC.md §4). Mirrors the backend DTOs in
 // backend/.../domain/delivery/dto — keep the two in step.
+import type { CourierProductivitySingle } from "../statistics/types";
 
 export type CourierStats = {
     courierId: string;
@@ -100,6 +101,11 @@ export type CourierPeriodStats = {
     declined: number;
     /** Lapsed with no answer, which may be a dead phone rather than a decision. */
     missed: number;
+    /**
+     * Distance and on-shift time split for the same window. Optional because a backend deployed
+     * before it existed does not send it, and the panel must still render the rest.
+     */
+    productivity?: CourierProductivitySingle;
 };
 
 /**
@@ -312,4 +318,66 @@ export type CourierBoardRow = {
     positionFixedAt: string | null;
     /** The server's own cutoff: a fix older than this is stale and must not read as a position. */
     positionStaleAfterMinutes: number;
+};
+
+// ---------------------------------------------------------------------------
+// Assignment audit trail (M6) — mirrors backend DeliveryAssignmentAuditTO
+// (GET /api/management/delivery/orders/{orderId}/audit).
+//
+// There is no atomic reassign on the server: a reassignment is an UNASSIGNED followed by an
+// ASSIGNED on the same part, and the timeline labels the pair.
+// ---------------------------------------------------------------------------
+
+export type AssignmentAuditAction = "ASSIGNED" | "UNASSIGNED" | "RETURNED_UNDELIVERED" | "CANCELLED";
+
+export type AssignmentAuditCause =
+    | "OFFER_ACCEPTED"
+    | "PRE_ASSIGNMENT_ACCEPTED"
+    | "AUTO_ACCEPTED"
+    | "MANUAL_ASSIGN"
+    | "MANUAL_RELEASE"
+    | "RESERVATION_DROPPED_AT_READY"
+    | "ORDER_CANCELLED"
+    | "RETURNED_BY_COURIER"
+    | "MANUAL_CANCEL";
+
+/** SYSTEM is the assignment engine or a timeout acting on its own. */
+export type AuditActorType = "STAFF" | "COURIER" | "SYSTEM";
+
+/** Where the part stood just before the change. */
+export type DeliveryPartStage =
+    | "AWAITING_COURIER"
+    | "GOING_TO_KITCHEN"
+    | "AT_KITCHEN"
+    | "ON_THE_ROAD"
+    | "DELIVERED";
+
+export type DeliveryAssignmentAuditEntry = {
+    id: number;
+    occurredAt: string;
+    action: AssignmentAuditAction;
+    cause: AssignmentAuditCause;
+    actorType: AuditActorType;
+    /** Null for SYSTEM. */
+    actorStaffId: number | null;
+    /** Null for SYSTEM, or when the staff row no longer exists. */
+    actorName: string | null;
+    /** The rider gaining or losing the part. */
+    courierId: string | null;
+    courierName: string | null;
+    /** All three null on a CANCELLED entry, which is about the whole order. */
+    partId: number | null;
+    partIndex: number | null;
+    partsTotal: number | null;
+    fromOrderStatus: string | null;
+    fromStage: DeliveryPartStage | null;
+};
+
+export type DeliveryAssignmentAudit = {
+    orderId: number;
+    orderCreatedAt: string | null;
+    /** Recording began here; an order placed before it has an incomplete history. */
+    dataSince: string;
+    /** Oldest first. */
+    entries: DeliveryAssignmentAuditEntry[];
 };

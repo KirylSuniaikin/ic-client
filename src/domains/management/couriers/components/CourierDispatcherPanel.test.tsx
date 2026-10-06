@@ -15,6 +15,9 @@ import { emotionRulesFor } from "./emotionRules.testutil";
 
 jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
+// The order dialog's assignment history fetches for itself and has its own suite
+// (DeliveryAssignmentTimeline.test.tsx); here it is inert so the automocked API is not asked for it.
+jest.mock("./DeliveryAssignmentTimeline", () => ({ DeliveryAssignmentTimeline: () => null }));
 
 // The Maps key decides whether the route drill-down draws a map or falls back to the coordinate
 // list, and it is a module const read from process.env at import time — so it is exposed through

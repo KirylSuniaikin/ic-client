@@ -6,14 +6,22 @@ import userEvent from "@testing-library/user-event";
 import {DeliveryZoneStatsCard} from "./DeliveryZoneStatsCard";
 import {NO_DATA_COLOR, rampColor} from "../utils/deliveryZoneScale";
 import {emotionRulesFor} from "../../couriers/components/emotionRules.testutil";
-import type {DeliveryZoneCell, DeliveryZoneCellMeters, DeliveryZonePoint, DeliveryZoneStats} from "../types";
+import type {
+    DeliveryZoneCell,
+    DeliveryZoneCellMeters,
+    DeliveryZonePoint,
+    DeliveryZoneStats,
+    LostDemandZoneCell,
+    LostDemandZoneStats,
+} from "../types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts.
 jest.mock("../../../../shared/api/management");
 
-import {fetchDeliveryZoneStats} from "../../../../shared/api/management";
+import {fetchDeliveryZoneStats, fetchLostDemandZoneStats} from "../../../../shared/api/management";
 
 const mockFetchZones = jest.mocked(fetchDeliveryZoneStats);
+const mockFetchLostZones = jest.mocked(fetchLostDemandZoneStats);
 
 // ONE hoisted mock with mutable state, the shape OrderRouteMap.test.tsx and DeliveryZoneMap.test.tsx
 // settled on: jest.doMock + resetModules + require pulls a SECOND copy of React while `render`
@@ -205,7 +213,7 @@ function livePolygons(): FakePolygon[] {
     return mockPolygons.filter((polygon) => polygon.map === mockMapInstance);
 }
 
-function polygonOf(target: DeliveryZoneCell): FakePolygon {
+function polygonOf(target: { id: string; vertices: DeliveryZonePoint[] }): FakePolygon {
     const first = toLatLng(target.vertices[0]);
     const found = livePolygons().find((polygon) =>
         polygon.options.paths?.[0]?.lat === first.lat && polygon.options.paths?.[0]?.lng === first.lng);
@@ -213,7 +221,7 @@ function polygonOf(target: DeliveryZoneCell): FakePolygon {
     return found;
 }
 
-function fillOf(target: DeliveryZoneCell): string | undefined {
+function fillOf(target: { id: string; vertices: DeliveryZonePoint[] }): string | undefined {
     return polygonOf(target).options.fillColor;
 }
 
@@ -526,3 +534,217 @@ describe("DeliveryZoneStatsCard", () => {
         expect(within(rows[0]).getByText("25.0% (2 of 8)")).toBeTruthy();
     });
 });
+
+/**
+ * The fourth metric: where customers were turned away (M3). Its own list of cells — refusals mostly
+ * happen where nothing was delivered — fetched only while it is the view.
+ */
+describe("DeliveryZoneStatsCard — Turned away", () => {
+    function lostCell(id: string, center: DeliveryZonePoint, overrides: Partial<LostDemandZoneCell>): LostDemandZoneCell {
+        return {
+            id,
+            center,
+            vertices: hexagon(center),
+            refusals: 0,
+            refusalsByReason: [],
+            abandonedLost: 0,
+            total: 0,
+            ...overrides,
+        };
+    }
+
+    /** Far outside the delivered area — the cells this view exists to show. */
+    const FAR = lostCell("30:-2", {latitude: 26.05, longitude: 50.5}, {
+        refusals: 5,
+        refusalsByReason: [{reason: "OUTSIDE_RADIUS", count: 4}, {reason: "OUTSIDE_ZONE", count: 1}],
+        abandonedLost: 1,
+        total: 6,
+    });
+    const NEAR = lostCell("12:-5", {latitude: 26.22, longitude: 50.61}, {
+        refusals: 1,
+        refusalsByReason: [{reason: "NO_COURIER", count: 1}],
+        total: 1,
+    });
+
+    function lostZones(overrides: Partial<LostDemandZoneStats> = {}): LostDemandZoneStats {
+        return {
+            cellMeters: 500,
+            refusalsDataSince: "2026-07-01T15:00:00",
+            refusalsCoverage: "FULL",
+            locatedRefusals: 6,
+            unlocatedRefusals: 12,
+            locatedAbandoned: 1,
+            unlocatedAbandoned: 2,
+            cells: [FAR, NEAR],
+            ...overrides,
+        };
+    }
+
+    async function showTurnedAway(stats: LostDemandZoneStats = lostZones()): Promise<void> {
+        mockFetchLostZones.mockResolvedValue(stats);
+        await clickAndSettle("Turned away");
+        await screen.findByTestId("lost-zones-table");
+    }
+
+    it("asks for nothing about lost demand until Turned away is chosen", async () => {
+        await renderLoaded();
+
+        expect(mockFetchLostZones).not.toHaveBeenCalled();
+    });
+
+    it("fetches the turned-away cells for the applied range and grid, chain-wide", async () => {
+        await renderLoaded();
+
+        await showTurnedAway();
+
+        expect(mockFetchLostZones.mock.calls[0]).toEqual(["2026-08-01", "2026-08-30", 500]);
+        expect(screen.getByTestId("lost-zones-summary").textContent).toBe("7 turned away across 2 cells of 500 m");
+    });
+
+    it("draws the turned-away cells instead of the delivered ones, darkest where most were lost", async () => {
+        await renderLoaded();
+
+        await showTurnedAway();
+
+        expect(livePolygons()).toHaveLength(2);
+        expect(fillOf(FAR)).toBe(rampColor(1));
+        expect(fillOf(NEAR)).toBe(rampColor(0));
+        expect(screen.getByTestId("zone-legend-max").textContent).toBe("6");
+    });
+
+    it("lists each cell's refusals by reason and orders gone at payment", async () => {
+        await renderLoaded();
+
+        await showTurnedAway();
+
+        const cells = within(screen.getByTestId("lost-zone-row-30:-2")).getAllByRole("cell").map((c) => c.textContent);
+        expect(cells).toEqual([
+            "26.0500, 50.5000", "6", "5Too far (radius or drive time) 4 · Outside the delivery zones 1", "1",
+        ]);
+    });
+
+    it("shows a tapped cell's numbers", async () => {
+        await renderLoaded();
+        await showTurnedAway();
+
+        act(() => polygonOf(FAR).click());
+
+        expect(screen.getByTestId("lost-zone-detail-total").textContent).toBe("6");
+        expect(screen.getByTestId("lost-zone-detail-refusals").textContent).toBe("5");
+        expect(screen.getByTestId("lost-zone-detail-abandoned").textContent).toBe("1");
+    });
+
+    /** What the map cannot place is counted out loud, never silently dropped. */
+    it("counts the refusals and orders it cannot place", async () => {
+        await renderLoaded();
+
+        await showTurnedAway();
+
+        expect(screen.getByTestId("lost-zones-unlocated-refusals").textContent)
+            .toBe("12 refusals came from the cart, before an address existed, and have no place on the map");
+        expect(screen.getByTestId("lost-zones-unlocated-abandoned").textContent)
+            .toBe("2 orders gone at payment had no pin and are not shown");
+        expect(screen.queryByTestId("zone-stats-unlocated")).toBeNull();
+    });
+
+    it("refetches the turned-away cells with the chosen cell size", async () => {
+        await renderLoaded();
+        await showTurnedAway();
+
+        mockFetchLostZones.mockResolvedValue(lostZones({cellMeters: 1000, cells: [FAR]}));
+        await clickAndSettle("1 km");
+
+        await waitFor(() => expect(mockFetchLostZones).toHaveBeenLastCalledWith("2026-08-01", "2026-08-30", 1000));
+        await waitFor(() => expect(screen.getByTestId("lost-zones-summary").textContent)
+            .toBe("6 turned away across 1 cell of 1 km"));
+    });
+
+    it("captions refusals recorded for only part of the range", async () => {
+        await renderLoaded();
+
+        await showTurnedAway(lostZones({refusalsCoverage: "PARTIAL", refusalsDataSince: "2026-08-20T15:00:00"}));
+
+        expect(screen.getByTestId("lost-zones-coverage").textContent)
+            .toBe("Refusals — Counted from 20 Aug 2026, 15:00. Earlier days in this range have no data.");
+    });
+
+    /** Before recording began, only abandoned orders can place a cell — and the card says so. */
+    it("says refusals were not recorded yet, and still maps the abandoned orders", async () => {
+        await renderLoaded();
+
+        await showTurnedAway(lostZones({
+            refusalsCoverage: "NONE", refusalsDataSince: "2026-10-06T15:00:00",
+            locatedRefusals: 0, unlocatedRefusals: 0, locatedAbandoned: 1,
+            cells: [lostCell("30:-2", FAR.center, {abandonedLost: 1, total: 1})],
+        }));
+
+        expect(screen.getByTestId("lost-zones-coverage").textContent)
+            .toBe("Refusals — No data before 6 Oct 2026, 15:00. Only orders gone at payment are on the map.");
+        expect(screen.queryByTestId("lost-zones-unlocated-refusals")).toBeNull();
+        expect(livePolygons()).toHaveLength(1);
+    });
+
+    /** The server sends refusals=0 for every cell then; a printed 0 would read as "nobody refused here". */
+    it("shows an unrecorded cell's refusals as a dash, never as 0", async () => {
+        await renderLoaded();
+        const abandonedOnly = lostCell("30:-2", FAR.center, {abandonedLost: 1, total: 1});
+
+        await showTurnedAway(lostZones({
+            refusalsCoverage: "NONE", refusalsDataSince: "2026-10-06T15:00:00",
+            locatedRefusals: 0, unlocatedRefusals: 0, locatedAbandoned: 1,
+            cells: [abandonedOnly],
+        }));
+
+        const row = within(screen.getByTestId("lost-zone-row-30:-2")).getAllByRole("cell").map((c) => c.textContent);
+        expect(row).toEqual(["26.0500, 50.5000", "1", "—", "1"]);
+        act(() => polygonOf(abandonedOnly).click());
+        expect(screen.getByTestId("lost-zone-detail-refusals").textContent).toBe("—");
+        expect(screen.getByTestId("lost-zone-detail-abandoned").textContent).toBe("1");
+    });
+
+    it("says nobody was turned away rather than drawing an empty map", async () => {
+        await renderLoaded();
+        mockFetchLostZones.mockResolvedValue(lostZones({cells: [], locatedRefusals: 0, unlocatedRefusals: 0,
+            locatedAbandoned: 0, unlocatedAbandoned: 0}));
+
+        await clickAndSettle("Turned away");
+
+        expect(await screen.findByText("Nobody was turned away at a pinned address in this range")).toBeTruthy();
+    });
+
+    it("shows an error rather than an empty map when the request fails", async () => {
+        await renderLoaded();
+        mockFetchLostZones.mockRejectedValue(new Error("HTTP 500"));
+
+        await clickAndSettle("Turned away");
+
+        expect((await screen.findByTestId("lost-zones-error")).textContent)
+            .toBe("Could not load where customers were turned away for this range.");
+    });
+
+    it("goes back to the delivered cells when another metric is chosen", async () => {
+        await renderLoaded();
+        await showTurnedAway();
+
+        await clickAndSettle("Orders");
+
+        await screen.findByTestId("zone-stats-summary");
+        expect(screen.queryByTestId("lost-zones-table")).toBeNull();
+        expect(livePolygons()).toHaveLength(3);
+    });
+
+    /** Without a key there is no colour scale: the choice is just which list of cells to read. */
+    it("offers Delivered or Turned away as tables when no Maps key is configured", async () => {
+        mockMapsKey.value = undefined;
+        await renderLoaded();
+        expect(screen.getByRole("button", {name: "Delivered"})).toBeTruthy();
+        expect(screen.queryByRole("button", {name: "Avg time"})).toBeNull();
+
+        await showTurnedAway();
+
+        expect(screen.queryByTestId("google-map")).toBeNull();
+        expect(within(screen.getByTestId("lost-zones-table")).getAllByTestId(/^lost-zone-row-/)).toHaveLength(2);
+        expect(screen.queryByTestId("zone-stats-table")).toBeNull();
+    });
+});
+

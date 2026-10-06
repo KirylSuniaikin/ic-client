@@ -2,6 +2,8 @@ import {describe, it, expect} from "@jest/globals";
 import {
     cellFillColor,
     lateCount,
+    lostDemandDomain,
+    lostDemandFillColor,
     metricDomain,
     metricValue,
     MIN_LATE_SAMPLE,
@@ -10,7 +12,7 @@ import {
     rampPosition,
 } from "./deliveryZoneScale";
 import {heatmapColor} from "./deliveryHourGrid";
-import type {DeliveryZoneCell} from "../types";
+import type {DeliveryZoneCell, LostDemandZoneCell} from "../types";
 
 function cell(overrides: Partial<DeliveryZoneCell>): DeliveryZoneCell {
     return {
@@ -74,5 +76,38 @@ describe("deliveryZoneScale", () => {
         expect(lateCount(cell({lateShare: 0.667, lateSampleSize: 3}))).toBe(2);
         expect(lateCount(cell({lateShare: 0.222, lateSampleSize: 9}))).toBe(2);
         expect(lateCount(cell({lateShare: null, lateSampleSize: 0}))).toBeNull();
+    });
+});
+
+describe("lost-demand scale", () => {
+    function lostCell(id: string, total: number): LostDemandZoneCell {
+        return {
+            id,
+            center: {latitude: 26.2, longitude: 50.58},
+            vertices: [],
+            refusals: total,
+            refusalsByReason: [{reason: "OUTSIDE_RADIUS", count: total}],
+            abandonedLost: 0,
+            total,
+        };
+    }
+
+    it("spans the cells' totals", () => {
+        expect(lostDemandDomain([lostCell("a", 2), lostCell("b", 9), lostCell("c", 5)])).toEqual({min: 2, max: 9});
+    });
+
+    it("has no domain without cells", () => {
+        expect(lostDemandDomain([])).toBeNull();
+    });
+
+    /** The same ramp and direction as the delivered metrics: darker is more customers turned away. */
+    it("paints the busiest cell darkest and the quietest lightest", () => {
+        const domain = {min: 2, max: 9};
+        expect(lostDemandFillColor(lostCell("a", 9), domain)).toBe(rampColor(1));
+        expect(lostDemandFillColor(lostCell("b", 2), domain)).toBe(rampColor(0));
+    });
+
+    it("greys a cell only when there is no scale to place it on", () => {
+        expect(lostDemandFillColor(lostCell("a", 3), null)).toBe(NO_DATA_COLOR);
     });
 });

@@ -11,6 +11,7 @@ import {
     fetchCourierPeriodStats,
     fetchCouriers,
     fetchDeliveryCards,
+    fetchOrderAssignmentAudit,
     fetchOrderProofPhoto,
     fetchOrderRoute,
     fetchOrdersAwaitingCourier,
@@ -98,6 +99,23 @@ describe("dispatcher — reads", () => {
         await fetchCourierPeriodStats("c1", "2026-09-01", "2026-09-03");
 
         expect(calledUrl()).toBe(`${BASE}/couriers/c1/stats?from=2026-09-01&to=2026-09-03`);
+    });
+
+    it("asks for one order's assignment history by order id", async () => {
+        const audit = { orderId: 42, orderCreatedAt: null, dataSince: "2026-10-06T15:00:00", entries: [] };
+        mockAuthFetch.mockResolvedValueOnce(json(audit));
+
+        const result = await fetchOrderAssignmentAudit(42);
+
+        expect(calledUrl()).toBe(`${BASE}/orders/42/audit`);
+        expect(calledInit().method).toBe("GET");
+        expect(result).toEqual(audit);
+    });
+
+    it("rejects when the order's history cannot be read", async () => {
+        mockAuthFetch.mockResolvedValueOnce(json({}, 404));
+
+        await expect(fetchOrderAssignmentAudit(42)).rejects.toThrow("Response: 404");
     });
 
     it("asks for one order's route by order id", async () => {

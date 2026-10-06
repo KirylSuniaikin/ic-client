@@ -1,6 +1,9 @@
 // Delivery endpoints (DELIVERY_SPEC.md §1.2, §1.4). Follows shared/api/customerAuth.ts's
 // shape: explicit token argument, typed error on non-2xx, no interceptor magic.
 import { BASE_URL } from './client';
+import { applyClientPlatform } from './clientPlatform';
+import { DEMAND_SESSION_HEADER, getDemandSessionId } from './demandSession';
+import { logger } from '../utils/logger';
 import { DeliveryApiError } from '../../domains/delivery/types';
 import type {
     CreateCustomerAddressRequest,
@@ -9,12 +12,25 @@ import type {
     DeliveryBasketLine,
     DeliveryPaymentMethod,
     DeliveryPaymentResult,
+    KeetaFallbackEvent,
     UpdateCustomerAddressRequest,
 } from '../../domains/delivery/types';
 
 function isMessageBody(data: unknown): data is { message: string } {
     if (typeof data !== 'object' || data === null) return false;
     return typeof (data as { message?: unknown }).message === 'string';
+}
+
+/**
+ * Headers for the two calls that feed the lost-demand figures: the platform, so a refusal can be
+ * split by web / app / kiosk, and the anonymous session token, so one customer retrying the same
+ * address is counted once. Never an Authorization header — both calls are made by guests.
+ */
+function demandHeaders(init?: HeadersInit): Headers {
+    const headers = new Headers(init);
+    applyClientPlatform(headers);
+    headers.set(DEMAND_SESSION_HEADER, getDemandSessionId());
+    return headers;
 }
 
 async function extractErrorMessage(response: Response): Promise<string> {
@@ -47,7 +63,7 @@ export async function getDeliveryAvailability(
     if (basket !== undefined && basket.length > 0) {
         const response = await fetch(`${BASE_URL}/delivery/availability`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: demandHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ lat: pin?.latitude, lng: pin?.longitude, items: basket }),
         });
         if (!response.ok) {
@@ -59,12 +75,40 @@ export async function getDeliveryAvailability(
     const query =
         pin === undefined ? '' : `?lat=${encodeURIComponent(pin.latitude)}&lng=${encodeURIComponent(pin.longitude)}`;
 
-    const response = await fetch(`${BASE_URL}/delivery/availability${query}`, { method: 'GET' });
+    const response = await fetch(`${BASE_URL}/delivery/availability${query}`, {
+        method: 'GET',
+        headers: demandHeaders(),
+    });
 
     if (!response.ok) {
         throw new DeliveryApiError(await extractErrorMessage(response), response.status);
     }
     return await response.json();
+}
+
+/**
+ * Records that a refused customer pressed "Order on Keeta" — demand we sent to a competitor.
+ *
+ * Fire-and-forget: callers `void` it and open Keeta in the same tick, because the hop to Keeta must
+ * stay inside the click (a popup opened after an await is blocked) and must never wait on, or be
+ * stopped by, our own bookkeeping. `keepalive` lets the request outlive the page if the customer
+ * leaves for Keeta in this tab. Never throws; a failure is only a warning, since the customer can
+ * do nothing about it.
+ */
+export async function reportKeetaFallbackChosen(event: KeetaFallbackEvent): Promise<void> {
+    try {
+        const response = await fetch(`${BASE_URL}/delivery/keeta-fallback-events`, {
+            method: 'POST',
+            keepalive: true,
+            headers: demandHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ stage: event.stage, reason: event.reason }),
+        });
+        if (!response.ok) {
+            logger.warn(`Keeta fallback event was not recorded (HTTP ${response.status})`);
+        }
+    } catch (err) {
+        logger.warn('Keeta fallback event could not be sent:', err);
+    }
 }
 
 export async function listAddresses(accessToken: string): Promise<CustomerAddress[]> {

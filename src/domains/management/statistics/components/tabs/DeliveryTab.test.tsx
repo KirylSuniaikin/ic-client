@@ -25,6 +25,33 @@ jest.mock("../DeliveryZoneStatsCard", () => ({
     ),
 }));
 
+// The four metric cards (M1–M5) fetch for themselves and have their own suites; here each is a
+// probe that prints the range the tab handed it, so placement and scope can be asserted. The
+// `mock` prefix is what lets the hoisted factories reach the helper.
+function mockScopeText(scope: {startDate: string; finishDate: string} | null): string {
+    return scope === null ? "none" : `${scope.startDate}..${scope.finishDate}`;
+}
+jest.mock("../delivery/LostDemandCard", () => ({
+    LostDemandCard: ({scope}: {scope: {startDate: string; finishDate: string} | null}) => (
+        <div data-testid="metric-probe-lost-demand">{mockScopeText(scope)}</div>
+    ),
+}));
+jest.mock("../delivery/DeliveryQualityCard", () => ({
+    DeliveryQualityCard: ({scope}: {scope: {startDate: string; finishDate: string} | null}) => (
+        <div data-testid="metric-probe-quality">{mockScopeText(scope)}</div>
+    ),
+}));
+jest.mock("../delivery/TimeToCourierCard", () => ({
+    TimeToCourierCard: ({scope}: {scope: {startDate: string; finishDate: string} | null}) => (
+        <div data-testid="metric-probe-time-to-courier">{mockScopeText(scope)}</div>
+    ),
+}));
+jest.mock("../delivery/CourierProductivityCard", () => ({
+    CourierProductivityCard: ({scope}: {scope: {startDate: string; finishDate: string} | null}) => (
+        <div data-testid="metric-probe-productivity">{mockScopeText(scope)}</div>
+    ),
+}));
+
 const AVAILABILITY: DeliveryAvailabilityStats = {
     observedSeconds: 3600,
     unavailableSeconds: 600,
@@ -218,4 +245,49 @@ describe("DeliveryTab", () => {
 
         expect(screen.getByTestId("zone-stats-probe").textContent).toBe("none");
     });
+
+    /**
+     * Lost demand sits beside availability (both answer "when could they not buy"), quality after
+     * estimate accuracy (the promise, then whether it was kept), and the two courier cards last.
+     */
+    it("places the four metric cards where the tab reads them, all on the chain-wide range", () => {
+        const {container} = render(
+            <DeliveryTab
+                hourly={HOURLY}
+                availability={AVAILABILITY}
+                availabilityScope={{branches: "Seef", range: "Oct 1, 2026 — Oct 6, 2026"}}
+                estimateAccuracy={ACCURACY}
+                skipReasons={SKIPS}
+                chainRange="Oct 1, 2026 — Oct 6, 2026"
+                chainScope={{startDate: "2026-10-01", finishDate: "2026-10-06"}}
+            />
+        );
+
+        const order = Array.from(container.querySelectorAll(
+            "[data-testid='availability-scope'], [data-testid^='metric-probe-'], [data-testid='zone-stats-probe'], " +
+            "[data-testid='estimate-accuracy-scope'], [data-testid='skip-reasons-scope']"
+        )).map((node) => node.getAttribute("data-testid"));
+        expect(order).toEqual([
+            "availability-scope",
+            "metric-probe-lost-demand",
+            "zone-stats-probe",
+            "estimate-accuracy-scope",
+            "metric-probe-quality",
+            "skip-reasons-scope",
+            "metric-probe-time-to-courier",
+            "metric-probe-productivity",
+        ]);
+        for (const id of ["lost-demand", "quality", "time-to-courier", "productivity"]) {
+            expect(screen.getByTestId(`metric-probe-${id}`).textContent).toBe("2026-10-01..2026-10-06");
+        }
+    });
+
+    it("gives the metric cards no range before one has been applied", () => {
+        render(<DeliveryTab hourly={HOURLY} availability={AVAILABILITY} availabilityScope={null} {...NO_CHAIN_STATS}/>);
+
+        for (const id of ["lost-demand", "quality", "time-to-courier", "productivity"]) {
+            expect(screen.getByTestId(`metric-probe-${id}`).textContent).toBe("none");
+        }
+    });
 });
+

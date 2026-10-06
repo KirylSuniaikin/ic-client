@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react";
+import React, {useCallback, useMemo, useState} from "react";
 import {
     Box,
     Card,
@@ -20,42 +20,70 @@ import {formatMinutes} from "./DeliveryEstimateAccuracyCard";
 import {formatBd} from "./business/businessFormat";
 import {CELL_FILL_OPACITY, DeliveryZoneStatsMap} from "./DeliveryZoneStatsMap";
 import {useDeliveryZoneStats} from "../hooks/useDeliveryZoneStats";
+import {useDeliveryScopedStats} from "../hooks/useDeliveryScopedStats";
 import {
     cellFillColor,
     lateCount,
+    lostDemandDomain,
+    lostDemandFillColor,
     metricDomain,
     MIN_LATE_SAMPLE,
     NO_DATA_COLOR,
     rampColor,
     rampPosition,
 } from "../utils/deliveryZoneScale";
+import {CoverageCaption, formatCount, noDataBeforeText} from "./delivery/deliveryMetricsUi";
+import {LOST_DEMAND_REASON_LABELS} from "./delivery/lostDemandLabels";
+import {labelOf} from "../../../../shared/utils/labelOf";
 import {GOOGLE_MAPS_API_KEY} from "../../../branch/utils/mapsConfig";
+import {fetchLostDemandZoneStats} from "../../../../shared/api/management";
 import {BRAND_RED} from "../../../../shared/utils/theme";
 import type {SxProps, Theme} from "@mui/material";
 import type {DeliveryZoneMetric, MetricDomain} from "../utils/deliveryZoneScale";
 import type {DeliveryStatsScope} from "../hooks/useStatistics";
-import type {DeliveryZoneCell, DeliveryZoneCellMeters} from "../types";
+import type {DeliveryZoneCell, DeliveryZoneCellMeters, LostDemandZoneCell, LostDemandZoneStats} from "../types";
 
 const CELL_SIZES: readonly DeliveryZoneCellMeters[] = [250, 500, 1000];
 const DEFAULT_CELL_METERS: DeliveryZoneCellMeters = 500;
 
-const METRICS: readonly DeliveryZoneMetric[] = ["orders", "avgTime", "late"];
+/**
+ * The three delivered-order metrics, plus where customers were turned away. "lostDemand" is a
+ * different list of cells (mostly where nothing was delivered), so it lives here rather than in
+ * DeliveryZoneMetric, whose helpers only make sense for delivered cells.
+ */
+type ZoneCardMetric = DeliveryZoneMetric | "lostDemand";
 
-const METRIC_LABELS: Record<DeliveryZoneMetric, string> = {
+const METRICS: readonly ZoneCardMetric[] = ["orders", "avgTime", "late", "lostDemand"];
+
+/**
+ * Without a Maps key there is no colour scale to switch, so the delivered metrics collapse into one
+ * table and only the choice between the two lists of cells remains.
+ */
+const NO_MAP_METRICS: readonly ZoneCardMetric[] = ["orders", "lostDemand"];
+
+const METRIC_LABELS: Record<ZoneCardMetric, string> = {
     orders: "Orders",
     avgTime: "Avg time",
     late: "Late %",
+    lostDemand: "Turned away",
 };
 
-/** What a grey cell means, per metric. Orders has none: every cell on the map has at least one. */
-const NO_DATA_LABELS: Record<DeliveryZoneMetric, string | null> = {
+const NO_MAP_METRIC_LABELS: Record<ZoneCardMetric, string> = {...METRIC_LABELS, orders: "Delivered"};
+
+/**
+ * What a grey cell means, per metric. Orders has none: every cell on the map has at least one —
+ * and neither has Turned away, whose every cell turned at least one customer away.
+ */
+const NO_DATA_LABELS: Record<ZoneCardMetric, string | null> = {
     orders: null,
     avgTime: "no measured time",
     late: `fewer than ${MIN_LATE_SAMPLE} orders with a promise`,
+    lostDemand: null,
 };
 
 // A stable empty list, so the memos below do not recompute on every render before data lands.
 const NO_CELLS: DeliveryZoneCell[] = [];
+const NO_LOST_CELLS: LostDemandZoneCell[] = [];
 
 // Same pill group as the Statistics tab strip and MenuCostCardsCard, so the controls read as one
 // family rather than as a second control system.
@@ -92,9 +120,10 @@ function formatLateLabel(cell: DeliveryZoneCell): string {
     return `${formatSharePct(late, cell.lateSampleSize)} (${late} of ${cell.lateSampleSize})`;
 }
 
-function formatMetricValue(value: number, metric: DeliveryZoneMetric): string {
+function formatMetricValue(value: number, metric: ZoneCardMetric): string {
     switch (metric) {
         case "orders":
+        case "lostDemand":
             return String(value);
         case "avgTime":
             return formatMinutesLabel(value);
@@ -107,6 +136,26 @@ function formatPlacedSummary(orders: number, cells: number, cellMeters: Delivery
     const orderWord = orders === 1 ? "delivered order" : "delivered orders";
     const cellWord = cells === 1 ? "cell" : "cells";
     return `${orders} ${orderWord} across ${cells} ${cellWord} of ${formatCellSize(cellMeters)}`;
+}
+
+function formatTurnedAwaySummary(customers: number, cells: number, cellMeters: DeliveryZoneCellMeters): string {
+    const cellWord = cells === 1 ? "cell" : "cells";
+    return `${customers} turned away across ${cells} ${cellWord} of ${formatCellSize(cellMeters)}`;
+}
+
+/**
+ * A cell's refusals, or an em dash when the range is wholly before recording began: the server
+ * then sends 0 for every cell, and that 0 means "not recorded", not "nobody was refused here".
+ */
+function formatCellRefusals(cell: LostDemandZoneCell, refusalsRecorded: boolean): string {
+    return formatCount(refusalsRecorded ? cell.refusals : null);
+}
+
+/** "Too far 4 · No courier 1": a cell's refusals by reason, the non-zero ones the server sends. */
+function formatReasonBreakdown(cell: LostDemandZoneCell): string {
+    return cell.refusalsByReason
+        .map((bucket) => `${labelOf(LOST_DEMAND_REASON_LABELS, bucket.reason)} ${bucket.count}`)
+        .join(" · ");
 }
 
 function formatUnlocatedFootnote(count: number): string {
@@ -140,15 +189,26 @@ type Props = {
  */
 export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
     const [cellMeters, setCellMeters] = useState<DeliveryZoneCellMeters>(DEFAULT_CELL_METERS);
-    const [metric, setMetric] = useState<DeliveryZoneMetric>("orders");
+    const [metric, setMetric] = useState<ZoneCardMetric>("orders");
     const [selected, setSelected] = useState<DeliveryZoneCell | null>(null);
     const {stats, fetchedFor, loading, failed} = useDeliveryZoneStats(scope, cellMeters);
 
+    const lostMode = metric === "lostDemand";
+    // Keyed on the cell size, so a size click refetches; only fetched while Turned away is the
+    // view, so the tab does not pay for a map nobody is looking at.
+    const fetchLostZones = useCallback(
+        (startDate: string, finishDate: string): Promise<LostDemandZoneStats> =>
+            fetchLostDemandZoneStats(startDate, finishDate, cellMeters),
+        [cellMeters]
+    );
+    const lost = useDeliveryScopedStats<LostDemandZoneStats>(lostMode ? scope : null, fetchLostZones);
+
+    const deliveredMetric: DeliveryZoneMetric = metric === "lostDemand" ? "orders" : metric;
     const cells = stats?.cells ?? NO_CELLS;
-    const domain = useMemo(() => metricDomain(cells, metric), [cells, metric]);
+    const domain = useMemo(() => metricDomain(cells, deliveredMetric), [cells, deliveredMetric]);
     const fills = useMemo(
-        () => new Map(cells.map((cell) => [cell.id, cellFillColor(cell, metric, domain)])),
-        [cells, metric, domain]
+        () => new Map(cells.map((cell) => [cell.id, cellFillColor(cell, deliveredMetric, domain)])),
+        [cells, deliveredMetric, domain]
     );
     // By identity, not by id: "0:0" exists at every cell size and names a different area at each,
     // so a selection only survives while the response it came from is the one on screen.
@@ -157,6 +217,14 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
     const hasNoDataCell = cells.some((cell) => fills.get(cell.id) === NO_DATA_COLOR);
     const fitKey = fetchedFor === null ? "" : `${fetchedFor.startDate}:${fetchedFor.finishDate}`;
     const mapMode = Boolean(GOOGLE_MAPS_API_KEY);
+    const visibleMetrics = mapMode ? METRICS : NO_MAP_METRICS;
+    const metricLabels = mapMode ? METRIC_LABELS : NO_MAP_METRIC_LABELS;
+    // Without a map the delivered metrics are one table, so any of them selects the "Delivered" pill.
+    const pillValue: ZoneCardMetric = mapMode || lostMode ? metric : "orders";
+
+    const shownFor = lostMode ? lost.fetchedFor : fetchedFor;
+    const shownHasStats = lostMode ? lost.stats !== null : stats !== null;
+    const shownLoading = lostMode ? lost.loading : loading;
 
     return (
         <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2}}>
@@ -164,37 +232,37 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
                 <Box sx={{mb: 2}}>
                     <Typography variant="h6" sx={{mb: 0.5}}>🛵 <b>Delivery Zones</b></Typography>
                     <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>
-                        delivered orders by drop-off area, on a fixed hexagon grid
+                        {lostMode
+                            ? "customers turned away, by where they wanted delivery, on the same hexagon grid"
+                            : "delivered orders by drop-off area, on a fixed hexagon grid"}
                         {mapMode ? " — tap a cell for its numbers" : ""}
                     </Typography>
-                    {fetchedFor !== null && stats !== null && (
+                    {shownFor !== null && shownHasStats && (
                         <Typography
                             data-testid="zone-stats-scope"
                             variant="caption"
                             sx={{display: "block", mt: 0.5, fontWeight: 600, color: "text.secondary"}}
                         >
-                            All branches · {formatStatRange(fetchedFor.startDate, fetchedFor.finishDate)}
+                            All branches · {formatStatRange(shownFor.startDate, shownFor.finishDate)}
                         </Typography>
                     )}
                 </Box>
 
                 <Box sx={{display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 2}}>
                     {/* The colour scale only exists on the map; the no-key table prints every
-                        metric side by side instead. */}
-                    {mapMode && (
-                        <ToggleButtonGroup
-                            exclusive
-                            size="small"
-                            value={metric}
-                            onChange={(_, value: DeliveryZoneMetric | null) => value !== null && setMetric(value)}
-                            aria-label="Colour cells by"
-                            sx={PILL_GROUP_SX}
-                        >
-                            {METRICS.map((key) => (
-                                <ToggleButton key={key} value={key}>{METRIC_LABELS[key]}</ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
-                    )}
+                        delivered metric side by side instead, so there it is Delivered or Turned away. */}
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={pillValue}
+                        onChange={(_, value: ZoneCardMetric | null) => value !== null && setMetric(value)}
+                        aria-label={mapMode ? "Colour cells by" : "Show"}
+                        sx={PILL_GROUP_SX}
+                    >
+                        {visibleMetrics.map((key) => (
+                            <ToggleButton key={key} value={key}>{metricLabels[key]}</ToggleButton>
+                        ))}
+                    </ToggleButtonGroup>
                     <ToggleButtonGroup
                         exclusive
                         size="small"
@@ -209,12 +277,28 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
                     </ToggleButtonGroup>
                     {/* A refetch keeps the previous map on screen rather than blanking it, so the
                         viewport a manager zoomed into survives a cell-size switch. */}
-                    {loading && stats !== null && (
+                    {shownLoading && shownHasStats && (
                         <CircularProgress size={16} sx={{color: "#8f887c"}} data-testid="zone-stats-refreshing"/>
                     )}
                 </Box>
 
-                {failed ? (
+                {lostMode ? (
+                    lost.failed ? (
+                        <Typography data-testid="lost-zones-error" variant="body2" color="error" sx={{py: 2}}>
+                            Could not load where customers were turned away for this range.
+                        </Typography>
+                    ) : lost.stats === null ? (
+                        <StatSkeleton lines={4}/>
+                    ) : (
+                        <LostDemandZoneView
+                            stats={lost.stats}
+                            mapMode={mapMode}
+                            fitKey={lost.fetchedFor === null
+                                ? "lost"
+                                : `lost:${lost.fetchedFor.startDate}:${lost.fetchedFor.finishDate}`}
+                        />
+                    )
+                ) : failed ? (
                     <Typography data-testid="zone-stats-error" variant="body2" color="error" sx={{py: 2}}>
                         Could not load the delivery zones for this range.
                     </Typography>
@@ -231,7 +315,7 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
 
                         {mapMode ? (
                             <>
-                                <DeliveryZoneStatsMap
+                                <DeliveryZoneStatsMap<DeliveryZoneCell>
                                     cells={stats.cells}
                                     fills={fills}
                                     selectedId={selectedCell?.id ?? null}
@@ -239,7 +323,7 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
                                     fitKey={fitKey}
                                 />
                                 <ZoneLegend
-                                    metric={metric}
+                                    metric={deliveredMetric}
                                     domain={domain}
                                     showNoData={hasNoDataCell}
                                 />
@@ -258,7 +342,7 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
                     </>
                 )}
 
-                {!failed && stats !== null && stats.unlocatedOrders > 0 && (
+                {!lostMode && !failed && stats !== null && stats.unlocatedOrders > 0 && (
                     <Typography data-testid="zone-stats-unlocated" variant="caption" color="text.secondary"
                                 sx={{display: "block", mt: 1.5}}>
                         {formatUnlocatedFootnote(stats.unlocatedOrders)}
@@ -270,7 +354,7 @@ export function DeliveryZoneStatsCard({scope}: Props): JSX.Element {
 }
 
 type LegendProps = {
-    metric: DeliveryZoneMetric;
+    metric: ZoneCardMetric;
     domain: MetricDomain | null;
     showNoData: boolean;
 };
@@ -403,6 +487,163 @@ function ZoneTable({cells}: { cells: DeliveryZoneCell[] }): JSX.Element {
                             </TableCell>
                             <TableCell align="right">{formatMinutesLabel(cell.avgRoadMinutes)}</TableCell>
                             <TableCell align="right">{formatLateLabel(cell)}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </Box>
+    );
+}
+
+type LostDemandZoneViewProps = {
+    stats: LostDemandZoneStats;
+    mapMode: boolean;
+    /** Re-frames the map per range: these cells sit somewhere else entirely than the delivered ones. */
+    fitKey: string;
+};
+
+/**
+ * Where customers were turned away: refusals by the pin they were refused at, and orders gone at
+ * payment by their delivery pin. Its own cells, not a field on the delivered ones — refusals mostly
+ * happen where nothing was delivered, and those are the cells this view exists to show.
+ */
+function LostDemandZoneView({stats, mapMode, fitKey}: LostDemandZoneViewProps): JSX.Element {
+    const [selected, setSelected] = useState<LostDemandZoneCell | null>(null);
+    const cells = stats.cells.length === 0 ? NO_LOST_CELLS : stats.cells;
+    const domain = useMemo(() => lostDemandDomain(cells), [cells]);
+    const fills = useMemo(
+        () => new Map(cells.map((cell) => [cell.id, lostDemandFillColor(cell, domain)])),
+        [cells, domain]
+    );
+    // By identity, for the same reason as the delivered view: an id names a different area per size.
+    const selectedCell = selected !== null && cells.includes(selected) ? selected : null;
+    const placed = cells.reduce((sum, cell) => sum + cell.total, 0);
+    const refusalsRecorded = stats.refusalsCoverage !== "NONE";
+
+    return (
+        <>
+            {stats.refusalsCoverage === "NONE" ? (
+                <Typography data-testid="lost-zones-coverage" variant="caption" color="text.secondary"
+                            sx={{display: "block", mb: 1, fontStyle: "italic"}}>
+                    Refusals — {noDataBeforeText(stats.refusalsDataSince)}. Only orders gone at payment are on the map.
+                </Typography>
+            ) : (
+                <CoverageCaption coverage={stats.refusalsCoverage} dataSince={stats.refusalsDataSince}
+                                 testId="lost-zones-coverage" subject="Refusals"/>
+            )}
+
+            {cells.length === 0 ? (
+                <StatEmptyState message="Nobody was turned away at a pinned address in this range"/>
+            ) : (
+                <>
+                    <Typography variant="caption" color="text.secondary" sx={{display: "block", mb: 1}}
+                                data-testid="lost-zones-summary">
+                        {formatTurnedAwaySummary(placed, cells.length, stats.cellMeters)}
+                    </Typography>
+
+                    {mapMode && (
+                        <>
+                            <DeliveryZoneStatsMap<LostDemandZoneCell>
+                                cells={cells}
+                                fills={fills}
+                                selectedId={selectedCell?.id ?? null}
+                                onSelect={setSelected}
+                                fitKey={fitKey}
+                            />
+                            <ZoneLegend metric="lostDemand" domain={domain} showNoData={false}/>
+                            {selectedCell !== null && (
+                                <LostDemandDetails cell={selectedCell} cellMeters={stats.cellMeters}
+                                                   refusalsRecorded={refusalsRecorded}/>
+                            )}
+                        </>
+                    )}
+
+                    <LostDemandZoneTable cells={cells} refusalsRecorded={refusalsRecorded}/>
+                </>
+            )}
+
+            {stats.unlocatedRefusals > 0 && (
+                <Typography data-testid="lost-zones-unlocated-refusals" variant="caption" color="text.secondary"
+                            sx={{display: "block", mt: 1.5}}>
+                    {stats.unlocatedRefusals === 1
+                        ? "1 refusal came from the cart, before an address existed, and has no place on the map"
+                        : `${stats.unlocatedRefusals} refusals came from the cart, before an address existed, and have no place on the map`}
+                </Typography>
+            )}
+            {stats.unlocatedAbandoned > 0 && (
+                <Typography data-testid="lost-zones-unlocated-abandoned" variant="caption" color="text.secondary"
+                            sx={{display: "block", mt: 0.5}}>
+                    {stats.unlocatedAbandoned === 1
+                        ? "1 order gone at payment had no pin and is not shown"
+                        : `${stats.unlocatedAbandoned} orders gone at payment had no pin and are not shown`}
+                </Typography>
+            )}
+        </>
+    );
+}
+
+function LostDemandDetails({cell, cellMeters, refusalsRecorded}: {
+    cell: LostDemandZoneCell;
+    cellMeters: DeliveryZoneCellMeters;
+    refusalsRecorded: boolean;
+}): JSX.Element {
+    return (
+        <Box data-testid="lost-zone-details" sx={{mt: 2, p: 2, borderRadius: 4, border: "1px solid #f1eae4"}}>
+            <Typography variant="subtitle2" fontWeight={700}>
+                Selected cell · {formatCellSize(cellMeters)} hexagon
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{display: "block", mb: 1.5}}>
+                centre {cell.center.latitude.toFixed(4)}, {cell.center.longitude.toFixed(4)}
+            </Typography>
+            <Box sx={{display: "flex", flexWrap: "wrap", columnGap: 4, rowGap: 1.5}}>
+                <DetailRow label="Turned away" value={String(cell.total)} testId="lost-zone-detail-total"/>
+                <DetailRow label="Refused" value={formatCellRefusals(cell, refusalsRecorded)}
+                           testId="lost-zone-detail-refusals"/>
+                <DetailRow label="Gone at payment" value={String(cell.abandonedLost)}
+                           testId="lost-zone-detail-abandoned"/>
+            </Box>
+            {refusalsRecorded && cell.refusalsByReason.length > 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{display: "block", mt: 1.5}}>
+                    {formatReasonBreakdown(cell)}
+                </Typography>
+            )}
+        </Box>
+    );
+}
+
+/** Every turned-away cell, busiest first — the order the server sends them in. */
+function LostDemandZoneTable({cells, refusalsRecorded}: {
+    cells: LostDemandZoneCell[];
+    refusalsRecorded: boolean;
+}): JSX.Element {
+    return (
+        <Box sx={{overflowX: "auto", mt: 2}}>
+            <Table size="small" sx={{minWidth: 640}} data-testid="lost-zones-table">
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{fontWeight: 600}}>Cell centre</TableCell>
+                        <TableCell sx={{fontWeight: 600}} align="right">Turned away</TableCell>
+                        <TableCell sx={{fontWeight: 600}}>Refused, by reason</TableCell>
+                        <TableCell sx={{fontWeight: 600}} align="right">Gone at payment</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {cells.map((cell) => (
+                        <TableRow key={cell.id} data-testid={`lost-zone-row-${cell.id}`}>
+                            <TableCell sx={{whiteSpace: "nowrap"}}>
+                                {cell.center.latitude.toFixed(4)}, {cell.center.longitude.toFixed(4)}
+                            </TableCell>
+                            <TableCell align="right" sx={{fontWeight: 700}}>{cell.total}</TableCell>
+                            <TableCell>
+                                {formatCellRefusals(cell, refusalsRecorded)}
+                                {refusalsRecorded && cell.refusalsByReason.length > 0 && (
+                                    <Typography component="span" variant="caption" color="text.secondary"
+                                                sx={{ml: 1}}>
+                                        {formatReasonBreakdown(cell)}
+                                    </Typography>
+                                )}
+                            </TableCell>
+                            <TableCell align="right">{cell.abandonedLost}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>

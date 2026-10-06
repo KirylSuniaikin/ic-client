@@ -76,6 +76,21 @@ export type DeliveryAvailability = {
 };
 
 /**
+ * Where the customer was when they were sent to Keeta: the cart check (no pin yet) or the address
+ * step (a pin exists). There is no Keeta card at the payment step.
+ */
+export type KeetaFallbackStage = 'CART' | 'ADDRESS';
+
+/**
+ * The anonymous "chose Keeta" event (POST /api/delivery/keeta-fallback-events). Carries no
+ * identifier on purpose: it counts lost demand, not people.
+ */
+export type KeetaFallbackEvent = {
+    stage: KeetaFallbackStage;
+    reason: DeliveryAvailability['reason'];
+};
+
+/**
  * One cart line as the availability gate sizes it — mirrors backend `DeliveryAvailabilityRequestTO`.
  * Only the menu id, quantity and dough flag: the server takes category and size from its own menu,
  * so nothing here can under- or over-state what a line weighs.

@@ -1,7 +1,10 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 import { BASE_URL } from "./client";
-import { getDeliveryAvailability, listAddresses, createAddress, updateAddress, payForDelivery } from "./delivery";
+import { getDeliveryAvailability, listAddresses, createAddress, updateAddress, payForDelivery,
+    reportKeetaFallbackChosen } from "./delivery";
 import { DeliveryApiError } from "../../domains/delivery/types";
+import { CLIENT_PLATFORM_HEADER } from "./clientPlatform";
+import { DEMAND_SESSION_HEADER, getDemandSessionId } from "./demandSession";
 
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
@@ -39,7 +42,52 @@ describe("getDeliveryAvailability", () => {
         const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
         expect(url).toBe(`${BASE_URL}/delivery/availability`);
         expect(init.method).toBe("GET");
-        expect(init.headers).toBeUndefined();
+        expect(new Headers(init.headers).has("Authorization")).toBe(false);
+    });
+
+    /**
+     * The lost-demand figures split refusals by platform and count one customer retrying the same
+     * address once. Both depend on these two headers reaching the server on every check.
+     */
+    it("sends the platform and the demand session on the GET", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+
+        await getDeliveryAvailability({ latitude: 26.2285, longitude: 50.586 });
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init.headers);
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe("web");
+        expect(headers.get(DEMAND_SESSION_HEADER)).toBe(getDemandSessionId());
+    });
+
+    it("sends the platform and the demand session on the basket POST", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+
+        await getDeliveryAvailability(undefined, [{ id: 7, quantity: 2, isThinDough: false }]);
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init.headers);
+        expect(headers.get("Content-Type")).toBe("application/json");
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe("web");
+        expect(headers.get(DEMAND_SESSION_HEADER)).toBe(getDemandSessionId());
+        expect(headers.has("Authorization")).toBe(false);
+    });
+
+    /** Two checks in one tab are one browsing session; a fresh token per call would defeat the dedupe. */
+    it("sends the same demand session on every check in a tab", async () => {
+        mockFetch.mockResolvedValue(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+
+        await getDeliveryAvailability();
+        mockFetch.mockResolvedValue(jsonResponse({ available: true, reason: null, branchId: null,
+            etaMinutesMin: null, etaMinutesMax: null }));
+        await getDeliveryAvailability({ latitude: 26.2285, longitude: 50.586 });
+
+        const first = new Headers((mockFetch.mock.calls[0] as [string, RequestInit])[1].headers);
+        const second = new Headers((mockFetch.mock.calls[1] as [string, RequestInit])[1].headers);
+        expect(first.get(DEMAND_SESSION_HEADER)).toBe(second.get(DEMAND_SESSION_HEADER));
     });
 
     it("sends lat and lng together once a pin exists", async () => {
@@ -271,5 +319,66 @@ describe("payForDelivery", () => {
         await expect(payForDelivery({ method: "CARD", addressId: "a1", order: ORDER }))
             .rejects.toMatchObject({ name: "DeliveryApiError", status: 501,
                 message: "Delivery payment stub is disabled" });
+    });
+});
+
+describe("reportKeetaFallbackChosen", () => {
+    let warnSpy: ReturnType<typeof jest.spyOn>;
+
+    beforeEach(() => {
+        warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+        warnSpy.mockRestore();
+    });
+
+    it("POSTs the stage and reason to the public event endpoint, with keepalive", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await reportKeetaFallbackChosen({ stage: "ADDRESS", reason: "OUTSIDE_RADIUS" });
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/delivery/keeta-fallback-events`);
+        expect(init.method).toBe("POST");
+        // The customer may leave for Keeta in this very tab; the request must outlive the page.
+        expect(init.keepalive).toBe(true);
+        expect(JSON.parse(init.body as string)).toEqual({ stage: "ADDRESS", reason: "OUTSIDE_RADIUS" });
+    });
+
+    /** The event carries no identifier: no token, no phone, no address — only the anonymous session. */
+    it("sends the platform and demand session and no Authorization header", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await reportKeetaFallbackChosen({ stage: "CART", reason: null });
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        const headers = new Headers(init.headers);
+        expect(headers.get("Content-Type")).toBe("application/json");
+        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe("web");
+        expect(headers.get(DEMAND_SESSION_HEADER)).toBe(getDemandSessionId());
+        expect(headers.has("Authorization")).toBe(false);
+        expect(JSON.parse(init.body as string)).toEqual({ stage: "CART", reason: null });
+    });
+
+    /**
+     * Fire-and-forget: the customer is already on their way to Keeta, and our bookkeeping failing
+     * must neither reject (an unhandled rejection) nor surface anywhere they can see it.
+     */
+    it("swallows a network failure and logs it as a warning", async () => {
+        mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+        await expect(reportKeetaFallbackChosen({ stage: "CART", reason: "NO_COURIER" })).resolves.toBeUndefined();
+
+        expect(warnSpy).toHaveBeenCalledWith("Keeta fallback event could not be sent:", expect.any(TypeError));
+    });
+
+    it("treats a non-2xx answer as a warning, never an error", async () => {
+        mockFetch.mockResolvedValueOnce(jsonResponse({ message: "bad stage" }, 400));
+
+        await expect(reportKeetaFallbackChosen({ stage: "CART", reason: null })).resolves.toBeUndefined();
+
+        expect(warnSpy).toHaveBeenCalledWith("Keeta fallback event was not recorded (HTTP 400)");
     });
 });

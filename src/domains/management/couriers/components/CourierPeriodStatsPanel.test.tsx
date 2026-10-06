@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { format } from "date-fns";
 
 import { CourierPeriodStatsPanel } from "./CourierPeriodStatsPanel";
@@ -113,4 +113,71 @@ describe("CourierPeriodStatsPanel", () => {
         expect(screen.queryByText("14.5 min")).toBeNull();
         expect(screen.getByText("BHD 0.00")).toBeTruthy();
     });
+
+    /** M5 for the panel's own window: distance, and where the shift went. */
+    it("adds the distance and shift-split tiles when the server sends them", async () => {
+        const today = format(new Date(), "yyyy-MM-dd");
+        mockStats.mockResolvedValue({
+            ...STATS,
+            productivity: {
+                gpsDataSince: "2000-01-01",
+                splitDataSince: "2026-10-06T15:00:00",
+                splitCoverage: "FULL",
+                row: {
+                    courierId: "c1", name: "ali", onShiftMinutes: 480, freeMinutes: 210.5,
+                    toKitchenMinutes: 60, atKitchenMinutes: 35.5, carryingMinutes: 174,
+                    kmDriven: 52.3, deliveredParts: 14, kmPerDelivery: 3.7,
+                },
+            },
+        });
+
+        render(<CourierPeriodStatsPanel courierId="c1" />);
+
+        const tiles = await screen.findByTestId("courier-productivity-tiles");
+        await waitFor(() => expect(mockStats).toHaveBeenCalledWith("c1", today, today));
+        // Each value is its label's next sibling, so a swapped pair cannot pass.
+        const valueOf = (label: string): string | null | undefined =>
+            within(tiles).getByText(label).nextElementSibling?.textContent;
+        expect(valueOf("Km driven")).toBe("52.3");
+        expect(valueOf("Km / delivery")).toBe("3.7");
+        expect(valueOf("On shift")).toBe("8h 0m");
+        expect(valueOf("Free")).toBe("3h 31m");
+        expect(valueOf("To kitchen")).toBe("1h 0m");
+        expect(valueOf("At kitchen")).toBe("36m");
+        expect(valueOf("Carrying")).toBe("2h 54m");
+    });
+
+    /** Km the server could not measure is a dash, and the reason is printed, not a quiet zero. */
+    it("prints unmeasured km as a dash and says why", async () => {
+        mockStats.mockResolvedValue({
+            ...STATS,
+            productivity: {
+                gpsDataSince: "2999-01-01",
+                splitDataSince: "2999-01-01T00:00:00",
+                splitCoverage: "NONE",
+                row: {
+                    courierId: "c1", name: "ali", onShiftMinutes: 60, freeMinutes: 60,
+                    toKitchenMinutes: 0, atKitchenMinutes: 0, carryingMinutes: 0,
+                    kmDriven: null, deliveredParts: 0, kmPerDelivery: null,
+                },
+            },
+        });
+
+        render(<CourierPeriodStatsPanel courierId="c1" />);
+
+        const tiles = await screen.findByTestId("courier-productivity-tiles");
+        expect(within(tiles).getByText("Km driven").nextElementSibling?.textContent).toBe("—");
+        expect(within(tiles).getByText(/is no longer kept/)).toBeTruthy();
+        expect(within(tiles).getByText(/in this range it is all counted as free/)).toBeTruthy();
+    });
+
+    /** A backend from before M5 sends no `productivity`; the panel must read exactly as before. */
+    it("shows no productivity tiles, and does not crash, when the server sends none", async () => {
+        render(<CourierPeriodStatsPanel courierId="c1" />);
+
+        expect(await screen.findByText("14.5 min")).toBeTruthy();
+        expect(screen.queryByTestId("courier-productivity-tiles")).toBeNull();
+        expect(screen.queryByText("Km driven")).toBeNull();
+    });
 });
+

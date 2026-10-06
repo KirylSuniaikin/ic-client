@@ -5,6 +5,10 @@ import {DeliveryAvailabilityCard} from "../performance/DeliveryAvailabilityCard"
 import {DeliveryEstimateAccuracyCard} from "../DeliveryEstimateAccuracyCard";
 import {DeliverySkipReasonsCard} from "../DeliverySkipReasonsCard";
 import {DeliveryZoneStatsCard} from "../DeliveryZoneStatsCard";
+import {LostDemandCard} from "../delivery/LostDemandCard";
+import {DeliveryQualityCard} from "../delivery/DeliveryQualityCard";
+import {TimeToCourierCard} from "../delivery/TimeToCourierCard";
+import {CourierProductivityCard} from "../delivery/CourierProductivityCard";
 import {StatEmptyState} from "../performance/statPlaceholders";
 import type {AvailabilityScope} from "../performance/DeliveryAvailabilityCard";
 import type {DeliveryStatsScope} from "../../hooks/useStatistics";
@@ -75,6 +79,11 @@ export function DeliveryTab({
 
             <DeliveryAvailabilityCard stats={availability} scope={availabilityScope}/>
 
+            {/* Beside availability because both answer "when could they not buy": that card says how
+                long delivery was off, this one how many people found it off. Each of the four
+                metric cards fetches for itself on the same chain-wide range. */}
+            <LostDemandCard scope={chainScope}/>
+
             {/* WHERE the delivered orders went, beside the card that says how late they were: both
                 count the same orders over the same chain-wide range, so a slow area on the map can
                 be checked against the road leg below it. */}
@@ -84,7 +93,10 @@ export function DeliveryTab({
                 promised against what happened, and why riders were passed over. Both are read
                 chain-wide, which is why neither carries the branch half of a scope label. */}
             <DeliveryEstimateAccuracyCard stats={estimateAccuracy} range={chainRange}/>
+            <DeliveryQualityCard scope={chainScope}/>
             <DeliverySkipReasonsCard stats={skipReasons} range={chainRange}/>
+            <TimeToCourierCard scope={chainScope}/>
+            <CourierProductivityCard scope={chainScope}/>
         </>
     );
 }

@@ -24,7 +24,7 @@ import type {
 import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse } from '../management';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceRow, ChannelRegenerateResponse, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, CourierProductivity, DeliveryQualityStats, LostDemandStats, LostDemandZoneStats, TimeToCourierStats } from '../../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type {
     BaseShiftResponse,
@@ -214,6 +214,14 @@ export const fetchDeliverySkipReasonStats =
 // the endpoint: omitted reads the whole chain.
 export const fetchDeliveryZoneStats =
     jest.fn<Promise<DeliveryZoneStats>, [string, string, DeliveryZoneCellMeters, string?]>();
+
+// Delivery metrics M1–M5 (Statistics -> Delivery). Chain-wide: no branch argument.
+export const fetchTimeToCourierStats = jest.fn<Promise<TimeToCourierStats>, [string, string]>();
+export const fetchDeliveryQualityStats = jest.fn<Promise<DeliveryQualityStats>, [string, string]>();
+export const fetchLostDemandStats = jest.fn<Promise<LostDemandStats>, [string, string]>();
+export const fetchLostDemandZoneStats =
+    jest.fn<Promise<LostDemandZoneStats>, [string, string, DeliveryZoneCellMeters]>();
+export const fetchCourierProductivity = jest.fn<Promise<CourierProductivity>, [string, string]>();
 
 // Delivery zones (Config -> Schedule).
 export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();

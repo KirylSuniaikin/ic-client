@@ -44,3 +44,11 @@ export function formatBahrainClock(s: string | null | undefined): string | null 
 export function minutesSinceBahrain(s: string, now: number = Date.now()): number {
     return Math.floor((now - toEpochMsBahrain(s)) / 60_000);
 }
+
+// A Bahrain-local timestamp as "6 Oct 2026, 15:00", or null when there is nothing to show. Same
+// zone handling as formatBahrainClock, for the same reason: the string is already Bahrain wall
+// time and must not be re-read in the device's zone.
+export function formatBahrainDateTime(s: string | null | undefined): string | null {
+    if (!s) return null;
+    return dayjs(toEpochMsBahrain(s)).utcOffset(180).format('D MMM YYYY, HH:mm');
+}

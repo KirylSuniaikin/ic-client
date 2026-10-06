@@ -13,6 +13,9 @@ import { emotionRulesFor } from "./emotionRules.testutil";
 
 jest.mock("../../../../shared/api/socket");
 jest.mock("../../../../shared/api/dispatcher");
+// The order dialog's assignment history fetches for itself and has its own suite
+// (DeliveryAssignmentTimeline.test.tsx); here it is inert so the automocked API is not asked for it.
+jest.mock("./DeliveryAssignmentTimeline", () => ({ DeliveryAssignmentTimeline: () => null }));
 
 beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);

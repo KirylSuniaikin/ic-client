@@ -1,5 +1,5 @@
 import {heatmapColor} from "./deliveryHourGrid";
-import type {DeliveryZoneCell} from "../types";
+import type {DeliveryZoneCell, LostDemandZoneCell} from "../types";
 
 // Pure colour maths for the delivery-zones map, kept out of the component so the scale can be
 // tested without a Google Maps stub behind it.
@@ -97,4 +97,25 @@ export function cellFillColor(
 export function lateCount(cell: DeliveryZoneCell): number | null {
     if (cell.lateShare === null || cell.lateSampleSize === 0) return null;
     return Math.round(cell.lateShare * cell.lateSampleSize);
+}
+
+/**
+ * Min and max of the lost-demand cells' totals, or null when there are none. Every cell sent has
+ * a total above zero, so there is no "no data" grey on this view.
+ */
+export function lostDemandDomain(cells: readonly LostDemandZoneCell[]): MetricDomain | null {
+    if (cells.length === 0) return null;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const cell of cells) {
+        min = Math.min(min, cell.total);
+        max = Math.max(max, cell.total);
+    }
+    return {min, max};
+}
+
+/** The fill for one lost-demand cell on the same ramp as the delivered metrics: darker is more turned away. */
+export function lostDemandFillColor(cell: LostDemandZoneCell, domain: MetricDomain | null): string {
+    if (domain === null) return NO_DATA_COLOR;
+    return rampColor(rampPosition(cell.total, domain));
 }

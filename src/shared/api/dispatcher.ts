@@ -8,6 +8,7 @@ import type {
     CourierOrderSummary,
     CourierPeriodStats,
     CourierStats,
+    DeliveryAssignmentAudit,
     DeliveryCard,
     ManualAssignResult,
     OrderRoute,
@@ -65,6 +66,20 @@ export async function fetchCourierPeriodStats(
     to: string
 ): Promise<CourierPeriodStats> {
     const res = await authFetch(`${BASE}/couriers/${courierId}/stats?from=${from}&to=${to}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Who assigned, unassigned, returned or cancelled this order, when, and from what state — the
+ * timeline in the order dialog. 404 for an order that does not exist; a non-delivery order is a
+ * 200 with no entries.
+ */
+export async function fetchOrderAssignmentAudit(orderId: number): Promise<DeliveryAssignmentAudit> {
+    const res = await authFetch(`${BASE}/orders/${orderId}/audit`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
     });

@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Box, Typography, Button } from '@mui/material';
 import { KEETA_DEEP_LINK } from '../constants';
+import { logger } from '../../../shared/utils/logger';
 import type { DeliveryUnavailableReason } from '../types';
 
 const brandRed = '#E44B4C';
@@ -21,9 +22,14 @@ export interface KeetaFallbackCardProps {
     open: boolean;
     reason: DeliveryUnavailableReason | null;
     onClose: () => void;
+    /**
+     * Called when the customer presses the Keeta button, just before Keeta opens — the lost-demand
+     * count. Dismissing the card does not call it.
+     */
+    onKeetaChosen?: () => void;
 }
 
-export function KeetaFallbackCard({ open, reason, onClose }: KeetaFallbackCardProps): JSX.Element {
+export function KeetaFallbackCard({ open, reason, onClose, onKeetaChosen }: KeetaFallbackCardProps): JSX.Element {
     const { t } = useTranslation('checkout');
 
     // Any reason this build does not know (a newer server) falls back to the NO_COURIER copy.
@@ -31,6 +37,18 @@ export function KeetaFallbackCard({ open, reason, onClose }: KeetaFallbackCardPr
         reason === 'OUTSIDE_RADIUS' ? 'delivery.keetaOutsideRadius'
             : reason === 'INSUFFICIENT_COURIERS' ? 'delivery.keetaNotEnoughCouriers'
                 : 'delivery.keetaNoCourier';
+
+    function openKeeta(): void {
+        // Our bookkeeping must never be what stops the customer reaching Keeta, and the popup has
+        // to open synchronously inside this click or the browser blocks it — so the callback is
+        // guarded and nothing here is awaited.
+        try {
+            onKeetaChosen?.();
+        } catch (err) {
+            logger.warn('Keeta choice could not be recorded:', err);
+        }
+        window.open(KEETA_DEEP_LINK, '_blank', 'noopener,noreferrer');
+    }
 
     return (
         <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 4, m: 2 } }}>
@@ -42,7 +60,7 @@ export function KeetaFallbackCard({ open, reason, onClose }: KeetaFallbackCardPr
                     variant="contained"
                     // noopener/noreferrer: the target is a third-party site and must not get a
                     // handle back on this window.
-                    onClick={() => window.open(KEETA_DEEP_LINK, '_blank', 'noopener,noreferrer')}
+                    onClick={openKeeta}
                     sx={{ backgroundColor: brandRed, textTransform: 'none', borderRadius: 4,
                           width: '100%', py: 1.25, mb: 1, '&:hover': { backgroundColor: brandRed } }}
                 >

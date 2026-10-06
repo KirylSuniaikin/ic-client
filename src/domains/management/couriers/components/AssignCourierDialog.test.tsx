@@ -2,7 +2,17 @@ import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AssignCourierDialog } from "./AssignCourierDialog";
-import type { CourierBoardRow, CourierStats, ManualAssignResult, UnassignedOrder } from "../types";
+import type { CourierBoardRow, CourierStats, DeliveryCard, ManualAssignResult, UnassignedOrder } from "../types";
+
+// The timeline fetches its own history and has its own suite; here it is a probe on which order
+// the dialog hands it. The `mock` prefix lets the hoisted factory close over it.
+const mockTimeline = jest.fn<void, [{ orderId: number }]>();
+jest.mock("./DeliveryAssignmentTimeline", () => ({
+    DeliveryAssignmentTimeline: (props: { orderId: number }) => {
+        mockTimeline(props);
+        return <div data-testid="timeline-probe">{props.orderId}</div>;
+    },
+}));
 
 /**
  * Manual assignment (DELIVERY_SPEC.md §2.3, manual §02 "Manual assignment").
@@ -320,6 +330,55 @@ describe("AssignCourierDialog", () => {
         renderDialog([courier({})], ORDER, { availability: [RANKED], assignable: true });
 
         expect(screen.getByText("#1 · score 2.3")).toBeTruthy();
+    });
+});
+
+/**
+ * Assignment history (M6). A dispatcher opens one order from two places — the waiting queue and a
+ * live board card — and "who moved this order, and was it a person or the engine" is asked from
+ * both, so the history is in the dialog whichever way it was opened.
+ */
+describe("AssignCourierDialog — assignment history", () => {
+    const BOARD_CARD: DeliveryCard = {
+        orderId: 101, orderNo: 11, status: "Out for delivery", branchId: "b1", branchName: "Manama",
+        addressLine: "Block 338, Road 3801", customerName: "Ali", customerPhone: "33110022",
+        courierPhone: "39887766", readyAt: "2026-08-08T10:00:00",
+        estimatedHandoverAt: "2026-08-08T10:05:00", estimatedDeliveredAt: "2026-08-08T10:48:00",
+        riskMinutes: 48, promisedAt: "2026-08-08T10:40:00", promisedTotalMinutes: 30,
+        freshnessBudgetMinutes: 20, items: [{ name: "Pepperoni", quantity: 2 }],
+    };
+
+    it("shows the order's history when opened from the waiting queue", () => {
+        renderDialog([courier({})]);
+
+        expect(screen.getByText("Assignment history")).toBeTruthy();
+        expect(screen.getByTestId("timeline-probe").textContent).toBe("99");
+    });
+
+    it("shows the order's history when opened from a live board card", () => {
+        renderDialog([courier({})], { ...ORDER, orderId: 101, orderNo: 11 },
+            { card: BOARD_CARD, assignable: false, availability: [RANKED] });
+
+        expect(screen.getByTestId("timeline-probe").textContent).toBe("101");
+        expect(screen.getByText("Pepperoni")).toBeTruthy();
+    });
+
+    /** After the details, before the engine's verdict: history explains the order, the verdict the choice. */
+    it("sits between the order's details and the engine's verdict", () => {
+        renderDialog([courier({})], ORDER, { availability: [RANKED] });
+
+        const history = screen.getByText("Assignment history");
+        const verdict = screen.getByText("Why this order is with this rider and not another");
+        // eslint-disable-next-line no-bitwise
+        expect(history.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("asks for no history while the dialog is shut", () => {
+        mockTimeline.mockClear();
+
+        renderDialog([courier({})], null);
+
+        expect(mockTimeline).not.toHaveBeenCalled();
     });
 });
 

@@ -7,6 +7,12 @@ import { logger } from '../../../../shared/utils/logger';
 import { DateRangePickerPopover } from '../../statistics/components/performance/DateRangePickerPopover';
 import { formatStatDate } from '../../statistics/components/performance/statsFormat';
 import type { DateRangeState } from '../../statistics/types';
+import {
+    formatKm,
+    formatShiftMinutes,
+    gpsNote,
+    splitCoverageNote,
+} from '../../statistics/components/delivery/productivityFormat';
 import type { CourierPeriodStats } from '../types';
 import { BRAND_RED, PANEL_CARD_SX, PanelNotice, SECTION_TITLE_SX } from './dispatcherStyles';
 
@@ -129,7 +135,42 @@ export function CourierPeriodStatsPanel({ courierId }: Props): JSX.Element {
                         <Stat label="No answer" value={String(stats?.missed ?? 0)} />
                     </Box>
                 )}
+                {/* Optional on the wire: a backend from before it existed sends none, and the rest
+                    of the panel must still read. For the panel's own window, unlike "Hours this month". */}
+                {stats?.productivity !== undefined && (
+                    <ProductivityTiles productivity={stats.productivity} windowStart={from} />
+                )}
             </Box>
+        </Box>
+    );
+}
+
+function ProductivityTiles({ productivity, windowStart }: {
+    productivity: NonNullable<CourierPeriodStats['productivity']>;
+    windowStart: string;
+}): JSX.Element {
+    const { row } = productivity;
+    const notes = [
+        splitCoverageNote(productivity.splitCoverage, productivity.splitDataSince),
+        gpsNote(productivity.gpsDataSince, windowStart),
+    ].filter((note): note is string => note !== null);
+
+    return (
+        <Box data-testid="courier-productivity-tiles" sx={{ mt: 2, pt: 2, borderTop: '1px solid #f6f1ec' }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <Stat label="Km driven" value={formatKm(row.kmDriven)} />
+                <Stat label="Km / delivery" value={formatKm(row.kmPerDelivery)} />
+                <Stat label="On shift" value={formatShiftMinutes(row.onShiftMinutes)} />
+                <Stat label="Free" value={formatShiftMinutes(row.freeMinutes)} />
+                <Stat label="To kitchen" value={formatShiftMinutes(row.toKitchenMinutes)} />
+                <Stat label="At kitchen" value={formatShiftMinutes(row.atKitchenMinutes)} />
+                <Stat label="Carrying" value={formatShiftMinutes(row.carryingMinutes)} />
+            </Box>
+            {notes.map((note) => (
+                <Typography key={note} variant="caption" sx={{ color: '#8a807a', display: 'block', mt: 1 }}>
+                    {note}
+                </Typography>
+            ))}
         </Box>
     );
 }

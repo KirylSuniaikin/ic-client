@@ -661,3 +661,254 @@ export type DeliveryZoneStats = {
     unlocatedOrders: number;
     cells: DeliveryZoneCell[];
 };
+
+// ---------------------------------------------------------------------------
+// Delivery metrics M1–M5 — mirror the backend DTOs behind
+// /api/management/delivery/stats/{time-to-courier,quality,lost-demand,lost-demand/zones,
+// courier-productivity}.
+//
+// Some of these figures only exist from the deploy that started capturing them. Each such
+// section travels with `dataSince` and a `coverage`, and the server sends the section itself as
+// null when the whole window predates capture. A null there means "we were not recording", never
+// zero — a screen that printed 0 would be reporting a fact nobody measured.
+// ---------------------------------------------------------------------------
+
+// FULL: capture began at or before the window's start. PARTIAL: it began inside the window, so
+// the earlier days are missing. NONE: it began after the window ended — nothing in it was recorded.
+export type MetricCoverage = "FULL" | "PARTIAL" | "NONE";
+
+// Every minute figure is null (never 0) when sampleCount is 0.
+export type DurationSummary = {
+    sampleCount: number;
+    meanMinutes: number | null;
+    medianMinutes: number | null;
+    p90Minutes: number | null;
+};
+
+// A wait with the two thresholds a manager reads it against: values strictly above 5 and 10 min.
+export type WaitSummary = DurationSummary & {
+    over5Minutes: number;
+    over10Minutes: number;
+};
+
+// M1 — mirrors TimeToCourierStatsTO. Delivered-part grain.
+export type TimeToCourierStats = {
+    dataSince: string;
+    coverage: MetricCoverage;
+    // Derived, so always filled — even when nothing was captured.
+    deliveredParts: number;
+    // The captured fields below are null exactly when coverage is NONE.
+    measuredParts: number | null;
+    // Food Ready -> the assignment that stuck. Clamped at 0: assigned before Ready is no wait.
+    readyToAssigned: WaitSummary | null;
+    firstOfferToAssigned: WaitSummary | null;
+    assignedBeforeReady: number | null;
+    // Measured parts the engine never offered (e.g. a manual assign before any offer).
+    assignedWithoutOffer: number | null;
+};
+
+// M2 — late against the customer promise. Order grain; deliveredOrders equals the
+// estimate-accuracy card's deliveredOrderCount.
+export type DeliveryLateness = {
+    deliveredOrders: number;
+    ordersWithPromise: number;
+    lateOrders: number;
+    // 0..1, null when ordersWithPromise is 0.
+    lateShare: number | null;
+    meanMinutesLate: number | null;
+    p90MinutesLate: number | null;
+};
+
+// M4 — delivered within budgetMinutes of the kitchen's Ready. Part grain.
+export type DeliveryFreshness = {
+    budgetMinutes: number;
+    deliveredParts: number;
+    measuredParts: number;
+    freshParts: number;
+    freshShare: number | null;
+    unmeasurableParts: number;
+};
+
+// A captured duration: `summary` is null when coverage is NONE.
+export type CapturedDurationSummary = {
+    dataSince: string;
+    coverage: MetricCoverage;
+    summary: DurationSummary | null;
+};
+
+// Paid delivery orders that ended without reaching the customer. amountBhd is money taken that
+// has to be refunded by hand.
+export type DeliveryOutcome = {
+    count: number;
+    // Of concludedOrders; null when that is 0.
+    share: number | null;
+    amountBhd: number;
+};
+
+// M2 + M4 — mirrors DeliveryQualityStatsTO.
+export type DeliveryQualityStats = {
+    lateness: DeliveryLateness;
+    freshness: DeliveryFreshness;
+    // Ready -> handed to the rider: the food waiting on the pass.
+    readyToHandover: DurationSummary;
+    // Rider at the kitchen -> handed over. Not clamped: a negative sample is a data defect.
+    courierWaitAtKitchen: DurationSummary;
+    // First proof photo -> Delivered tap. The photo stands in for "arrived at the door".
+    timeAtDoor: CapturedDurationSummary;
+    cancellations: DeliveryOutcome;
+    returns: DeliveryOutcome;
+    // lateness.deliveredOrders + cancellations.count + returns.count
+    concludedOrders: number;
+};
+
+// Every reason the customer-facing availability gate can refuse with (backend
+// DeliveryAvailabilityTO.Reason), in enum order. Deliberately its own type: the customer-facing
+// DeliveryUnavailableReason lists only the ones the storefront has copy for.
+export type LostDemandReason =
+    | "NO_BRANCH"
+    | "OUTSIDE_RADIUS"
+    | "NO_COURIER"
+    | "DELIVERY_DISABLED"
+    | "OUTSIDE_ZONE"
+    | "INSUFFICIENT_COURIERS";
+
+// Where in the flow the customer was refused: before a pin, with a pin, or at payment.
+export type DemandStage = "CART" | "ADDRESS" | "CHECKOUT";
+
+// X-Client-Platform as the server recorded it; UNKNOWN when the header was missing.
+export type DemandPlatform = "WEB" | "MOBILE" | "KIOSK" | "KIOSK_WEB" | "UNKNOWN";
+
+export type LostDemandReasonCount = { reason: LostDemandReason; count: number };
+// A Keeta event may arrive without a reason; those are counted under UNKNOWN.
+export type KeetaReasonCount = { reason: LostDemandReason | "UNKNOWN"; count: number };
+export type DemandStageCount = { stage: DemandStage; count: number };
+export type DemandPlatformCount = { platform: DemandPlatform; count: number };
+
+export type LostDemandRefusals = {
+    // De-duplicated refusal rows: one per session, per ~100 m spot, per 30 minutes.
+    total: number;
+    // The first refusal of each session — an estimate of people, not of checks.
+    estimatedAttempts: number;
+    byReason: LostDemandReasonCount[];
+    byStage: DemandStageCount[];
+    byPlatform: DemandPlatformCount[];
+};
+
+export type LostDemandKeeta = {
+    total: number;
+    // CART and ADDRESS only: there is no Keeta card at the payment step.
+    byStage: DemandStageCount[];
+    byReason: KeetaReasonCount[];
+    byPlatform: DemandPlatformCount[];
+};
+
+export type AbandonedOrderStatus = "Pending Payment" | "Payment Failed";
+
+// Delivery orders created and never paid. Derived, so present for any window.
+export type LostDemandAbandoned = {
+    orders: number;
+    // Followed within two hours by a paid order on the same phone — not lost revenue.
+    recovered: number;
+    lost: number;
+    lostValueBhd: number;
+    // Counts ALL abandoned orders, recovered or not.
+    byStatus: { status: AbandonedOrderStatus; count: number }[];
+};
+
+// One calendar day. A captured count is null for a day that ended before capture began.
+export type LostDemandDay = {
+    date: string;
+    refusals: number | null;
+    estimatedAttempts: number | null;
+    keetaChosen: number | null;
+    abandonedLost: number;
+};
+
+// Sparse: only weekday/hour cells with at least one refusal.
+export type LostDemandHourCell = {
+    dayOfWeek: number; // ISO: 1 = Monday .. 7 = Sunday
+    hour: number;      // 0..23, Bahrain local
+    refusals: number;
+    estimatedAttempts: number;
+};
+
+// M3 — mirrors LostDemandStatsTO.
+export type LostDemandStats = {
+    refusalsDataSince: string;
+    refusalsCoverage: MetricCoverage;
+    keetaDataSince: string;
+    keetaCoverage: MetricCoverage;
+    refusals: LostDemandRefusals | null;
+    keeta: LostDemandKeeta | null;
+    abandoned: LostDemandAbandoned;
+    // Context, not a rate: successful availability checks are not stored, so there is no exact
+    // denominator for the refusals.
+    paidDeliveryOrders: number;
+    byDay: LostDemandDay[];
+    byHour: LostDemandHourCell[];
+};
+
+// One hexagon of the lost-demand map. Same axial id space as DeliveryZoneCell for the same
+// cellMeters, but a separate list: these cells mostly lie where nothing was delivered.
+export type LostDemandZoneCell = {
+    id: string;
+    center: DeliveryZonePoint;
+    vertices: DeliveryZonePoint[];
+    refusals: number;
+    // Non-zero reasons only, in enum order.
+    refusalsByReason: LostDemandReasonCount[];
+    abandonedLost: number;
+    // refusals + abandonedLost; always > 0.
+    total: number;
+};
+
+// M3 per hexagon — mirrors LostDemandZoneStatsTO (GET /stats/lost-demand/zones).
+export type LostDemandZoneStats = {
+    cellMeters: DeliveryZoneCellMeters;
+    refusalsDataSince: string;
+    // When NONE, every refusal count is 0 and only abandoned orders place cells.
+    refusalsCoverage: MetricCoverage;
+    locatedRefusals: number;
+    // Refused before a pin existed (the cart check), so they have no place on a map.
+    unlocatedRefusals: number;
+    locatedAbandoned: number;
+    unlocatedAbandoned: number;
+    // Busiest first, then by id.
+    cells: LostDemandZoneCell[];
+};
+
+// One rider's — or, with courierId and name null, the fleet's — time and distance. Minutes and
+// km carry one decimal. freeMinutes + toKitchenMinutes + atKitchenMinutes + carryingMinutes is
+// onShiftMinutes (up to rounding).
+export type CourierProductivityRow = {
+    courierId: string | null;
+    name: string | null;
+    onShiftMinutes: number;
+    freeMinutes: number;
+    toKitchenMinutes: number;
+    atKitchenMinutes: number;
+    carryingMinutes: number;
+    // Null when the whole window predates the GPS that is still kept; never a guessed 0.
+    kmDriven: number | null;
+    deliveredParts: number;
+    kmPerDelivery: number | null;
+};
+
+// M5 fleet — mirrors CourierProductivityTO. No branch: couriers do not belong to one.
+export type CourierProductivity = {
+    // GPS is kept for a fixed number of days; km before this date cannot be counted.
+    gpsDataSince: string;
+    // Before this moment "going to the kitchen" was not recorded and counts as free time.
+    splitDataSince: string;
+    splitCoverage: MetricCoverage;
+    couriers: CourierProductivityRow[];
+    total: CourierProductivityRow;
+};
+
+// M5 for one rider, as the courier panel's period stats carry it.
+export type CourierProductivitySingle = {
+    gpsDataSince: string;
+    splitDataSince: string;
+    splitCoverage: MetricCoverage;
+    row: CourierProductivityRow;
+};

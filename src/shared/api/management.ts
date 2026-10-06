@@ -35,7 +35,7 @@ import type {
     SalarySlipForm,
     StaffOption
 } from '../../domains/management/shift/types';
-import type { DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, VatStatePayload } from '../../domains/management/statistics/types';
+import type { CourierProductivity, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliveryQualityStats, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, LostDemandStats, LostDemandZoneStats, TimeToCourierStats, VatStatePayload } from '../../domains/management/statistics/types';
 import type { DeliveryZone, SaveDeliveryZone } from '../../domains/management/config/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
 import type {
@@ -866,6 +866,73 @@ export async function fetchDeliveryZoneStats(
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delivery metrics (Statistics -> Delivery): time to a courier, quality, lost demand and courier
+// productivity. Every one is read chain-wide — no `branchId` — for the reason
+// `fetchDeliveryEstimateAccuracy` gives, so these cards reconcile with the ones beside them.
+// ---------------------------------------------------------------------------------------------
+
+async function fetchDeliveryWindowStats<T>(
+    path: string,
+    startDate: string,
+    finishDate: string,
+    extraQuery = ""
+): Promise<T> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/${path}?start_date=${startDate}` +
+        `&finish_date=${finishDate}${extraQuery}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/** Ready -> assigned and first offer -> assigned, per delivered part (M1). */
+export async function fetchTimeToCourierStats(
+    startDate: string,
+    finishDate: string
+): Promise<TimeToCourierStats> {
+    return fetchDeliveryWindowStats<TimeToCourierStats>("time-to-courier", startDate, finishDate);
+}
+
+/** Lateness against the promise, freshness, waits, cancellations and returns (M2 + M4). */
+export async function fetchDeliveryQualityStats(
+    startDate: string,
+    finishDate: string
+): Promise<DeliveryQualityStats> {
+    return fetchDeliveryWindowStats<DeliveryQualityStats>("quality", startDate, finishDate);
+}
+
+/** Refused delivery checks, Keeta chosen instead, and abandoned unpaid delivery orders (M3). */
+export async function fetchLostDemandStats(
+    startDate: string,
+    finishDate: string
+): Promise<LostDemandStats> {
+    return fetchDeliveryWindowStats<LostDemandStats>("lost-demand", startDate, finishDate);
+}
+
+/**
+ * Where customers were turned away, on the same hexagon grid as `fetchDeliveryZoneStats` — a
+ * separate list, because those cells mostly lie where nothing was delivered (M3 per hexagon).
+ */
+export async function fetchLostDemandZoneStats(
+    startDate: string,
+    finishDate: string,
+    cellMeters: DeliveryZoneCellMeters
+): Promise<LostDemandZoneStats> {
+    return fetchDeliveryWindowStats<LostDemandZoneStats>(
+        "lost-demand/zones", startDate, finishDate, `&cellMeters=${cellMeters}`
+    );
+}
+
+/** On-shift time split and GPS km per courier (M5). Couriers have no branch, so there is no filter. */
+export async function fetchCourierProductivity(
+    startDate: string,
+    finishDate: string
+): Promise<CourierProductivity> {
+    return fetchDeliveryWindowStats<CourierProductivity>("courier-productivity", startDate, finishDate);
 }
 
 // ---------------------------------------------------------------------------------------------

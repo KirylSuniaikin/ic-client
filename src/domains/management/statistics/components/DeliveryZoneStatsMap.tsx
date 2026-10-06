@@ -5,7 +5,7 @@ import {
     GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, LIGHT_MAP_STYLES,
 } from "../../../branch/utils/mapsConfig";
 import {NO_DATA_COLOR} from "../utils/deliveryZoneScale";
-import type {DeliveryZoneCell, DeliveryZonePoint} from "../types";
+import type {DeliveryZonePoint} from "../types";
 
 /**
  * The delivery-zones hexagons, drawn over Bahrain.
@@ -38,11 +38,17 @@ const SELECTED_Z_INDEX = 2;
 
 type LatLng = { lat: number; lng: number };
 
+/**
+ * All the map needs from a cell. Structural, so the delivered cells and the lost-demand cells —
+ * the same grid, different figures — are drawn by this one map rather than by a fork of it.
+ */
+export type ZoneMapCell = { id: string; vertices: DeliveryZonePoint[] };
+
 function toLatLng(point: DeliveryZonePoint): LatLng {
     return {lat: point.latitude, lng: point.longitude};
 }
 
-function fitToCells(target: google.maps.Map, cells: DeliveryZoneCell[]): void {
+function fitToCells(target: google.maps.Map, cells: readonly ZoneMapCell[]): void {
     if (cells.length === 0) return;
     const bounds = new google.maps.LatLngBounds();
     for (const cell of cells) {
@@ -51,12 +57,12 @@ function fitToCells(target: google.maps.Map, cells: DeliveryZoneCell[]): void {
     target.fitBounds(bounds, BOUNDS_PADDING);
 }
 
-type Props = {
-    cells: DeliveryZoneCell[];
+type Props<C extends ZoneMapCell> = {
+    cells: C[];
     /** Fill per cell id, for the metric the card is showing. */
     fills: ReadonlyMap<string, string>;
     selectedId: string | null;
-    onSelect: (cell: DeliveryZoneCell) => void;
+    onSelect: (cell: C) => void;
     /**
      * Re-frames the map when it changes. The card keys it on the date range, NOT on the cells: a
      * manager who zooms into one district and then switches the cell size wants to stay there.
@@ -64,7 +70,7 @@ type Props = {
     fitKey: string;
 };
 
-export function DeliveryZoneStatsMap({cells, fills, selectedId, onSelect, fitKey}: Props): JSX.Element {
+export function DeliveryZoneStatsMap<C extends ZoneMapCell>({cells, fills, selectedId, onSelect, fitKey}: Props<C>): JSX.Element {
     // Identical option set to BranchMapView, OrderRouteMap, DeliveryZoneMap and useReverseGeocode.
     // useJsApiLoader is a singleton: a caller passing a different shape warns and can refuse to load
     // the API for every map on the page.

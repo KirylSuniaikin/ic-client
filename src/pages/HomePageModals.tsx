@@ -30,10 +30,12 @@ import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuth
 import { useDeliveryAvailability } from "../domains/delivery/hooks/useDeliveryAvailability";
 import { basketSignature, toDeliveryBasket } from "../domains/delivery/basket";
 import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
-import { payForDelivery } from "../shared/api/delivery";
+import { payForDelivery, reportKeetaFallbackChosen } from "../shared/api/delivery";
 import { logger } from "../shared/utils/logger";
 import { Snackbar } from "@mui/material";
-import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
+import type {
+    CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod, KeetaFallbackEvent,
+} from "../domains/delivery/types";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
@@ -116,6 +118,23 @@ export default function HomePageModals({
     const gatedBasketKeyRef = useRef<string | null>(null);
 
     /**
+     * Which refusal opened the Keeta card: the cart check or the address step, and the gate's own
+     * reason for it. A ref, not state — it is only read when the button is pressed, and the card's
+     * displayed `reason` deliberately keeps coming from the cart check as it did before.
+     */
+    const keetaContextRef = useRef<KeetaFallbackEvent | null>(null);
+
+    function handleKeetaChosen(): void {
+        const context = keetaContextRef.current;
+        if (context === null) {
+            logger.warn("Keeta chosen with no refusal on record; not counted");
+            return;
+        }
+        // Fire-and-forget: the card opens Keeta in this same click and must not wait on us.
+        void reportKeetaFallbackChosen(context);
+    }
+
+    /**
      * §1.2 step 1 — the early gate. Runs the moment the customer picks Delivery, before they
      * invest any effort in an address, so a branch with no free courier is caught up front.
      *
@@ -196,6 +215,7 @@ export default function HomePageModals({
             return;
         }
         checkout.setOrderType("Pick Up");
+        keetaContextRef.current = { stage: "CART", reason: result.reason };
         setKeetaOpen(true);
     }
 
@@ -219,6 +239,7 @@ export default function HomePageModals({
         void deliveryAvailability.check(undefined, deliveryBasket).then((result) => {
             if (call !== gateCallRef.current || result.available) return;
             checkout.setOrderType("Pick Up");
+            keetaContextRef.current = { stage: "CART", reason: result.reason };
             setKeetaOpen(true);
         });
     }, [checkout.orderType, basketKey, deliveryBasket, deliveryAvailability.check, checkout.setOrderType, setKeetaOpen]);
@@ -433,7 +454,11 @@ export default function HomePageModals({
                 onConfirm={(address, availability, method) => {
                     void handleDeliveryConfirm(address, availability, method);
                 }}
-                onUnavailable={() => { checkout.setPendingDeliveryOrder(null); setKeetaOpen(true); }}
+                onUnavailable={(availability) => {
+                    keetaContextRef.current = { stage: "ADDRESS", reason: availability.reason };
+                    checkout.setPendingDeliveryOrder(null);
+                    setKeetaOpen(true);
+                }}
             />
 
             <Snackbar
@@ -447,6 +472,7 @@ export default function HomePageModals({
                 open={keetaOpen}
                 reason={deliveryAvailability.availability?.reason ?? null}
                 onClose={() => setKeetaOpen(false)}
+                onKeetaChosen={handleKeetaChosen}
             />
 
             {cart.closedPopup && <ClosedPopup open={cart.closedPopup} onClose={() => cart.setClosedPopupOpen(false)} workingHours={workingHours} />}

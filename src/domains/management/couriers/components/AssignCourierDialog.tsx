@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { CourierAvailabilityList } from './CourierAvailabilityList';
 import { DeliveryOrderDetails } from './DeliveryOrderDetails';
+import { DeliveryAssignmentTimeline } from './DeliveryAssignmentTimeline';
 import {
     INK, SHEET_GROUND, BRAND_RED as brandRed, MUTED, PANEL_CARD_SX, PanelNotice, SECTION_TITLE_SX,
 } from './dispatcherStyles';
@@ -171,7 +172,7 @@ export function AssignCourierDialog({
 
             <DialogContent sx={{ pt: 2 }}>
                 {card !== null ? (
-                    <Box sx={{ mb: assignable ? 3 : 0 }}>
+                    <Box sx={{ mb: 3 }}>
                         <DeliveryOrderDetails
                             card={card}
                             freshnessBudgetMinutes={freshnessBudgetMinutes}
@@ -182,6 +183,17 @@ export function AssignCourierDialog({
                         {order.addressLine ?? 'No address on file'}
                         {order.branchName !== null && ` — from ${order.branchName}`}
                     </Typography>
+                )}
+
+                {/* From both entry points: the queue is where a reassignment loop shows up first,
+                    and the board is where a customer's "who has my order" gets asked. */}
+                {order !== null && (
+                    <Box sx={{ mb: assignable ? 3 : 0 }}>
+                        <Typography variant="subtitle2" sx={{ ...SECTION_TITLE_SX, mb: 1 }}>
+                            Assignment history
+                        </Typography>
+                        <DeliveryAssignmentTimeline orderId={order.orderId} />
+                    </Box>
                 )}
 
                 {/* The engine's verdict belongs to the decision it explains. On an order still

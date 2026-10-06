@@ -75,7 +75,7 @@ jest.mock("../domains/branch/components/BranchSwitchWarningDrawer", () => ({
 }));
 
 import HomePageModals from "./HomePageModals";
-import { getDeliveryAvailability, payForDelivery } from "../shared/api/delivery";
+import { getDeliveryAvailability, payForDelivery, reportKeetaFallbackChosen } from "../shared/api/delivery";
 import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
@@ -86,6 +86,7 @@ import { clearChosenBranch, writeChosenBranch } from "../domains/branch/utils/cu
 
 const mockPay = jest.mocked(payForDelivery);
 const mockGate = jest.mocked(getDeliveryAvailability);
+const mockReportKeeta = jest.mocked(reportKeetaFallbackChosen);
 
 const ADDRESS: CustomerAddress = {
     id: "addr-1", label: "Home", block: "338", road: "3801", building: "12", flat: null,
@@ -837,3 +838,95 @@ describe("HomePageModals — the basket-aware gate", () => {
         expect(setOrderType).not.toHaveBeenCalledWith("Delivery");
     });
 });
+
+/**
+ * The lost-demand count of customers we sent to Keeta (M3b). The card reports the press; this file
+ * decides WHICH refusal it was — the cart check or the address step — and with the gate's own
+ * reason for it, which on the address path is not the reason the card displays.
+ */
+describe("HomePageModals — the Keeta choice event", () => {
+    const REFUSED_CART: DeliveryAvailability = {
+        available: false, reason: "NO_COURIER", branchId: "branch-nearest",
+        etaMinutesMin: null, etaMinutesMax: null,
+    };
+    const REFUSED_PIN: DeliveryAvailability = {
+        available: false, reason: "OUTSIDE_RADIUS", branchId: "branch-nearest",
+        etaMinutesMin: null, etaMinutesMax: null,
+    };
+
+    beforeEach(() => {
+        mockCartPopup.mockClear();
+        mockDeliveryDrawer.mockClear();
+        mockKeetaCard.mockClear();
+        mockGate.mockReset();
+        mockGate.mockResolvedValue(AVAILABLE);
+        mockReportKeeta.mockReset();
+        mockReportKeeta.mockResolvedValue(undefined);
+    });
+
+    function pickOrderType(): (value: string) => Promise<void> {
+        const calls = mockCartPopup.mock.calls;
+        const props = calls[calls.length - 1][0] as { onDeliveryTypeChange: (v: string) => Promise<void> };
+        return props.onDeliveryTypeChange;
+    }
+
+    function pressKeeta(): void {
+        const calls = mockKeetaCard.mock.calls;
+        const props = calls[calls.length - 1][0] as { onKeetaChosen?: () => void };
+        if (props.onKeetaChosen === undefined) throw new Error("the Keeta card was given no onKeetaChosen");
+        props.onKeetaChosen();
+    }
+
+    it("reports the cart stage and the gate's reason once, when the cart check refused", async () => {
+        mockGate.mockResolvedValue(REFUSED_CART);
+        renderModals({}, {}, { keetaOpen: true });
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        act(() => { pressKeeta(); });
+
+        expect(mockReportKeeta).toHaveBeenCalledTimes(1);
+        expect(mockReportKeeta).toHaveBeenCalledWith({ stage: "CART", reason: "NO_COURIER" });
+    });
+
+    /**
+     * On the address path the drawer's own check refused, with a pin. Its reason travels with the
+     * event; the card's displayed reason still comes from the cart check, exactly as before.
+     */
+    it("reports the address stage with the pin check's own reason", () => {
+        renderModals({},
+            { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER },
+            { keetaOpen: true });
+        const calls = mockDeliveryDrawer.mock.calls;
+        const { onUnavailable } = calls[calls.length - 1][0] as {
+            onUnavailable: (a: DeliveryAvailability) => void;
+        };
+        act(() => { onUnavailable(REFUSED_PIN); });
+
+        act(() => { pressKeeta(); });
+
+        expect(mockReportKeeta).toHaveBeenCalledTimes(1);
+        expect(mockReportKeeta).toHaveBeenCalledWith({ stage: "ADDRESS", reason: "OUTSIDE_RADIUS" });
+        expect(mockKeetaCard).toHaveBeenLastCalledWith(expect.objectContaining({ reason: null }));
+    });
+
+    /** Opening the card is a refusal, not a choice: nothing is sent until the button is pressed. */
+    it("reports nothing merely because the card opened", async () => {
+        mockGate.mockResolvedValue(REFUSED_CART);
+        renderModals({}, {}, { keetaOpen: true });
+
+        await act(async () => { await pickOrderType()("Delivery"); });
+
+        expect(mockReportKeeta).not.toHaveBeenCalled();
+    });
+
+    /** A press with no refusal on record has nothing true to report, so it reports nothing. */
+    it("reports nothing when no refusal opened the card", () => {
+        jest.spyOn(console, "warn").mockImplementation(() => undefined);
+        renderModals({}, {}, { keetaOpen: true });
+
+        act(() => { pressKeeta(); });
+
+        expect(mockReportKeeta).not.toHaveBeenCalled();
+    });
+});
+

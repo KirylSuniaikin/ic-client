@@ -31,6 +31,11 @@ import {
     fetchDeliveryEstimateAccuracy,
     fetchDeliverySkipReasonStats,
     fetchDeliveryZoneStats,
+    fetchTimeToCourierStats,
+    fetchDeliveryQualityStats,
+    fetchLostDemandStats,
+    fetchLostDemandZoneStats,
+    fetchCourierProductivity,
     createProduct,
     updateProductSettings,
 } from "./management";
@@ -1327,5 +1332,79 @@ describe("fetchDeliveryZoneStats", () => {
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
 
         await expect(fetchDeliveryZoneStats("2026-08-01", "2026-08-30", 500)).rejects.toThrow("HTTP 400");
+    });
+});
+
+// ── Delivery metrics M1–M5 ────────────────────────────────────────────────────
+
+describe("delivery metric fetchers", () => {
+    function okResponse(body: unknown): Response {
+        return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    function requestedUrl(): URL {
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        return new URL(url);
+    }
+
+    const WINDOW_FETCHERS: Array<[string, (s: string, f: string) => Promise<unknown>, string]> = [
+        ["fetchTimeToCourierStats", fetchTimeToCourierStats, "/management/delivery/stats/time-to-courier"],
+        ["fetchDeliveryQualityStats", fetchDeliveryQualityStats, "/management/delivery/stats/quality"],
+        ["fetchLostDemandStats", fetchLostDemandStats, "/management/delivery/stats/lost-demand"],
+        ["fetchCourierProductivity", fetchCourierProductivity, "/management/delivery/stats/courier-productivity"],
+    ];
+
+    /**
+     * Same parameter names as estimate-accuracy and zones, and no branch: these cards sit beside
+     * the chain-wide ones and must count the same orders.
+     */
+    it.each(WINDOW_FETCHERS)("%s asks its endpoint for the window, chain-wide", async (_name, fetcher, path) => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse({}));
+
+        await fetcher("2026-10-01", "2026-10-06");
+
+        const url = requestedUrl();
+        expect(url.pathname.endsWith(path)).toBe(true);
+        expect(url.searchParams.get("start_date")).toBe("2026-10-01");
+        expect(url.searchParams.get("finish_date")).toBe("2026-10-06");
+        expect(url.searchParams.has("branchId")).toBe(false);
+        const [, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(init.method).toBe("GET");
+    });
+
+    it.each(WINDOW_FETCHERS)("%s returns the parsed body on a 200", async (_name, fetcher) => {
+        const body = { dataSince: "2026-10-06T15:00:00", coverage: "PARTIAL" };
+        mockAuthFetch.mockResolvedValueOnce(okResponse(body));
+
+        await expect(fetcher("2026-10-01", "2026-10-06")).resolves.toEqual(body);
+    });
+
+    /** A reversed range is a 400; it must surface as a failure, never as an empty report. */
+    it.each(WINDOW_FETCHERS)("%s throws on a non-2xx answer", async (_name, fetcher) => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 400 }));
+
+        await expect(fetcher("2026-10-06", "2026-10-01")).rejects.toThrow("HTTP 400");
+    });
+
+    it("asks the lost-demand zones endpoint for the window and the cell size, chain-wide", async () => {
+        mockAuthFetch.mockResolvedValueOnce(okResponse({ cells: [] }));
+
+        await fetchLostDemandZoneStats("2026-10-01", "2026-10-06", 250);
+
+        const url = requestedUrl();
+        expect(url.pathname).toMatch(/\/management\/delivery\/stats\/lost-demand\/zones$/);
+        expect(url.searchParams.get("start_date")).toBe("2026-10-01");
+        expect(url.searchParams.get("finish_date")).toBe("2026-10-06");
+        expect(url.searchParams.get("cellMeters")).toBe("250");
+        expect(url.searchParams.has("branchId")).toBe(false);
+    });
+
+    it("throws when the lost-demand zones request is refused", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(fetchLostDemandZoneStats("2026-10-01", "2026-10-06", 500)).rejects.toThrow("HTTP 500");
     });
 });

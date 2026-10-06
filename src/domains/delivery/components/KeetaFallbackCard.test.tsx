@@ -82,4 +82,61 @@ describe("KeetaFallbackCard", () => {
         fireEvent.click(screen.getByRole("button", { name: /back to pickup/i }));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * The lost-demand count: recorded first, then Keeta opens in the same click — a popup opened
+     * after anything asynchronous would be blocked by the browser.
+     */
+    it("records the Keeta choice and still opens Keeta, in that order", () => {
+        const calls: string[] = [];
+        const open = jest.fn<Window | null, [string?, string?, string?]>(() => {
+            calls.push("open");
+            return null;
+        });
+        window.open = open as unknown as typeof window.open;
+        const onKeetaChosen = jest.fn<void, []>(() => { calls.push("chosen"); });
+        render(
+            <I18nextProvider i18n={i18n}>
+                <KeetaFallbackCard open reason="OUTSIDE_RADIUS" onClose={jest.fn()} onKeetaChosen={onKeetaChosen} />
+            </I18nextProvider>
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /order on keeta/i }));
+
+        expect(onKeetaChosen).toHaveBeenCalledTimes(1);
+        expect(open).toHaveBeenCalledWith(KEETA_DEEP_LINK, "_blank", "noopener,noreferrer");
+        expect(calls).toEqual(["chosen", "open"]);
+    });
+
+    /** Going back to pickup is not choosing Keeta, and must not be counted as if it were. */
+    it("records nothing when the customer goes back to pickup", () => {
+        const onKeetaChosen = jest.fn<void, []>();
+        render(
+            <I18nextProvider i18n={i18n}>
+                <KeetaFallbackCard open reason="NO_COURIER" onClose={jest.fn()} onKeetaChosen={onKeetaChosen} />
+            </I18nextProvider>
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /back to pickup/i }));
+
+        expect(onKeetaChosen).not.toHaveBeenCalled();
+    });
+
+    /** Our bookkeeping failing must never be what keeps a customer from Keeta. */
+    it("still opens Keeta when recording the choice throws", () => {
+        jest.spyOn(console, "warn").mockImplementation(() => undefined);
+        const open = jest.fn<Window | null, [string?, string?, string?]>();
+        window.open = open as unknown as typeof window.open;
+        render(
+            <I18nextProvider i18n={i18n}>
+                <KeetaFallbackCard open reason="NO_COURIER" onClose={jest.fn()}
+                                   onKeetaChosen={() => { throw new Error("boom"); }} />
+            </I18nextProvider>
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /order on keeta/i }));
+
+        expect(open).toHaveBeenCalledWith(KEETA_DEEP_LINK, "_blank", "noopener,noreferrer");
+    });
 });
+
