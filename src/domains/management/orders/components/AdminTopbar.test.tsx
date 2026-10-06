@@ -208,13 +208,13 @@ describe("AdminTopbar — role-based menu items", () => {
         renderTopbar(StaffRoles.COOK);
         openMenu();
 
-        // Cook items: New Order, Shifts, Order History, Config, Statistics, Logout —
-        // notably Inventory/Purchase/Cash Register/Accounting/Blacklist are cook-excluded too.
-        ["New Order", "Shifts", "Order History", "Config", "Statistics", "Logout"].forEach(label => {
+        // Cook items: New Order, Order History, Config, Statistics, Logout —
+        // notably Shifts/Inventory/Purchase/Cash Register/Accounting/Blacklist are cook-excluded.
+        ["New Order", "Order History", "Config", "Statistics", "Logout"].forEach(label => {
             expect(screen.getByText(label)).toBeTruthy();
         });
 
-        ["Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist"].forEach(label => {
+        ["Shifts", "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist"].forEach(label => {
             expect(screen.queryByText(label)).toBeNull();
         });
     });
@@ -224,12 +224,12 @@ describe("AdminTopbar — role-based menu items", () => {
         openMenu();
 
         // SUPERVISOR = COOK base items + Cash Register + Logout.
-        ["New Order", "Shifts", "Order History", "Config", "Statistics", "Cash Register", "Logout"].forEach(label => {
+        ["New Order", "Order History", "Config", "Statistics", "Cash Register", "Logout"].forEach(label => {
             expect(screen.getByText(label)).toBeTruthy();
         });
 
         // No manager-only entries besides the one it's explicitly granted (Cash Register).
-        ["Inventory", "Purchase", "Accounting", "Blacklist"].forEach(label => {
+        ["Shifts", "Inventory", "Purchase", "Accounting", "Blacklist"].forEach(label => {
             expect(screen.queryByText(label)).toBeNull();
         });
 

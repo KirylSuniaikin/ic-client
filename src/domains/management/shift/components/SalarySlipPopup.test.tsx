@@ -97,6 +97,13 @@ describe("SalarySlipPopup", () => {
         expect(input("slip-net").value).toBe("300");
     });
 
+    it("labels the hours field as paid overtime and explains the one-hour cap", () => {
+        renderPopup();
+
+        expect(screen.getByLabelText("Paid OT hours")).toBeTruthy();
+        expect(screen.getByText(/at most 1 hour per shift is paid/)).toBeTruthy();
+    });
+
     it("recomputes the overtime amount when the rate changes", () => {
         renderPopup();
 

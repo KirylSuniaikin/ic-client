@@ -1,5 +1,19 @@
 import { describe, it, expect } from "@jest/globals";
-import { asIncome, formatBd, parseCellInput } from "./businessFormat";
+import { parseCellInput, PNL_CLASSES, PNL_CLASS_LABELS, PNL_CLASS_HINTS } from "./businessFormat";
+
+describe("PNL classes", () => {
+    it("offers NOT_APPLICABLE directly after OPEX", () => {
+        expect(PNL_CLASSES.indexOf("NOT_APPLICABLE")).toBe(PNL_CLASSES.indexOf("OPEX") + 1);
+    });
+
+    it("has a label and a hint for every class", () => {
+        PNL_CLASSES.forEach(c => {
+            expect(PNL_CLASS_LABELS[c]).toBeTruthy();
+            expect(PNL_CLASS_HINTS[c]).toBeTruthy();
+        });
+        expect(PNL_CLASS_LABELS.NOT_APPLICABLE).toBe("N/A (expense outside Operating Expenses)");
+    });
+});
 
 describe("parseCellInput", () => {
     it("reads a comma as the decimal point", () => {
@@ -37,15 +51,5 @@ describe("parseCellInput", () => {
         expect(parseCellInput("12.5000", false)).toEqual({ kind: "value", value: 12.5 });
         expect(parseCellInput("1000", false)).toEqual({ kind: "value", value: 1000 });
         expect(parseCellInput("12.345", false)).toEqual({ kind: "value", value: 12.345 });
-    });
-});
-
-describe("asIncome", () => {
-    it("shows a credit the pivot signs negative as positive income", () => {
-        expect(asIncome(-3000.5)).toBe(3000.5);
-    });
-
-    it("prints an empty month as 0.000, never -0.000", () => {
-        expect(formatBd(asIncome(0))).toBe("0.000");
     });
 });

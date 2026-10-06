@@ -25,8 +25,8 @@ function monthLabel(period: string): string {
  * months, which is the only reason to lay it out this way at all.
  */
 export default function MonthlyExpensesPivotCard({pivot, onClassify}: Props): React.JSX.Element {
-    // Income has its own card (BusinessIncomeCard). In this table of costs a credit is negative, so
-    // payouts read as "-3,000.500" at the top of a list of expenses.
+    // Ledger income is left out of this table of costs: a credit is negative here, so payouts
+    // would read as "-3,000.500" at the top of a list of expenses.
     const blocks = pivot.blocks.filter(block => !isLedgerIncomeBlock(block));
 
     const renderBlock = (block: ExpenseBlock): React.JSX.Element => {

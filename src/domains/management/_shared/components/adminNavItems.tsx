@@ -62,13 +62,14 @@ export function buildAdminNavSections(
     const isSupervisor = role === StaffRoles.SUPERVISOR;
 
     // Mirrors the former reviewerItems / cookItems / supervisorItems / managerItems membership
-    // (minus Logout, which is no longer part of the flat/sectioned item list).
+    // (minus Logout, which is no longer part of the flat/sectioned item list). "Shifts" is
+    // manager-and-up only (the default set): the shift-report endpoints 403 COOK/SUPERVISOR.
     const visibleLabels: Set<string> = isReviewer
         ? new Set(["Order History"])
         : isCook
-            ? new Set(["New Order", "Shifts", "Order History", "Config", "Statistics"])
+            ? new Set(["New Order", "Order History", "Config", "Statistics"])
             : isSupervisor
-                ? new Set(["New Order", "Shifts", "Order History", "Config", "Statistics", "Cash Register"])
+                ? new Set(["New Order", "Order History", "Config", "Statistics", "Cash Register"])
                 : new Set([
                     "New Order", "Shifts", "Order History", "Statistics", "Config",
                     "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist",
