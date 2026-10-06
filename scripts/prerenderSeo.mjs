@@ -271,6 +271,14 @@ async function main() {
         jsonLd: [],
     });
     await writeRoute(template, '/privacy', 'privacy/index.html', privacyTags);
+
+    const courierPrivacyTags = renderHeadTags({
+        title: 'Astra Courier Privacy Policy | IC Pizza',
+        description: "How the Astra Courier app used by IC Pizza's delivery riders collects, uses and protects rider data, including background location and delivery photos.",
+        urlPath: '/privacy/delivery',
+        jsonLd: [],
+    });
+    await writeRoute(template, '/privacy/delivery', 'privacy/delivery/index.html', courierPrivacyTags);
 }
 
 main().catch(err => {

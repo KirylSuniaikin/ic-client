@@ -58,8 +58,10 @@ export function AppRouter(): JSX.Element {
             <Route path="/menu/kiosk" element={<Navigate to="/menu?mode=kiosk"/>}/>
             <Route path="/auth" element={<AuthPage/>}/>
             {/* Public and unauthenticated by design: Google Play requires the privacy policy
-                URL to be reachable without a login. */}
-            <Route path="/privacy" element={<PrivacyPolicyPage/>}/>
+                URL to be reachable without a login. The courier app's policy has its own path
+                because its store listing must link straight to it. */}
+            <Route path="/privacy" element={<PrivacyPolicyPage tab="ic-pizza"/>}/>
+            <Route path="/privacy/delivery" element={<PrivacyPolicyPage tab="delivery"/>}/>
         </Routes>
     );
 }
