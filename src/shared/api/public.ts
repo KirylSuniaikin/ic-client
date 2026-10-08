@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger";
-import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, reportIfServerError, reportNetworkError } from './client';
+import { authFetch, BASE_URL, DEFAULT_BRANCH_ID, DEFAULT_RETRY_DELAYS_MS, fetchWithRetryPolicy, reportIfServerError, reportNetworkError } from './client';
 import { applyClientPlatform } from './clientPlatform';
 import { imageMap, mapOrderImages, mapOrdersImages } from '../utils/imageMap';
 import type {
@@ -20,26 +20,9 @@ import type {
 import type { OrderStatusData } from '../../domains/order-status/types';
 import type { ShiftEventResponse } from '../types/EventTypes';
 import type { DoughInventoryAmounts } from '../../domains/management/dough/types';
-import { ItemsUnavailableError, BranchClosedError } from '../../domains/order/types';
+import { ItemsUnavailableError, BranchClosedError, OrderPaymentError } from '../../domains/order/types';
 import type { BranchClosedResponse } from '../../domains/order/types';
 import type { StatsResponse } from '../../domains/management/statistics/types';
-
-// A transient mobile-network blip or a cold-started backend can fail the very first request of a
-// customer's session — the one load with nothing cached to fall back on. Two retries with a short
-// backoff covers both cases (a real outage still fails after this and reports as before) without
-// meaningfully delaying the common case where the first attempt just succeeds.
-const BASE_APP_INFO_RETRY_DELAYS_MS = [500, 1500];
-
-async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-    for (let attempt = 0; ; attempt++) {
-        try {
-            return await fetch(url, init);
-        } catch (error) {
-            if (attempt >= BASE_APP_INFO_RETRY_DELAYS_MS.length) throw error;
-            await new Promise(resolve => setTimeout(resolve, BASE_APP_INFO_RETRY_DELAYS_MS[attempt]));
-        }
-    }
-}
 
 export async function fetchBaseAppInfo(
     userId: string | null,
@@ -61,10 +44,10 @@ export async function fetchBaseAppInfo(
 
     let response: Response;
     try {
-        response = await fetchWithRetry(url, {
+        response = await fetchWithRetryPolicy(url, {
             method: "GET",
             headers,
-        });
+        }, DEFAULT_RETRY_DELAYS_MS);
     } catch (error) {
         // Fire-and-forget: telemetry must never delay the order path's error handling. Only
         // reported once, after every retry has already failed.
@@ -278,11 +261,26 @@ export async function deleteOrder(orderId: string): Promise<void> {
     }
 }
 
-export async function sendOrderPayment(payload: OrderPaymentPayload): Promise<unknown> {
-    const {orderId, amount, type, branchId} = payload;
+async function readPaymentErrorMessage(response: Response, status: number): Promise<string> {
+    const fallback = `Payment failed (HTTP ${status})`;
     try {
-        const response = await authFetch(BASE_URL + "/order_payment", {
+        const body: unknown = await response.json();
+        if (typeof body === "object" && body !== null && "message" in body && typeof body.message === "string") {
+            return body.message;
+        }
+    } catch {
+        // Non-JSON error body (e.g. a gateway HTML page): the status-based message is enough.
+    }
+    return fallback;
+}
 
+// Rejects on any failure so the caller can keep the payment popup open; re-submitting with the
+// same idempotency_key is safe.
+export async function sendOrderPayment(payload: OrderPaymentPayload): Promise<unknown> {
+    const {orderId, amount, type, branchId, idempotency_key} = payload;
+    const response = await authFetch(
+        BASE_URL + "/order_payment",
+        {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -291,18 +289,18 @@ export async function sendOrderPayment(payload: OrderPaymentPayload): Promise<un
                 orderId,
                 amount,
                 type,
-                branchId
-            })
-        });
-        const data = await response.json();
+                branchId,
+                idempotency_key
+            }),
+        },
+        // Never retry a keyless payment: a replay would double-apply.
+        idempotency_key ? {retryDelaysMs: DEFAULT_RETRY_DELAYS_MS} : undefined
+    );
 
-        if (!response.ok) {
-            return {error: true, ...data};
-        }
-        return data;
-    } catch (error) {
-        logger.error("Failed to sendOrderPayment", error);
+    if (!response.ok) {
+        throw new OrderPaymentError(await readPaymentErrorMessage(response, response.status), response.status);
     }
+    return response.json();
 }
 
 // Retries a transient network blip (see AuthFetchOptions.retryDelaysMs). Safe to retry: a

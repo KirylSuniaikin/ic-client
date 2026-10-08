@@ -7,6 +7,7 @@ export type CashUpdateRequest = {
     cashUpdateType: CashUpdateType,
     amount: number,
     note: string,
+    idempotency_key?: string,
 }
 
 export enum CashUpdateType{

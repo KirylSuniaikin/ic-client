@@ -185,7 +185,7 @@ function CartItemHorizontal({
                 <Edit/>
             </IconButton>
             }
-            {item.category === "Combo Deals" && item.name === "Pizza Combo" && <IconButton
+            {item.category === "Combo Deals" && item.name === "Pizza Combo" && (item.comboItems?.length ?? 0) > 0 && <IconButton
                 onClick={() => {
                     openPizzaComboEditPopup(item)
                 }}

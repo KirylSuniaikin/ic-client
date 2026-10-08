@@ -1,4 +1,4 @@
-import { authFetch, BASE_URL } from './client';
+import { authFetch, BASE_URL, DEFAULT_RETRY_DELAYS_MS } from './client';
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from './clientPlatform';
 import type {
     CreateProductRequest,
@@ -307,13 +307,18 @@ export async function editPurchaseReport(payload: EditPurchasePayload): Promise<
 export async function uploadPurchaseInvoiceImage(invoiceId: number, file: Blob): Promise<InvoiceImageMetaTO> {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await authFetch(BASE_URL + `/purchase_invoice_image?invoiceId=${invoiceId}`, {
-        method: "POST",
-        // No Content-Type header: the browser must generate the multipart/form-data boundary
-        // itself from the FormData body. Setting "Content-Type": "application/json" (or any
-        // fixed value) here strips that boundary and the backend fails with an opaque 500.
-        body: formData,
-    });
+    const res = await authFetch(
+        BASE_URL + `/purchase_invoice_image?invoiceId=${invoiceId}`,
+        {
+            method: "POST",
+            // No Content-Type header: the browser must generate the multipart/form-data boundary
+            // itself from the FormData body. Setting "Content-Type": "application/json" (or any
+            // fixed value) here strips that boundary and the backend fails with an opaque 500.
+            body: formData,
+        },
+        // Safe to retry: the endpoint is an upsert keyed by invoice id.
+        { retryDelaysMs: DEFAULT_RETRY_DELAYS_MS }
+    );
     if (!res.ok) throw new Error(`Response: ${res.status}`);
     return res.json();
 }
@@ -434,13 +439,18 @@ export async function getAllBannedCstmrs(): Promise<BlackListCstmr[]> {
 }
 
 export async function cashUpdate(payload: CashUpdateRequest): Promise<Response> {
-    return await authFetch(BASE_URL + `/branch/cash_update`, {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json'
+    return await authFetch(
+        BASE_URL + `/branch/cash_update`,
+        {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-    });
+        // Retry only when the backend can dedupe the replay by key.
+        payload.idempotency_key ? { retryDelaysMs: DEFAULT_RETRY_DELAYS_MS } : undefined
+    );
 }
 
 export async function getBranchBalance(branchId: string): Promise<BranchBalanceResponse> {
