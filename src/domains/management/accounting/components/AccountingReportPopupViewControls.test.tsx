@@ -942,3 +942,14 @@ describe("column-header sort and filters", () => {
         }, 30_000);
     });
 });
+
+describe("Save button label", () => {
+    it("is an element inside the button, not a bare text node", async () => {
+        renderPopup();
+        await findTable();
+
+        const label = screen.getByRole("button", { name: "Save" }).querySelector("span");
+
+        expect(label?.textContent).toBe("Save");
+    }, 30_000);
+});

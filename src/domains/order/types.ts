@@ -147,11 +147,22 @@ export type AvailabilityChange = {
     available: boolean;
 };
 
+export class OrderPaymentError extends Error {
+    readonly status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'OrderPaymentError';
+        this.status = status;
+    }
+}
+
 export type OrderPaymentPayload = {
     orderId: string;
     amount: number;
     type: PaymentType;
     branchId: string;
+    idempotency_key?: string;
 };
 
 export type UpdateOrderStatusPayload = {

@@ -73,28 +73,46 @@ export async function reportNetworkError(error: unknown, url: string, method: st
 export type AuthFetchOptions = {
     skipAuthRedirectOn401?: boolean;
     /**
-     * Opt-in retry delays (ms) for a transient network failure — mirrors public.ts's
-     * `fetchWithRetry` (built for `fetchBaseAppInfo`'s cold-start/mobile-blip case). Empty/absent
-     * by default: `authFetch` backs dozens of call sites, many of them non-idempotent POSTs (order
-     * mutations, payments), so blind retries must stay opt-in per call site rather than a global
-     * default. Only retries a `PreResponseNetworkError` — i.e. the raw `fetch()` call itself
-     * rejecting (offline, DNS, CORS) — never a received HTTP response, exactly like the
-     * `fetchWithRetry` this mirrors.
+     * Retry delay ceilings (ms), one entry per retry; full jitter is applied to each (see
+     * `fetchWithRetryPolicy`). Absent: GETs use `DEFAULT_RETRY_DELAYS_MS`, every other method makes
+     * a single attempt. `[]` explicitly disables retry, even for a GET. A non-GET must opt in
+     * explicitly, and only when a replay cannot double-apply (the request carries an idempotency
+     * key, or the endpoint is a verified idempotent upsert).
      */
     retryDelaysMs?: number[];
 };
 
-// Retries ONLY a raw `fetch()` rejection (offline, DNS, CORS) — never a received HTTP response,
-// so a non-idempotent POST is only ever retried when nothing could possibly have reached the
-// server. `delaysMs` empty means exactly today's single-attempt behaviour.
-async function fetchWithRetries(url: string, init: RequestInit, delaysMs: number[]): Promise<Response> {
+// Ceilings for retry n = 0, 1, 2 (exponential, capped at 4 s). The actual sleep is uniform in
+// [0, ceiling] ("full jitter") so clients that failed together do not retry in lock-step. A shorter
+// explicit array means fewer retries.
+export const DEFAULT_RETRY_DELAYS_MS: number[] = [500, 1000, 2000];
+
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+
+function isAbort(error: unknown, init: RequestInit): boolean {
+    return init.signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
+}
+
+function sleepWithJitter(ceilingMs: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, Math.random() * ceilingMs));
+}
+
+// Retries a `fetch()` rejection (offline, DNS, CORS; never a caller abort) and a 502/503/504
+// response while `delaysMs` has entries left. Any other response (incl. 4xx and 500) is returned
+// at once. On exhaustion a rejection is rethrown and a retryable response is returned for the
+// caller's own `!ok` handling. Telemetry is the caller's job, once, after this settles.
+export async function fetchWithRetryPolicy(url: string, init: RequestInit, delaysMs: number[]): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
+        let response: Response;
         try {
-            return await fetch(url, init);
+            response = await fetch(url, init);
         } catch (error) {
-            if (attempt >= delaysMs.length) throw error;
-            await new Promise(resolve => setTimeout(resolve, delaysMs[attempt]));
+            if (isAbort(error, init) || attempt >= delaysMs.length) throw error;
+            await sleepWithJitter(delaysMs[attempt]);
+            continue;
         }
+        if (!RETRYABLE_STATUSES.has(response.status) || attempt >= delaysMs.length) return response;
+        await sleepWithJitter(delaysMs[attempt]);
     }
 }
 
@@ -114,11 +132,12 @@ export async function authFetch(
     applyClientPlatform(headers);
 
     const method = headersWithoutAuth?.method ?? "GET";
-    const retryDelaysMs = options?.retryDelaysMs ?? [];
+    const retryDelaysMs = options?.retryDelaysMs
+        ?? (method.toUpperCase() === "GET" ? DEFAULT_RETRY_DELAYS_MS : []);
 
     let response: Response;
     try {
-        response = await fetchWithRetries(url, { ...headersWithoutAuth, headers }, retryDelaysMs);
+        response = await fetchWithRetryPolicy(url, { ...headersWithoutAuth, headers }, retryDelaysMs);
     } catch (error) {
         // Fire-and-forget: telemetry must never add latency to the caller's error path
         // (this wraps the order path). reportClientError swallows its own failures. Only

@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, fireEvent } from "@testing-library/react";
 
 // CartItemHorizontal renders its copy (discount label, extras labels) via useTranslation("cart")
 // and useOptionLabel (menu namespace) — initialize the real i18n instance so keys resolve,
@@ -239,5 +239,29 @@ describe("CartItemHorizontal — structural display + note as a separate line (t
         // Canonical copy from menu.options (buildDisplay's source), not the old cart.extras.* badge.
         expect(text.match(/عجينة رفيعة/g)?.length ?? 0).toBe(1);
         expect(text.match(/حافة بالثوم/g)?.length ?? 0).toBe(1);
+    });
+});
+
+describe("CartItemHorizontal — combo edit pencil visibility", () => {
+    const comboChild: ComboItem = {
+        id: 5, name: "Margherita", category: "Pizzas", size: "M", isThinDough: false,
+        isGarlicCrust: false, description: "", quantity: 1,
+    };
+
+    it.each([[null], [[]]])("hides the Pizza Combo pencil when comboItems is %p", (comboItems) => {
+        renderLine(makeCartItem({ name: "Pizza Combo", category: "Combo Deals", comboItems }));
+        expect(screen.queryByTestId("EditIcon")).toBeNull();
+    });
+
+    it("shows the Pizza Combo pencil and opens the edit popup when combo items exist", () => {
+        const item = makeCartItem({ name: "Pizza Combo", category: "Combo Deals", comboItems: [comboChild] });
+        renderLine(item);
+        fireEvent.click(screen.getByTestId("EditIcon"));
+        expect(NOOP_HANDLERS.openPizzaComboEditPopup).toHaveBeenCalledWith(item);
+    });
+
+    it("keeps the Detroit Combo pencil even without combo items", () => {
+        renderLine(makeCartItem({ name: "Detroit Combo", category: "Combo Deals", comboItems: [] }));
+        expect(screen.getByTestId("EditIcon")).toBeTruthy();
     });
 });

@@ -130,7 +130,7 @@ export default function HomePageModals({
             {cart.pizzaComboPopupOpen && (
                 <PizzaComboPopup
                     open
-                    onClose={() => { cart.setPizzaComboPopupOpen(false); cart.setPopupGroup(null); }}
+                    onClose={() => { cart.setPizzaComboPopupOpen(false); cart.setPopupGroup(null); cart.setEditMode(false); cart.setEditItem(null); }}
                     comboGroup={cart.popupGroup as MenuItem[]}
                     pizzas={pizzas}
                     drinks={beverages}
@@ -150,7 +150,7 @@ export default function HomePageModals({
             {cart.detroitComboPopupOpen && (
                 <DetroitComboPopup
                     open
-                    onClose={() => { cart.setDetroitComboPopupOpen(false); cart.setPopupGroup(null); }}
+                    onClose={() => { cart.setDetroitComboPopupOpen(false); cart.setPopupGroup(null); cart.setEditMode(false); cart.setEditItem(null); }}
                     combo={cart.popupGroup as Group | MenuItem[]}
                     bricks={brickPizzas}
                     drinks={beverages}
