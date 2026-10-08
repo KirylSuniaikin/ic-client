@@ -103,6 +103,7 @@ export type Order = {
     external_id: string | null;
     phone_number: string;
     order_created: string;
+    order_created_formatted?: string;
     status: OrderStatus;
     isPaid: boolean;
     branch_id: string;
