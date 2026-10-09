@@ -244,6 +244,7 @@ describe("fetchBaseAppInfo", () => {
     // fetchBaseAppInfo uses raw fetch (not authFetch) because it is a public endpoint.
     let mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
     let savedFetch: typeof globalThis.fetch;
+    const realRandom = Math.random;
 
     beforeEach(() => {
         savedFetch = global.fetch;
@@ -251,16 +252,23 @@ describe("fetchBaseAppInfo", () => {
         // Cast: jest.Mock carries extra mock methods beyond the fetch call signature;
         // structurally compatible at the call site.
         global.fetch = mockFetch as typeof fetch;
+        // Zero jitter: retries sleep 0 ms, so retry paths run on real timers without waiting.
+        Math.random = () => 0;
     });
 
     afterEach(() => {
         global.fetch = savedFetch;
+        Math.random = realRandom;
+        localStorage.clear();
     });
 
     it("throws when the server responds with a non-ok status", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
-        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toThrow();
+        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toThrow("Ошибка: 500");
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(mockReportNetworkError).not.toHaveBeenCalled();
     });
 
     it("calls GET on the get_base_app_info endpoint", async () => {
@@ -344,17 +352,16 @@ describe("fetchBaseAppInfo", () => {
     });
 
     // Retries: covers a transient mobile-network blip or a cold-started backend on the very
-    // first request of a session (see fetchWithRetry in public.ts). Real timers/delays here are
-    // deliberate — it's the actual retry-exhaustion behavior under test, not just its shape.
+    // first request of a session (shared fetchWithRetryPolicy, jitter pinned to 0 above).
 
-    it("retries twice, then wires the final rejection into reportNetworkError and re-throws it", async () => {
+    it("retries three times, then wires the final rejection into reportNetworkError and re-throws it", async () => {
         const networkError = new Error("offline");
         mockFetch.mockRejectedValue(networkError);
 
         await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toBe(networkError);
 
-        // Original attempt + 2 retries.
-        expect(mockFetch).toHaveBeenCalledTimes(3);
+        // Original attempt + 3 retries.
+        expect(mockFetch).toHaveBeenCalledTimes(4);
         expect(mockReportNetworkError).toHaveBeenCalledTimes(1);
         const [error, url, method] = mockReportNetworkError.mock.calls[0] as [unknown, string, string];
         expect(error).toBe(networkError);
@@ -373,6 +380,58 @@ describe("fetchBaseAppInfo", () => {
         expect(mockFetch).toHaveBeenCalledTimes(2);
         expect(mockReportNetworkError).not.toHaveBeenCalled();
     }, 10000);
+
+    it.each([502, 503, 504])("retries a %d response up to 3 times, then throws and reports 5xx once", async (status) => {
+        mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status })));
+
+        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toThrow();
+
+        expect(mockFetch).toHaveBeenCalledTimes(4);
+        expect(mockReportIfServerError).toHaveBeenCalledTimes(1);
+        expect(mockReportNetworkError).not.toHaveBeenCalled();
+    });
+
+    it("does not retry a 404 response", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(fetchBaseAppInfo(null, "branch-1")).rejects.toThrow();
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("succeeds after a transient 503", async () => {
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 503 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 }));
+
+        await fetchBaseAppInfo(null, "branch-1");
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends no Authorization header", async () => {
+        localStorage.setItem("jwt_token", "should-not-be-sent");
+        mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ menu: [], workingHours: null }), { status: 200 })
+        );
+
+        await fetchBaseAppInfo(null, "branch-xyz");
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    });
+
+    it("never redirects or clears the token on a 401", async () => {
+        localStorage.setItem("jwt_token", "keep-me");
+        window.location.href = "";
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+        await expect(fetchBaseAppInfo(null, "branch-xyz")).rejects.toThrow("Ошибка: 401");
+
+        expect(window.location.href).toBe("");
+        expect(localStorage.getItem("jwt_token")).toBe("keep-me");
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
 
     it("sends X-Client-Platform: web", async () => {
         mockFetch.mockResolvedValueOnce(

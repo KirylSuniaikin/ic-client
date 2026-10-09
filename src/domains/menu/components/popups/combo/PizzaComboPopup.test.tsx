@@ -294,6 +294,62 @@ describe("PizzaComboPopup — combo child note is its own field (task RW)", () =
     });
 });
 
+describe("PizzaComboPopup — edit item without combo lines", () => {
+    // useMenuData rehydrates an orderToEdit combo line with `comboItems: []` when the order
+    // response carries no comboItemTO; the edit button is still shown for it.
+    it("renders with the non-edit defaults instead of throwing when comboItems is empty", () => {
+        const editItem = makeCartItem({ id: 10, name: "Pizza Combo", category: "Combo Deals", comboItems: [] });
+
+        expect(() => renderPopup({ isEditMode: true, editItem })).not.toThrow();
+        expect(screen.getByRole("button", { name: /^Add ·/ })).toBeTruthy();
+    });
+
+    it("renders with the non-edit defaults when comboItems is null", () => {
+        const editItem = makeCartItem({ id: 10, name: "Pizza Combo", category: "Combo Deals", comboItems: null });
+
+        expect(() => renderPopup({ isEditMode: true, editItem })).not.toThrow();
+    });
+
+    it("renders with the non-edit defaults when comboItems has fewer than the 3 pizza/drink/sauce lines", () => {
+        const full = makeComboEditItem();
+        const partial = makeCartItem({ ...full, comboItems: full.comboItems!.slice(0, 1) });
+
+        expect(() => renderPopup({ isEditMode: true, editItem: partial })).not.toThrow();
+    });
+
+    it("renders when isEditMode is true but editItem is null or undefined", () => {
+        expect(() => renderPopup({ isEditMode: true, editItem: null })).not.toThrow();
+        expect(() => renderPopup({ isEditMode: true })).not.toThrow();
+    });
+
+    it("builds the same cart item as a non-edit open when the edit item has no combo lines (defaults, not stale edit data)", () => {
+        const editItem = makeCartItem({ id: 10, name: "Pizza Combo", category: "Combo Deals", size: "L", comboItems: [] });
+
+        const { onAddToCart } = renderPopup({ isEditMode: true, editItem });
+        clickAdd();
+
+        const added = onAddToCart.mock.calls[0][0];
+        expect(added.comboItems).toHaveLength(3);
+        expect(added.comboItems?.[0]?.name).toBe("Margherita");
+        expect(added.comboItems?.[0]?.size).toBe("M");
+        expect(added.comboItems?.[1]?.name).toBe("Cola");
+        expect(added.comboItems?.[2]?.name).toBe("Ranch");
+        expect(added.comboItems?.[0]?.note).toBe("");
+    });
+
+    it("keeps full edit behaviour for a valid edit item with all 3 lines (size L pizza is re-selected)", () => {
+        const editItem = makeComboEditItem();
+        editItem.comboItems![0].size = "L";
+        editItem.size = "L";
+
+        const { onAddToCart } = renderPopup({ isEditMode: true, editItem });
+        clickAdd();
+
+        const added = onAddToCart.mock.calls[0][0];
+        expect(added.comboItems?.[0]?.size).toBe("L");
+    });
+});
+
 describe("PizzaComboPopup — pricing", () => {
     it("adds a selected paid drizzle's price into the final combo price (button label reflects it before Add is tapped)", () => {
         renderPopup({ toppings: [makeTopping({ price: 0.75 })] });

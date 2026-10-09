@@ -2,11 +2,13 @@ import React from "react";
 import {
     Alert, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography
 } from "@mui/material";
-import type {InventoryCogs, InventoryCogsState} from "../../types";
+import type {InventoryCogs, InventoryCogsState, ProfitAndLoss} from "../../types";
 import {formatBd} from "./businessFormat";
 
 type Props = {
     months: InventoryCogs[];
+    /** Source of the recipe COGS and the unexplained variance; matched to months by period. */
+    profitAndLoss: ProfitAndLoss[];
 };
 
 /**
@@ -47,11 +49,13 @@ function monthLabel(period: string): string {
  * categories the ledger has — so they cannot all come out of one array literal any more.
  */
 function SimpleRow(
-    {label, pick, months, indent = false}: {
+    {label, pick, months, indent = false, hint, emphasis = false}: {
         label: string;
         pick: (m: InventoryCogs) => number | null;
         months: InventoryCogs[];
         indent?: boolean;
+        hint?: string;
+        emphasis?: boolean;
     }
 ): React.JSX.Element {
     return (
@@ -60,9 +64,17 @@ function SimpleRow(
                 whiteSpace: 'nowrap',
                 pl: indent ? 4 : undefined,
                 color: indent ? '#8a807a' : undefined,
-            }}>{label}</TableCell>
+                fontWeight: emphasis ? 'bold' : undefined,
+            }}>
+                {hint ? (
+                    <Tooltip title={hint}>
+                        <span style={{borderBottom: '1px dotted #8a807a'}}>{label}</span>
+                    </Tooltip>
+                ) : label}
+            </TableCell>
             {months.map(m => (
-                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                <TableCell key={m.period} align="right"
+                           sx={{whiteSpace: 'nowrap', fontWeight: emphasis ? 'bold' : undefined}}>
                     {pick(m) === null ? "—" : formatBd(pick(m))}
                 </TableCell>
             ))}
@@ -70,7 +82,11 @@ function SimpleRow(
     );
 }
 
-export default function InventoryCogsCard({months}: Props): React.JSX.Element {
+export default function InventoryCogsCard({months, profitAndLoss}: Props): React.JSX.Element {
+    // A month with no P&L row prints an em dash rather than a zero.
+    const pnlFor = (period: string): ProfitAndLoss | undefined =>
+        profitAndLoss.find(p => p.period === period);
+
     // Every category the server sent, in every month on screen — no filtering on the amount.
     //
     // Hiding a category because it happened to be zero this month was wrong twice over: a month
@@ -173,6 +189,33 @@ export default function InventoryCogsCard({months}: Props): React.JSX.Element {
                                         : `${m.cogsPercentOfGrossRevenue.toFixed(2)}%`}
                                 </TableCell>
                             ))}
+                        </TableRow>
+
+                        <SimpleRow
+                            label="Current COGS (recipe)"
+                            hint="Recipe-costed, not cash. What the recipes say the month's sales should have consumed."
+                            pick={m => pnlFor(m.period)?.recipeCogs ?? null}
+                            months={months}
+                        />
+                        <SimpleRow
+                            label="Unexplained variance (waste / yield / theft)"
+                            hint="Positive means more was consumed than the recipes predict."
+                            emphasis
+                            pick={m => pnlFor(m.period)?.reconciliation.unexplainedVariance ?? null}
+                            months={months}
+                        />
+                        <TableRow>
+                            <TableCell sx={{whiteSpace: 'nowrap', pl: 4}}>as % of gross revenue</TableCell>
+                            {months.map(m => {
+                                // == null, not === null: a backend that predates the rename sends no
+                                // such field, and undefined.toFixed would take the card down.
+                                const percent = pnlFor(m.period)?.reconciliation.variancePercentOfGrossRevenue;
+                                return (
+                                    <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
+                                        {percent == null ? "—" : `${percent.toFixed(2)}%`}
+                                    </TableCell>
+                                );
+                            })}
                         </TableRow>
                     </TableBody>
                 </Table>

@@ -126,7 +126,8 @@ export type SalarySlipForm = {
     basicSalary: number | null;
     housingAllowance: number | null;
     transportAllowance: number | null;
-    // Printed in the overtime row's label, e.g. "Overtime (20.96 hrs @ 1.000/hr)".
+    // PAID overtime hours (at most 1 h per shift) and the effective rate (paid amount / paid hours),
+    // printed in the overtime row's label, e.g. "Overtime (paid 1.00 hrs @ 1.500/hr)".
     overtimeHours: number | null;
     overtimeRate: number | null;
     overtimeAmount: number | null;

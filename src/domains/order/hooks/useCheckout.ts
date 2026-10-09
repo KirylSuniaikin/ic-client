@@ -15,16 +15,7 @@ import { ItemsUnavailableError, BranchClosedError, DEFAULT_PAYMENT_METHOD } from
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
-
-// Per-checkout idempotency key sent to POST /create_order so the backend can dedupe a retried
-// request (see CreateOrderRequest.idempotency_key). crypto.randomUUID needs a secure context;
-// prod/kiosk run over https, but the fallback keeps older WebViews (Capacitor APK) working.
-function newIdempotencyKey(): string {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-        return crypto.randomUUID();
-    }
-    return "idem-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
-}
+import { newIdempotencyKey } from "../../../shared/utils/idempotencyKey";
 // TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists
 const GENERAL_CROSS_SELL: string[] = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"];
 const FINAL_CROSS_SELL: string[] = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"];

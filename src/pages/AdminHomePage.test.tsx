@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { StaffRoles } from "../domains/auth/types";
 import type { IBranch } from "../domains/management/inventory/types";
@@ -241,19 +242,34 @@ function branchInitValue(): AdminBranchInitResult {
     };
 }
 
-function renderAdminHomePage(role: StaffRoles | null, initialPath = "/admin"): void {
+function renderAdminHomePage(role: StaffRoles | null, initialPath = "/admin"): RenderResult {
     mockUseAuth.mockReturnValue(authValue(role));
     mockUseAdminOrders.mockReturnValue(adminOrdersValue());
     mockUseDough.mockReturnValue(doughValue());
     mockUseOrderActions.mockReturnValue(orderActionsValue());
     mockUseAdminBranchInit.mockReturnValue(branchInitValue());
 
-    render(
+    return render(
         <MemoryRouter initialEntries={[initialPath]}>
             <AdminHomePage />
         </MemoryRouter>
     );
 }
+
+describe("AdminHomePage browser auto-translate opt-out", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("marks the staff admin surface translate=no and leaves <html> translatable", () => {
+        const { container } = renderAdminHomePage(StaffRoles.OWNER);
+
+        // LtrBoundary renders a wrapper above the shell root, so locate the shell by its class.
+        const shellRoot = container.querySelector("div.max-w-4xl");
+        expect(shellRoot?.getAttribute("translate")).toBe("no");
+        expect(document.documentElement.getAttribute("translate")).toBeNull();
+    });
+});
 
 describe("AdminHomePage REVIEWER role", () => {
     beforeEach(() => {

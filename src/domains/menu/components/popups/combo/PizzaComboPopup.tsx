@@ -73,6 +73,12 @@ interface PizzaComboPopupProps {
     toppings?: Topping[];
 }
 
+const PIZZA_COMBO_LINE_COUNT = 3;
+
+function hasPizzaComboLines(item: CartItem | null | undefined): item is CartItem {
+    return (item?.comboItems?.length ?? 0) >= PIZZA_COMBO_LINE_COUNT;
+}
+
 export function PizzaComboPopup({
                                     open,
                                     onClose,
@@ -82,7 +88,7 @@ export function PizzaComboPopup({
                                     sauces,
                                     onAddToCart,
                                     selectedPizza,
-                                    editItem,
+                                    editItem: requestedEditItem,
                                     isEditMode,
                                     removeFromCart,
                                     isSDoughAvailable,
@@ -91,6 +97,11 @@ export function PizzaComboPopup({
                                     toppings = [],
                                 }: PizzaComboPopupProps): JSX.Element {
     const {t} = useTranslation("menu");
+    // A "Pizza Combo" cart line can legitimately reach edit mode without its pizza/drink/sauce
+    // lines: useMenuData (comboItems: [] when the order carries no comboItemTO) rehydrates it so.
+    // Such a line has nothing to pre-fill, so degrade to the non-edit defaults instead of
+    // crashing the initializers below.
+    const editItem = isEditMode && hasPizzaComboLines(requestedEditItem) ? requestedEditItem : null;
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [selectedSize, setSelectedSize] = useState<string>(() => {
         if (isEditMode && editItem) {

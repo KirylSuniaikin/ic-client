@@ -250,6 +250,17 @@ describe("HomePage -- noPopupOpen suppression", () => {
     });
 });
 
+describe("HomePage -- browser auto-translate", () => {
+    it("does not opt the customer page out of browser translation", async () => {
+        const { container } = renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(container.querySelector("[translate]")).toBeNull();
+        expect(document.documentElement.getAttribute("translate")).toBeNull();
+    });
+});
+
 describe("HomePage -- menu image preloading", () => {
     it("holds the loader after the menu data arrives, until the first photos are ready", async () => {
         mockImagesReady = false;

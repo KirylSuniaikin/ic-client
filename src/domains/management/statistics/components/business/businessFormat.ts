@@ -35,20 +35,11 @@ export function formatBd(value: number | null | undefined): string {
 }
 
 /**
- * Ledger income (categories classed REVENUE) has its own card. One home for the rule, so the income
- * card, the expense pivot and the pivot's block count cannot disagree about what counts as income.
+ * Ledger income (categories classed REVENUE) is not shown on this screen. One home for the rule, so
+ * the expense pivot and the pivot's block count cannot disagree about what counts as income.
  */
 export function isLedgerIncomeBlock(block: ExpenseBlock): boolean {
     return block.pnlClass === "REVENUE";
-}
-
-/**
- * The expense pivot is read as a table of costs, so it signs a credit negative. Income reads the
- * other way round: a payout shows positive, a reversal against it negative. `0 - amount` rather
- * than `-amount`, because negating an empty month gives -0, which formats as "-0.000".
- */
-export function asIncome(amount: number): number {
-    return 0 - amount;
 }
 
 export type ParsedCellInput =
@@ -86,6 +77,7 @@ export const PNL_CLASS_LABELS: Record<PnlClass, string> = {
     REVENUE: "Revenue (ledger)",
     COGS_PURCHASES: "COGS — groceries & packaging",
     OPEX: "Operating expense",
+    NOT_APPLICABLE: "N/A (expense outside Operating Expenses)",
     CAPEX: "Capital expenditure",
     OWNER_WITHDRAWAL: "Owner withdrawal",
     FINANCING: "Financing & interest",
@@ -102,6 +94,7 @@ export const PNL_CLASS_HINTS: Record<PnlClass, string> = {
     REVENUE: "Sales recorded in the ledger. Shown for reconciliation only — the P&L takes revenue from orders, not from here.",
     COGS_PURCHASES: "Groceries and packaging. Counted through COGS via inventory, deliberately NOT in Operating Expenses.",
     OPEX: "Rent, utilities, labour, marketing, subscriptions, supplies, legal. The Operating Expenses total.",
+    NOT_APPLICABLE: "Spend that fits nowhere else. Subtracted above Operating Profit, but not part of Operating Expenses, COGS or Prime Cost. Leave the KPI tag empty.",
     CAPEX: "Equipment, fit-out, deposits. Expensed in the month of purchase — there is no depreciation.",
     OWNER_WITHDRAWAL: "Money taken out by the owners. Its own P&L line, counted exactly once.",
     FINANCING: "Loan repayments and interest.",

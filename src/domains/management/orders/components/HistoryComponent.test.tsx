@@ -272,6 +272,31 @@ describe("HistoryComponent", () => {
         });
     });
 
+    describe("order creation date", () => {
+        it("renders the server-formatted creation date verbatim", () => {
+            mockUseOrderHistory.mockImplementation(
+                makeMockHookImplementation({
+                    initialOrders: [{ ...makeOrder("1", 11111111), order_created_formatted: "2026-10-08 01:30" }],
+                })
+            );
+
+            renderHistory();
+
+            expect(screen.getByText("Date:")).toBeTruthy();
+            expect(screen.getByText(/2026-10-08 01:30/)).toBeTruthy();
+        });
+
+        it("renders no Date label when the field is absent", () => {
+            mockUseOrderHistory.mockImplementation(
+                makeMockHookImplementation({ initialOrders: [makeOrder("1", 11111111)] })
+            );
+
+            renderHistory();
+
+            expect(screen.queryByText("Date:")).toBeNull();
+        });
+    });
+
     describe("delete order flow (regression — useDeleteOrder/OrderCard untouched)", () => {
         it("removes the order from the rendered list after confirming delete", async () => {
             mockUseOrderHistory.mockImplementation(

@@ -55,7 +55,7 @@ export function UnsavedChangesPrompt({ open, saving, onRevert, onSave, onDismiss
                         "&:hover": { bgcolor: BRAND_RED },
                     }}
                 >
-                    {saving ? <CircularProgress size={18} color="inherit" /> : "Save"}
+                    {saving ? <CircularProgress size={18} color="inherit" /> : <span>Save</span>}
                 </Button>
             </Box>
         </ResponsiveSheet>

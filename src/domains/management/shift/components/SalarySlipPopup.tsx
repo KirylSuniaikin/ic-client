@@ -274,8 +274,8 @@ export default function SalarySlipPopup({
                             />
                         )}
                         <Typography variant="caption" sx={{color: "text.secondary", display: "block", mt: 1}}>
-                            Overtime is summed from shifts in this range. Changing it reloads the slip and
-                            resets your edits.
+                            Overtime is summed from shifts in this range; at most 1 hour per shift is paid.
+                            Changing it reloads the slip and resets your edits.
                         </Typography>
 
                         <Typography sx={sectionSx}>Employee</Typography>
@@ -310,7 +310,7 @@ export default function SalarySlipPopup({
                                        onChange={e => setTransportAllowance(e.target.value)}
                                        data-testid="slip-transport"/>
                             <Stack direction="row" spacing={1}>
-                                <TextField label="OT hours" type="number" fullWidth value={overtimeHours}
+                                <TextField label="Paid OT hours" type="number" fullWidth value={overtimeHours}
                                            onChange={e => {
                                                setOvertimeHours(e.target.value);
                                                recomputeOvertime(e.target.value, overtimeRate);

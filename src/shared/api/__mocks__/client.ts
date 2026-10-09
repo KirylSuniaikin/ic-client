@@ -13,3 +13,9 @@ export const DEFAULT_BRANCH_ID = "2e8c35f7-d75e-4442-b496-cbb929842c10";
 // is covered by client.test.ts against the unmocked implementation.
 export const reportIfServerError = jest.fn<Promise<void>, [Response, string, string]>();
 export const reportNetworkError = jest.fn<Promise<void>, [unknown, string, string]>();
+// The retry policy is pure fetch logic with no module-level side effects, so callers that mock
+// this module (fetchBaseAppInfo) keep exercising the real implementation.
+// Cast: jest.requireActual returns unknown in this jest typing; the module shape is known.
+const actual = jest.requireActual("../client") as typeof import("../client");
+export const DEFAULT_RETRY_DELAYS_MS = actual.DEFAULT_RETRY_DELAYS_MS;
+export const fetchWithRetryPolicy = actual.fetchWithRetryPolicy;

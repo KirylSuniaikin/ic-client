@@ -66,7 +66,10 @@ export function AuthPage() {
 
     return (
         <LtrBoundary>
-            <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: brandWhite }}>
+            {/* Staff surface: browser auto-translate wraps text nodes in <font>, which makes React's
+                removeChild of the swapped 'Login' text node throw NotFoundError. The button text is a
+                <span> for the same reason, and the page opts out of translation. */}
+            <Box translate="no" sx={{ display: 'flex', minHeight: '100vh', backgroundColor: brandWhite }}>
 
                 <Box
                     sx={{
@@ -192,7 +195,7 @@ export function AuthPage() {
                                     }
                                 }}
                             >
-                                {loading ? <CircularProgress size={26} color="inherit" /> : 'Login'}
+                                {loading ? <CircularProgress size={26} color="inherit" /> : <span>Login</span>}
                             </Button>
                         </form>
 
