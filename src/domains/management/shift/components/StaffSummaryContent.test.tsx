@@ -47,6 +47,7 @@ function makeSlipForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
         netPay: 286,
         amountInWords: "Bahraini Dinars Two Hundred Eighty Six Only",
         notes: ["1. Basic Salary of BD 240.000 paid in full with no deduction."],
+        penalty: null,
         ...overrides,
     };
 }
@@ -69,6 +70,7 @@ function makeSummary(overrides: Partial<StaffShiftSummary> = {}): StaffShiftSumm
         regularHours: 10,
         overtimeHours: 0,
         totalHours: 10,
+        penaltyHours: 0,
         regularCost: 30,
         overtimeCost: 0,
         totalCost: 30,
@@ -153,6 +155,87 @@ describe("StaffSummaryContent", () => {
         render(<StaffSummaryContent branchId="branch-1" role={null} />);
 
         await waitFor(() => expect(screen.getAllByText("zara.manager").length).toBeGreaterThan(0));
+    });
+
+    describe("Penalty Hrs column", () => {
+        function headers(): string[] {
+            return screen.getAllByRole("columnheader").map(h => h.textContent ?? "");
+        }
+
+        it("renders the header right after Total Hrs", async () => {
+            mockGetMonthlyShiftReport.mockResolvedValue(makeReport([makeSummary()]));
+
+            render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+            await waitFor(() => expect(screen.getByText("Penalty Hrs")).toBeTruthy());
+            const h = headers();
+            expect(h[h.indexOf("Total Hrs") + 1]).toBe("Penalty Hrs");
+        });
+
+        it.each([
+            [2, "2.00"],
+            [0, "0.00"],
+            [1.5, "1.50"],
+        ])("shows penaltyHours %p as %p", async (value: number, text: string) => {
+            mockGetMonthlyShiftReport.mockResolvedValue(
+                makeReport([makeSummary({ penaltyHours: value })])
+            );
+
+            render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+            await waitFor(() => expect(screen.getByText(text)).toBeTruthy());
+        });
+
+        it("shows a dash when the field is absent (older backend)", async () => {
+            // Cast: simulates an older backend payload lacking penaltyHours, which the type cannot express.
+            const legacy = makeSummary() as Partial<StaffShiftSummary>;
+            delete legacy.penaltyHours;
+            mockGetMonthlyShiftReport.mockResolvedValue(
+                // Cast: back to the full type the mock expects, after deleting the field.
+                makeReport([legacy as StaffShiftSummary])
+            );
+
+            render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+            await waitFor(() => expect(screen.getByText("Penalty Hrs")).toBeTruthy());
+            const row = screen.getAllByText("riley.cook")[0].closest("tr") as HTMLElement;
+            const cells = within(row).getAllByRole("cell");
+            const idx = headers().indexOf("Penalty Hrs");
+            expect(cells[idx].textContent).toBe("—");
+        });
+
+        it("flags a positive value with the overtime colours and a zero with the neutral pill", async () => {
+            mockGetMonthlyShiftReport.mockResolvedValue(makeReport([
+                makeSummary({ staffId: 1, username: "has.penalty", penaltyHours: 3 }),
+                makeSummary({ staffId: 2, username: "no.penalty", penaltyHours: 0 }),
+            ]));
+
+            render(<StaffSummaryContent branchId="branch-1" role={null} />);
+
+            await waitFor(() => expect(screen.getByText("3.00")).toBeTruthy());
+            const idx = headers().indexOf("Penalty Hrs");
+            const pill = (name: string): HTMLElement =>
+                within(screen.getAllByText(name)[0].closest("tr") as HTMLElement)
+                    .getAllByRole("cell")[idx].firstElementChild as HTMLElement;
+            expect(getComputedStyle(pill("has.penalty")).color).toBe("rgb(196, 28, 0)");
+            expect(getComputedStyle(pill("no.penalty")).color).toBe("rgb(51, 51, 51)");
+        });
+
+        it.each([
+            [StaffRoles.MANAGER, false],
+            [StaffRoles.SUPER_MANAGER, false],
+            [StaffRoles.OWNER, true],
+        ])("role %p: shows the column; slip column present = %p", async (role: StaffRoles, slip: boolean) => {
+            mockGetMonthlyShiftReport.mockResolvedValue(
+                makeReport([makeSummary({ penaltyHours: 2 })])
+            );
+
+            render(<StaffSummaryContent branchId="branch-1" role={role} />);
+
+            await waitFor(() => expect(screen.getByText("Penalty Hrs")).toBeTruthy());
+            expect(screen.getByText("2.00")).toBeTruthy();
+            expect(screen.queryByLabelText("Salary slip") !== null).toBe(slip);
+        });
     });
 
     // Total Salary replaced Total Cost: the header label and the pill breakdown must reflect
@@ -382,24 +465,24 @@ describe("StaffSummaryContent", () => {
         await waitFor(() => expect(screen.queryByTestId("slip-confirm")).toBeNull());
     });
 
-    it("sizes the empty-state cell to span all 5 columns when the slip column is shown to an OWNER", async () => {
+    it("sizes the empty-state cell to span all 6 columns when the slip column is shown to an OWNER", async () => {
         mockGetMonthlyShiftReport.mockResolvedValue(makeReport([]));
 
         render(<StaffSummaryContent branchId="branch-1" role={StaffRoles.OWNER} />);
 
         await waitFor(() => expect(screen.getByText("No data for this period")).toBeTruthy());
         const cell = screen.getByText("No data for this period").closest("td");
-        expect(cell?.getAttribute("colspan")).toBe("5");
+        expect(cell?.getAttribute("colspan")).toBe("6");
     });
 
-    it("sizes the empty-state cell to span only 4 columns when the slip column is hidden", async () => {
+    it("sizes the empty-state cell to span only 5 columns when the slip column is hidden", async () => {
         mockGetMonthlyShiftReport.mockResolvedValue(makeReport([]));
 
         render(<StaffSummaryContent branchId="branch-1" role={StaffRoles.MANAGER} />);
 
         await waitFor(() => expect(screen.getByText("No data for this period")).toBeTruthy());
         const cell = screen.getByText("No data for this period").closest("td");
-        expect(cell?.getAttribute("colspan")).toBe("4");
+        expect(cell?.getAttribute("colspan")).toBe("5");
     });
 
     // ── Date range ───────────────────────────────────────────────────────────────

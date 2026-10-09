@@ -1,6 +1,7 @@
 import { logger } from "../../../../shared/utils/logger";
 import {
     Box,
+    ButtonBase,
     FormControl,
     IconButton,
     InputLabel,
@@ -13,6 +14,7 @@ import {useState} from "react";
 import MenuIcon from "@mui/icons-material/Menu";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import {updateWorkload} from "../../../../shared/api/public";
+import MyProfileDrawer from "../../discipline/components/MyProfileDrawer";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import AdminNavDrawer from "../../_shared/components/AdminNavDrawer";
 import {StaffRoles, hasCityAccess} from "../../../auth/types";
@@ -83,6 +85,7 @@ export default function AdminTopbar({
                                         userName
                                     }: AdminTopbarProps): JSX.Element {
     const [navOpen, setNavOpen] = useState<boolean>(false);
+    const [profileOpen, setProfileOpen] = useState<boolean>(false);
 
     const colorRed = '#E44B4C';
 
@@ -164,7 +167,12 @@ export default function AdminTopbar({
         >
             {/* Who is signed in. This lived in the old overflow dropdown's trigger and was lost
                 when that became a nav drawer; the drawer still shows it, but only once opened. */}
-            <Box sx={{display: "flex", alignItems: "center", gap: 1, minWidth: 0, pl: 0.5}}>
+            <ButtonBase
+                aria-label="My profile"
+                data-testid="admin-topbar-profile-button"
+                onClick={() => setProfileOpen(true)}
+                sx={{display: "flex", alignItems: "center", gap: 1, minWidth: 0, pl: 0.5, textAlign: "left"}}
+            >
                 <PersonOutlineIcon sx={{fontSize: "1.1rem", color: "#8a8f98"}}/>
                 <Box sx={{minWidth: 0}}>
                     <Typography
@@ -183,7 +191,13 @@ export default function AdminTopbar({
                         </Typography>
                     )}
                 </Box>
-            </Box>
+            </ButtonBase>
+            <MyProfileDrawer
+                open={profileOpen}
+                onClose={() => setProfileOpen(false)}
+                userName={userName}
+                role={role}
+            />
 
             <Box sx={{flexGrow: 1}}/>
 

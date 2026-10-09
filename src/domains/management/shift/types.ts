@@ -82,6 +82,7 @@ export type StaffShiftSummary = {
     regularHours: number;
     overtimeHours: number;
     totalHours: number;
+    penaltyHours: number;
     regularCost: number | null;
     overtimeCost: number | null;
     totalCost: number | null;
@@ -113,6 +114,24 @@ export type SalarySlipDeduction = {
     amount: number | null;
 };
 
+export type SalarySlipPenaltyEntry = {
+    code: string;
+    title: string;
+    issuedOn: string;                 // "YYYY-MM-DD"
+    hours: number;
+    pending: boolean;
+};
+
+// Read-only: shown in the popup and echoed back unchanged on POST. Null when the period has no entries.
+export type SalarySlipPenalty = {
+    entries: SalarySlipPenaltyEntry[];
+    totalHours: number;
+    capHours: number;
+    deductedHours: number;
+    deductedAmount: number;
+    capped: boolean;
+};
+
 export type SalarySlipForm = {
     employeeName: string;
     position: string;
@@ -140,4 +159,5 @@ export type SalarySlipForm = {
     netPay: number | null;
     amountInWords: string;
     notes: string[];
+    penalty: SalarySlipPenalty | null;
 };

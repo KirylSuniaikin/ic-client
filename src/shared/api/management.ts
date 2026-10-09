@@ -74,6 +74,27 @@ import type {
     UpdateStaffDetailsRequest,
     UpdateStaffPayrollRequest
 } from '../../domains/management/staff/types';
+import type {
+    CancelViolationRequest,
+    CatalogCategoryTO,
+    CatalogItemTO,
+    CreateCatalogEntryRequest,
+    DisciplinaryActionTO,
+    DisciplineSettingsTO,
+    DisputeRequest,
+    ExplanationRequest,
+    IssuePreviewTO,
+    IssueViolationRequest,
+    MyWorkSummaryTO,
+    RefusalActRequest,
+    RejectDisputeRequest,
+    RosterScoreTO,
+    StaffDisciplineTO,
+    UpdateCatalogEntryRequest,
+    UpdateDisciplineSettingsRequest,
+    ViolationPhotoMetaTO,
+    ViolationTO
+} from '../../domains/management/discipline/types';
 
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
@@ -1097,4 +1118,147 @@ export async function updateComponentCost(
 
     if (!res.ok) throw await saveRequestError(res);
     return await res.json();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Staff discipline (/api/discipline/**). Server 400/403/404/409 reasons are human text and are
+// shown as they are; a 5xx message is an exception's own text and is replaced.
+// ---------------------------------------------------------------------------------------------
+
+export type PdfDownload = SalarySlipDownload;
+
+async function disciplineRequestError(res: Response): Promise<Error> {
+    if (res.status >= 500) return new Error("the server had a problem — try again in a minute");
+    return new Error((await readServerErrorMessage(res)) ?? `the server refused it (error ${res.status})`);
+}
+
+async function disciplineGet<T>(path: string): Promise<T> {
+    const res = await authFetch(BASE_URL + `/discipline${path}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    return await res.json();
+}
+
+async function disciplineSend<T>(method: "POST" | "PUT", path: string, body?: unknown): Promise<T> {
+    const res = await authFetch(BASE_URL + `/discipline${path}`, {
+        method,
+        headers: body === undefined
+            ? { Accept: "application/json" }
+            : { "Content-Type": "application/json", Accept: "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    return await res.json();
+}
+
+async function disciplinePdf(path: string, fallbackFilename: string): Promise<PdfDownload> {
+    const res = await authFetch(BASE_URL + `/discipline${path}`, {
+        method: "GET",
+        headers: { Accept: "application/pdf" },
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    const blob = await res.blob();
+    const filename = parseContentDispositionFilename(res.headers.get("Content-Disposition")) ?? fallbackFilename;
+    return { blob, filename };
+}
+
+export async function fetchDisciplineCatalog(): Promise<CatalogCategoryTO[]> {
+    return disciplineGet("/catalog");
+}
+
+export async function fetchRosterScores(branchId: string): Promise<RosterScoreTO[]> {
+    return disciplineGet(`/roster-scores?${new URLSearchParams({ branchId })}`);
+}
+
+export async function fetchStaffDiscipline(staffId: number): Promise<StaffDisciplineTO> {
+    return disciplineGet(`/staff/${staffId}`);
+}
+
+export async function fetchMyDiscipline(): Promise<StaffDisciplineTO> {
+    return disciplineGet("/me");
+}
+
+export async function fetchMyWorkSummary(): Promise<MyWorkSummaryTO> {
+    return disciplineGet("/me/work-summary");
+}
+
+export async function previewViolation(staffId: number, request: IssueViolationRequest): Promise<IssuePreviewTO> {
+    return disciplineSend("POST", `/staff/${staffId}/violations/preview`, request);
+}
+
+export async function issueViolation(staffId: number, request: IssueViolationRequest): Promise<ViolationTO> {
+    return disciplineSend("POST", `/staff/${staffId}/violations`, request);
+}
+
+export async function uploadViolationPhoto(violationId: number, file: Blob): Promise<ViolationPhotoMetaTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await authFetch(BASE_URL + `/discipline/violations/${violationId}/photo`, {
+        method: "POST",
+        // No Content-Type header: the browser must generate the multipart boundary itself.
+        body: formData,
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    return await res.json();
+}
+
+export async function fetchViolationPhoto(violationId: number): Promise<Blob | null> {
+    const res = await authFetch(BASE_URL + `/discipline/violations/${violationId}/photo`, { method: "GET" });
+    if (res.status === 404) return null; // no photo yet — not an exception
+    if (!res.ok) throw await disciplineRequestError(res);
+    return res.blob();
+}
+
+export async function submitExplanation(violationId: number, request: ExplanationRequest): Promise<ViolationTO> {
+    return disciplineSend("POST", `/me/violations/${violationId}/explanation`, request);
+}
+
+export async function disputeViolation(violationId: number, request: DisputeRequest): Promise<ViolationTO> {
+    return disciplineSend("POST", `/me/violations/${violationId}/dispute`, request);
+}
+
+export async function confirmViolation(violationId: number): Promise<ViolationTO> {
+    return disciplineSend("POST", `/violations/${violationId}/confirm`);
+}
+
+export async function cancelViolation(violationId: number, request: CancelViolationRequest): Promise<ViolationTO> {
+    return disciplineSend("POST", `/violations/${violationId}/cancel`, request);
+}
+
+export async function rejectDispute(violationId: number, request: RejectDisputeRequest): Promise<ViolationTO> {
+    return disciplineSend("POST", `/violations/${violationId}/dispute/reject`, request);
+}
+
+export async function downloadDisciplinaryDocument(actionId: number): Promise<PdfDownload> {
+    return disciplinePdf(`/actions/${actionId}/document`, `Disciplinary_Document_${actionId}.pdf`);
+}
+
+export async function markActionSigned(actionId: number): Promise<DisciplinaryActionTO> {
+    return disciplineSend("POST", `/actions/${actionId}/sign`);
+}
+
+export async function recordRefusal(actionId: number, request: RefusalActRequest): Promise<DisciplinaryActionTO> {
+    return disciplineSend("POST", `/actions/${actionId}/refusal`, request);
+}
+
+export async function downloadRefusalAct(actionId: number): Promise<PdfDownload> {
+    return disciplinePdf(`/actions/${actionId}/refusal-act`, `Refusal_Act_${actionId}.pdf`);
+}
+
+export async function createCatalogEntry(request: CreateCatalogEntryRequest): Promise<CatalogItemTO> {
+    return disciplineSend("POST", "/catalog/entries", request);
+}
+
+export async function updateCatalogEntry(id: number, request: UpdateCatalogEntryRequest): Promise<CatalogItemTO> {
+    return disciplineSend("PUT", `/catalog/entries/${id}`, request);
+}
+
+export async function fetchDisciplineSettings(): Promise<DisciplineSettingsTO> {
+    return disciplineGet("/settings");
+}
+
+export async function updateDisciplineSettings(request: UpdateDisciplineSettingsRequest): Promise<DisciplineSettingsTO> {
+    return disciplineSend("PUT", "/settings", request);
 }

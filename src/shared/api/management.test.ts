@@ -49,6 +49,8 @@ import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
 import type { StaffAdminTO, UpdateStaffPayrollRequest } from "../../domains/management/staff/types";
 import { StaffRoles } from "../../domains/auth/types";
 
+import * as discipline from "./management";
+
 const mockAuthFetch = jest.mocked(authFetch);
 
 beforeAll(() => {
@@ -1080,6 +1082,7 @@ function slipForm(): SalarySlipForm {
         netPay: 286,
         amountInWords: "Bahraini Dinars Two Hundred Eighty Six Only",
         notes: ["1. Basic Salary of BD 240.000 paid in full with no deduction."],
+        penalty: null,
     };
 }
 
@@ -1243,5 +1246,198 @@ describe.each([
         mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
 
         await expect(save()).rejects.toThrow("you don't have permission to change this");
+    });
+});
+
+// ── Staff discipline (/api/discipline/**) ─────────────────────────────────────
+
+const D = "http://test-api.com/api/discipline";
+const ISSUE_REQ = { violationTypeId: 3, issuerComment: "late", occurredOn: "2026-10-06", discoveredOn: "2026-10-07" };
+
+type JsonCase = {
+    name: string;
+    call: () => Promise<unknown>;
+    method: "GET" | "POST" | "PUT";
+    url: string;
+    body?: unknown;
+};
+
+const JSON_CASES: JsonCase[] = [
+    { name: "fetchDisciplineCatalog", call: () => discipline.fetchDisciplineCatalog(), method: "GET", url: `${D}/catalog` },
+    { name: "fetchRosterScores", call: () => discipline.fetchRosterScores("b-1"), method: "GET", url: `${D}/roster-scores?branchId=b-1` },
+    { name: "fetchStaffDiscipline", call: () => discipline.fetchStaffDiscipline(7), method: "GET", url: `${D}/staff/7` },
+    { name: "fetchMyDiscipline", call: () => discipline.fetchMyDiscipline(), method: "GET", url: `${D}/me` },
+    { name: "fetchMyWorkSummary", call: () => discipline.fetchMyWorkSummary(), method: "GET", url: `${D}/me/work-summary` },
+    { name: "previewViolation", call: () => discipline.previewViolation(7, ISSUE_REQ), method: "POST", url: `${D}/staff/7/violations/preview`, body: ISSUE_REQ },
+    { name: "issueViolation", call: () => discipline.issueViolation(7, ISSUE_REQ), method: "POST", url: `${D}/staff/7/violations`, body: ISSUE_REQ },
+    { name: "submitExplanation", call: () => discipline.submitExplanation(11, { text: "why" }), method: "POST", url: `${D}/me/violations/11/explanation`, body: { text: "why" } },
+    { name: "disputeViolation", call: () => discipline.disputeViolation(11, { reason: "no" }), method: "POST", url: `${D}/me/violations/11/dispute`, body: { reason: "no" } },
+    { name: "confirmViolation", call: () => discipline.confirmViolation(11), method: "POST", url: `${D}/violations/11/confirm` },
+    { name: "cancelViolation", call: () => discipline.cancelViolation(11, { reason: "oops" }), method: "POST", url: `${D}/violations/11/cancel`, body: { reason: "oops" } },
+    { name: "rejectDispute", call: () => discipline.rejectDispute(11, { note: "stands" }), method: "POST", url: `${D}/violations/11/dispute/reject`, body: { note: "stands" } },
+    { name: "markActionSigned", call: () => discipline.markActionSigned(4), method: "POST", url: `${D}/actions/4/sign` },
+    { name: "recordRefusal", call: () => discipline.recordRefusal(4, { shiftChiefStaffId: 1, gmStaffId: 2 }), method: "POST", url: `${D}/actions/4/refusal`, body: { shiftChiefStaffId: 1, gmStaffId: 2 } },
+    {
+        name: "createCatalogEntry",
+        call: () => discipline.createCatalogEntry({ categoryId: 1, title: "T", violationClass: "A", points: 2, ttlDays: 30, penaltyHours: 1 }),
+        method: "POST", url: `${D}/catalog/entries`,
+        body: { categoryId: 1, title: "T", violationClass: "A", points: 2, ttlDays: 30, penaltyHours: 1 },
+    },
+    {
+        name: "updateCatalogEntry",
+        call: () => discipline.updateCatalogEntry(5, { violationClass: "B", points: 3, ttlDays: null, penaltyHours: 2 }),
+        method: "PUT", url: `${D}/catalog/entries/5`,
+        body: { violationClass: "B", points: 3, ttlDays: null, penaltyHours: 2 },
+    },
+    { name: "fetchDisciplineSettings", call: () => discipline.fetchDisciplineSettings(), method: "GET", url: `${D}/settings` },
+    { name: "updateDisciplineSettings", call: () => discipline.updateDisciplineSettings({ shadowPilot: true }), method: "PUT", url: `${D}/settings`, body: { shadowPilot: true } },
+];
+
+describe.each(JSON_CASES)("discipline API: $name", ({ call, method, url, body }) => {
+    it("sends the right URL, method and JSON body, and returns the parsed body", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ ok: 1 }, 200));
+
+        const result = await call();
+
+        const [calledUrl, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(calledUrl).toBe(url);
+        expect(init.method).toBe(method);
+        if (body === undefined) {
+            expect(init.body).toBeUndefined();
+        } else {
+            expect(JSON.parse(String(init.body))).toEqual(body);
+            expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
+        }
+        expect(result).toEqual({ ok: 1 });
+    });
+
+    it("throws the server message on a 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Already confirmed" }, 409));
+
+        await expect(call()).rejects.toThrow("Already confirmed");
+    });
+
+    it("throws the server message on a 400", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Comment required" }, 400));
+
+        await expect(call()).rejects.toThrow("Comment required");
+    });
+
+    it("throws the server message on a 403 and 404", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "GM only" }, 403));
+        await expect(call()).rejects.toThrow("GM only");
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "No such staff" }, 404));
+        await expect(call()).rejects.toThrow("No such staff");
+    });
+
+    it("falls back to the status code when the body has no message", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 409 }));
+
+        await expect(call()).rejects.toThrow("the server refused it (error 409)");
+    });
+
+    it("throws the generic text on a 5xx and hides the exception message", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "NullPointerException at X" }, 500));
+
+        await expect(call()).rejects.toThrow("the server had a problem — try again in a minute");
+    });
+});
+
+describe("uploadViolationPhoto", () => {
+    it("posts a multipart form with a part named file and no Content-Type header", async () => {
+        const meta = { violationId: 11, contentType: "image/png", sizeBytes: 3 };
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse(meta, 201));
+
+        const result = await discipline.uploadViolationPhoto(11, new Blob(["abc"], { type: "image/png" }));
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${D}/violations/11/photo`);
+        expect(init.method).toBe("POST");
+        expect(init.body).toBeInstanceOf(FormData);
+        expect((init.body as FormData).get("file")).toBeInstanceOf(Blob); // RequestInit.body is a union; we know it is the FormData we built
+        expect(init.headers).toBeUndefined();
+        expect(result).toEqual(meta);
+    });
+
+    it("throws the server message on a 409", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Photo already attached" }, 409));
+
+        await expect(discipline.uploadViolationPhoto(11, new Blob(["x"]))).rejects.toThrow("Photo already attached");
+    });
+
+    it("throws the generic text on a 5xx", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+
+        await expect(discipline.uploadViolationPhoto(11, new Blob(["x"]))).rejects.toThrow("the server had a problem");
+    });
+});
+
+describe("fetchViolationPhoto", () => {
+    it("GETs the photo and returns the blob", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response("img", { status: 200 }));
+
+        const blob = await discipline.fetchViolationPhoto(11);
+
+        const [url, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${D}/violations/11/photo`);
+        expect(init.method).toBe("GET");
+        expect(blob).toBeInstanceOf(Blob);
+    });
+
+    it("resolves null on 404", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(discipline.fetchViolationPhoto(11)).resolves.toBeNull();
+    });
+
+    it("throws on other failures", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "Not allowed" }, 403));
+        await expect(discipline.fetchViolationPhoto(11)).rejects.toThrow("Not allowed");
+
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+        await expect(discipline.fetchViolationPhoto(11)).rejects.toThrow("the server had a problem");
+    });
+});
+
+type PdfCase = { name: string; call: () => Promise<discipline.PdfDownload>; url: string; fallback: string };
+const PDF_CASES: PdfCase[] = [
+    { name: "downloadDisciplinaryDocument", call: () => discipline.downloadDisciplinaryDocument(4), url: `${D}/actions/4/document`, fallback: "Disciplinary_Document_4.pdf" },
+    { name: "downloadRefusalAct", call: () => discipline.downloadRefusalAct(4), url: `${D}/actions/4/refusal-act`, fallback: "Refusal_Act_4.pdf" },
+];
+
+describe.each(PDF_CASES)("discipline PDF: $name", ({ call, url, fallback }) => {
+    it("GETs the URL and returns the Content-Disposition filename", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response("%PDF", {
+            status: 200,
+            headers: { "Content-Disposition": 'attachment; filename="Doc_Casey.pdf"' },
+        }));
+
+        const result = await call();
+
+        const [calledUrl, init] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(calledUrl).toBe(url);
+        expect(init.method).toBe("GET");
+        expect(result.filename).toBe("Doc_Casey.pdf");
+        expect(result.blob).toBeInstanceOf(Blob);
+    });
+
+    it("uses the fallback filename when the header is absent", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response("%PDF", { status: 200 }));
+
+        const result = await call();
+
+        expect(result.filename).toBe(fallback);
+    });
+
+    it("throws the server message on a 409 (e.g. pilot-stamped action)", async () => {
+        mockAuthFetch.mockResolvedValueOnce(jsonResponse({ message: "No document for pilot actions" }, 409));
+
+        await expect(call()).rejects.toThrow("No document for pilot actions");
+    });
+
+    it("throws the generic text on a 5xx", async () => {
+        mockAuthFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+        await expect(call()).rejects.toThrow("the server had a problem — try again in a minute");
     });
 });

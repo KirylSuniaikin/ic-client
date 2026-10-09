@@ -41,6 +41,11 @@ function amountToField(value: number | null): string {
     return value === null || value === undefined ? "" : String(value);
 }
 
+// Whole hours print without decimals ("6 h"), fractions keep up to two.
+function hoursText(value: number): string {
+    return String(Math.round(value * 100) / 100);
+}
+
 function round3(value: number): number {
     return Math.round(value * 1000) / 1000;
 }
@@ -212,6 +217,7 @@ export default function SalarySlipPopup({
             netPay: round3(net),
             amountInWords: words.trim(),
             notes: notes.map(n => n.trim()).filter(n => n !== ""),
+            penalty: form.penalty,
         });
     };
 
@@ -389,6 +395,30 @@ export default function SalarySlipPopup({
                                 data-testid="slip-add-deduction">
                             Add deduction
                         </Button>
+
+                        {form.penalty !== null && (
+                            <Box data-testid="slip-penalty-section">
+                                <Typography sx={sectionSx}>Penalty hours</Typography>
+                                <Box sx={{maxHeight: 200, overflowY: "auto"}} data-testid="slip-penalty-entries">
+                                    {form.penalty.entries.map((entry, i) => (
+                                        <Typography variant="body2" key={i} sx={{mb: 0.5}}>
+                                            {`${entry.code} — ${entry.title}, ${entry.issuedOn}, ${hoursText(entry.hours)} h${entry.pending ? " (pending confirmation)" : ""}`}
+                                        </Typography>
+                                    ))}
+                                </Box>
+                                <Typography variant="body2" sx={{fontWeight: 600, mt: 1}}>
+                                    {`Total penalty hours: ${hoursText(form.penalty.totalHours)} h`}
+                                </Typography>
+                                <Typography variant="body2" sx={{fontWeight: 600}}>
+                                    {`Deducted this period: ${hoursText(form.penalty.deductedHours)} h (BD ${form.penalty.deductedAmount.toFixed(3)})`}
+                                </Typography>
+                                {form.penalty.capped && (
+                                    <Typography variant="caption" sx={{color: "text.secondary", display: "block", mt: 0.5}}>
+                                        {`The deduction is limited to the hours worked in the employee's 5 latest shifts (${hoursText(form.penalty.capHours)} h).`}
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
 
                         <Typography sx={sectionSx}>Totals</Typography>
                         <Stack spacing={2}>
