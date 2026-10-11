@@ -6,6 +6,8 @@ import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
+import { ApplePayButton } from "../../order/components/ApplePayButton";
+import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayCheckout";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -45,6 +47,8 @@ interface CartPopupProps {
     orderType: string;
     onDeliveryTypeChange: (value: string) => void;
     isKiosk: boolean;
+    // Absent (or not `available`) renders the cart exactly as before.
+    applePay?: Pick<UseApplePayCheckoutResult, "available" | "busy" | "start">;
 }
 
 function CartPopup({
@@ -72,6 +76,7 @@ function CartPopup({
                        orderType,
                        onDeliveryTypeChange,
                        isKiosk,
+                       applePay,
                    }: CartPopupProps): JSX.Element {
     const { t } = useTranslation("cart");
     const totalPrice = items
@@ -267,6 +272,10 @@ function CartPopup({
                         {totalPrice}
                     </Typography>
                 </Box>
+
+                {applePay?.available && !isAdmin && !isKiosk && (
+                    <ApplePayButton onClick={applePay.start} disabled={applePay.busy} />
+                )}
 
                 {/* Checkout button */}
                 <Box

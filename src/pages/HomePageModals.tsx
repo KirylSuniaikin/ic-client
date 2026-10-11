@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import ApplePayNotice from "../domains/order/components/ApplePayNotice";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
 import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaComboPopup";
@@ -23,6 +24,7 @@ import ErrorSnackbar from "../shared/components/ErrorSnackbar";
 import { UnavailablePopup } from "../domains/menu/components/UnavailablePopup";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
+import type { UseApplePayCheckoutResult } from "../domains/order/hooks/useApplePayCheckout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
@@ -30,6 +32,7 @@ import type { WorkingHoursSchedule } from "../shared/api/management";
 interface HomePageModalsProps {
     cart: UseCartResult;
     checkout: UseCheckoutResult;
+    applePay?: UseApplePayCheckoutResult;
     menuData: MenuItem[];
     toppings: Topping[];
     extraIngredients: ExtraIngr[];
@@ -52,7 +55,7 @@ interface HomePageModalsProps {
 }
 
 export default function HomePageModals({
-    cart, checkout, menuData, toppings, extraIngredients, availableBranches,
+    cart, checkout, applePay, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
@@ -234,6 +237,7 @@ export default function HomePageModals({
                     orderType={checkout.orderType}
                     onDeliveryTypeChange={checkout.setOrderType}
                     isKiosk={isKiosk}
+                    applePay={applePay}
                 />
             )}
 
@@ -282,6 +286,14 @@ export default function HomePageModals({
                 />
             )}
 
+            {applePay?.reminderOpen && (
+                <PickUpReminderPopup
+                    onClose={applePay.dismissReminder}
+                    onClick={applePay.continueFromReminder}
+                    disabled={applePay.busy}
+                />
+            )}
+
             {!isAdmin && checkout.showOrderConfirmed && (
                 <OrderConfirmed open onClose={() => checkout.setShowOrderConfirmed(false)} />
             )}
@@ -302,6 +314,18 @@ export default function HomePageModals({
                 severity="error"
                 handleClose={() => checkout.setErrorSnackBarOpen(false)}
             />
+
+            {applePay?.error && (
+                <ErrorSnackbar
+                    open
+                    message={applePay.error}
+                    severity="error"
+                    handleClose={applePay.clearError}
+                    duration={8000}
+                />
+            )}
+
+            <ApplePayNotice message={applePay?.notice ?? null} />
 
             {!cart.cartOpen && checkout.unavailablePopupOpen && (
                 <UnavailablePopup

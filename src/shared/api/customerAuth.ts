@@ -14,6 +14,15 @@ import type {
     ReviewPromptOutcome,
     SuggestedOrderResponse,
 } from '../../domains/customer-auth/types';
+import { ApplePayApiError } from '../../domains/order/applePayTypes';
+import type {
+    ApplePayEligibilityResponse,
+    ApplePayOrderResponse,
+    ApplePayPayRequest,
+    ApplePayPaymentResponse,
+} from '../../domains/order/applePayTypes';
+import { BranchClosedError, ItemsUnavailableError } from '../../domains/order/types';
+import type { CreateOrderRequest } from '../../domains/order/types';
 
 // Type guard for a JSON error body shaped like `{ message: string }`.
 // The `as` cast is scoped to this guard's internal narrowing of an
@@ -247,6 +256,86 @@ export async function ackReviewPrompt(
         // on screen, and re-raising here would surface an error the customer can
         // do nothing about.
     }
+}
+
+// Apple Pay (task-spec.md §5 F-1..F-5). Errors carry a stable message token the caller keys off.
+const APPLE_PAY_FALLBACK_CODE = 'APPLE_PAY_UNKNOWN_ERROR';
+
+function isUnavailableIdsBody(data: unknown): data is { message: string; unavailableIds: number[] } {
+    if (typeof data !== 'object' || data === null) return false;
+    // Scoped narrowing of an otherwise-`unknown` parsed body, same as isMessageBody above.
+    const body = data as { message?: unknown; unavailableIds?: unknown };
+    return typeof body.message === 'string' && Array.isArray(body.unavailableIds);
+}
+
+async function readJsonOrNull(response: Response): Promise<unknown> {
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+async function throwApplePayError(response: Response): Promise<never> {
+    const data = await readJsonOrNull(response);
+    if (response.status === 409 && isUnavailableIdsBody(data)) {
+        throw new ItemsUnavailableError(data.message, data.unavailableIds);
+    }
+    if (response.status === 423) {
+        throw new BranchClosedError(isMessageBody(data) ? data.message : '');
+    }
+    throw new ApplePayApiError(isMessageBody(data) ? data.message : APPLE_PAY_FALLBACK_CODE, response.status);
+}
+
+async function applePayRequest<T>(
+    accessToken: string,
+    path: string,
+    method: 'GET' | 'POST',
+    body?: unknown,
+): Promise<T> {
+    const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const response = await customerAuthFetch(`${BASE_URL}/customer/apple-pay${path}`, {
+        method,
+        credentials: 'include',
+        headers: withClientPlatform(headers),
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok) {
+        return await throwApplePayError(response);
+    }
+    return await response.json();
+}
+
+export async function fetchApplePayEligibility(accessToken: string): Promise<ApplePayEligibilityResponse> {
+    return await applePayRequest<ApplePayEligibilityResponse>(accessToken, '/eligibility', 'GET');
+}
+
+// Response is Apple's opaque merchant session; passed straight to completeMerchantValidation.
+export async function requestApplePayMerchantSession(accessToken: string, validationUrl: string): Promise<unknown> {
+    return await applePayRequest<unknown>(accessToken, '/merchant-session', 'POST', { validationUrl });
+}
+
+export async function createApplePayOrder(
+    accessToken: string,
+    order: CreateOrderRequest,
+): Promise<ApplePayOrderResponse> {
+    return await applePayRequest<ApplePayOrderResponse>(accessToken, '/orders', 'POST', order);
+}
+
+export async function payApplePayOrder(
+    accessToken: string,
+    orderId: number,
+    payload: ApplePayPayRequest,
+): Promise<ApplePayPaymentResponse> {
+    return await applePayRequest<ApplePayPaymentResponse>(accessToken, `/orders/${orderId}/pay`, 'POST', payload);
+}
+
+export async function fetchApplePayPaymentStatus(
+    accessToken: string,
+    orderId: number,
+): Promise<ApplePayPaymentResponse> {
+    return await applePayRequest<ApplePayPaymentResponse>(accessToken, `/orders/${orderId}/payment`, 'GET');
 }
 
 export async function fetchSuggestedItems(accessToken: string): Promise<SuggestedOrderResponse> {
