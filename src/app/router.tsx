@@ -4,7 +4,7 @@ import HomePage from '../pages/HomePage';
 import AdminHomePage from '../pages/AdminHomePage';
 import {OrderStatusPage} from '../pages/OrderStatusPage';
 import {AuthPage} from '../pages/AuthPage';
-import {PrivacyPolicyPage} from '../pages/PrivacyPolicyPage';
+import {DELETE_DATA_SECTION_ID, PrivacyPolicyPage} from '../pages/PrivacyPolicyPage';
 import {PaymentResultPage} from '../pages/PaymentResultPage';
 import {ProtectedRoute} from '../domains/auth/components/ProtectedRoute';
 import {captureFbclid} from '../shared/utils/adAttribution';
@@ -62,6 +62,9 @@ export function AppRouter(): JSX.Element {
                 because its store listing must link straight to it. */}
             <Route path="/privacy" element={<PrivacyPolicyPage tab="ic-pizza"/>}/>
             <Route path="/privacy/delivery" element={<PrivacyPolicyPage tab="delivery"/>}/>
+            {/* Google Play's data-safety form needs a URL that opens the deletion steps directly. */}
+            <Route path="/privacy/delivery/delete-data"
+                   element={<PrivacyPolicyPage tab="delivery" focusSectionId={DELETE_DATA_SECTION_ID}/>}/>
         </Routes>
     );
 }

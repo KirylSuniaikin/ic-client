@@ -279,6 +279,14 @@ async function main() {
         jsonLd: [],
     });
     await writeRoute(template, '/privacy/delivery', 'privacy/delivery/index.html', courierPrivacyTags);
+
+    const courierDeleteDataTags = renderHeadTags({
+        title: 'Delete your Astra Courier data | IC Pizza',
+        description: 'How a rider asks for their Astra Courier account and data to be deleted, what is deleted and what is kept.',
+        urlPath: '/privacy/delivery/delete-data',
+        jsonLd: [],
+    });
+    await writeRoute(template, '/privacy/delivery/delete-data', 'privacy/delivery/delete-data/index.html', courierDeleteDataTags);
 }
 
 main().catch(err => {

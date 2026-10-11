@@ -139,6 +139,23 @@ describe("AppRouter", () => {
             expect(selectedTabName()).toBe("Astra Courier (delivery)");
         });
 
+        it("opens the deletion steps directly on /privacy/delivery/delete-data", () => {
+            const originalScrollIntoView = Element.prototype.scrollIntoView;
+            const scrolled: string[] = [];
+            Element.prototype.scrollIntoView = jest.fn(function (this: Element) {
+                scrolled.push(this.id);
+            }) as unknown as typeof Element.prototype.scrollIntoView;
+            try {
+                renderPrivacyAt("/privacy/delivery/delete-data");
+
+                expect(selectedTabName()).toBe("Astra Courier (delivery)");
+                expect(screen.getByRole("heading", { level: 2, name: "7. Delete your data" })).toBeTruthy();
+                expect(scrolled).toEqual(["delete-data"]);
+            } finally {
+                Element.prototype.scrollIntoView = originalScrollIntoView;
+            }
+        });
+
         it("swaps policy and URL both ways when the tabs are clicked", () => {
             renderPrivacyAt("/privacy");
 

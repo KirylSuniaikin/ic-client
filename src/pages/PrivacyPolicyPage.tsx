@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {Link as RouterLink} from 'react-router-dom';
 import {Box, Container, Divider, Link, Tab, Tabs, Typography} from '@mui/material';
 import {SeoHead} from '../shared/components/SeoHead';
@@ -51,13 +51,18 @@ const POLICY_TABS: Record<PrivacyPolicyTab, PolicyTabDefinition> = {
     },
 };
 
+// Google Play's data-safety form asks for a URL that opens the deletion instructions themselves,
+// so the section has an id and a route of its own (/privacy/delivery/delete-data).
+export const DELETE_DATA_SECTION_ID = 'delete-data';
+const DELETE_DATA_PATH = '/privacy/delivery/delete-data';
+
 function tabElementId(tab: PrivacyPolicyTab): string {
     return `privacy-policy-tab-${tab}`;
 }
 
-function Section({title, children}: {title: string; children: React.ReactNode}): JSX.Element {
+function Section({title, id, children}: {title: string; id?: string; children: React.ReactNode}): JSX.Element {
     return (
-        <Box sx={{mt: 4}}>
+        <Box id={id} sx={{mt: 4, scrollMarginTop: 16}}>
             <Typography variant="h6" component="h2" sx={{fontWeight: 600, mb: 1}}>
                 {title}
             </Typography>
@@ -446,15 +451,54 @@ function AstraCourierPolicy(): JSX.Element {
                         orders, and without the camera you cannot complete a delivery.
                     </Bullet>
                     <Bullet>
-                        You can ask us for a copy of your data, ask us to correct it, or ask us to
-                        delete it — write to{' '}
-                        <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link>. We may need
-                        to keep some records where the law requires it.
+                        You can ask us for a copy of your data or ask us to correct it — write to{' '}
+                        <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link>. To have it
+                        deleted, follow the steps in{' '}
+                        <Link component={RouterLink} to={DELETE_DATA_PATH}>Delete your data</Link>.
                     </Bullet>
                 </Box>
             </Section>
 
-            <Section title="7. Security">
+            <Section title="7. Delete your data" id={DELETE_DATA_SECTION_ID}>
+                <P>
+                    You can ask us to delete your Astra Courier account and the data linked to it at
+                    any time, including after you stop working with us.
+                </P>
+                <Box component="ol" sx={{pl: 3, mt: 0}}>
+                    <Bullet>
+                        Send an email to{' '}
+                        <Link href={`mailto:${CONTACT_EMAIL}`}>
+                            {CONTACT_EMAIL}
+                        </Link>{' '}
+                        with the subject &quot;Astra Courier - delete my data&quot;. You can also ask
+                        your dispatch manager to send it for you.
+                    </Bullet>
+                    <Bullet>
+                        Include your full name and the phone number of your rider account, so we can
+                        find it. Never send your password.
+                    </Bullet>
+                    <Bullet>
+                        We confirm that we received your request within 7 days, may ask you to
+                        confirm it from that phone number, and complete the deletion within 30 days.
+                        We email you when it is done.
+                    </Bullet>
+                </Box>
+                <P>
+                    <strong>What we delete:</strong> your rider account (name, phone number and
+                    login), your location history and your last known position, your phone&apos;s
+                    notification token, your shift and offer records, and any delivery photos that
+                    are still stored. Once your account is deleted you can no longer sign in to the
+                    app.
+                </P>
+                <P>
+                    <strong>What we keep:</strong> the records of the orders you delivered (order
+                    number, times and amounts), because they are part of our accounting and tax
+                    records. We keep them for as long as Bahrain&apos;s accounting and tax rules
+                    require, with your name removed from them.
+                </P>
+            </Section>
+
+            <Section title="8. Security">
                 <P>
                     All traffic between the app and our servers is encrypted in transit. The app
                     keeps your session token in your phone&apos;s secure storage. Among our staff,
@@ -463,14 +507,14 @@ function AstraCourierPolicy(): JSX.Element {
                 </P>
             </Section>
 
-            <Section title="8. Children">
+            <Section title="9. Children">
                 <P>
                     The app is intended only for our adult delivery riders. We do not knowingly
                     collect data from children.
                 </P>
             </Section>
 
-            <Section title="9. Changes">
+            <Section title="10. Changes">
                 <P>
                     If we change this policy we will update the effective date at the top of this
                     tab.
@@ -482,10 +526,17 @@ function AstraCourierPolicy(): JSX.Element {
 
 interface PrivacyPolicyPageProps {
     tab: PrivacyPolicyTab;
+    /** Scrolls this section into view on open: a link can then point at one part of a policy. */
+    focusSectionId?: string;
 }
 
-export function PrivacyPolicyPage({tab}: PrivacyPolicyPageProps): JSX.Element {
+export function PrivacyPolicyPage({tab, focusSectionId}: PrivacyPolicyPageProps): JSX.Element {
     const active = POLICY_TABS[tab];
+    useEffect(() => {
+        if (focusSectionId) {
+            document.getElementById(focusSectionId)?.scrollIntoView();
+        }
+    }, [focusSectionId]);
     return (
         <Container maxWidth="md" sx={{py: {xs: 4, sm: 6}}}>
             <SeoHead title={active.seoTitle} description={active.seoDescription} path={active.path}/>

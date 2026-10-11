@@ -1,10 +1,10 @@
-import { describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import { PrivacyPolicyPage, type PrivacyPolicyTab } from "./PrivacyPolicyPage";
+import { DELETE_DATA_SECTION_ID, PrivacyPolicyPage, type PrivacyPolicyTab } from "./PrivacyPolicyPage";
 
 const IC_PIZZA_TAB_NAME = "IC Pizza (website, app, kiosk)";
 const DELIVERY_TAB_NAME = "Astra Courier (delivery)";
@@ -192,6 +192,38 @@ describe("PrivacyPolicyPage", () => {
             expect(retention.getByText(/7 to 14 days/)).toBeTruthy();
         });
 
+        // Google Play's data-safety form opens this section by URL and checks three things on it:
+        // the app's name, step-by-step deletion instructions, and what is deleted versus kept.
+        it("explains how a rider gets their data deleted, what is deleted and what is kept", () => {
+            renderPolicy("delivery", "/privacy/delivery");
+
+            const deletion = sectionOf("7. Delete your data");
+            expect(deletion.id).toBe(DELETE_DATA_SECTION_ID);
+            const scoped = within(deletion);
+            expect(scoped.getByText(/delete your Astra Courier account/)).toBeTruthy();
+            expect(within(deletion.querySelector("ol") as HTMLElement).getAllByRole("listitem")).toHaveLength(3);
+            expect(scoped.getByText(/Astra Courier - delete my data/)).toBeTruthy();
+            expect(scoped.getByText(/full name and the phone number of your rider account/)).toBeTruthy();
+            expect(scoped.getByText(/complete the deletion within 30 days/)).toBeTruthy();
+            expect(scoped.getByText(/your location history and your last known position/)).toBeTruthy();
+            expect(scoped.getByText(/accounting and tax/)).toBeTruthy();
+            expect(scoped.getByText(/with your name removed/)).toBeTruthy();
+        });
+
+        it("points the choices section at the deletion steps", () => {
+            renderPolicy("delivery", "/privacy/delivery");
+
+            const link = within(sectionOf("6. Your choices")).getByRole("link", { name: "Delete your data" });
+            expect(link.getAttribute("href")).toBe("/privacy/delivery/delete-data");
+        });
+
+        it("keeps its later sections numbered after the new one", () => {
+            renderPolicy("delivery", "/privacy/delivery");
+
+            ["8. Security", "9. Children", "10. Changes"].forEach(name =>
+                expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy());
+        });
+
         it("adds no email address or phone number the IC Pizza tab does not already give", () => {
             const delivery = renderPolicy("delivery", "/privacy/delivery");
             const deliveryContacts = contactDetailsIn(delivery.container);
@@ -274,5 +306,40 @@ describe("PrivacyPolicyPage", () => {
             expect(metaContent("meta[property='og:title']")).toBe("Astra Courier Privacy Policy | IC Pizza");
             expect(document.head.querySelector("link[rel='canonical']")?.getAttribute("href")).toBe("https://ic-pizza.com/privacy/delivery");
         });
+    });
+});
+
+describe("PrivacyPolicyPage focusSectionId", () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+    afterEach(() => {
+        Element.prototype.scrollIntoView = originalScrollIntoView;
+    });
+
+    it("scrolls the named section into view when the page opens", () => {
+        const scrolled: Element[] = [];
+        // jsdom implements no scrolling; record which element was asked to scroll instead.
+        Element.prototype.scrollIntoView = jest.fn(function (this: Element) {
+            scrolled.push(this);
+        }) as unknown as typeof Element.prototype.scrollIntoView;
+
+        render(
+            <HelmetProvider>
+                <MemoryRouter initialEntries={["/privacy/delivery/delete-data"]}>
+                    <PrivacyPolicyPage tab="delivery" focusSectionId={DELETE_DATA_SECTION_ID} />
+                </MemoryRouter>
+            </HelmetProvider>
+        );
+
+        expect(scrolled.map(element => element.id)).toEqual([DELETE_DATA_SECTION_ID]);
+    });
+
+    it("scrolls nowhere when no section is named", () => {
+        const scrollIntoView = jest.fn();
+        Element.prototype.scrollIntoView = scrollIntoView as unknown as typeof Element.prototype.scrollIntoView;
+
+        renderPolicy("delivery", "/privacy/delivery");
+
+        expect(scrollIntoView).not.toHaveBeenCalled();
     });
 });
