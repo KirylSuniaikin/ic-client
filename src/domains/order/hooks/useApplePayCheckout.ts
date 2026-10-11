@@ -32,7 +32,9 @@ import {
 import { newIdempotencyKey } from "./useCheckout";
 
 const POLL_INTERVAL_MS = 3000;
-const POLL_TIMEOUT_MS = 60000;
+// Must outlast the backend's NOT_FOUND grace window (default 120 s): after a PAY timeout the
+// attempt can legitimately stay PENDING that long before it resolves to paid or declined.
+const POLL_TIMEOUT_MS = 150000;
 const IN_PROGRESS_CODE = "APPLE_PAY_PAYMENT_IN_PROGRESS";
 // Only these pay-stage rejections prove no charge happened; every other pay failure (5xx, proxy
 // errors, unknown/missing token, transport errors) is ambiguous and must be resolved by polling.
@@ -218,8 +220,9 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
                 if (!mountedRef.current || !accessToken) return;
                 fetchApplePayPaymentStatus(accessToken, orderId)
                     .then(result => {
-                        if (result.status === "PENDING" && Date.now() < deadline) {
-                            tick();
+                        if (result.status === "PENDING") {
+                            if (Date.now() < deadline) tick();
+                            else showNotice(handlers.current.t("errors.unresolved"));
                         } else if (result.status === "APPROVED" || result.status === "DECLINED") {
                             handleResolved(result, amount, tel);
                         } else if (result.status === "REVIEW") {
@@ -229,6 +232,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
                     .catch((e: unknown) => {
                         logger.warn("Apple Pay status poll failed:", describeError(e));
                         if (Date.now() < deadline) tick();
+                        else showNotice(handlers.current.t("errors.unresolved"));
                     });
             }, POLL_INTERVAL_MS);
         };

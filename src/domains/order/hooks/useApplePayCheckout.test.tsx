@@ -545,7 +545,26 @@ describe("useApplePayCheckout — PENDING", () => {
         expect(result.current.busy).toBe(false);
     });
 
-    it("stays blocked after the 60 s polling window runs out", async () => {
+    it("keeps polling past 120 s (backend NOT_FOUND grace) and still resolves to paid", async () => {
+        mockPay.mockResolvedValue({ orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" });
+        mockStatus.mockResolvedValue({ orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" });
+        const { result, params } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        jest.useFakeTimers();
+        await authorize(session);
+
+        for (let i = 0; i < 45; i++) {
+            await act(async () => { jest.advanceTimersByTime(3000); });
+        }
+        expect(result.current.busy).toBe(true);
+        mockStatus.mockResolvedValue({ orderId: 4821, status: "APPROVED", amount: "5.000", currency: "BHD" });
+        await act(async () => { jest.advanceTimersByTime(3000); });
+
+        expect(params.setCartItems).toHaveBeenCalledWith([]);
+        expect(result.current.busy).toBe(false);
+    });
+
+    it("stays blocked and shows the unresolved notice when the 150 s polling window runs out", async () => {
         mockPay.mockResolvedValue({ orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" });
         mockStatus.mockResolvedValue({ orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" });
         const { result } = await renderAvailable();
@@ -553,12 +572,34 @@ describe("useApplePayCheckout — PENDING", () => {
         jest.useFakeTimers();
         await authorize(session);
 
-        for (let i = 0; i < 25; i++) {
+        for (let i = 0; i < 55; i++) {
+            await act(async () => { jest.advanceTimersByTime(3000); });
+        }
+        const callsAtEnd = mockStatus.mock.calls.length;
+        await act(async () => { jest.advanceTimersByTime(30000); });
+
+        expect(result.current.busy).toBe(true);
+        expect(result.current.notice).toContain("do not pay again");
+        expect(result.current.notice).toContain("could not confirm");
+        expect(mockStatus.mock.calls.length).toBe(callsAtEnd);
+        act(() => { result.current.start(); });
+        expect(FakeApplePaySession.instances).toHaveLength(1);
+    });
+
+    it("shows the unresolved notice when status polling errors until the window ends", async () => {
+        mockPay.mockResolvedValue({ orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" });
+        mockStatus.mockRejectedValue(new TypeError("network"));
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        jest.useFakeTimers();
+        await authorize(session);
+
+        for (let i = 0; i < 55; i++) {
             await act(async () => { jest.advanceTimersByTime(3000); });
         }
 
         expect(result.current.busy).toBe(true);
-        expect(mockStatus.mock.calls.length).toBeLessThanOrEqual(21);
+        expect(result.current.notice).toContain("could not confirm");
     });
 
     it("treats a transport error after the order was created as pending, not as a failure", async () => {
