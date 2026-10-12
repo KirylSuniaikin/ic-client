@@ -49,28 +49,31 @@ describe("MyProfileDrawer", () => {
         expect(mockWork).not.toHaveBeenCalled();
     });
 
-    it("shows the title, the user name and a loading indicator while fetching", () => {
+    it("shows the user name and a loading indicator while fetching", () => {
         mockMine.mockReturnValue(new Promise(() => undefined));
         mockWork.mockReturnValue(new Promise(() => undefined));
         renderDrawer();
 
-        expect(screen.getByText("My profile")).toBeTruthy();
         expect(screen.getByText("Casey")).toBeTruthy();
         expect(screen.getByRole("progressbar")).toBeTruthy();
     });
 
-    it("renders score, work card and the sections with empty texts", async () => {
+    it("renders score, work card and the sections, hiding History when it is empty", async () => {
         mockMine.mockResolvedValue(makeRecord({ score: 82, zone: "GREEN", violations: [] }));
         mockWork.mockResolvedValue(SUMMARY);
         renderDrawer();
 
-        expect(await screen.findByText("Score 82")).toBeTruthy();
-        expect(screen.getByTestId("my-profile-score")).toBeTruthy();
+        await waitFor(() => expect(screen.getByTestId("my-profile-score").textContent).toBe("82"));
+        expect(screen.getByTestId("profile-zone-pill").textContent).toBe("Green zone");
+        expect(screen.getByTestId("profile-hours").textContent).toBe("80.00");
+        expect(screen.getByTestId("profile-active-count").textContent).toBe("0");
+        expect(screen.getByText("Casey")).toBeTruthy();
+        expect(screen.getByText("cook at IC Pizza")).toBeTruthy();
         expect(await screen.findByTestId("last-month-work-card")).toBeTruthy();
         expect(screen.getByText("Active violations")).toBeTruthy();
         expect(screen.getByText("No active violations")).toBeTruthy();
-        expect(screen.getByText("History")).toBeTruthy();
-        expect(screen.getByText("No violations on record")).toBeTruthy();
+        expect(screen.queryByText("History")).toBeNull();
+        expect(screen.queryByText("No violations on record")).toBeNull();
         expect(screen.queryByText("Awaiting your explanation")).toBeNull();
     });
 
@@ -79,7 +82,7 @@ describe("MyProfileDrawer", () => {
         mockWork.mockResolvedValue(SUMMARY);
         renderDrawer();
 
-        await screen.findByText(/Score/);
+        await screen.findByText("Active violations");
         expect(screen.queryByText(/penalty/i)).toBeNull();
     });
 
@@ -164,7 +167,7 @@ describe("MyProfileDrawer", () => {
         mockWork.mockRejectedValue(new Error("Work down"));
         renderDrawer();
 
-        expect(await screen.findByText("Score 70")).toBeTruthy();
+        await waitFor(() => expect(screen.getByTestId("my-profile-score").textContent).toBe("70"));
         await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Work down"));
         expect(screen.queryByTestId("last-month-work-card")).toBeNull();
         expect(screen.getByText("Active violations")).toBeTruthy();

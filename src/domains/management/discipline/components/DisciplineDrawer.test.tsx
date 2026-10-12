@@ -91,7 +91,7 @@ describe("DisciplineDrawer", () => {
         expect(screen.getByTestId("discipline-error").textContent).toBe("HTTP 403");
     });
 
-    it("shows the score badge, zone chip and score text on Current", () => {
+    it("shows only the score number in the zone-coloured badge on Current", () => {
         mockUseStaffDiscipline.mockReturnValue(state({ record: makeRecord({ score: 72, zone: "YELLOW" }) }));
 
         renderDrawer();
@@ -99,7 +99,8 @@ describe("DisciplineDrawer", () => {
         const badge = screen.getByTestId("discipline-score-badge");
         expect(badge.textContent).toBe("72");
         expect(badge.getAttribute("data-zone")).toBe("YELLOW");
-        expect(screen.getByText("Score 72")).toBeTruthy();
+        expect(screen.queryByText("Score 72")).toBeNull();
+        expect(screen.queryByText("Yellow zone")).toBeNull();
     });
 
     it("lists active violations and shows the empty text when there are none", () => {

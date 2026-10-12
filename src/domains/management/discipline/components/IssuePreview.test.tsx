@@ -35,6 +35,16 @@ describe("IssuePreview", () => {
         expect(screen.getByTestId("issue-preview-score").textContent).toBe("Score 90 → 85");
     });
 
+    it("colours each score by its zone instead of showing zone chips", () => {
+        const { container } = render(
+            <IssuePreview preview={makePreview({ scoreBefore: 90, zoneBefore: "GREEN", scoreAfter: 80, zoneAfter: "YELLOW" })} />,
+        );
+
+        expect(container.querySelector('[data-zone="GREEN"]')?.textContent).toBe("90");
+        expect(container.querySelector('[data-zone="YELLOW"]')?.textContent).toBe("80");
+        expect(screen.queryByText("Green zone")).toBeNull();
+    });
+
     it("shows penalty hours and the pay-cycle total when not in the shadow pilot", () => {
         render(<IssuePreview preview={makePreview({ penaltyHours: 2, penaltyHoursInCycle: 1 })} />);
 

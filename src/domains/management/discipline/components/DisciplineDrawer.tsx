@@ -17,7 +17,6 @@ import IssueViolationForm from "./IssueViolationForm";
 import PendingReviewPanel from "./PendingReviewPanel";
 import ScoreBadge from "./ScoreBadge";
 import ViolationList from "./ViolationList";
-import ZoneChip from "./ZoneChip";
 
 export type DisciplineDrawerProps = {
     open: boolean;
@@ -104,11 +103,6 @@ export default function DisciplineDrawer({
         const { active, pending } = partitionViolations(record.violations);
         return (
             <Box data-testid="discipline-current">
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
-                    <ScoreBadge score={record.score} zone={record.zone} size="lg" testId="discipline-score-badge" />
-                    <ZoneChip zone={record.zone} />
-                    <Typography sx={{ fontWeight: 700 }}>{`Score ${record.score}`}</Typography>
-                </Box>
                 <Typography sx={{ fontWeight: 700, mb: 1 }}>Active violations</Typography>
                 <ViolationList
                     violations={active}
@@ -162,7 +156,16 @@ export default function DisciplineDrawer({
                 open={open}
                 onClose={onClose}
                 title="Discipline"
-                subtitle={target ? shortStaffName(staffDisplayName(target)) : undefined}
+                subtitle={
+                    target ? (
+                        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                            {shortStaffName(staffDisplayName(target))}
+                            {record !== null && (
+                                <ScoreBadge score={record.score} zone={record.zone} size="md" testId="discipline-score-badge" />
+                            )}
+                        </Box>
+                    ) : undefined
+                }
                 testId="discipline-drawer"
             >
                 <ToggleButtonGroup

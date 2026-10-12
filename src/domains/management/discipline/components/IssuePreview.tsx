@@ -3,7 +3,7 @@ import { Box, Typography } from "@mui/material";
 import { formatDate } from "../format";
 import { ACTION_LEVEL_LABEL } from "../labels";
 import type { IssuePreviewTO } from "../types";
-import ZoneChip from "./ZoneChip";
+import { ZONE_STYLE } from "../zone";
 
 const PENDING_NOTE =
     "The employee has 48 hours to give a written explanation. The General Manager then confirms or cancels the violation. The formal action is issued on confirmation.";
@@ -23,13 +23,16 @@ const IssuePreview: React.FC<{ preview: IssuePreviewTO }> = ({ preview }) => {
             sx={{ border: "1px solid", borderColor: "grey.200", borderRadius: 3, p: 1.5, mb: 2 }}
         >
             {!isClassD && (
-                <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75, mb: 0.5 }}>
-                    <Typography data-testid="issue-preview-score" sx={{ fontWeight: 700, fontSize: 14 }}>
-                        {`Score ${preview.scoreBefore} → ${preview.scoreAfter}`}
-                    </Typography>
-                    <ZoneChip zone={preview.zoneBefore} />
-                    <ZoneChip zone={preview.zoneAfter} />
-                </Box>
+                <Typography data-testid="issue-preview-score" sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>
+                    {"Score "}
+                    <Box component="span" data-zone={preview.zoneBefore} sx={{ color: ZONE_STYLE[preview.zoneBefore].bg }}>
+                        {preview.scoreBefore}
+                    </Box>
+                    {" → "}
+                    <Box component="span" data-zone={preview.zoneAfter} sx={{ color: ZONE_STYLE[preview.zoneAfter].bg }}>
+                        {preview.scoreAfter}
+                    </Box>
+                </Typography>
             )}
             {preview.formalAction !== null && (
                 <Typography data-testid="issue-preview-action" sx={{ fontSize: 14, mb: 0.5 }}>

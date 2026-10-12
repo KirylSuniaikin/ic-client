@@ -4,10 +4,9 @@ import type { StaffRoles } from "../../../auth/types";
 import { useMyDiscipline } from "../hooks/useMyDiscipline";
 import { useMyWorkSummary } from "../hooks/useMyWorkSummary";
 import { canDispute, isExplanationWindowOpen, partitionViolations } from "../violations";
-import ScoreBadge from "./ScoreBadge";
-import ZoneChip from "./ZoneChip";
+import ProfileHeader from "./ProfileHeader";
+import ProfileStats from "./ProfileStats";
 import ViolationList from "./ViolationList";
-import LastMonthWorkCard from "./LastMonthWorkCard";
 import ExplanationForm from "./ExplanationForm";
 import DisputeButton from "./DisputeButton";
 
@@ -26,7 +25,7 @@ const ErrorText: React.FC<{ message: string }> = ({ message }) => (
     <Typography role="alert" variant="body2" color="error" sx={{ mb: 1 }}>{message}</Typography>
 );
 
-const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ open, onClose, userName }) => {
+const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ open, onClose, userName, role }) => {
     const discipline = useMyDiscipline(open);
     const work = useMyWorkSummary(open);
     const { record } = discipline;
@@ -50,22 +49,17 @@ const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ open, onClose, userNa
         >
             <Box sx={{ p: 3, pb: 4 }} data-testid="my-profile-drawer">
                 <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
-                <Typography sx={{ fontWeight: 700, fontSize: 18 }}>My profile</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{userName}</Typography>
+                <ProfileHeader name={userName} role={role} zone={record?.zone ?? null} />
+                <ProfileStats
+                    score={record?.score ?? null}
+                    zone={record?.zone ?? null}
+                    activeCount={record === null ? null : active.length}
+                    summary={work.summary}
+                />
 
                 {discipline.error !== null && <ErrorText message={discipline.error} />}
                 {work.error !== null && <ErrorText message={work.error} />}
                 {(discipline.loading || work.loading) && <CircularProgress size={20} />}
-
-                {record !== null && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
-                        <ScoreBadge score={record.score} zone={record.zone} size="lg" testId="my-profile-score" />
-                        <ZoneChip zone={record.zone} />
-                        <Typography>{`Score ${record.score}`}</Typography>
-                    </Box>
-                )}
-
-                {work.summary !== null && <LastMonthWorkCard summary={work.summary} />}
 
                 {record !== null && (
                     <>
@@ -97,12 +91,16 @@ const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ open, onClose, userNa
                             </>
                         )}
 
-                        <SectionTitle>History</SectionTitle>
-                        <ViolationList
-                            violations={record.violations}
-                            emptyText="No violations on record"
-                            testIdPrefix="my-history-violation"
-                        />
+                        {record.violations.length > 0 && (
+                            <>
+                                <SectionTitle>History</SectionTitle>
+                                <ViolationList
+                                    violations={record.violations}
+                                    emptyText=""
+                                    testIdPrefix="my-history-violation"
+                                />
+                            </>
+                        )}
                     </>
                 )}
             </Box>

@@ -6,13 +6,14 @@ import type { DisciplineZone } from "../types";
 export type ScoreBadgeProps = {
     score: number;
     zone: DisciplineZone;
-    size?: "sm" | "lg";
+    size?: "sm" | "md" | "lg";
     testId?: string;
 };
 
-const DIAMETER: Record<"sm" | "lg", number> = { sm: 22, lg: 56 };
-const FONT_PX: Record<"sm" | "lg", { normal: number; long: number }> = {
+const DIAMETER: Record<"sm" | "md" | "lg", number> = { sm: 22, md: 30, lg: 56 };
+const FONT_PX: Record<"sm" | "md" | "lg", { normal: number; long: number }> = {
     sm: { normal: 11, long: 9 },
+    md: { normal: 14, long: 11 },
     lg: { normal: 22, long: 17 },
 };
 
@@ -23,6 +24,7 @@ const ScoreBadge: React.FC<ScoreBadgeProps> = ({ score, zone, size = "sm", testI
     const long = String(score).length >= 3;
     return (
         <Box
+            component="span"
             data-testid={testId}
             data-zone={zone}
             aria-label={`Score ${score}, ${label}`}

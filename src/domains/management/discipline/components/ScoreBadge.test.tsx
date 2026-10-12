@@ -1,7 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import { render, screen } from "@testing-library/react";
 import ScoreBadge from "./ScoreBadge";
-import ZoneChip from "./ZoneChip";
 
 describe("ScoreBadge", () => {
     it("renders a negative score with its zone and aria-label", () => {
@@ -27,17 +26,10 @@ describe("ScoreBadge", () => {
         expect(getComputedStyle(screen.getByTestId("b")).width).toBe("22px");
         expect(getComputedStyle(screen.getByTestId("b")).height).toBe("22px");
 
+        rerender(<ScoreBadge score={5} zone="YELLOW" size="md" testId="b" />);
+        expect(getComputedStyle(screen.getByTestId("b")).width).toBe("30px");
         rerender(<ScoreBadge score={5} zone="YELLOW" size="lg" testId="b" />);
         expect(getComputedStyle(screen.getByTestId("b")).width).toBe("56px");
         expect(getComputedStyle(screen.getByTestId("b")).height).toBe("56px");
-    });
-});
-
-describe("ZoneChip", () => {
-    it("shows the zone label and data-zone", () => {
-        const { container } = render(<ZoneChip zone="ORANGE" />);
-
-        expect(screen.getByText("Orange zone")).toBeTruthy();
-        expect(container.querySelector('[data-zone="ORANGE"]')).not.toBeNull();
     });
 });

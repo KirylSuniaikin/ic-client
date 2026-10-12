@@ -48,7 +48,7 @@ const IssueViolationForm: React.FC<IssueViolationFormProps> = ({ staffId, canIss
             <TextField
                 label="Comment"
                 multiline
-                minRows={3}
+                minRows={2}
                 fullWidth
                 value={form.comment}
                 onChange={(e) => form.setComment(e.target.value)}
