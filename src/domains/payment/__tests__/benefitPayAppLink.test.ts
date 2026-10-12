@@ -42,8 +42,8 @@ describe("buildAppLink", () => {
     // The three that decide WHICH app opens. Wrong values send the customer to the store, or to
     // the wrong build — and they come from the vendored SDK, so they change with it.
     it("names BenefitPay's app on both platforms", () => {
-        expect(link).toContain("apn=mobi.foo.benefittest");
-        expect(link).toContain("isi=1237673359");
+        expect(link).toContain("apn=mobi.foo.benefit");
+        expect(link).toContain("isi=1249328388");
         expect(link).toContain("ios_scheme=benefitinapp");
     });
 
@@ -80,6 +80,6 @@ describe("buildAppLink", () => {
 
     it("falls back to the known checkout host when the SDK has published none", () => {
         expect(buildAppLink(MESSAGE, "https://icpizza.bh", undefined))
-            .toContain("benefit-checkout.test-benefitpay.bh/links/");
+            .toContain("benefit-checkout.benefitpay.bh/links/");
     });
 });

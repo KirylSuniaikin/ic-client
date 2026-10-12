@@ -14,15 +14,16 @@
  *
  * <h2>These constants are the vendor's, not ours</h2>
  * `apn`/`isi`/`ios_scheme` identify BenefitPay's own apps and are read out of the vendored
- * `InApp.min.js`. **The test SDK names the TEST app** (`mobi.foo.benefittest`); a production
- * `InApp.min.js` will name the production one, and these must be updated with it or the link will
- * open the wrong app — or the store.
+ * `InApp.min.js` — currently the PRODUCTION build, which names the production wallet. The test SDK
+ * names a different app AND a different App Store id (`mobi.foo.benefittest` / `1237673359`), so
+ * all three move together with the vendor file. Swapping the file alone sends the customer to the
+ * wrong build; swapping these alone sends them to a wallet the test gateway cannot pay.
  */
 
 /** Android package of BenefitPay's app, as named by the vendored SDK. */
-const ANDROID_PACKAGE = "mobi.foo.benefittest";
+const ANDROID_PACKAGE = "mobi.foo.benefit";
 /** App Store id, as named by the vendored SDK. */
-const IOS_APP_STORE_ID = "1237673359";
+const IOS_APP_STORE_ID = "1249328388";
 /** Custom scheme the iOS app registers. */
 const IOS_SCHEME = "benefitinapp";
 
@@ -30,7 +31,7 @@ const IOS_SCHEME = "benefitinapp";
 const APP_HANDOFF_STATUS = "beninapp";
 
 /** Fallback host, used only if the SDK has not published its own endpoint yet. */
-const FALLBACK_ENDPOINT = "https://benefit-checkout.test-benefitpay.bh";
+const FALLBACK_ENDPOINT = "https://benefit-checkout.benefitpay.bh";
 
 type HandoffMessage = {
     status?: unknown;
