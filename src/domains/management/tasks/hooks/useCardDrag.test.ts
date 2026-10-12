@@ -4,7 +4,7 @@
 // ("render a small local test harness ... rather than the full TaskBoardPanel").
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, act } from "@testing-library/react";
 import { useCardDrag } from "./useCardDrag";
 import type { UseCardDragOptions } from "./useCardDrag";
 import type { TaskCard, TaskCardStatus } from "../types";
@@ -404,6 +404,94 @@ describe("useCardDrag", () => {
 
             fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 380, clientY: 50 });
             expect(scroller.style.scrollSnapType).toBe("");
+            jest.useRealTimers();
+        });
+
+        it("holding a lifted card at the bottom edge scrolls the page down, and at the top edge scrolls it back up", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+            const page = document.documentElement;
+            page.scrollTop = 0;
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+            const bottom = window.innerHeight - 10;
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 300, button: 0 });
+            jest.advanceTimersByTime(300); // lift
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: bottom });
+
+            expect(page.scrollTop).toBe(0);
+            act(() => {
+                jest.advanceTimersByTime(100); // dwell at the bottom edge
+            });
+            const scrolledDown = page.scrollTop;
+            expect(scrolledDown).toBeGreaterThan(0);
+
+            // The page scrolls under a still finger, so the card is offset to stay under it.
+            const transform = card1.style.transform;
+            // (The harness's zero-width scroller rect also trips the horizontal edge, so only the y part is asserted.)
+            expect(transform).toContain(`, ${bottom - 300 + scrolledDown}px)`);
+
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+            act(() => {
+                jest.advanceTimersByTime(100); // dwell at the top edge
+            });
+            expect(page.scrollTop).toBeLessThan(scrolledDown);
+
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+            const settled = page.scrollTop;
+            jest.advanceTimersByTime(100);
+            expect(page.scrollTop).toBe(settled); // the ticker stops with the gesture
+            page.scrollTop = 0;
+            jest.useRealTimers();
+        });
+
+        it("scrolls the page up when the card is held a laptop-header's height below the top of the window", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+            const page = document.documentElement;
+            page.scrollTop = 600;
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 400, button: 0 });
+            jest.advanceTimersByTime(300);
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 120 });
+            act(() => {
+                jest.advanceTimersByTime(100);
+            });
+
+            expect(page.scrollTop).toBeLessThan(600);
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 120 });
+            page.scrollTop = 0;
+            jest.useRealTimers();
+        });
+
+        it("does not scroll the page while a card is held away from the top and bottom edges", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+            const page = document.documentElement;
+            page.scrollTop = 200;
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 300, button: 0 });
+            jest.advanceTimersByTime(300);
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 320 });
+            jest.advanceTimersByTime(100);
+
+            expect(page.scrollTop).toBe(200);
+            fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 320 });
+            page.scrollTop = 0;
             jest.useRealTimers();
         });
 

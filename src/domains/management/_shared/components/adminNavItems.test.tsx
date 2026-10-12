@@ -59,7 +59,7 @@ describe("buildAdminNavSections", () => {
         const sections = buildAdminNavSections(StaffRoles.COOK, makeHandlers());
 
         expect(labelsOf(sections).sort()).toEqual(
-            ["New Order", "Order History", "Config", "Statistics"].sort()
+            ["New Order", "Shifts", "Order History", "Config", "Statistics"].sort()
         );
     });
 
@@ -67,20 +67,11 @@ describe("buildAdminNavSections", () => {
         const sections = buildAdminNavSections(StaffRoles.SUPERVISOR, makeHandlers());
 
         expect(labelsOf(sections).sort()).toEqual(
-            ["New Order", "Order History", "Config", "Statistics", "Cash Register"].sort()
+            ["New Order", "Shifts", "Order History", "Config", "Statistics", "Cash Register"].sort()
         );
     });
 
-    it.each([StaffRoles.COOK, StaffRoles.SUPERVISOR, StaffRoles.REVIEWER])(
-        "hides Shifts from role %s",
-        role => {
-            const sections = buildAdminNavSections(role, makeHandlers());
-
-            expect(labelsOf(sections)).not.toContain("Shifts");
-        }
-    );
-
-    it.each([StaffRoles.MANAGER, StaffRoles.SUPER_MANAGER, StaffRoles.OWNER])(
+    it.each([StaffRoles.COOK, StaffRoles.SUPERVISOR, StaffRoles.MANAGER, StaffRoles.SUPER_MANAGER, StaffRoles.OWNER])(
         "shows Shifts to role %s and wires onShiftManagementPageOpen",
         role => {
             const handlers = makeHandlers();

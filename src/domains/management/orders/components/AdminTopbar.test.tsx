@@ -4,10 +4,13 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import AdminTopbar from "./AdminTopbar";
 import { StaffRoles } from "../../../auth/types";
 import type { IBranch } from "../../inventory/types";
+import { fetchMyDiscipline, fetchMyWorkSummary } from "../../../../shared/api/management";
 
 // AdminTopbar calls updateWorkload (public.ts) from its own Workload <Select>; mocked so no
 // unhandled network call happens if a test interacts with it (none of the tests below do).
 jest.mock("../../../../shared/api/public");
+// The identity block opens MyProfileDrawer, which reads the discipline API; mocked so no call is made.
+jest.mock("../../../../shared/api/management");
 
 const selectedBranch: IBranch = { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en" };
 
@@ -208,13 +211,13 @@ describe("AdminTopbar — role-based menu items", () => {
         renderTopbar(StaffRoles.COOK);
         openMenu();
 
-        // Cook items: New Order, Order History, Config, Statistics, Logout —
-        // notably Shifts/Inventory/Purchase/Cash Register/Accounting/Blacklist are cook-excluded.
-        ["New Order", "Order History", "Config", "Statistics", "Logout"].forEach(label => {
+        // Cook items: New Order, Shifts, Order History, Config, Statistics, Logout —
+        // notably Inventory/Purchase/Cash Register/Accounting/Blacklist are cook-excluded too.
+        ["New Order", "Shifts", "Order History", "Config", "Statistics", "Logout"].forEach(label => {
             expect(screen.getByText(label)).toBeTruthy();
         });
 
-        ["Shifts", "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist"].forEach(label => {
+        ["Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist"].forEach(label => {
             expect(screen.queryByText(label)).toBeNull();
         });
     });
@@ -224,12 +227,12 @@ describe("AdminTopbar — role-based menu items", () => {
         openMenu();
 
         // SUPERVISOR = COOK base items + Cash Register + Logout.
-        ["New Order", "Order History", "Config", "Statistics", "Cash Register", "Logout"].forEach(label => {
+        ["New Order", "Shifts", "Order History", "Config", "Statistics", "Cash Register", "Logout"].forEach(label => {
             expect(screen.getByText(label)).toBeTruthy();
         });
 
         // No manager-only entries besides the one it's explicitly granted (Cash Register).
-        ["Shifts", "Inventory", "Purchase", "Accounting", "Blacklist"].forEach(label => {
+        ["Inventory", "Purchase", "Accounting", "Blacklist"].forEach(label => {
             expect(screen.queryByText(label)).toBeNull();
         });
 
@@ -287,5 +290,33 @@ describe("AdminTopbar — role-based menu items", () => {
 
             expect(screen.getByTestId("admin-topbar-user").textContent).toBe("Test User");
         });
+    });
+});
+
+describe("AdminTopbar — My profile button", () => {
+    it.each([StaffRoles.MANAGER, StaffRoles.SUPER_MANAGER, StaffRoles.OWNER, StaffRoles.REVIEWER, StaffRoles.COOK])(
+        "opens the profile drawer for role %s and calls no discipline API beforehand",
+        role => {
+            jest.mocked(fetchMyDiscipline).mockReset().mockReturnValue(new Promise(() => undefined));
+            jest.mocked(fetchMyWorkSummary).mockReset().mockReturnValue(new Promise(() => undefined));
+            renderTopbar(role);
+
+            expect(fetchMyDiscipline).not.toHaveBeenCalled();
+            expect(fetchMyWorkSummary).not.toHaveBeenCalled();
+            expect(screen.queryByTestId("my-profile-drawer")).toBeNull();
+
+            fireEvent.click(screen.getByTestId("admin-topbar-profile-button"));
+
+            expect(screen.getByTestId("my-profile-drawer")).toBeTruthy();
+            expect(fetchMyDiscipline).toHaveBeenCalledTimes(1);
+            expect(fetchMyWorkSummary).toHaveBeenCalledTimes(1);
+        }
+    );
+
+    it("exposes the button with the My profile aria-label and keeps the user text unchanged", () => {
+        renderTopbar(StaffRoles.MANAGER);
+
+        expect(screen.getByLabelText("My profile")).toBe(screen.getByTestId("admin-topbar-profile-button"));
+        expect(screen.getByTestId("admin-topbar-user").textContent).toBe("Test User");
     });
 });
