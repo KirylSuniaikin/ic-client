@@ -25,6 +25,9 @@ import { UnavailablePopup } from "../domains/menu/components/UnavailablePopup";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import type { UseApplePayCheckoutResult } from "../domains/order/hooks/useApplePayCheckout";
+import type { UseCardCheckoutResult } from "../domains/order/hooks/useCardCheckout";
+import CardPaymentDrawer from "../domains/order/components/CardPaymentDrawer";
+import { computeSheetTotal } from "../domains/order/utils/applePayRequest";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
@@ -33,6 +36,7 @@ interface HomePageModalsProps {
     cart: UseCartResult;
     checkout: UseCheckoutResult;
     applePay?: UseApplePayCheckoutResult;
+    cardPayment?: UseCardCheckoutResult;
     menuData: MenuItem[];
     toppings: Topping[];
     extraIngredients: ExtraIngr[];
@@ -55,7 +59,7 @@ interface HomePageModalsProps {
 }
 
 export default function HomePageModals({
-    cart, checkout, applePay, menuData, toppings, extraIngredients, availableBranches,
+    cart, checkout, applePay, cardPayment, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
@@ -238,6 +242,7 @@ export default function HomePageModals({
                     onDeliveryTypeChange={checkout.setOrderType}
                     isKiosk={isKiosk}
                     applePay={applePay}
+                    cardPayment={cardPayment}
                 />
             )}
 
@@ -326,6 +331,33 @@ export default function HomePageModals({
             )}
 
             <ApplePayNotice message={applePay?.notice ?? null} />
+
+            {cardPayment && (
+                <CardPaymentDrawer
+                    open={cardPayment.drawerOpen}
+                    step={cardPayment.step}
+                    total={computeSheetTotal(cart.cartItems).sheetAmount}
+                    fieldErrors={cardPayment.fieldErrors}
+                    error={cardPayment.error}
+                    fieldContainerRef={cardPayment.fieldContainerRef}
+                    onClose={cardPayment.closeDrawer}
+                    onPay={cardPayment.submit}
+                    onRetry={cardPayment.retryWithNewSession}
+                />
+            )}
+
+            {/* While the drawer is open the same message is shown inline, where the customer is looking. */}
+            {cardPayment?.error && !cardPayment.drawerOpen && (
+                <ErrorSnackbar
+                    open
+                    message={cardPayment.error}
+                    severity="error"
+                    handleClose={cardPayment.clearError}
+                    duration={8000}
+                />
+            )}
+
+            <ApplePayNotice message={cardPayment?.notice ?? null} />
 
             {!cart.cartOpen && checkout.unavailablePopupOpen && (
                 <UnavailablePopup

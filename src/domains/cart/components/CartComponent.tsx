@@ -8,6 +8,8 @@ import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { ApplePayButton } from "../../order/components/ApplePayButton";
 import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayCheckout";
+import { CardPaymentButton } from "../../order/components/CardPaymentButton";
+import type { UseCardCheckoutResult } from "../../order/hooks/useCardCheckout";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -49,6 +51,7 @@ interface CartPopupProps {
     isKiosk: boolean;
     // Absent (or not `available`) renders the cart exactly as before.
     applePay?: Pick<UseApplePayCheckoutResult, "available" | "busy" | "start">;
+    cardPayment?: Pick<UseCardCheckoutResult, "available" | "busy" | "start">;
 }
 
 function CartPopup({
@@ -77,6 +80,7 @@ function CartPopup({
                        onDeliveryTypeChange,
                        isKiosk,
                        applePay,
+                       cardPayment,
                    }: CartPopupProps): JSX.Element {
     const { t } = useTranslation("cart");
     const totalPrice = items
@@ -275,6 +279,10 @@ function CartPopup({
 
                 {applePay?.available && !isAdmin && !isKiosk && (
                     <ApplePayButton onClick={applePay.start} disabled={applePay.busy} />
+                )}
+
+                {cardPayment?.available && !isAdmin && !isKiosk && (
+                    <CardPaymentButton onClick={cardPayment.start} disabled={cardPayment.busy} />
                 )}
 
                 {/* Checkout button */}

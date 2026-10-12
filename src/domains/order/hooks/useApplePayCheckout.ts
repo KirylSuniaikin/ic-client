@@ -5,11 +5,9 @@ import {
     createApplePayOrder,
     fetchApplePayEligibility,
     fetchApplePayPaymentStatus,
-    fetchCustomerMe,
     payApplePayOrder,
     requestApplePayMerchantSession,
 } from "../../../shared/api/customerAuth";
-import { getAllBannedCstmrs } from "../../../shared/api/management";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
@@ -17,7 +15,7 @@ import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvide
 import { useCustomerAuthUi } from "../../customer-auth/context/CustomerAuthUiProvider";
 import type { CustomerMeResponse } from "../../customer-auth/types";
 import type { CartItem } from "../../menu/types";
-import { BranchClosedError, DEFAULT_PAYMENT_METHOD, ItemsUnavailableError } from "../types";
+import { DEFAULT_PAYMENT_METHOD } from "../types";
 import type { CreateOrderRequest } from "../types";
 import { ApplePayApiError } from "../applePayTypes";
 import type { ApplePayPaymentResponse } from "../applePayTypes";
@@ -30,11 +28,9 @@ import {
     trackApplePayPurchase,
 } from "../utils/applePayRequest";
 import { newIdempotencyKey } from "./useCheckout";
-
-const POLL_INTERVAL_MS = 3000;
-// Must outlast the backend's NOT_FOUND grace window (default 120 s): after a PAY timeout the
-// attempt can legitimately stay PENDING that long before it resolves to paid or declined.
-const POLL_TIMEOUT_MS = 150000;
+import { useCheckoutPrefetch } from "./useCheckoutPrefetch";
+import { describeError, isDefinitivePayRejection, pollUntilResolved, reportCreateOrderFailure } from "../utils/checkoutFlow";
+import type { Prefetch } from "./useCheckoutPrefetch";
 const IN_PROGRESS_CODE = "APPLE_PAY_PAYMENT_IN_PROGRESS";
 // Only these pay-stage rejections prove no charge happened; every other pay failure (5xx, proxy
 // errors, unknown/missing token, transport errors) is ambiguous and must be resolved by polling.
@@ -76,9 +72,6 @@ export interface UseApplePayCheckoutResult {
     notice: string | null;
 }
 
-type Prefetch = { eligible: boolean; profile: CustomerMeResponse; banned: boolean };
-type StoredPrefetch = Prefetch & { forToken: string };
-
 // Everything start() reads. Refreshed on every render so the synchronous gesture handler never
 // closes over stale state.
 type Latest = {
@@ -89,16 +82,6 @@ type Latest = {
     isAdmin: boolean;
     isKiosk: boolean;
 };
-
-// Error codes/statuses only -- never the token, event.payment or paymentData (task-spec.md F5.8).
-function describeError(error: unknown): string {
-    if (error instanceof ApplePayApiError) return `${error.code} (${error.status})`;
-    return error instanceof Error ? error.name : "unknown";
-}
-
-function isDefinitivePayRejection(failure: unknown): boolean {
-    return failure instanceof ApplePayApiError && DEFINITIVE_PAY_REJECTIONS.has(failure.code);
-}
 
 function isFirstTimeCustomer(profile: CustomerMeResponse): boolean {
     return !profile.amountOfOrders;
@@ -115,9 +98,12 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
     const { t, i18n } = useTranslation("applePay");
 
-    const [storedPrefetch, setPrefetch] = useState<StoredPrefetch | null>(null);
-    // Data fetched for a previous customer's token must never be used after the token changes.
-    const prefetch: Prefetch | null = storedPrefetch?.forToken === token ? storedPrefetch : null;
+    const prefetch = useCheckoutPrefetch({
+        active: cartOpen && !isAdmin && !isKiosk && isApplePayCapable(),
+        token,
+        fetchEligibility: fetchApplePayEligibility,
+        failureLabel: "Apple Pay prefetch failed:",
+    });
     const [busy, setBusy] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -142,28 +128,6 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
             if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
         };
     }, []);
-
-    // Prefetch everything the button's visibility depends on. Any failure leaves the button
-    // hidden (fail closed).
-    useEffect(() => {
-        if (!cartOpen || !token || isAdmin || isKiosk || !isApplePayCapable()) return;
-        let cancelled = false;
-        Promise.all([fetchApplePayEligibility(token), fetchCustomerMe(token), getAllBannedCstmrs()])
-            .then(([eligibility, profile, banned]) => {
-                if (cancelled) return;
-                setPrefetch({
-                    forToken: token,
-                    eligible: eligibility.enabled,
-                    profile,
-                    banned: banned.some(c => c.telephoneNo === profile.phone),
-                });
-            })
-            .catch((e: unknown) => {
-                logger.warn("Apple Pay prefetch failed:", describeError(e));
-                if (!cancelled) setPrefetch(null);
-            });
-        return () => { cancelled = true; };
-    }, [cartOpen, token, isAdmin, isKiosk]);
 
     const available =
         !isAdmin && !isKiosk && token !== null && cartItems.length > 0 &&
@@ -210,59 +174,24 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         }
     }
 
-    // Polls F-5 until the payment resolves. busyRef stays set throughout and after a timeout,
-    // so the button remains blocked this page session (the server guard covers reloads).
-    function pollUntilResolved(orderId: number, amount: number, tel: string): void {
-        const deadline = Date.now() + POLL_TIMEOUT_MS;
-        const tick = (): void => {
-            pollTimerRef.current = setTimeout(() => {
-                const accessToken = latest.current.token;
-                if (!mountedRef.current || !accessToken) return;
-                fetchApplePayPaymentStatus(accessToken, orderId)
-                    .then(result => {
-                        if (result.status === "PENDING") {
-                            if (Date.now() < deadline) tick();
-                            else showNotice(handlers.current.t("errors.unresolved"));
-                        } else if (result.status === "APPROVED" || result.status === "DECLINED") {
-                            handleResolved(result, amount, tel);
-                        } else if (result.status === "REVIEW") {
-                            showNotice(handlers.current.t("errors.review"));
-                        }
-                    })
-                    .catch((e: unknown) => {
-                        logger.warn("Apple Pay status poll failed:", describeError(e));
-                        if (Date.now() < deadline) tick();
-                        else showNotice(handlers.current.t("errors.unresolved"));
-                    });
-            }, POLL_INTERVAL_MS);
-        };
-        tick();
+    function pollPayment(orderId: number, amount: number, tel: string): void {
+        pollUntilResolved({
+            getToken: () => latest.current.token,
+            isMounted: () => mountedRef.current,
+            onTimer: timer => { pollTimerRef.current = timer; },
+            fetchStatus: accessToken => fetchApplePayPaymentStatus(accessToken, orderId),
+            failureLabel: "Apple Pay status poll failed:",
+            onResolved: result => handleResolved(result, amount, tel),
+            onReview: () => showNotice(handlers.current.t("errors.review")),
+            onUnresolved: () => showNotice(handlers.current.t("errors.unresolved")),
+        });
     }
 
-    function applyItemsUnavailable(failure: ItemsUnavailableError, submitted: CartItem[]): void {
-        const h = handlers.current;
-        const removed = submitted.filter(item => failure.unavailableIds.includes(item.id));
-        const remaining = submitted.filter(item => !failure.unavailableIds.includes(item.id));
-        h.setCartItems(remaining);
-        h.setCartOpen(remaining.length > 0);
-        h.setUnavailableItems(removed.map(i => i.name));
-        h.setUnavailableMessage(failure.message);
-        h.setUnavailablePopupOpen(true);
-        h.refreshMenu().catch((e: unknown) => logger.warn("Menu refresh failed:", describeError(e)));
-    }
-
-    function reportCreateOrderFailure(failure: unknown, submitted: CartItem[]): void {
-        const h = handlers.current;
-        if (failure instanceof ItemsUnavailableError) {
-            applyItemsUnavailable(failure, submitted);
-        } else if (failure instanceof BranchClosedError) {
-            report(failure.message);
-            h.refreshMenu().catch((e: unknown) => logger.warn("Menu refresh failed:", describeError(e)));
-        } else if (failure instanceof ApplePayApiError && failure.code === IN_PROGRESS_CODE) {
-            report(h.t("errors.inProgress"));
-        } else {
-            report(h.t("errors.generic"));
-        }
+    function failCreateOrder(failure: unknown, submitted: CartItem[]): void {
+        reportCreateOrderFailure(
+            failure, submitted, handlers.current, report,
+            f => f instanceof ApplePayApiError && f.code === IN_PROGRESS_CODE,
+        );
     }
 
     async function authorize(
@@ -318,7 +247,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
                 showNotice(handlers.current.t("errors.review"));
             } else {
                 showNotice(handlers.current.t("pending"));
-                pollUntilResolved(result.orderId, amount, tel);
+                pollPayment(result.orderId, amount, tel);
             }
         } catch (failure: unknown) {
             logger.error("Apple Pay authorization failed:", describeError(failure));
@@ -326,12 +255,12 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
             // Any pay-stage failure AFTER the order exists that is not a documented definitive
             // rejection (5xx, transport, unknown token) may still have charged the customer:
             // never unblock on a guess, resolve it through the status endpoint instead.
-            if (createdOrderId !== null && !isDefinitivePayRejection(failure)) {
+            if (createdOrderId !== null && !isDefinitivePayRejection(failure, ApplePayApiError, DEFINITIVE_PAY_REJECTIONS)) {
                 showNotice(handlers.current.t("pending"));
-                pollUntilResolved(createdOrderId, amount, tel);
+                pollPayment(createdOrderId, amount, tel);
                 return;
             }
-            reportCreateOrderFailure(failure, items);
+            failCreateOrder(failure, items);
             release();
         }
     }

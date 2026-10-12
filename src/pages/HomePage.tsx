@@ -8,6 +8,7 @@ import { useMenuData } from "../domains/menu/hooks/useMenuData";
 import { useCart } from "../domains/cart/hooks/useCart";
 import { useCheckout } from "../domains/order/hooks/useCheckout";
 import { useApplePayCheckout } from "../domains/order/hooks/useApplePayCheckout";
+import { useCardCheckout } from "../domains/order/hooks/useCardCheckout";
 import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import { useActiveOrderIsland } from "../domains/customer-auth/hooks/useActiveOrderIsland";
 import { ActiveOrderIslandPill } from "../domains/customer-auth/components/ActiveOrderIslandPill";
@@ -128,6 +129,17 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     checkoutRef.current = checkout;
 
     const applePay = useApplePayCheckout({
+        isAdmin, isKiosk,
+        cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
+        setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
+        setPaymentMethod: checkout.setPaymentMethod, setOrderType: checkout.setOrderType,
+        refreshMenu: menu.refreshMenu,
+        setUnavailableItems: checkout.setUnavailableItems,
+        setUnavailableMessage: checkout.setUnavailableMessage,
+        setUnavailablePopupOpen: checkout.setUnavailablePopupOpen,
+    });
+
+    const cardPayment = useCardCheckout({
         isAdmin, isKiosk,
         cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
         setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
@@ -307,7 +319,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 </Box>
             )}
             <HomePageModals
-                cart={cart} checkout={checkout} applePay={applePay} menuData={menu.menuData}
+                cart={cart} checkout={checkout} applePay={applePay} cardPayment={cardPayment} menuData={menu.menuData}
                 toppings={menu.toppings} extraIngredients={menu.extraIngredients}
                 availableBranches={menu.availableBranches}
                 isSDoughAvailable={menu.isSDoughAvailable}
