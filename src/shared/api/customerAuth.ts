@@ -21,6 +21,14 @@ import type {
     ApplePayPayRequest,
     ApplePayPaymentResponse,
 } from '../../domains/order/applePayTypes';
+import { CardPaymentApiError } from '../../domains/order/cardPaymentTypes';
+import type {
+    CardEligibilityResponse,
+    CardOrderResponse,
+    CardPayRequest,
+    CardPaymentResponse,
+    CardSessionResponse,
+} from '../../domains/order/cardPaymentTypes';
 import { BranchClosedError, ItemsUnavailableError } from '../../domains/order/types';
 import type { CreateOrderRequest } from '../../domains/order/types';
 
@@ -276,7 +284,10 @@ async function readJsonOrNull(response: Response): Promise<unknown> {
     }
 }
 
-async function throwApplePayError(response: Response): Promise<never> {
+// `code` is the body's `message` token, or null when the body carried none (caller picks its fallback).
+type PaymentErrorFactory = (code: string | null, status: number) => Error;
+
+async function throwPaymentError(response: Response, errorFactory: PaymentErrorFactory): Promise<never> {
     const data = await readJsonOrNull(response);
     if (response.status === 409 && isUnavailableIdsBody(data)) {
         throw new ItemsUnavailableError(data.message, data.unavailableIds);
@@ -284,10 +295,12 @@ async function throwApplePayError(response: Response): Promise<never> {
     if (response.status === 423) {
         throw new BranchClosedError(isMessageBody(data) ? data.message : '');
     }
-    throw new ApplePayApiError(isMessageBody(data) ? data.message : APPLE_PAY_FALLBACK_CODE, response.status);
+    throw errorFactory(isMessageBody(data) ? data.message : null, response.status);
 }
 
-async function applePayRequest<T>(
+async function customerPaymentRequest<T>(
+    basePath: string,
+    errorFactory: PaymentErrorFactory,
     accessToken: string,
     path: string,
     method: 'GET' | 'POST',
@@ -295,16 +308,28 @@ async function applePayRequest<T>(
 ): Promise<T> {
     const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const response = await customerAuthFetch(`${BASE_URL}/customer/apple-pay${path}`, {
+    const response = await customerAuthFetch(`${BASE_URL}${basePath}${path}`, {
         method,
         credentials: 'include',
         headers: withClientPlatform(headers),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (!response.ok) {
-        return await throwApplePayError(response);
+        return await throwPaymentError(response, errorFactory);
     }
     return await response.json();
+}
+
+const applePayError: PaymentErrorFactory = (code, status) =>
+    new ApplePayApiError(code ?? APPLE_PAY_FALLBACK_CODE, status);
+
+async function applePayRequest<T>(
+    accessToken: string,
+    path: string,
+    method: 'GET' | 'POST',
+    body?: unknown,
+): Promise<T> {
+    return await customerPaymentRequest<T>('/customer/apple-pay', applePayError, accessToken, path, method, body);
 }
 
 export async function fetchApplePayEligibility(accessToken: string): Promise<ApplePayEligibilityResponse> {
@@ -336,6 +361,45 @@ export async function fetchApplePayPaymentStatus(
     orderId: number,
 ): Promise<ApplePayPaymentResponse> {
     return await applePayRequest<ApplePayPaymentResponse>(accessToken, `/orders/${orderId}/payment`, 'GET');
+}
+
+// Card / Hosted Session (task-spec.md §4.1 C-1..C-5).
+const CARD_FALLBACK_CODE = 'CARD_UNKNOWN_ERROR';
+
+const cardError: PaymentErrorFactory = (code, status) =>
+    new CardPaymentApiError(code ?? CARD_FALLBACK_CODE, status);
+
+async function cardRequest<T>(
+    accessToken: string,
+    path: string,
+    method: 'GET' | 'POST',
+    body?: unknown,
+): Promise<T> {
+    return await customerPaymentRequest<T>('/customer/card-payment', cardError, accessToken, path, method, body);
+}
+
+export async function fetchCardEligibility(accessToken: string): Promise<CardEligibilityResponse> {
+    return await cardRequest<CardEligibilityResponse>(accessToken, '/eligibility', 'GET');
+}
+
+export async function createCardOrder(accessToken: string, order: CreateOrderRequest): Promise<CardOrderResponse> {
+    return await cardRequest<CardOrderResponse>(accessToken, '/orders', 'POST', order);
+}
+
+export async function createCardSession(accessToken: string, orderId: number): Promise<CardSessionResponse> {
+    return await cardRequest<CardSessionResponse>(accessToken, `/orders/${orderId}/session`, 'POST');
+}
+
+export async function payCardOrder(
+    accessToken: string,
+    orderId: number,
+    payload: CardPayRequest,
+): Promise<CardPaymentResponse> {
+    return await cardRequest<CardPaymentResponse>(accessToken, `/orders/${orderId}/pay`, 'POST', payload);
+}
+
+export async function fetchCardPaymentStatus(accessToken: string, orderId: number): Promise<CardPaymentResponse> {
+    return await cardRequest<CardPaymentResponse>(accessToken, `/orders/${orderId}/payment`, 'GET');
 }
 
 export async function fetchSuggestedItems(accessToken: string): Promise<SuggestedOrderResponse> {
