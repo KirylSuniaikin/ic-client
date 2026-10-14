@@ -26,3 +26,7 @@ yarn-error.log*
 
 # Claude Code
 .claude/
+
+# Design notes — deliberately not committed (owner decision, 30 Aug 2026).
+# If this file is missing from your checkout, ask for it; do not reinvent the values.
+DESIGN.md

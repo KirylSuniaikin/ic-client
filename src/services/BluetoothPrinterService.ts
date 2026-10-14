@@ -101,11 +101,27 @@ class BluetoothPrinterService {
         }
     }
 
-    formatOrderItems(items: Order['items']): string {
+    /**
+     * Courier-capacity Phase 5 (task-spec.md §5/§11 P4): `partsTotal` is the whole order's part
+     * count, passed down from {@link printOrder} — undefined/1 for every order this phase does
+     * not touch, which keeps the printed ticket byte-identical to before it. When the order is
+     * genuinely split, each item's own `item.partIndex` (absent for a drink/side the allocator put
+     * nowhere in particular) gets a plain-text "[Part k/N]" marker ("[Part k/N: q of Q]" per share for a cut line), mirroring the kitchen card's own
+     * "Part k/N" label so the two surfaces never disagree about which item goes with which rider.
+     */
+    formatOrderItems(items: Order['items'], partsTotal?: number): string {
         let result = "";
+        const isSplit = (partsTotal ?? 1) > 1;
 
         for (const item of items) {
-            result += `${item.quantity}x ${item.name}${item.size ? " (" + item.size + ")" : ""}\n`;
+            // t6: a line cut across parts lists every share ("[Part 1/2: 3 of 5] [Part 2/2: 2 of 5]").
+            const cutShares = isSplit && (item.partShares?.length ?? 0) > 1 ? item.partShares : undefined;
+            const partMarker = cutShares
+                ? cutShares.map((share) => ` [Part ${share.partIndex}/${partsTotal}: ${share.quantity} of ${item.quantity}]`).join("")
+                : isSplit && item.partIndex != null
+                    ? ` [Part ${item.partIndex}/${partsTotal}]`
+                    : "";
+            result += `${item.quantity}x ${item.name}${item.size ? " (" + item.size + ")" : ""}${partMarker}\n`;
 
             if (item.category === "Combo Deals" && Array.isArray(item.comboItemTO)) {
                 for (const comboItem of item.comboItemTO) {
@@ -234,7 +250,7 @@ class BluetoothPrinterService {
                 : "",
             `Payment type: ${order.payment_type || "N/A"}\n`,
             "--------------------------\n",
-            this.formatOrderItems(order.items),
+            this.formatOrderItems(order.items, order.partsTotal),
             "--------------------------\n",
             `Total: ${totals.net} BHD\n`,
             `VAT: ${totals.vat} BHD\n`,

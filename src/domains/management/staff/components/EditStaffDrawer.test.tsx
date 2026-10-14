@@ -10,8 +10,8 @@ import EditStaffDrawer from "./EditStaffDrawer";
 jest.mock("../../../../shared/api/management");
 const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 
-const home: IBranch = { id: "branch-1", externalId: "b1", branchNo: 1, branchName: "Main", locale: "BH" };
-const seef: IBranch = { id: "branch-2", externalId: "b2", branchNo: 2, branchName: "Seef", locale: "BH" };
+const home: IBranch = { id: "branch-1", externalId: "b1", branchNo: 1, branchName: "Main", locale: "BH", latitude: null, longitude: null };
+const seef: IBranch = { id: "branch-2", externalId: "b2", branchNo: 2, branchName: "Seef", locale: "BH", latitude: null, longitude: null };
 
 function makeStaff(overrides: Partial<StaffAdminTO> = {}): StaffAdminTO {
     return {

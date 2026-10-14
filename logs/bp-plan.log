@@ -1,0 +1,535 @@
+I don't have a Write tool available in this session (only Read, WebSearch, Glob, Grep), so I cannot save the file directly — the same limitation the triager hit. Below is the complete `task-spec.md` content, ready to save at `/Users/andrew/Documents/ICpizza/Main/ic-client/task-spec.md`.
+
+---
+
+```markdown
+# Task Spec — Branch picker on site entry (map with pins)
+
+Source documents: `ic-client/branch-picker-task.txt` (binding owner answers A–F), `ic-client/task-breakdown.md`, `ic-client/phases-status.md`, `ic-client/logs/bp-triage.log`.
+
+## 1. Objective
+
+An ordinary customer landing on the storefront is today silently pinned to one hardcoded branch (`DEFAULT_BRANCH_ID` in `useMenuData.ts`'s `resolveBranchId`), which risks a basket built against one branch's catalogue being filed at another with the wrong hours. This task adds a mandatory, map-based branch picker on first entry, persists the choice, threads it through every order-path branch read (menu, checkout, schedule header), and gives the customer a labelled way back to change branch later with a cart-loss warning — while leaving kiosk, admin and edit-mode resolution untouched. It also exposes branch `latitude`/`longitude` (already on the `Branch` entity, absent from the DTO) so the picker has real pins instead of a client-side coordinate table.
+
+## 2. Scope
+
+**In scope:**
+- New `ic-client/src/domains/branch/` domain: storage, resolver, Haversine distance, the picker component (map + no-key list fallback + nearest-branch button), the re-entry chip, the switch-warning drawer.
+- `useMenuData.ts` customer-branch gate; checkout/`ClientInfoPopup`/`BranchScheduleHeader` reading the chosen branch instead of `DEFAULT_BRANCH_ID`.
+- One new frontend dependency: `@react-google-maps/api`.
+- One backend change: `latitude`/`longitude` on `BranchTO` + the one `new BranchTO(` call site in `BranchService` + one backend test.
+
+**Out of scope (see §10):** anything in `ic-pizza-mobile`, `ic-pizza-kiosk`, `ic-pizza-courier`; any backend file other than `BranchTO.java`, `BranchService.java`, and the one new/extended backend test; any git command (writing files to disk is the "commit" — there is no VCS step in this pipeline); any change to `KioskBranchSelector`'s behaviour; any paid distance API.
+
+## 3. System context
+
+Existing patterns this task must follow:
+- **Domain-first structure** (`ic-client/.claude/CLAUDE.md`): new `src/domains/branch/` with `types.ts`, `constants.ts`, `utils/`, `hooks/`, `components/`, mirroring `domains/kiosk/`.
+- **Kiosk branch storage precedent**: `src/domains/kiosk/utils/kioskBranch.ts` (`readKioskBranch`/`writeKioskBranch`/`resolveKioskBranchId`, key `kiosk_branch_data`, malformed JSON → `null`, never throws). The new customer-branch storage util mirrors this exactly under a different key. **Do not modify `kioskBranch.ts`.**
+- **Popups/drawers**: MUI `Drawer anchor="bottom"` per `src/domains/management/cash-register/components/CashInputDrawer.tsx` (rounded top corners 16px, centered grey drag-handle pill, `Box sx={{p:3, pb:4}}`, `maxWidth: {sm:500}, mx:{sm:'auto'}` on `PaperProps`). `AddressPickerDrawer.tsx` is the closest existing analogue (geolocation-on-click pattern, inline `Alert` for denied location) — reuse its `requestLocation` shape.
+- **Public (unauthenticated) fetch precedent**: `fetchBaseAppInfo` in `src/shared/api/public.ts` — raw `fetch`, no `authFetch`. `authFetch` (`shared/api/client.ts`) redirects to `/auth` on a 401 and is for staff-authenticated calls only; it must never gate an anonymous customer-facing screen.
+- **Env var precedent**: `REACT_APP_KEETA_URL` in `src/domains/delivery/constants.ts` — read via `process.env.REACT_APP_*`, default when absent, comment explaining the CRA-inlining tradeoff.
+- **i18n**: one namespace file per domain, registered in `src/shared/i18n/index.ts`'s `resources`/`ns`. New domain → new `locales/{en,ar}/branch.json`.
+- **Testing conventions**: `ic-client/.claude/CLAUDE.md` (no `@types/jest`, `jest` imported as a value from `@jest/globals`, factoryless `jest.mock()` resolving to `__mocks__/`, `jest.fn<Return, Args>()` typed explicitly). Reference suites: `AddressPickerDrawer.test.tsx`, `kioskBranch.test.ts`, `BranchScheduleHeader.test.tsx`.
+
+## 4. Functional requirements
+
+1. An ordinary customer (not kiosk, not admin, not edit mode) with no stored branch choice sees a mandatory branch picker before the menu is usable; it cannot be dismissed without choosing.
+2. The picker shows one pin per branch with coordinates on a Google Map when `REACT_APP_GOOGLE_MAPS_KEY` is set, and always shows a plain list of every branch (with or without coordinates) that is independently fully functional.
+3. A "use nearest branch" action requests geolocation only when tapped, never on mount.
+4. The chosen branch persists in `localStorage` and is reused silently on every later visit (no gate on repeat visits).
+5. A labelled, tappable chip near the hero reopens the picker at any time after a branch has been chosen.
+6. Reopening the picker and choosing a different branch, with a non-empty cart, shows a warning naming the cart lines unavailable at the new branch before switching; confirming drops only those lines and switches; cancelling changes nothing.
+7. `?isEditMode=true` bypasses the gate entirely and resolves the branch from the order being edited, not from the picker/storage.
+8. `isKiosk` continues to resolve via `resolveKioskBranchId()` and `KioskBranchSelector` is untouched. `isAdmin && adminBranchId` continues to win over everything except kiosk.
+9. The chosen branch drives checkout (`useCheckout.ts`), the guest info popup (`ClientInfoPopup.tsx`), and the schedule header (`BranchScheduleHeader.tsx`) — not just the menu fetch.
+10. Delivery precedence is preserved: `availability.branchId ?? pending.branchId` (`HomePageModals.tsx:109`) still wins for a delivery order over the picked branch.
+11. `GET /api/branch/fetch_branches` returns `latitude`/`longitude` per branch, both nullable.
+12. A branch with `null` coordinates is listed and selectable everywhere, has no map pin, and shows no distance — never rendered at `0,0`, never dropped from any list.
+13. `DEFAULT_BRANCH_ID` remains only as the last-resort fallback when no chosen branch exists (post-gate, this only fires for edit-mode-without-a-storable-order or a corrupted stored value).
+
+## 5. Data model & interfaces
+
+### 5.1 Backend — `BranchTO` (additive, nullable)
+
+`backend/src/main/java/com/icpizza/backend/domain/branch/dto/BranchTO.java`
+```java
+public record BranchTO(
+        java.util.UUID id,
+        String externalId,
+        Integer branchNo,
+        String branchName,
+        BigDecimal branchBalance,
+        String locale,
+        boolean deliveryEnabled,
+        Double latitude,
+        Double longitude
+) {
+}
+```
+`Branch.java:80-84` already exposes `getLatitude()`/`getLongitude()` as `Double` (nullable) — no entity change needed.
+
+`backend/src/main/java/com/icpizza/backend/domain/branch/BranchService.java` — the single `new BranchTO(` site (currently line 277, method `toBranchTO`) gains two trailing positional args:
+```java
+private BranchTO toBranchTO(Branch branch) {
+    return new BranchTO(
+            branch.getId(),
+            branch.getExternalId(),
+            branch.getBranchNumber(),
+            branch.getBranchName(),
+            branch.getBranchBalance(),
+            branch.getLocaleBalance().getName(),
+            branch.isDeliveryEnabled(),
+            branch.getLatitude(),
+            branch.getLongitude()
+    );
+}
+```
+No other backend file changes. Endpoint: `GET /api/branch/fetch_branches` (`BranchController.java:58-61`, already `permitAll`, unchanged).
+
+### 5.2 Frontend — `IBranch` (additive, both required-but-nullable to mirror the always-serialized Java record)
+
+`src/domains/management/inventory/types.ts`
+```ts
+export interface IBranch {
+    id: string;
+    externalId: string;
+    branchNo: number;
+    branchName: string;
+    locale: string;
+    latitude: number | null;
+    longitude: number | null;
+}
+```
+
+### 5.3 `src/shared/api/public.ts` — public branch fetch (new)
+```ts
+export async function fetchPublicBranches(): Promise<IBranch[]>;
+```
+Raw `fetch` (no `authFetch`), same HTML/error-shape guards as `fetchBaseAppInfo`. Add matching entry to `src/shared/api/__mocks__/public.ts`:
+```ts
+export const fetchPublicBranches = jest.fn<Promise<IBranch[]>, []>();
+```
+
+### 5.4 `src/domains/branch/` (new domain)
+
+`constants.ts`
+```ts
+export const CHOSEN_BRANCH_KEY = "chosen_branch_data";
+```
+
+`types.ts`
+```ts
+/** A point on Earth in degrees. Mirrors domains/delivery/types.ts's Coordinates shape; kept
+ * local rather than imported so the branch domain has no dependency on the delivery domain. */
+export type Coordinates = { latitude: number; longitude: number };
+
+export type BranchDistance = {
+    branch: IBranch;
+    /** null when the branch has no coordinates, or when no origin is known yet. */
+    distanceKm: number | null;
+};
+```
+
+`utils/customerBranch.ts` — mirrors `kioskBranch.ts` exactly (malformed/missing → `null`, never throws):
+```ts
+export function readChosenBranch(): IBranch | null;
+export function writeChosenBranch(branch: IBranch): void;
+export function clearChosenBranch(): void;
+```
+
+`utils/haversine.ts`
+```ts
+/** Great-circle distance in kilometers (mean Earth radius 6371 km). Local computation only —
+ * both the backend and this picker deliberately avoid a paid Distance Matrix API. */
+export function haversineDistanceKm(a: Coordinates, b: Coordinates): number;
+```
+
+`hooks/useBranchResolution.ts`
+```ts
+export interface BranchResolution {
+    chosenBranch: IBranch | null;
+    /** chosenBranch.id if one is stored, else DEFAULT_BRANCH_ID (last-resort fallback, req. 13). */
+    chosenBranchId: string;
+}
+
+/** Reads localStorage fresh on every call — no cached state, no subscription. Named with the
+ * `use` prefix for call-site consistency with other domain hooks, but holds no React state, so
+ * it re-reads correctly on every render without needing a storage-event listener. */
+export function useBranchResolution(): BranchResolution;
+```
+
+`utils/mapsConfig.ts`
+```ts
+/** Does not exist yet — belongs in `ic-client/.env.local` (plain `.env` is NOT in .gitignore
+ * here; only `.env.local`/`.env.*.local` are, so a key placed in `.env` would be committed).
+ * CRA inlines every REACT_APP_* var into the public bundle at build time, so this key is visible
+ * in the shipped JS regardless of where it is read from — it is protected by Google Cloud
+ * Console's HTTP-referrer restrictions, not by secrecy. Do not "fix" this by hiding the key
+ * server-side. Mirrors REACT_APP_KEETA_URL in domains/delivery/constants.ts. */
+export const GOOGLE_MAPS_API_KEY: string | undefined = process.env.REACT_APP_GOOGLE_MAPS_KEY;
+```
+
+`components/BranchPickerDrawer.tsx` — **the exported contract ST4 and ST6 depend on:**
+```ts
+export interface BranchPickerDrawerProps {
+    open: boolean;
+    branches: IBranch[];
+    /** Reports the choice upward only — never persists it. The caller decides what "choosing
+     * this branch" means (first-visit gate vs. a mid-session switch). */
+    onSelect: (branch: IBranch) => void;
+    /** Omit or false for the mandatory first-visit gate: no close affordance is rendered and the
+     * Drawer's backdrop/Esc dismissal is a no-op. true only for a deliberately reopened picker
+     * (the re-entry chip), where declining to switch is a valid outcome. */
+    dismissable?: boolean;
+    /** Required when dismissable=true; ignored otherwise. */
+    onClose?: () => void;
+}
+
+export function BranchPickerDrawer(props: BranchPickerDrawerProps): JSX.Element;
+```
+
+`components/BranchMapView.tsx` (presentational, only ever mounted by `BranchPickerDrawer` when `GOOGLE_MAPS_API_KEY` is truthy):
+```ts
+export interface BranchMapViewProps {
+    branches: IBranch[]; // markers rendered only for entries with non-null lat/lng
+    onSelectBranch: (branch: IBranch) => void;
+}
+```
+
+`components/BranchListView.tsx` (presentational, always mounted — the no-key fallback IS this component):
+```ts
+export interface BranchListViewProps {
+    branches: IBranch[];
+    /** null before "use nearest branch" has resolved an origin; once resolved, one entry per
+     * branch id (null distanceKm for a branch with no coordinates). */
+    distances: Record<string, number | null> | null;
+    nearestBranchId: string | null;
+    onSelectBranch: (branch: IBranch) => void;
+    onUseNearestBranch: () => void;
+    locating: boolean;
+    locationError: string | null;
+}
+```
+
+`components/BranchChip.tsx`
+```ts
+export interface BranchChipProps {
+    branchName: string;
+    onClick: () => void;
+}
+```
+
+`hooks/useBranchSwitch.ts`
+```ts
+export interface UseBranchSwitchParams {
+    cartItems: CartItem[];
+    setCartItems: Dispatch<SetStateAction<CartItem[]>>;
+    refreshMenu: () => Promise<void>;
+}
+
+export interface UseBranchSwitchResult {
+    pickerOpen: boolean;
+    openPicker: () => void;          // wired to BranchChip.onClick
+    closePicker: () => void;         // wired to BranchPickerDrawer.onClose (dismissable=true)
+    handleBranchSelected: (branch: IBranch) => void; // wired to BranchPickerDrawer.onSelect
+    warningOpen: boolean;
+    warningLoading: boolean;
+    warningTargetBranch: IBranch | null;
+    warningUnavailableNames: string[];
+    warningError: string | null;
+    confirmSwitch: () => void;
+    cancelSwitch: () => void;
+}
+
+export function useBranchSwitch(params: UseBranchSwitchParams): UseBranchSwitchResult;
+```
+
+`components/BranchSwitchWarningDrawer.tsx`
+```ts
+export interface BranchSwitchWarningDrawerProps {
+    open: boolean;
+    targetBranch: IBranch | null;
+    unavailableItemNames: string[];
+    loading: boolean;
+    error: string | null;
+    onConfirm: () => void;
+    onCancel: () => void;
+}
+```
+
+### 5.5 `useMenuData.ts` additions
+```ts
+export interface UseMenuDataResult {
+    // ...existing fields unchanged...
+    customerBranchGateOpen: boolean;
+    setCustomerBranchGateOpen: Dispatch<SetStateAction<boolean>>;
+}
+```
+
+### 5.6 `HomePageModals.tsx` prop additions
+```ts
+interface HomePageModalsProps {
+    // ...existing fields unchanged...
+    customerBranchGateOpen: boolean;
+    onCustomerBranchSelect: (branch: IBranch) => void; // ST4
+    branchSwitch: UseBranchSwitchResult;                 // ST6
+}
+```
+
+### 5.7 `HeroSection.tsx` prop addition
+```ts
+interface HeroSectionProps {
+    // ...existing fields unchanged...
+    onBranchChipClick?: () => void; // ST6; omitted/undefined ⇒ no chip rendered
+}
+```
+
+## 6. Algorithm / logic steps
+
+### 6.1 `resolveBranchId()` precedence (`useMenuData.ts`, ST4)
+1. `isKiosk` → `resolveKioskBranchId()` (unchanged).
+2. `isAdmin && adminBranchId` → `adminBranchId` (unchanged).
+3. `isEditMode` → read `localStorage.orderToEdit`, parse it defensively (same try/catch discipline as the existing items-parsing block below it), and return its `branch_id` field if present and non-empty; otherwise fall through.
+4. Otherwise (ordinary customer) → `readChosenBranch()?.id`; if that is `null`, `DEFAULT_BRANCH_ID`.
+
+### 6.2 Mandatory gate (ST4)
+1. In the existing `load()` effect, after `fetchAllBranches`/`fetchPublicBranches` resolves: if `!isKiosk && !isAdmin && !isEditMode && !readChosenBranch()`, set `customerBranchGateOpen = true`.
+2. `HomePageModals` mounts `BranchPickerDrawer` with `dismissable={false}` while `customerBranchGateOpen` is true (no `onClose`).
+3. `onSelect(branch)`: `writeChosenBranch(branch)` → `setCustomerBranchGateOpen(false)` → `refreshMenu()` (same three-step sequence `KioskBranchSelector`'s `onSelect` already uses in `HomePageModals.tsx:195-201` — the initial menu fetch ran against `DEFAULT_BRANCH_ID` before any choice existed, so it must be reloaded).
+4. The Drawer's own modal backdrop (standard MUI behaviour) blocks interaction with the menu underneath while open — no extra hiding logic is needed in `HomePage.tsx`.
+
+### 6.3 Nearest-branch distance computation (`BranchPickerDrawer`, ST3)
+1. On "use nearest branch" tap: guard `navigator.geolocation` existence (unsupported browser → inline error, same copy pattern as `AddressPickerDrawer`).
+2. Call `navigator.geolocation.getCurrentPosition` once, with the same `{enableHighAccuracy: true, timeout: 10000}` options `AddressPickerDrawer` uses.
+3. On success: store the returned `{latitude, longitude}` as the picker's `origin` state.
+4. Recompute, for every branch: `distanceKm = null` if the branch's `latitude`/`longitude` is `null`, else `haversineDistanceKm(origin, branch)`.
+5. `nearestBranchId` = the id of the branch with the smallest non-null `distanceKm` (or `null` if every branch is coordinate-less).
+6. Render distances/badge in `BranchListView`; selection remains a separate, deliberate tap on a branch row or map pin — the nearest button computes and displays, it does not auto-select.
+7. On failure/denial: inline warning (mirrors `AddressPickerDrawer`'s `locationDenied` copy); `origin` stays `null`; the list remains undistanced and fully selectable.
+
+### 6.4 Branch-switch cart-loss warning (`useBranchSwitch`, ST6)
+1. Chip tap → `openPicker()`.
+2. `BranchPickerDrawer` (dismissable) → `onSelect` → `handleBranchSelected(branch)`.
+3. `handleBranchSelected`: close the picker. If `branch.id === chosenBranchId` (already on it), stop. If `cartItems.length === 0`, switch immediately (`writeChosenBranch`, `refreshMenu`), no warning. Otherwise: set `warningTargetBranch = branch`, `warningOpen = true`, `warningLoading = true`, and call `fetchBaseAppInfo(null, branch.id)`.
+4. On resolve: for each cart item, it is "unavailable at target" if no entry in the fetched menu has the same `name` with `available === true` (top-level cart-item name only — matches the existing `pendingUnavailableNames`/`ItemsUnavailableError` convention elsewhere in this codebase, which also compares by name). Collect those names into `warningUnavailableNames`; `warningLoading = false`.
+5. On fetch failure: set `warningError` to the error message; do not switch; the drawer offers only Cancel.
+6. `confirmSwitch()`: `setCartItems(prev => prev.filter(item => !warningUnavailableNames.includes(item.name)))`, `writeChosenBranch(warningTargetBranch)`, `refreshMenu()`, clear all warning state.
+7. `cancelSwitch()`: clear all warning state; cart and chosen branch are untouched.
+
+## 7. Edge cases & error handling
+
+Follow the project's existing error-handling pattern (explicit handling, no silent catches — see `CLAUDE.md` §Error Handling; `readKioskBranch`/`readChosenBranch` are the one documented exception, where a corrupted localStorage value must degrade to "not set" rather than throw, exactly like `kioskBranch.ts` already does).
+
+1. **Malformed/missing `chosen_branch_data`** → `readChosenBranch()` returns `null` (never throws); gate opens as if first visit.
+2. **Branch with `null` lat/lng** → no map pin, no distance in the list, still listed and selectable, never `0,0`.
+3. **All branches coordinate-less** → map renders (fallback center) with zero pins; list is fully functional; nearest-branch button computes no winner (`nearestBranchId = null`) and every row shows no distance.
+4. **`REACT_APP_GOOGLE_MAPS_KEY` absent** → `BranchMapView` is never mounted; `BranchListView` alone is the picker; entry is never blocked by this.
+5. **Geolocation denied/unsupported/timed out** → inline `Alert`, list stays selectable without distances; never retried automatically.
+6. **`fetchPublicBranches`/`fetchAllBranches` network failure during initial load** → surfaces through `useMenuData`'s existing `error` state (unchanged path); the gate never opens against an empty/undefined branch list.
+7. **Chosen branch id no longer exists in the fetched branch list** (branch deactivated after the customer chose it) → `resolveChosenBranchId` still returns the stored id (it doesn't validate against a live list); `fetchBaseAppInfo`/`fetchPublicBranches`-driven screens surface whatever the backend returns for that id. Out of scope to add reconciliation logic here — not in the owner's five answers.
+8. **Cart empty at switch time** → switch immediately, no warning drawer (§6.4 step 3).
+9. **Switching to the branch already chosen** → no-op, no warning, no refetch.
+10. **`fetchBaseAppInfo(targetBranch)` fails during the switch check** → inline error in `BranchSwitchWarningDrawer`, Cancel only, no switch (§6.4 step 5).
+11. **Edit mode with a corrupted/absent `orderToEdit`** → falls through to `DEFAULT_BRANCH_ID` (§6.1 step 3), matching existing defensive parsing elsewhere in `useMenuData.ts`.
+12. **Delivery order** → `HomePageModals.tsx:109`'s `availability.branchId ?? pending.branchId` is untouched by every sub-task; the picked/chosen branch is never read on that line.
+
+## 8. Phases (sub-tasks ST1–ST6)
+
+### ST1 — Backend: branch coordinates on the DTO
+**Files owned:**
+- `backend/src/main/java/com/icpizza/backend/domain/branch/dto/BranchTO.java` (modify — §5.1)
+- `backend/src/main/java/com/icpizza/backend/domain/branch/BranchService.java` (modify `toBranchTO`, ~line 277 — §5.1)
+- `backend/src/test/java/com/icpizza/backend/domain/branch/BranchControllerTest.java` (new, or extend if a test class already exists in that package — check before creating) — asserts `GET /api/branch/fetch_branches` response includes `latitude`/`longitude` (both present, nullable). Follow `backend/.claude/CLAUDE.md`'s JVM testing conventions (not reproduced here — read and follow that file directly).
+
+**Depends on:** none. **Can start in parallel after:** immediately, zero overlap with any frontend file.
+
+**Contract exported:** the `BranchTO` JSON shape (§5.1) — every other sub-task consumes it only via the frontend `IBranch` type (§5.2), not directly.
+
+**Gate:** `./mvnw clean verify` from `backend/`. Report actual surefire/failsafe/failures/skips before and after, compared to the stated baseline (493 surefire + 1223 failsafe, 0 failures, 2 skipped). Do not hardcode branch counts anywhere (2 locally, 2 in prod, per the brief — assert on structure/nullability, not count).
+
+---
+
+### ST2 — Branch-selection core (storage, resolver, Haversine, public fetch)
+**Files owned:**
+- `src/domains/management/inventory/types.ts` (modify — `IBranch` gains `latitude`/`longitude`, §5.2)
+- `src/domains/branch/constants.ts` (new — §5.4)
+- `src/domains/branch/types.ts` (new — §5.4)
+- `src/domains/branch/utils/customerBranch.ts` (new) + `customerBranch.test.ts` (new)
+- `src/domains/branch/utils/haversine.ts` (new) + `haversine.test.ts` (new)
+- `src/domains/branch/hooks/useBranchResolution.ts` (new) + `useBranchResolution.test.ts` (new)
+- `src/shared/api/public.ts` (modify — add `fetchPublicBranches`, §5.3)
+- `src/shared/api/__mocks__/public.ts` (modify — add the matching `jest.fn()`)
+- `src/shared/api/public.test.ts` (modify — add `fetchPublicBranches` coverage, mirroring the existing `fetchBaseAppInfo` tests in that file)
+
+**Depends on:** none to compile/test (nullable coordinates and null-survival are first-class from the start). Depends on ST1 only for *real* coordinate data in production, not for anything in this sub-task's own tests.
+
+**Must commit early** (this is what unblocks ST3 and ST5 per the dependency graph): `types.ts`, `utils/haversine.ts`, `utils/customerBranch.ts`, `hooks/useBranchResolution.ts`, and `public.ts`'s `fetchPublicBranches` — ST3 needs the first two, ST4 needs `customerBranch.ts` + `fetchPublicBranches`, ST5 needs the hook.
+
+**Contract exported:** all of §5.4's types/functions, plus §5.3's `fetchPublicBranches`.
+
+**Out of scope for this sub-task:** any component, any page, `useMenuData`/`useCheckout`/`ClientInfoPopup`/`BranchScheduleHeader`, the Maps dependency, geolocation.
+
+---
+
+### ST3 — Picker component (map, list fallback, nearest button)
+**Files owned:**
+- `package.json`, `package-lock.json` (modify — install `@react-google-maps/api`; **verify `stylis` is still pinned to `4.2.0` after install; restore the pin in both files if it moved**)
+- `src/domains/branch/utils/mapsConfig.ts` (new — §5.4)
+- `src/domains/branch/components/BranchMapView.tsx` (new) + `BranchMapView.test.tsx` (new, `jest.doMock("@react-google-maps/api", ...)` per test, following the repo's "mock your own wrapper, not the raw package globally" convention — never `jest.fn()` inside a hoisted `jest.mock()` factory per the project's Jest Mock Factory Pattern memory)
+- `src/domains/branch/components/BranchListView.tsx` (new) + `BranchListView.test.tsx` (new)
+- `src/domains/branch/components/BranchPickerDrawer.tsx` (new) + `BranchPickerDrawer.test.tsx` (new — mocks `./BranchMapView` and `./BranchListView` as probes, exercises orchestration only)
+- `src/domains/branch/components/__mocks__/BranchMapView.tsx` (new manual mock, for reuse by ST4/ST6 tests that render `BranchPickerDrawer` transitively)
+- `src/shared/i18n/locales/en/branch.json`, `src/shared/i18n/locales/ar/branch.json` (new)
+- `src/shared/i18n/index.ts` (modify — register the `branch` namespace)
+
+**Depends on:** ST2 (`types.ts`, `utils/haversine.ts`).
+
+**Must commit early** (unblocks ST4): the `BranchPickerDrawerProps` contract in §5.4.
+
+**Contract exported:** `BranchPickerDrawerProps`/`BranchPickerDrawer` (§5.4) — this is the exact shape ST4 and ST6 both build against; do not change its shape once committed without notifying both.
+
+**Non-negotiables:** geolocation requested on click only, never on mount (assert explicitly in `BranchPickerDrawer.test.tsx`); a branch with null coordinates has no pin and no distance but is still listed and selectable, never at `0,0`, never dropped; no branch count hardcoded anywhere; `mapsConfig.ts`'s comment records the `.env.local` / CRA-inlining facts verbatim (§5.4).
+
+**Out of scope for this sub-task:** mounting the picker as the entry gate; persisting the selection (`onSelect` reports upward only); the cart-loss warning; anything under `src/pages/`.
+
+---
+
+### ST4 — The entry gate
+**Files owned:**
+- `src/domains/menu/hooks/useMenuData.ts` (modify — §6.1, §6.2, §5.5; also swap the `fetchAllBranches` import/call for `fetchPublicBranches` from `public.ts`, per the brief's explicit instruction that the customer path must not go through `authFetch`)
+- `src/domains/menu/hooks/useMenuData.test.ts` (modify — mock swaps from `management.ts`'s `fetchAllBranches` to `public.ts`'s `fetchPublicBranches`; add gate-open/gate-closed/edit-mode/resolver-precedence cases)
+- `src/pages/HomePage.tsx` (modify — thread `customerBranchGateOpen`/`onCustomerBranchSelect` into `HomePageModals`; no gate-hiding logic needed, §6.2 step 4)
+- `src/pages/HomePage.test.tsx` (modify — **add a `beforeEach` that pre-seeds a chosen branch via `writeChosenBranch`/localStorage so every pre-existing scenario keeps exercising the menu unblocked**; add new dedicated gate tests that manage their own seeding)
+- `src/pages/HomePageModals.tsx` (modify — mount `BranchPickerDrawer` with `dismissable={false}` while `customerBranchGateOpen`, §6.2 step 2-3; §5.6)
+- `src/pages/HomePageModals.test.tsx` (modify — probe-mock `BranchPickerDrawer`, assert it receives `dismissable={false}` and no `onClose` while gate-open, and that `onSelect` triggers the write+close+refresh sequence)
+
+**Depends on:** ST3 (component + prop contract); can start against the contract alone before the map itself works. Also needs ST2's `readChosenBranch`/`fetchPublicBranches` (transitively available once ST2's early commits have landed, per the dependency graph).
+
+**Can run in parallel with:** ST5 (disjoint files — ST5 must not touch `pages/` or `useMenuData.ts`).
+
+**Non-negotiables:** `isKiosk` still resolves via `resolveKioskBranchId()`; `isAdmin && adminBranchId` still wins; `?isEditMode=true` bypasses the gate and inherits the order's branch (§6.1 step 3); `?recommended=`/`?gift=` gate normally (untouched — they are consumed later in the same effect, after `resolveBranchId()` already ran); `DEFAULT_BRANCH_ID` survives only as last-resort fallback.
+
+**Out of scope for this sub-task:** checkout, the schedule header, the re-entry chip, the switch warning.
+
+---
+
+### ST5 — Chosen branch drives checkout and the schedule header
+**Files owned:**
+- `src/domains/order/hooks/useCheckout.ts` (modify line 395 — replace `DEFAULT_BRANCH_ID` with `chosenBranchId` from `useBranchResolution()`; remove the now-unused `DEFAULT_BRANCH_ID` import, confirmed single use)
+- `src/domains/order/hooks/useCheckout.test.ts` (modify — add a case asserting `createOrder`/`handleCheckout` is invoked with the chosen branch id, not `DEFAULT_BRANCH_ID`, when a branch is stored)
+- `src/domains/order/components/ClientInfoPopup.tsx` (modify line 74 — replace `DEFAULT_BRANCH_ID` fallback with `chosenBranchId`; remove the now-unused import, confirmed single use)
+- `src/domains/order/components/ClientInfoPopup.test.tsx` (modify/create — assert `onSave` receives the chosen branch id when no branch is explicitly selected in the popup's own (currently disabled) branch field)
+- `src/domains/schedule/components/BranchScheduleHeader.tsx` (modify line 20 — `resolveBranchName` matches against `chosenBranchId` from `useBranchResolution()` instead of the `DEFAULT_BRANCH_ID` constant; **no new prop** — `branches` prop is unchanged, still searched for the freshest `branchName`)
+- `src/domains/schedule/components/BranchScheduleHeader.test.tsx` (modify — add `localStorage.clear()` to `beforeEach` (not currently present) and a new test: "renders the chosen branch's name when one is stored", using `writeChosenBranch` to seed a branch other than `DEFAULT_BRANCH_ID` and asserting its name renders. Existing tests are unaffected — with nothing stored, `chosenBranchId` still falls back to `DEFAULT_BRANCH_ID`.)
+
+**Depends on:** ST2 (`useBranchResolution`) only.
+
+**Can run in parallel with:** ST3 and ST4 — **only because it reads `useBranchResolution()` directly inside each hook/component, and threads no new prop through `HomePage.tsx` or `HeroSection.tsx`.** This is the one constraint that keeps ST4 and ST5 from colliding on `pages/`.
+
+**Contract exported:** none new — this sub-task is a pure consumer of ST2's hook.
+
+**Must preserve:** delivery precedence — `availability.branchId ?? pending.branchId` at `HomePageModals.tsx:109` is untouched by this sub-task (it is not one of ST5's owned files).
+
+**Out of scope for this sub-task:** the picker, the gate, the chip, the switch warning, `pages/*`.
+
+---
+
+### ST6 — Re-entry chip and the cart-loss switch warning
+**Files owned:**
+- `src/domains/branch/components/BranchChip.tsx` (new) + `BranchChip.test.tsx` (new)
+- `src/domains/branch/hooks/useBranchSwitch.ts` (new) + `useBranchSwitch.test.ts` (new — §5.4, §6.4)
+- `src/domains/branch/components/BranchSwitchWarningDrawer.tsx` (new) + `BranchSwitchWarningDrawer.test.tsx` (new)
+- `src/pages/HeroSection.tsx` (modify — render `BranchChip` when `!isKiosk && onBranchChipClick`, reading the branch name via `useBranchResolution()` + the existing `branches` prop, mirroring `BranchScheduleHeader`'s own id→name lookup; §5.7)
+- `src/pages/HeroSection.test.tsx` (modify — assert the chip renders with the resolved branch name and calls `onBranchChipClick` on tap)
+- `src/pages/HomePage.tsx` (modify — instantiate `useBranchSwitch({cartItems: cart.cartItems, setCartItems: cart.setCartItems, refreshMenu: menu.refreshMenu})`; pass `branchSwitch.openPicker` as `HeroSection`'s `onBranchChipClick`; pass the whole `branchSwitch` object into `HomePageModals`)
+- `src/pages/HomePage.test.tsx` (modify — add an integration case: chip tap → picker reopens → selecting a different branch with cart items open the warning → confirm drops only the unavailable line and switches)
+- `src/pages/HomePageModals.tsx` (modify — **re-edit the `BranchPickerDrawer` mount block ST4 added**: `open={customerBranchGateOpen || branchSwitch.pickerOpen}`, `dismissable={!customerBranchGateOpen}`, `onClose={!customerBranchGateOpen ? branchSwitch.closePicker : undefined}`, `onSelect={customerBranchGateOpen ? onCustomerBranchSelect : branchSwitch.handleBranchSelected}`; mount `BranchSwitchWarningDrawer` off `branchSwitch.warningOpen`/`.warningLoading`/`.warningTargetBranch`/`.warningUnavailableNames`/`.warningError`/`.confirmSwitch`/`.cancelSwitch`)
+- `src/pages/HomePageModals.test.tsx` (modify — probe-mock `BranchSwitchWarningDrawer` and the shared `BranchPickerDrawer` mount; assert the dismissable/open/onSelect wiring for both the gate and switch cases)
+- `src/shared/i18n/locales/en/branch.json`, `src/shared/i18n/locales/ar/branch.json` (modify — add the chip and switch-warning copy keys, e.g. `chip.label`, `switchWarning.{title,loading,itemsLost,noItemsLost,confirm,cancel}`)
+
+**Depends on:** ST3 and ST4 both DONE (needs a real picker to reopen and the gate's mount block already in place to re-edit).
+
+**Can run in parallel with:** none — the only sub-task that edits `HeroSection.tsx` and re-edits `HomePage.tsx`/`HomePageModals.tsx`; run alone after ST4.
+
+**Non-negotiables:** the warning names the unavailable lines before switching and offers cancel (§6.4 step 4); on confirm it drops only those lines, never the whole cart (§6.4 step 6); the spinner shows while `fetchBaseAppInfo(target)` is in flight (§6.4 step 3); the chip matches existing header conventions (co-located with `BranchScheduleHeader`, same text-shadow/typography treatment) rather than inventing a new style; the warning drawer follows the `CashInputDrawer.tsx` `anchor="bottom"` convention.
+
+**Out of scope for this sub-task:** any change to how the branch is resolved (ST2 owns that — `useBranchSwitch` only *writes* via `writeChosenBranch`, it does not reimplement resolution), any change to checkout (ST5 owns that).
+
+## 9. Acceptance criteria
+
+- [ ] `BranchTO` includes `latitude`/`longitude`; `GET /api/branch/fetch_branches` response contains both fields (nullable) — verified by the new backend test.
+- [ ] `./mvnw clean verify` from `backend/` passes with counts reported before/after, matching or exceeding the stated baseline (0 new failures).
+- [ ] `IBranch` includes `latitude: number | null` and `longitude: number | null`; `npx tsc --noEmit` is clean.
+- [ ] `readChosenBranch()`/`writeChosenBranch()`/`clearChosenBranch()` round-trip correctly and never throw on malformed JSON (test asserts this explicitly, mirroring `kioskBranch.test.ts`).
+- [ ] `haversineDistanceKm` returns a correct, deterministic km value for at least one known pair of coordinates (test with a fixed expected value).
+- [ ] `BranchPickerDrawer` renders and is selectable with `REACT_APP_GOOGLE_MAPS_KEY` unset (no map mounted) — test asserts a branch can be chosen via `onSelect`.
+- [ ] A test asserts `navigator.geolocation.getCurrentPosition` is NOT called until the "use nearest branch" control is clicked, and IS called exactly once after the click.
+- [ ] A branch fixture with `latitude: null, longitude: null` renders in the list, is selectable, and shows no distance value once an origin is resolved — test asserts this explicitly.
+- [ ] An ordinary customer (`isKiosk=false`, `isAdmin=false`, `isEditMode=false`) with no stored chosen branch sees `BranchPickerDrawer` mounted with `dismissable=false`; the menu content behind it exists in the DOM but the picker is present.
+- [ ] The same customer with a stored chosen branch does NOT see the picker mounted on load.
+- [ ] `isKiosk=true` still resolves via `resolveKioskBranchId()`; a kiosk-mode render exercises `KioskBranchSelector`, not `BranchPickerDrawer`, for its own gate.
+- [ ] `isAdmin=true` with `branchId` present in the URL resolves to that `adminBranchId`, gate never opens.
+- [ ] `isEditMode=true` never opens the customer gate, and `useMenuData`'s `resolveBranchId()` returns the edited order's `branch_id`, not `DEFAULT_BRANCH_ID` or the stored chosen branch.
+- [ ] `useCheckout.ts`'s order-creation path uses the chosen branch id (not `DEFAULT_BRANCH_ID`) when one is stored — test asserts `createOrder` is called with it.
+- [ ] `BranchScheduleHeader` renders the stored chosen branch's name when one is set, and still falls back to the branch matching `DEFAULT_BRANCH_ID` when none is stored (both cases covered by tests).
+- [ ] `HomePageModals.tsx:109`'s delivery precedence line (`availability.branchId ?? pending.branchId`) is unchanged by every sub-task — a diff/test confirms it.
+- [ ] The branch chip renders near the hero (non-kiosk, non-admin) labelled with the current branch name, and tapping it reopens the picker — test asserts both.
+- [ ] Switching branch with a non-empty cart opens `BranchSwitchWarningDrawer` naming the lines that will be dropped, and confirming removes only those lines from `cartItems` (test asserts the surviving cart contents).
+- [ ] Cancelling the switch warning leaves `cartItems` and the stored chosen branch unchanged.
+- [ ] `npx tsc --noEmit` clean and `npx jest` green across the whole suite; actual pass/fail counts reported before and after, with the one documented pre-existing `ActiveOrderIslandPill` failure neither newly introduced nor used to mask a regression.
+- [ ] No new dependency beyond `@react-google-maps/api`; `stylis` remains pinned at `4.2.0` in `package.json` and `package-lock.json`.
+- [ ] No `.env`/`.env.local` file and no literal API key is present in any file written by this task.
+
+## 10. Out of scope
+
+- Any file under `ic-pizza-mobile/`, `ic-pizza-kiosk/`, `ic-pizza-courier/`.
+- Any backend file other than `BranchTO.java`, `BranchService.java`, and the one new/extended backend test file (no entity change, no repository change, no other controller/service).
+- `src/domains/kiosk/utils/kioskBranch.ts` and `src/domains/kiosk/components/KioskBranchSelector.tsx` — read for convention only, never modified.
+- `HomePageModals.tsx:109`'s delivery-precedence expression itself.
+- Any Google Distance Matrix / paid distance API call.
+- Any dependency other than `@react-google-maps/api`.
+- Any `git` command of any kind (add/commit/branch/etc.) — writing the file to disk is the entire "commit" step in this pipeline.
+- Reconciling a stored chosen-branch id against a live branch list if the branch was later deactivated (edge case 7, §7) — explicitly not requested by the owner's five answers.
+- Any change to how `recommended`/`gift` query params are consumed in `useMenuData.ts` beyond leaving their existing handling untouched.
+- Seeding real coordinates for any branch (ST1 only exposes the column; nullability is the point).
+
+## 11. Test plan
+
+Follow `ic-client/.claude/CLAUDE.md` conventions throughout: no `@types/jest`; `jest`/`describe`/`it`/`expect` imported from `@jest/globals`; factoryless `jest.mock()` resolving to `__mocks__/`; `jest.fn<ReturnType, ArgsTuple>()` typed explicitly, never `jest.Mock<...>` as an annotation. Backend tests follow `backend/.claude/CLAUDE.md` (read and follow directly — this file could not be reproduced here due to a read-permission gate encountered while writing this spec; the implementer has full access and must comply with it).
+
+**ST1 (backend):**
+- New/extended test in `backend/src/test/java/com/icpizza/backend/domain/branch/`: `GET /api/branch/fetch_branches` response includes non-null `latitude`/`longitude` keys (present, whether or not populated) for at least one branch. Covers brief requirement "backend: `/branch/fetch_branches` returns latitude/longitude".
+
+**ST2:**
+- `customerBranch.test.ts`: read/write/clear round-trip; malformed JSON → `null`, never throws; empty string → `null` (mirror `kioskBranch.test.ts` cases exactly).
+- `haversine.test.ts`: known coordinate pair → known km value (fixed expected number, e.g. two Bahrain points a few km apart); distance to self is `0`.
+- `useBranchResolution.test.ts`: returns stored branch + its id when set; falls back to `{chosenBranch: null, chosenBranchId: DEFAULT_BRANCH_ID}` when unset.
+- `public.test.ts`: `fetchPublicBranches` hits `/branch/fetch_branches` with a raw (non-`authFetch`) request and returns the parsed array; propagates a non-ok response as a thrown error, mirroring `fetchBaseAppInfo`'s existing test shape.
+
+**ST3:**
+- `BranchListView.test.tsx`: renders every branch by name; a branch with `distances[id] === null` renders with no distance text; `onUseNearestBranch` fires on button click; `locating`/`locationError` render the expected states.
+- `BranchMapView.test.tsx`: with the third-party library `jest.doMock`'d, asserts a marker is rendered per branch WITH coordinates and none for a null-coordinate branch; marker click calls `onSelectBranch`.
+- `BranchPickerDrawer.test.tsx`: **covers "geolocation is requested ONLY when 'nearest' is pressed, never on mount — assert this explicitly"** — spy/mock `navigator.geolocation.getCurrentPosition`, render the drawer, assert zero calls, click the nearest control, assert exactly one call. **Covers "with NO key the picker still renders and a branch can still be chosen"** — render with `GOOGLE_MAPS_API_KEY` undefined (default test env), assert `BranchMapView` is not rendered and `onSelect` fires from a list-row tap. **Covers "a branch with NULL coordinates is still listed and selectable, with no distance shown"** — fixture branch with `latitude: null, longitude: null`, present in the rendered list, tappable, `onSelect` receives it; after resolving a nearest-branch origin, its row shows no distance while sibling rows do.
+- `dismissable=false` renders no close affordance and the Drawer's `onClose` callback is never invoked from a backdrop/Esc simulation.
+
+**ST4:**
+- `useMenuData.test.ts`: **"entry is blocked until a branch is chosen, for an ordinary customer"** — no stored branch, `isKiosk=false`, `isAdmin=false`, `isEditMode=false` → `customerBranchGateOpen` becomes `true`. **"the stored choice is reused on the next visit and does NOT block"** — seed `writeChosenBranch` before render → `customerBranchGateOpen` stays `false`, and `fetchBaseAppInfo`/`fetchPublicBranches` is called with the stored branch's id. **"kiosk path unaffected"** — `isKiosk=true` → `resolveBranchId` still calls through to the kiosk resolver, `customerBranchGateOpen` never set from the customer arm. **"admin path unaffected"** — `isAdmin=true` + `adminBranchId` set → that id wins, gate never opens. **Edit-mode case**: `isEditMode=true` with a seeded `orderToEdit.branch_id` → `resolveBranchId()` returns that id, not `DEFAULT_BRANCH_ID`, and the gate never opens.
+- `HomePage.test.tsx`: full-stack render (mirroring the existing `renderHomePage` helper) verifying the picker is present when unseeded and absent when a branch is pre-seeded; existing pre-seeded-by-default suite continues to pass unmodified (aside from the added `beforeEach` seeding).
+- `HomePageModals.test.tsx`: `BranchPickerDrawer` probe receives `dismissable={false}` and no `onClose` while `customerBranchGateOpen`; its `onSelect` triggers `writeChosenBranch` + `setCustomerBranchGateOpen(false)` + `refreshMenu` in that order (assert via the mocked `refreshMenu`/storage state).
+
+**ST5:**
+- `useCheckout.test.ts`: **"the order is created against the CHOSEN branch, not DEFAULT_BRANCH_ID"** — seed a chosen branch different from `DEFAULT_BRANCH_ID`, drive the logged-in-with-name checkout path, assert `createOrder` received that branch id.
+- `ClientInfoPopup.test.tsx`: `onSave`'s third argument is the chosen branch id (not `DEFAULT_BRANCH_ID`) when no in-popup branch is selected.
+- `BranchScheduleHeader.test.tsx`: new case — a chosen branch other than `DEFAULT_BRANCH_ID` is seeded, its name (not the `DEFAULT_BRANCH_ID`-matched branch's name) renders; existing "falls back to 'IC Pizza'"/`DEFAULT_BRANCH_ID`-matching cases keep passing with the added `localStorage.clear()` `beforeEach`.
+- **"delivery precedence: `availability.branchId` still wins over the picked branch"** — a `HomePageModals.test.tsx` case (already exercised in that suite's delivery coverage) re-asserted unchanged: seed a chosen branch different from `AVAILABLE.branchId`, drive `handleDeliveryConfirm`, assert `payForDelivery` receives `AVAILABLE.branchId`, not the chosen branch.
+
+**ST6:**
+- `BranchChip.test.tsx`: renders the given `branchName`; `onClick` fires on tap.
+- `useBranchSwitch.test.ts`: empty cart → immediate switch, no warning; non-empty cart → warning opens with `warningLoading=true`, then populated `warningUnavailableNames` once `fetchBaseAppInfo` resolves; `confirmSwitch` drops only the named lines from `cartItems` and calls `refreshMenu`; `cancelSwitch` leaves `cartItems` and the stored branch untouched; selecting the already-chosen branch is a no-op; fetch failure surfaces `warningError` and blocks the switch.
+- `BranchSwitchWarningDrawer.test.tsx`: shows a spinner while `loading`; lists `unavailableItemNames`; `onConfirm`/`onCancel` fire on their respective buttons; `anchor="bottom"` MUI `Drawer` structure present (rounded corners, drag handle, per convention).
+- `HomePage.test.tsx`: integration case — tap the chip, select a different branch with a non-empty cart containing one item unavailable at the target, confirm the warning, assert the cart retains only the available line and the stored branch changed.
+- `HeroSection.test.tsx`: chip renders with the resolved branch name from the `branches` prop + stored id; absent when `isKiosk`.
+```
+
+Sources: n/a (no web search used — this spec was built entirely from reading the project's own files).

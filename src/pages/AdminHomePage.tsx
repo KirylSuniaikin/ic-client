@@ -92,7 +92,7 @@ function AdminHomePage(): JSX.Element {
     // every frame published while the board was open is gone for good.
     const ordersLive = !isReviewer && ui.activeAdminTab === 'orders';
     const { orders, setOrders, alertOrder, setAlertOrder, editedOrder, setEditedOrder, workloadLevel, setWorkloadLevel,
-        cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading,
+        cashStage, eventStage, doughStatus, setDoughStatus, doughAlertOpen, doughAlertMessage, clearDoughAlert, loading, refreshOrderParts,
     } = useAdminOrders(selectedBranchIdStr, stopSoundProxy, ordersLive);
     const { stopSound } = useAlertAudio(alertOrder, editedOrder);
     audioStopRef.current = stopSound;
@@ -145,6 +145,7 @@ function AdminHomePage(): JSX.Element {
                     branches={availableBranches ?? undefined} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch}
                     onBlacklistopen={() => ui.setBlacklistOpen(true)} onCashRegisterOpen={() => ui.setCashRegisterOpen(true)}
                     onAccountingOpen={() => ui.setAccountingOpen(true)} onAccountManagerOpen={() => ui.setAccountManagerOpen(true)}
+                    onCourierDispatcherOpen={() => ui.setCourierDispatcherOpen(true)}
                     activeTab={ui.activeAdminTab}
                     onSwitchSurface={() => ui.setActiveAdminTab(ui.activeAdminTab === 'board' ? 'orders' : 'board')}
                     role={role} logout={logout} userName={fullName ?? username ?? ""}
@@ -167,7 +168,8 @@ function AdminHomePage(): JSX.Element {
                         onDeleteClick={() => handleDeleteClick(order)}
                         onPayClick={o => { ui.setSelectedOrder(o); ui.setPaymentDialogOpen(true); }}
                         onPickedUpClick={o => setOrders(prev => prev.filter(x => x.id !== o.id))}
-                        onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))} />)}
+                        onOvenClick={o => setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "Oven" } : x))}
+                        onPartHandOverConflict={id => { void refreshOrderParts(id); }} />)}
                 </Box>
             )}
             {!ui.isHistoryOpen && !ui.isConfigOpen && !ui.isStatisticsOpen && !isReviewer && showBoardPanel && (
@@ -188,7 +190,9 @@ function AdminHomePage(): JSX.Element {
                 managementPageOpen={ui.managementPageOpen} onManagementPageClose={() => ui.setManagementPageOpen(false)}
                 shiftManagementPageOpen={ui.shiftManagementPageOpen} onShiftManagementPageClose={() => ui.setShiftManagementPageOpen(false)}
                 accountingOpen={ui.accountingOpen} onAccountingClose={() => ui.setAccountingOpen(false)}
-                accountManagerOpen={ui.accountManagerOpen} onAccountManagerClose={() => ui.setAccountManagerOpen(false)} role={role} />
+                accountManagerOpen={ui.accountManagerOpen} onAccountManagerClose={() => ui.setAccountManagerOpen(false)} role={role}
+                courierDispatcherOpen={ui.courierDispatcherOpen}
+                onCourierDispatcherClose={() => ui.setCourierDispatcherOpen(false)} />
             <ExternalOrderAlert alertOrder={alertOrder} onDismiss={() => { stopSound(); setAlertOrder(null); }} onStopSound={stopSound} {...orderActions} />
             <EditedOrderAlert editedOrder={editedOrder} onClose={() => { stopSound(); setEditedOrder(null); }} />
             <DeleteOrderDialog open={deleteDialogOpen} order={orderToDelete} onConfirm={confirmDelete} onCancel={cancelDelete} />

@@ -9,12 +9,12 @@
   "comingSoon": "Coming soon",
   "paymentTitle": "Payment method",
   "payment": {
-    "cash": "Cash",
-    "card": "Card",
-    "benefit": "Benefit"
+    "benefit": "Benefit",
+    "benefitPay": "BenefitPay"
   },
   "extras": {
     "thinDough": "Thin Dough",
     "garlicCrust": "Garlic Crust"
-  }
+  },
+  "pickupFrom": "Pick up from"
 }

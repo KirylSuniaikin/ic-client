@@ -176,7 +176,7 @@ const mockBtStartConnectionMonitor = jest.fn<void, []>();
 (BluetoothPrinterService as unknown as { connect: unknown }).connect = mockBtConnect;
 (BluetoothPrinterService as unknown as { startConnectionMonitor: unknown }).startConnectionMonitor = mockBtStartConnectionMonitor;
 
-const testBranch: IBranch = { id: "branch-1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en" };
+const testBranch: IBranch = { id: "branch-1", externalId: "ext-1", branchNo: 1, branchName: "Test Branch", locale: "en", latitude: null, longitude: null };
 
 function authValue(role: StaffRoles | null): AuthContextType {
     return {
@@ -209,6 +209,7 @@ function adminOrdersValue(): UseAdminOrdersResult {
         doughAlertMessage: "",
         clearDoughAlert: jest.fn(),
         loading: false,
+        refreshOrderParts: jest.fn(),
     };
 }
 

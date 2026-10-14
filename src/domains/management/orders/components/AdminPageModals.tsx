@@ -1,3 +1,7 @@
+import { Dialog, DialogTitle, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import { ManagementTopBar } from '../../_shared/components/ManagementTopBar';
+import { CourierDispatcherPanel } from '../../couriers/components/CourierDispatcherPanel';
 import React from 'react';
 import type { IBranch } from '../../inventory/types';
 import { PurchasePopup } from '../../purchases/components/PurchasePopup';
@@ -25,6 +29,8 @@ type Props = {
     onShiftManagementPageClose: () => void;
     accountingOpen: boolean;
     onAccountingClose: () => void;
+    courierDispatcherOpen: boolean;
+    onCourierDispatcherClose: () => void;
     accountManagerOpen: boolean;
     onAccountManagerClose: () => void;
     role: StaffRoles | null;
@@ -46,6 +52,8 @@ export function AdminPageModals({
     onShiftManagementPageClose,
     accountingOpen,
     onAccountingClose,
+    courierDispatcherOpen,
+    onCourierDispatcherClose,
     accountManagerOpen,
     onAccountManagerClose,
     role,
@@ -75,6 +83,22 @@ export function AdminPageModals({
             )}
             {accountManagerOpen && selectedBranch && (
                 <AccountManagerScreen open={accountManagerOpen} onClose={onAccountManagerClose} role={role} branch={selectedBranch} />
+            )}
+
+            {/* §4. Not branch-scoped like the others: the panel lists every courier across
+                branches, and a manager triaging a stuck delivery needs to see all of them. */}
+            {courierDispatcherOpen && (
+                <Dialog
+                    fullScreen
+                    open={courierDispatcherOpen}
+                    onClose={onCourierDispatcherClose}
+                    PaperProps={{ sx: { backgroundColor: '#fbfaf6' } }}
+                >
+                    {/* The same bar every other management screen opens with, rather than a bare
+                        DialogTitle — this panel used to be the one place that looked borrowed. */}
+                    <ManagementTopBar title="Delivery" onBack={onCourierDispatcherClose} />
+                    <CourierDispatcherPanel />
+                </Dialog>
             )}
         </>
     );

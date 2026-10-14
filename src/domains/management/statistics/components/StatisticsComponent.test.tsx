@@ -15,6 +15,7 @@ import type { StatsResponse } from "../types";
 // ProductsTable pull in @mui/x-data-grid, which needs a TextEncoder polyfill this test
 // environment doesn't provide.
 jest.mock("./tabs/PerformanceTab", () => ({ PerformanceTab: () => null }));
+jest.mock("./tabs/DeliveryTab", () => ({ DeliveryTab: () => null }));
 jest.mock("./PrepPlanTable", () => ({ __esModule: true, default: () => null }));
 jest.mock("./DoughUsageTable", () => ({ DoughUsageTable: () => null }));
 jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ ConsumptionStatistics: () => null }));
@@ -34,8 +35,8 @@ import { fetchStatistics } from "../../../../shared/api/public";
 
 const mockFetchStatistics = jest.mocked(fetchStatistics);
 
-const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en" };
-const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en" };
+const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en", latitude: null, longitude: null };
+const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en", latitude: null, longitude: null };
 
 const emptyStats = {
     totalPickUpRevenue: 0,
@@ -170,6 +171,18 @@ describe("StatisticsComponent", () => {
             expect(screen.getByRole("button", { name: `${today} — ${today}` })).toBeTruthy();
         });
 
+        // Delivery reads the same range and the same branch set as Performance, and both grids
+        // come from the one refresh — so hiding either control there would leave a range nobody
+        // could change.
+        it("shows a multi-select branch control and the date-range button on Delivery", async () => {
+            renderWithTwoBranches();
+            await switchTab("Delivery");
+
+            expect(screen.getAllByRole("combobox")).toHaveLength(1);
+            const today = formatStatDate(new Date());
+            expect(screen.getByRole("button", { name: `${today} — ${today}` })).toBeTruthy();
+        });
+
         it("shows a multi-select branch control with no date-range button on Consumption", async () => {
             renderWithTwoBranches();
             await switchTab("Consumption");
@@ -214,6 +227,34 @@ describe("StatisticsComponent", () => {
 
             await userEvent.click(screen.getByRole("combobox"));
             expect(screen.getAllByRole("checkbox").length).toBeGreaterThan(0);
+        });
+    });
+
+    /**
+     * Every endpoint behind the Delivery tab is /api/management/delivery/**, which is
+     * MANAGER-and-up. Offering the tab to a role that would only ever get a 403 is worse than
+     * not offering it.
+     */
+    describe("Delivery tab role gate", () => {
+        it("offers the Delivery tab to a manager", () => {
+            render(
+                <ManagementBranchScopeProvider branches={[branchA]} homeBranch={branchA}>
+                    <StatisticsComponent onClose={jest.fn()} branchId={branchA.id} role={StaffRoles.MANAGER} />
+                </ManagementBranchScopeProvider>
+            );
+
+            expect(screen.getByRole("button", { name: "Delivery" })).toBeTruthy();
+        });
+
+        it("hides it from a role that cannot read the delivery endpoints", () => {
+            render(
+                <ManagementBranchScopeProvider branches={[branchA]} homeBranch={branchA}>
+                    <StatisticsComponent onClose={jest.fn()} branchId={branchA.id} role={StaffRoles.COOK} />
+                </ManagementBranchScopeProvider>
+            );
+
+            expect(screen.queryByRole("button", { name: "Delivery" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Performance" })).toBeNull();
         });
     });
 

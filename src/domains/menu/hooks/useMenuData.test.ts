@@ -1,19 +1,18 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import {fetchBaseAppInfo} from "../../../shared/api/public";
-import {fetchAllBranches} from "../../../shared/api/management";
+import {fetchBaseAppInfo, fetchPublicBranches} from "../../../shared/api/public";
 import {BaseAppInfoResponse} from "../../order/types";
 import {IBranch} from "../../management/inventory/types";
+import {CHOSEN_BRANCH_KEY} from "../../branch/constants";
+import {writeChosenBranch} from "../../branch/utils/customerBranch";
 import {useMenuData} from "./useMenuData";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../shared/api/public");
-// Factoryless jest.mock() — resolves to src/shared/api/__mocks__/management.ts
-jest.mock("../../../shared/api/management");
 
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
-const mockFetchAllBranches = jest.mocked(fetchAllBranches);
+const mockFetchPublicBranches = jest.mocked(fetchPublicBranches);
 
 const MENU_RESPONSE: BaseAppInfoResponse = {
     menu: [
@@ -36,7 +35,7 @@ const MENU_RESPONSE: BaseAppInfoResponse = {
 };
 
 const BRANCHES: IBranch[] = [
-    { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Branch One", locale: "en" },
+    { id: "1", externalId: "ext-1", branchNo: 1, branchName: "Branch One", locale: "en", latitude: null, longitude: null },
 ];
 
 function makeParams(
@@ -64,11 +63,12 @@ function makeParams(
 describe("useMenuData — initial state", () => {
     beforeEach(() => {
         mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
-        mockFetchAllBranches.mockResolvedValue(BRANCHES);
+        mockFetchPublicBranches.mockResolvedValue(BRANCHES);
     });
 
     afterEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it("starts in loading state", () => {
@@ -90,11 +90,12 @@ describe("useMenuData — initial state", () => {
 describe("useMenuData — successful data fetch", () => {
     beforeEach(() => {
         mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
-        mockFetchAllBranches.mockResolvedValue(BRANCHES);
+        mockFetchPublicBranches.mockResolvedValue(BRANCHES);
     });
 
     afterEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it("calls fetchBaseAppInfo exactly once on mount", async () => {
@@ -109,7 +110,7 @@ describe("useMenuData — successful data fetch", () => {
         renderHook(() => useMenuData(makeParams()));
 
         await waitFor(() => {
-            expect(mockFetchAllBranches).toHaveBeenCalledTimes(1);
+            expect(mockFetchPublicBranches).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -165,11 +166,12 @@ describe("useMenuData — successful data fetch", () => {
 describe("useMenuData — fetch error handling", () => {
     afterEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it("sets error when fetchBaseAppInfo rejects", async () => {
         mockFetchBaseAppInfo.mockRejectedValue(new Error("Network error"));
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -180,7 +182,7 @@ describe("useMenuData — fetch error handling", () => {
 
     it("sets loading to false even when fetchBaseAppInfo rejects", async () => {
         mockFetchBaseAppInfo.mockRejectedValue(new Error("Timeout"));
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -191,7 +193,7 @@ describe("useMenuData — fetch error handling", () => {
 
     it("leaves menuData empty when fetchBaseAppInfo rejects", async () => {
         mockFetchBaseAppInfo.mockRejectedValue(new Error("Timeout"));
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -206,6 +208,7 @@ describe("useMenuData — fetch error handling", () => {
 describe("useMenuData — userInfo propagation", () => {
     afterEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it("sets username from userInfo when name is not 'Unknown user'", async () => {
@@ -213,7 +216,7 @@ describe("useMenuData — userInfo propagation", () => {
             ...MENU_RESPONSE,
             userInfo: { name: "Alice", phone: "+97312345678" },
         });
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -227,7 +230,7 @@ describe("useMenuData — userInfo propagation", () => {
             ...MENU_RESPONSE,
             userInfo: { name: "Alice", phone: "+97312345678" },
         });
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -238,7 +241,7 @@ describe("useMenuData — userInfo propagation", () => {
 
     it("does not set username when userInfo is null", async () => {
         mockFetchBaseAppInfo.mockResolvedValue({ ...MENU_RESPONSE, userInfo: null });
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
 
@@ -253,11 +256,12 @@ describe("useMenuData — userInfo propagation", () => {
 describe("useMenuData — refreshMenu", () => {
     beforeEach(() => {
         mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
-        mockFetchAllBranches.mockResolvedValue([]);
+        mockFetchPublicBranches.mockResolvedValue([]);
     });
 
     afterEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it("calls fetchBaseAppInfo again when refreshMenu is invoked", async () => {
@@ -273,5 +277,128 @@ describe("useMenuData — refreshMenu", () => {
 
         // Once on mount, once on refresh
         expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(2);
+    });
+});
+
+// task-spec.md §6.1/§6.2 — entry gate + resolveBranchId precedence (ST4).
+describe("useMenuData — customer branch entry gate", () => {
+    const CHOSEN_BRANCH: IBranch = {
+        id: "chosen-1", externalId: "ext-chosen", branchNo: 2, branchName: "Chosen Branch",
+        locale: "en", latitude: null, longitude: null,
+    };
+
+    beforeEach(() => {
+        mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
+        mockFetchPublicBranches.mockResolvedValue(BRANCHES);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it("opens the gate for an ordinary customer with no stored branch", async () => {
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.customerBranchGateOpen).toBe(true);
+        });
+    });
+
+    it("does not open the gate when a branch is already stored", async () => {
+        writeChosenBranch(CHOSEN_BRANCH);
+
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+
+    it("does not open the gate for kiosk mode", async () => {
+        const { result } = renderHook(() => useMenuData(makeParams({ isKiosk: true })));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+
+    it("does not open the gate for admin mode", async () => {
+        const { result } = renderHook(() =>
+            useMenuData({ ...makeParams({ isAdmin: true }), adminBranchId: "admin-branch-1" })
+        );
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+
+    it("does not open the gate in edit mode", async () => {
+        localStorage.setItem("orderToEdit", JSON.stringify({ branch_id: "order-branch-1", items: [] }));
+
+        const { result } = renderHook(() => useMenuData(makeParams({ isEditMode: true })));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+});
+
+// task-spec.md §6.1 — resolveBranchId precedence.
+describe("useMenuData — resolveBranchId precedence", () => {
+    beforeEach(() => {
+        mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
+        mockFetchPublicBranches.mockResolvedValue(BRANCHES);
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it("uses adminBranchId when isAdmin is true, even if a branch is stored", async () => {
+        writeChosenBranch({
+            id: "customer-branch", externalId: "ext", branchNo: 3, branchName: "Customer Branch",
+            locale: "en", latitude: null, longitude: null,
+        });
+
+        renderHook(() =>
+            useMenuData({ ...makeParams({ isAdmin: true }), adminBranchId: "admin-branch-1" })
+        );
+
+        await waitFor(() => {
+            expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "admin-branch-1");
+        });
+    });
+
+    it("reads branch_id from localStorage.orderToEdit in edit mode", async () => {
+        localStorage.setItem("orderToEdit", JSON.stringify({ branch_id: "order-branch-1", items: [] }));
+
+        renderHook(() => useMenuData(makeParams({ isEditMode: true })));
+
+        await waitFor(() => {
+            expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "order-branch-1");
+        });
+    });
+
+    it("uses the stored chosen branch for an ordinary customer", async () => {
+        writeChosenBranch({
+            id: "customer-branch", externalId: "ext", branchNo: 3, branchName: "Customer Branch",
+            locale: "en", latitude: null, longitude: null,
+        });
+
+        renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "customer-branch");
+        });
     });
 });

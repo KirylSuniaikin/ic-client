@@ -6,9 +6,12 @@ import { MemoryRouter } from "react-router-dom";
 // i18n side-effect import so any translated copy resolves to English under the default language.
 import "../shared/i18n";
 
-// Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/public.ts / socket.ts
+// Factoryless jest.mock() -- resolves to src/shared/api/__mocks__/public.ts / socket.ts /
+// customerAuth.ts. OrderStatusContent now transitively calls useCustomerAuth (via
+// useCourierTracking, runs/1b/task-spec.md), which throws outside a CustomerAuthProvider.
 jest.mock("../shared/api/public");
 jest.mock("../shared/api/socket");
+jest.mock("../shared/api/customerAuth");
 
 // lottie-web tries to obtain a real 2D canvas context at import time, which jsdom does not
 // provide (no canvas backend installed) -- stub the whole package so OrderStatusPage's
@@ -20,6 +23,7 @@ jest.mock("lottie-react", () => ({
 
 import { getOrderStatus } from "../shared/api/public";
 import { connectSocket, socket } from "../shared/api/socket";
+import { CustomerAuthProvider } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { OrderStatusPage } from "./OrderStatusPage";
 import type { OrderStatusData } from "../domains/order-status/types";
 
@@ -34,6 +38,7 @@ const ORDER: OrderStatusData = {
     orderCreated: "2026-01-01T12:00:00",
     estimationTime: 30,
     branchId: "branch-test",
+    orderType: "Pick Up",
 };
 
 beforeAll(() => {
@@ -57,11 +62,13 @@ beforeEach(() => {
 
 function renderOrderStatusPage(state?: unknown) {
     return render(
-        <MemoryRouter
-            initialEntries={[{ pathname: "/order_status", search: "?order_id=order-123", state }]}
-        >
-            <OrderStatusPage orderId="order-123" />
-        </MemoryRouter>
+        <CustomerAuthProvider>
+            <MemoryRouter
+                initialEntries={[{ pathname: "/order_status", search: "?order_id=order-123", state }]}
+            >
+                <OrderStatusPage orderId="order-123" />
+            </MemoryRouter>
+        </CustomerAuthProvider>
     );
 }
 

@@ -73,21 +73,45 @@
       "new": "New",
       "outForDelivery": "Out for Delivery",
       "delivered": "Delivered",
+      "returnedUndelivered": "Returned Undelivered",
       "cancelled": "Cancelled",
       "timedOut": "Timed Out"
     }
   },
   "island": {
     "readyIn": "Estimated Ready in",
+    "deliveredIn": "Estimated Delivered in",
     "ready": "Come In And Pick Up Your Order!",
     "anyMinute": "Short",
     "minutes": "{{value}} min",
     "orderNumber": "Order #{{number}}",
+    "arrivingIn": "Estimated Arrival in",
+    "waitingForCourier": "Ready, waiting for a courier",
+    "onTheWay": "On the way",
+    "arrivingNow": "Arriving any moment",
     "stage": {
       "preparing": "Preparing",
       "inOven": "In the oven",
-      "ready": "Ready"
+      "ready": "Ready",
+      "outForDelivery": "On the way",
+      "delivered": "Delivered"
     }
+  },
+  "orderStatus": {
+    "readyForDelivery": "Your order is ready and waiting for a courier 🛵",
+    "outForDelivery": "Your order is on the way 🛵",
+    "delivered": "Delivered — enjoy! 🍕",
+    "arrivingAround": "Arriving around {{time}}",
+    "arrivalUnknown": "We'll have an arrival time as soon as a courier picks it up.",
+    "courierUpdatedAgo": "Updated {{minutes}} min ago",
+    "courierPartCaption": "Part {{index}} · {{name}}",
+    "partDelivered": "Part {{index}} of {{total}} delivered",
+    "partOnTheWay": "Part {{index}} of {{total}} on the way",
+    "courierOnTheWay": "{{name}} is on the way · ~{{minutes}} min",
+    "courierOnTheWayNoEta": "{{name}} is on the way",
+    "courierPartOnTheWay": "Part {{index}} · {{name}} · ~{{minutes}} min",
+    "courierUpdatedSecondsAgo": "Updated {{seconds}} s ago",
+    "deliveryAddressMarker": "Your address"
   },
   "errors": {
     "tooManyAttempts": "Too many attempts — please wait a bit before trying again.",

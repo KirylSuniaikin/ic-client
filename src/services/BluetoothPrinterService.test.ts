@@ -91,7 +91,7 @@ const COMBO_ITEM: OrderItem = {
     ],
 };
 
-function buildOrder(items: OrderItem[]): Order {
+function buildOrder(items: OrderItem[], overrides: Partial<Order> = {}): Order {
     return {
         id: "order-1",
         order_no: 42,
@@ -110,6 +110,7 @@ function buildOrder(items: OrderItem[]): Order {
         status: "Kitchen Phase",
         isPaid: true,
         branch_id: "branch-1",
+        ...overrides,
     };
 }
 
@@ -228,6 +229,83 @@ describe("BluetoothPrinterService.printOrder -- modifier rows", () => {
 
         const payload = mockWriteCalls[0];
         expect(payload).not.toContain("Note:");
+    });
+});
+
+/**
+ * Courier-capacity Phase 5 (task-spec.md §5/§11 P4): the printed ticket carries the same
+ * "Part k/N" marking as the kitchen card, so a rider collecting part 1 and a rider collecting
+ * part 2 are never handed the same piece of paper for the same item.
+ */
+describe("BluetoothPrinterService.formatOrderItems -- part marker (courier-capacity Phase 5)", () => {
+    it("appends the part marker only when partsTotal > 1", () => {
+        const part1Item: OrderItem = { ...PIZZA_ITEM, partIndex: 1 };
+
+        const splitOutput = bluetoothPrinterService.formatOrderItems([part1Item], 2);
+        const unsplitOutput = bluetoothPrinterService.formatOrderItems([part1Item], 1);
+        const noPartsTotalOutput = bluetoothPrinterService.formatOrderItems([part1Item]);
+
+        expect(splitOutput).toContain("1x Pepperoni (Medium) [Part 1/2]\n");
+        expect(unsplitOutput).not.toContain("[Part");
+        expect(noPartsTotalOutput).not.toContain("[Part");
+    });
+
+    it("marks each item with its own part index on a genuinely split order", () => {
+        const part1Item: OrderItem = { ...PIZZA_ITEM, partIndex: 1 };
+        const part2Item: OrderItem = { ...COMBO_ITEM, partIndex: 2 };
+
+        const output = bluetoothPrinterService.formatOrderItems([part1Item, part2Item], 2);
+
+        expect(output).toContain("1x Pepperoni (Medium) [Part 1/2]\n");
+        expect(output).toContain("1x Family Deal (Large) [Part 2/2]\n");
+    });
+
+    it("prints every share of a line cut across parts, and keeps an uncut line's plain marker", () => {
+        const cutItem: OrderItem = {
+            ...PIZZA_ITEM,
+            quantity: 5,
+            partShares: [{ partIndex: 1, quantity: 3 }, { partIndex: 2, quantity: 2 }],
+        };
+        const uncutItem: OrderItem = { ...COMBO_ITEM, partIndex: 2, partShares: [{ partIndex: 2, quantity: 1 }] };
+
+        const output = bluetoothPrinterService.formatOrderItems([cutItem, uncutItem], 2);
+
+        expect(output).toContain("5x Pepperoni (Medium) [Part 1/2: 3 of 5] [Part 2/2: 2 of 5]\n");
+        expect(output).toContain("1x Family Deal (Large) [Part 2/2]\n");
+    });
+
+    it("ignores shares on an order that is not split", () => {
+        const item: OrderItem = { ...PIZZA_ITEM, partShares: [{ partIndex: 1, quantity: 1 }, { partIndex: 2, quantity: 1 }] };
+
+        expect(bluetoothPrinterService.formatOrderItems([item], 1)).not.toContain("[Part");
+    });
+
+    // A drink/side the allocator did not need to pin to one part carries no partIndex at all.
+    it("marks nothing for an item with no partIndex, even on a split order", () => {
+        const unassignedItem: OrderItem = { ...PIZZA_ITEM, partIndex: undefined };
+
+        const output = bluetoothPrinterService.formatOrderItems([unassignedItem], 3);
+
+        expect(output).not.toContain("[Part");
+    });
+
+    it("leaves a non-split printed ticket byte-identical", async () => {
+        const order = buildOrder([PIZZA_ITEM]);
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        expect(payload).toContain("1x Pepperoni (Medium)\n");
+        expect(payload).not.toContain("[Part");
+    });
+
+    it("prints the part marker on the whole ticket for a genuinely split order", async () => {
+        const order = buildOrder([{ ...PIZZA_ITEM, partIndex: 1 }], { partsTotal: 2 });
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        expect(payload).toContain("1x Pepperoni (Medium) [Part 1/2]\n");
     });
 });
 

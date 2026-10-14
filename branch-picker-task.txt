@@ -1,0 +1,129 @@
+# TASK: branch picker on site entry — map with pins
+
+## Scope of repos
+Work in `ic-client/` (branch `delivery-inhouse`) PLUS one narrowly-scoped backend change (see "Backend change" below).
+Do NOT touch ic-pizza-mobile, ic-pizza-kiosk or ic-pizza-courier. Do NOT run any git command.
+Read and follow `ic-client/.claude/CLAUDE.md` (and `backend/.claude/CLAUDE.md` for the backend change) exactly.
+
+## What exists today (read before designing)
+- `ic-client/src/domains/menu/hooks/useMenuData.ts` -> `resolveBranchId()`:
+    if (isKiosk) return resolveKioskBranchId();
+    if (isAdmin && adminBranchId) return adminBranchId;
+    return DEFAULT_BRANCH_ID;   // every ordinary customer
+  A normal visitor is silently pinned to one hardcoded branch. That is the gap.
+- `KioskBranchSelector` + `writeKioskBranch` (`src/domains/kiosk/`) already solve this FOR THE KIOSK ONLY.
+  Study it for conventions; do NOT change its behaviour.
+- `HomePageModals.tsx` renders the kiosk selector off `branchSelector` state owned by `useMenuData`.
+- `src/shared/api/management.ts` calls `/branch/fetch_branches` with `authFetch`. That endpoint is
+  `permitAll` on the backend, so the CUSTOMER path needs a PUBLIC fetch, not the authenticated one.
+
+## Required behaviour (owner-decided, do NOT re-litigate)
+1. On site entry the customer MUST choose a branch before reaching the menu. A map with a pin per
+   branch. Choosing is mandatory and deliberate: it prevents a basket filled against one branch's
+   catalogue being carried to another.
+2. A "nearest branch" button. It requests geolocation ON CLICK ONLY, never on page load.
+3. The choice persists (localStorage) and survives reload. Only the first visit blocks.
+4. There must be a way back to the picker; changing branch later WARNS about cart items unavailable
+   at the new branch before switching. Warn, do not silently drop.
+5. Kiosk and admin paths keep working unchanged: `isKiosk` still uses `resolveKioskBranchId()`,
+   `isAdmin && adminBranchId` still wins.
+
+## Backend change (the ONLY backend work permitted — explicitly approved by the owner)
+Branch coordinates exist on the entity (`Branch.java:80-84` latitude/longitude) but are absent from
+the DTO, so the frontend cannot reach them. A local coordinate table in ic-client is REJECTED on
+principle (it would duplicate a fact the database owns and drift the first time a branch moves).
+- Add `latitude` / `longitude` to `backend/src/main/java/com/icpizza/backend/domain/branch/dto/BranchTO.java`
+  and populate them at the single `new BranchTO(` site in `BranchService` (~line 277).
+- BOTH fields must be NULLABLE in the DTO, and the picker MUST survive nulls. Branch coordinates are
+  genuinely often unseeded (the most common cause of a NO_COURIER answer in this system). A branch
+  with no coordinates gets NO pin and NO distance; it is still shown in the list and still
+  selectable, never rendered at 0,0 and never dropped.
+- Nothing else in the backend may change: the DTO and its mapper only.
+- Add a backend test asserting the endpoint actually returns the coordinates.
+- Gate: `./mvnw clean verify` from `backend/`. Baseline to compare against:
+  493 surefire + 1223 failsafe, 0 failures, 2 skipped (the 2 skips are EazyPay credential probes
+  that self-skip — leave them). Report actual numbers before and after.
+- Expect 2 branches locally (Smichov, Karlin) and 2 in production (Al-Hidd, Saar).
+  Do NOT hardcode either count anywhere.
+
+## Google Maps
+- Use `@react-google-maps/api`. This ONE new dependency is explicitly approved. No others.
+- Key comes from `process.env.REACT_APP_GOOGLE_MAPS_KEY`, matching the existing `REACT_APP_KEETA_URL`
+  convention in `src/domains/delivery/constants.ts`.
+- THE KEY DOES NOT EXIST YET. The component MUST degrade gracefully: with no key, render the same
+  picker as a plain list of branches with distances and the same "nearest" button, fully functional.
+  The owner must be able to test branch selection TODAY, without a key. A blank or broken map is not
+  acceptable; neither is blocking entry when the key is absent.
+- Do NOT commit a key, a placeholder key, or a `.env` file. Note in a comment that the key belongs in
+  `ic-client/.env.local` — plain `.env` is NOT in `.gitignore` here (only `.env.local` and
+  `.env.*.local` are), so a key placed in `.env` would be committed.
+- CRA inlines `REACT_APP_*` into the public bundle; a Maps key in a browser app is inherently visible
+  and is protected by HTTP-referrer restrictions, not secrecy. Say so in a comment so nobody "fixes"
+  it by hiding it.
+- Distance: Haversine, computed locally. Do NOT call a Google Distance Matrix API — the backend
+  deliberately avoids paid distance APIs and the same reasoning applies here.
+
+## Owner answers to the five questions raised at triage (BINDING)
+A. Coordinates: option B (backend DTO), as specified above. Nullable, survive nulls.
+B. After the cart warning is accepted: switch and drop ONLY the unavailable lines. Name those lines
+   in the dialog BEFORE switching so the customer sees what they lose and can cancel. Do NOT clear
+   the whole cart; do NOT keep everything and fail at checkout.
+   The extra `fetchBaseAppInfo` against the TARGET branch is acceptable — it is the only way to know
+   what the target carries, and it runs on a deliberate tap, not a hot path. Show a spinner in the
+   dialog while it runs.
+C. Deep links: EDIT MODE (`?isEditMode=true`) BYPASSES the gate and inherits the order's branch —
+   forcing a picker in front of an edit would let someone edit a branch-A order against branch-B's
+   catalogue, the very failure the gate exists to prevent. `?recommended=` and `?gift=` are menu
+   highlights, not branch-bound state: they gate normally.
+D. The chosen branch MUST drive checkout too, not just the menu. A picker that changed only the menu
+   would let a customer choose Karlin, order, and have it land at the default branch with the wrong
+   opening hours — worse than no picker, because it looks like it worked. All three sites move onto
+   the chosen branch:
+     - `src/domains/order/hooks/useCheckout.ts:395`
+     - `src/domains/order/components/ClientInfoPopup.tsx:74`
+     - `src/domains/schedule/components/BranchScheduleHeader.tsx:20`
+   `DEFAULT_BRANCH_ID` remains ONLY as the last-resort fallback for a path with no chosen branch.
+E. Way back to the picker: a branch chip near the hero, labelled with the branch name, tappable,
+   reopening the picker. Match existing header conventions rather than inventing a style.
+F. DELIVERY PRECEDENCE (do not break): delivery already resolves its own branch from the delivery pin
+   (`availability.branchId`) and that MUST keep winning for a delivery order — the nearest branch to
+   the customer's address is not necessarily the branch they browsed. The picker must NOT override it.
+   `HomePageModals.tsx` already does `availability.branchId ?? pending.branchId`; keep that precedence.
+
+## Traps specific to this repo
+- `npm ci` FAILS on ic-client — the committed `package-lock.json` is missing the i18n deps. Use
+  `npm install` for the new dependency and expect the lockfile to change.
+- `stylis` is pinned to 4.2.0 and MUST match the version `@emotion/cache` bundles. A mismatch makes
+  one `::placeholder` inside an `sx` prop crash the whole page. If installing the map library moves
+  `stylis`, RESTORE the pin.
+- NO `@types/jest`: import `jest` from `@jest/globals` as a value; never annotate `let m: jest.Mock<…>`.
+- Popups/drawers use MUI `Drawer` anchor="bottom" per the `CashInputDrawer.tsx` convention.
+
+## Testing (minimum coverage)
+Follow `ic-client/.claude/CLAUDE.md` and existing conventions (`AddressPickerDrawer.test.tsx`,
+`KioskBranchSelector` tests).
+- entry is blocked until a branch is chosen, for an ordinary customer
+- the stored choice is reused on the next visit and does NOT block
+- kiosk path unaffected (`isKiosk` still resolves via the kiosk branch)
+- admin path unaffected (`?branchId=` still wins)
+- geolocation is requested ONLY when "nearest" is pressed, never on mount — assert this explicitly
+- with NO key the picker still renders and a branch can still be chosen
+- switching branch with a non-empty cart warns about items unavailable at the new branch, and on
+  confirm drops ONLY those lines
+- the order is created against the CHOSEN branch, not `DEFAULT_BRANCH_ID` (the assertion that stops
+  D regressing)
+- edit mode bypasses the gate and inherits the order's branch
+- a branch with NULL coordinates is still listed and selectable, with no distance shown
+- delivery precedence: `availability.branchId` still wins over the picked branch
+- backend: `/branch/fetch_branches` returns latitude/longitude
+
+## Gate
+- Frontend: `npx tsc --noEmit` clean and `npx jest` green. Report ACTUAL numbers.
+  There is ONE PRE-EXISTING failure on this branch (`ActiveOrderIslandPill`) that also fails on clean
+  `main` — do not chase it, but do not let it mask a new one. Report the count BEFORE and AFTER.
+- Backend: `./mvnw clean verify` from `backend/`, compared against the baseline above.
+
+## Hard rule
+If any requirement is ambiguous or depends on something you cannot see or were not given, write
+`needs-clarification.md` listing the exact open questions and STOP — do not guess, do not invent
+values, do not silently descope.
