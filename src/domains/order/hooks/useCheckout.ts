@@ -20,7 +20,7 @@ import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
 // Per-checkout idempotency key sent to POST /create_order so the backend can dedupe a retried
 // request (see CreateOrderRequest.idempotency_key). crypto.randomUUID needs a secure context;
 // prod/kiosk run over https, but the fallback keeps older WebViews (Capacitor APK) working.
-function newIdempotencyKey(): string {
+export function newIdempotencyKey(): string {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
         return crypto.randomUUID();
     }

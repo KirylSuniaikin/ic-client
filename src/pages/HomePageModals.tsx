@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import ApplePayNotice from "../domains/order/components/ApplePayNotice";
 import PizzaPopup from "../domains/menu/components/popups/PizzaPopupContent";
 import ComboPopup from "../domains/menu/components/popups/ComboPopupContent";
 import { PizzaComboPopup } from "../domains/menu/components/popups/combo/PizzaComboPopup";
@@ -38,6 +39,10 @@ import type {
 } from "../domains/delivery/types";
 import type { UseCartResult } from "../domains/cart/hooks/useCart";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
+import type { UseApplePayCheckoutResult } from "../domains/order/hooks/useApplePayCheckout";
+import type { UseCardCheckoutResult } from "../domains/order/hooks/useCardCheckout";
+import CardPaymentDrawer from "../domains/order/components/CardPaymentDrawer";
+import { computeSheetTotal } from "../domains/order/utils/applePayRequest";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../domains/menu/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { WorkingHoursSchedule } from "../shared/api/management";
@@ -47,6 +52,8 @@ import { BenefitPayDialog } from "../domains/payment/components/BenefitPayDialog
 interface HomePageModalsProps {
     cart: UseCartResult;
     checkout: UseCheckoutResult;
+    applePay?: UseApplePayCheckoutResult;
+    cardPayment?: UseCardCheckoutResult;
     menuData: MenuItem[];
     toppings: Topping[];
     extraIngredients: ExtraIngr[];
@@ -76,7 +83,7 @@ interface HomePageModalsProps {
 }
 
 export default function HomePageModals({
-    cart, checkout, menuData, toppings, extraIngredients, availableBranches,
+    cart, checkout, applePay, cardPayment, menuData, toppings, extraIngredients, availableBranches,
     isSDoughAvailable, phone, username,
     branchSelector, setBranchSelector, kiosk, refreshMenu,
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
@@ -444,6 +451,8 @@ export default function HomePageModals({
                     // The picker opens ON TOP of the still-open cart rather than replacing it, so
                     // closing or confirming it lands the customer back in the cart, not the menu.
                     onChangeBranch={branchSwitch.openPicker}
+                    applePay={applePay}
+                    cardPayment={cardPayment}
                 />
             )}
 
@@ -521,6 +530,14 @@ export default function HomePageModals({
                 />
             )}
 
+            {applePay?.reminderOpen && (
+                <PickUpReminderPopup
+                    onClose={applePay.dismissReminder}
+                    onClick={applePay.continueFromReminder}
+                    disabled={applePay.busy}
+                />
+            )}
+
             {!isAdmin && checkout.showOrderConfirmed && (
                 <OrderConfirmed open onClose={() => checkout.setShowOrderConfirmed(false)} />
             )}
@@ -541,6 +558,45 @@ export default function HomePageModals({
                 severity="error"
                 handleClose={() => checkout.setErrorSnackBarOpen(false)}
             />
+
+            {applePay?.error && (
+                <ErrorSnackbar
+                    open
+                    message={applePay.error}
+                    severity="error"
+                    handleClose={applePay.clearError}
+                    duration={8000}
+                />
+            )}
+
+            <ApplePayNotice message={applePay?.notice ?? null} />
+
+            {cardPayment && (
+                <CardPaymentDrawer
+                    open={cardPayment.drawerOpen}
+                    step={cardPayment.step}
+                    total={computeSheetTotal(cart.cartItems).sheetAmount}
+                    fieldErrors={cardPayment.fieldErrors}
+                    error={cardPayment.error}
+                    fieldContainerRef={cardPayment.fieldContainerRef}
+                    onClose={cardPayment.closeDrawer}
+                    onPay={cardPayment.submit}
+                    onRetry={cardPayment.retryWithNewSession}
+                />
+            )}
+
+            {/* While the drawer is open the same message is shown inline, where the customer is looking. */}
+            {cardPayment?.error && !cardPayment.drawerOpen && (
+                <ErrorSnackbar
+                    open
+                    message={cardPayment.error}
+                    severity="error"
+                    handleClose={cardPayment.clearError}
+                    duration={8000}
+                />
+            )}
+
+            <ApplePayNotice message={cardPayment?.notice ?? null} />
 
             {!cart.cartOpen && checkout.unavailablePopupOpen && (
                 <UnavailablePopup

@@ -11,6 +11,10 @@ import type { IBranch } from "../../management/inventory/types";
 import { PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { branchDisplayName } from "../../branch/utils/branchDisplayName";
+import { ApplePayButton } from "../../order/components/ApplePayButton";
+import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayCheckout";
+import { CardPaymentButton } from "../../order/components/CardPaymentButton";
+import type { UseCardCheckoutResult } from "../../order/hooks/useCardCheckout";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -77,6 +81,9 @@ interface CartPopupProps {
     // whole section.
     pickupBranch?: IBranch | null;
     onChangeBranch?: () => void;
+    // Absent (or not `available`) renders the cart exactly as before.
+    applePay?: Pick<UseApplePayCheckoutResult, "available" | "busy" | "start">;
+    cardPayment?: Pick<UseCardCheckoutResult, "available" | "busy" | "start">;
 }
 
 function CartPopup({
@@ -106,6 +113,8 @@ function CartPopup({
                        isKiosk,
                        pickupBranch = null,
                        onChangeBranch,
+                       applePay,
+                       cardPayment,
                    }: CartPopupProps): JSX.Element {
     const { t, i18n } = useTranslation("cart");
     // The RTL emotion cache mirrors the card's layout but not an icon's glyph, so the chevron has
@@ -394,6 +403,14 @@ function CartPopup({
                         {totalPrice}
                     </Typography>
                 </Box>
+
+                {applePay?.available && !isAdmin && !isKiosk && (
+                    <ApplePayButton onClick={applePay.start} disabled={applePay.busy} />
+                )}
+
+                {cardPayment?.available && !isAdmin && !isKiosk && (
+                    <CardPaymentButton onClick={cardPayment.start} disabled={cardPayment.busy} />
+                )}
 
                 {/* Checkout button */}
                 <Box
