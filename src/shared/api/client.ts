@@ -5,12 +5,51 @@ import { reportClientError } from "./telemetry";
 // *.onrender.com: that is what makes the customer refresh cookie first-party, so it is
 // shared by the apex and www and no longer dropped by Safari's third-party cookie block.
 const PROD_BASE_URL = 'https://api.ic-pizza.com/api';
-const DEV_BASE_URL = 'http://localhost:8000/api';
 const PROD_WS_URL = 'https://api.ic-pizza.com/ws';
-const DEV_WS_URL = 'http://localhost:8000/ws';
 
-export const BASE_URL: string = process.env.NODE_ENV === 'production' ? PROD_BASE_URL : DEV_BASE_URL;
-export const WS_URL: string = process.env.NODE_ENV === 'production' ? PROD_WS_URL : DEV_WS_URL;
+/** The port the backend listens on in development. */
+const DEV_API_PORT = 8000;
+
+/**
+ * The dev backend, addressed by whatever host the page itself was loaded from.
+ *
+ * A hardcoded `localhost` is correct only while the browser and the backend are the same machine.
+ * They stopped being the same machine when the BenefitPay bridge page started opening on a phone:
+ * `localhost` there is the PHONE, so every call resolved to nothing and the page simply sat still.
+ * Deriving the host means a page served from `100.110.8.58:3000` calls `100.110.8.58:8000`, while a
+ * developer on their own machine still gets `localhost` and sees no change at all.
+ */
+function devOrigin(): string {
+    // An explicit override always wins — set REACT_APP_API_BASE_URL when the backend is not where
+    // the rules below would guess (a tunnel on an odd port, a colleague's machine).
+    const override = process.env.REACT_APP_API_BASE_URL;
+    if (override !== undefined && override.length > 0) {
+        return override.endsWith('/') ? override.slice(0, -1) : override;
+    }
+
+    if (typeof window === 'undefined' || window.location.hostname.length === 0) {
+        return `http://localhost:${DEV_API_PORT}`;
+    }
+
+    const {protocol, hostname} = window.location;
+
+    // An https page may not call http — the browser blocks it as mixed content, silently as far as
+    // the page is concerned. When the app is reached over TLS in development it is behind a tunnel
+    // (Tailscale serve/funnel), and a tunnel terminates TLS on 443 and proxies the backend there,
+    // so the API is same-scheme and portless rather than on DEV_API_PORT.
+    if (protocol === 'https:') {
+        return `https://${hostname}`;
+    }
+
+    return `http://${hostname}:${DEV_API_PORT}`;
+}
+
+export const BASE_URL: string = process.env.NODE_ENV === 'production'
+    ? PROD_BASE_URL
+    : `${devOrigin()}/api`;
+export const WS_URL: string = process.env.NODE_ENV === 'production'
+    ? PROD_WS_URL
+    : `${devOrigin()}/ws`;
 
 export const DEFAULT_BRANCH_ID = '2e8c35f7-d75e-4442-b496-cbb929842c10';
 

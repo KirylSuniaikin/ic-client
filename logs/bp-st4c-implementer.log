@@ -1,0 +1,3 @@
+PHASE ST4 COMPLETE — unblocks: ST6
+
+Counts: `tsc --noEmit` clean for all ST4-owned files (2 pre-existing errors remain in ST6-owned `HeroSection.test.tsx`, not touched, per file-ownership). Scoped test run (`src/domains/menu src/pages`): 14 suites / 217 tests passed, 0 failed.

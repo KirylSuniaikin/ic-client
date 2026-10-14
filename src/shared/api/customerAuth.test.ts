@@ -9,6 +9,7 @@ import {
     fetchMyOrders,
     fetchActiveOrder,
     fetchSuggestedItems,
+    fetchCourierLocation,
     registerCustomerName,
     updateCustomerName,
 } from "./customerAuth";
@@ -408,6 +409,71 @@ describe("fetchActiveOrder", () => {
             .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchActiveOrder("bad-token")).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+// runs/1b/task-spec.md §5.3/§9 — fetchCourierLocation must match fetchOrderDetail's exact
+// shape. Every consumer test (useCourierTracking.test.ts, OrderStatusContent.test.tsx) mocks
+// this module wholesale, so this is the only place the real implementation's URL, headers, and
+// error-throwing behavior against the frozen Phase 1a contract get exercised.
+describe("fetchCourierLocation", () => {
+    it("gets /customer/orders/{orderId}/courier-location with credentials: 'include' and the Bearer token", async () => {
+        const tracking = {
+            couriers: [
+                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
+            ],
+        };
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(tracking), { status: 200 }));
+
+        const result = await fetchCourierLocation("my-access-token", 7);
+
+        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe(`${BASE_URL}/customer/orders/7/courier-location`);
+        expect(init.method).toBe("GET");
+        expect(init.credentials).toBe("include");
+        const headers = new Headers(init.headers);
+        expect(headers.get("Authorization")).toBe("Bearer my-access-token");
+        expect(result).toEqual(tracking);
+    });
+
+    it("returns an empty couriers list as-is (normal, not a failure)", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ couriers: [] }), { status: 200 }));
+
+        const result = await fetchCourierLocation("my-access-token", 7);
+
+        expect(result).toEqual({ couriers: [] });
+    });
+
+    it("throws a CustomerAuthApiError on a 404 (order missing / not this caller's order)", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+        await expect(fetchCourierLocation("my-access-token", 7)).rejects.toThrow(CustomerAuthApiError);
+    });
+
+    it("throws a CustomerAuthApiError on a 401", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+        await expect(fetchCourierLocation("bad-token", 7)).rejects.toThrow(CustomerAuthApiError);
+    });
+
+    // runs/6b/task-spec.md §11 — proves the untouched fetch wrapper still passes the widened
+    // (couriers + parts) shape through verbatim.
+    it("round-trips a two-courier, two-part response with both fields intact and unmodified", async () => {
+        const tracking = {
+            couriers: [
+                { name: "Ali", latitude: 26.2285, longitude: 50.586, positionAgeSeconds: 10, partIndex: 1 },
+                { name: "Sara", latitude: 26.23, longitude: 50.59, positionAgeSeconds: 12, partIndex: 2 },
+            ],
+            parts: [
+                { partIndex: 1, partsTotal: 2, delivered: true },
+                { partIndex: 2, partsTotal: 2, delivered: false },
+            ],
+        };
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(tracking), { status: 200 }));
+
+        const result = await fetchCourierLocation("my-access-token", 7);
+
+        expect(result).toEqual(tracking);
     });
 });
 

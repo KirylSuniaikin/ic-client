@@ -21,10 +21,11 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from "../../../domains/management/purchases/types";
-import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload } from '../management';
+import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse } from '../management';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
-import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../../domains/management/statistics/types';
+import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, CourierProductivity, DeliveryQualityStats, LostDemandStats, LostDemandZoneStats, TimeToCourierStats } from '../../../domains/management/statistics/types';
+import type { DeliveryZone, SaveDeliveryZone } from '../../../domains/management/config/types';
 import type {
     BaseShiftResponse,
     CreateShiftReportTO,
@@ -78,6 +79,7 @@ export const getAllBannedCstmrs = jest.fn<Promise<BlackListCstmr[]>, []>();
 
 export const getWorkingHours = jest.fn<Promise<WorkingHoursResponse | null>, [string]>();
 export const putWorkingHours = jest.fn<Promise<WorkingHoursResponse>, [WorkingHoursRequest]>();
+export const putDeliveryEnabled = jest.fn<Promise<DeliveryEnabledResponse>, [string, boolean]>();
 
 // Purchase/Inventory popups (Phase 2 — decimal-placeholder component tests).
 export const fetchProducts = jest.fn<Promise<ProductTO[]>, []>();
@@ -192,3 +194,37 @@ export const patchChannelOverride =
 export const getMenuCostCards = jest.fn<Promise<MenuCostCardsResponse>, []>();
 export const getComponentCosts = jest.fn<Promise<ComponentCost[]>, []>();
 export const updateComponentCost = jest.fn<Promise<ComponentCost>, [number, UpdateComponentCost]>();
+
+// Delivery availability (Statistics -> Performance).
+export const fetchDeliveryAvailabilityStats =
+    jest.fn<Promise<DeliveryAvailabilityStats>, [string, string, string]>();
+
+// Delivered by weekday/hour (Statistics -> Delivery).
+export const fetchDeliveryHourlyStats =
+    jest.fn<Promise<DeliveryHourBucket[]>, [string, string, string]>();
+
+// Estimate accuracy + skip reasons (Statistics -> Delivery). Chain-wide: no branch argument,
+// because the endpoints take an optional branchId and these two read the whole chain.
+export const fetchDeliveryEstimateAccuracy =
+    jest.fn<Promise<DeliveryEstimateAccuracy>, [string, string]>();
+export const fetchDeliverySkipReasonStats =
+    jest.fn<Promise<DeliverySkipReasonStats>, [string, string]>();
+
+// Delivered orders per hexagon (Statistics -> Delivery). The branch argument is optional, as on
+// the endpoint: omitted reads the whole chain.
+export const fetchDeliveryZoneStats =
+    jest.fn<Promise<DeliveryZoneStats>, [string, string, DeliveryZoneCellMeters, string?]>();
+
+// Delivery metrics M1–M5 (Statistics -> Delivery). Chain-wide: no branch argument.
+export const fetchTimeToCourierStats = jest.fn<Promise<TimeToCourierStats>, [string, string]>();
+export const fetchDeliveryQualityStats = jest.fn<Promise<DeliveryQualityStats>, [string, string]>();
+export const fetchLostDemandStats = jest.fn<Promise<LostDemandStats>, [string, string]>();
+export const fetchLostDemandZoneStats =
+    jest.fn<Promise<LostDemandZoneStats>, [string, string, DeliveryZoneCellMeters]>();
+export const fetchCourierProductivity = jest.fn<Promise<CourierProductivity>, [string, string]>();
+
+// Delivery zones (Config -> Schedule).
+export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();
+export const createDeliveryZone = jest.fn<Promise<DeliveryZone>, [SaveDeliveryZone]>();
+export const updateDeliveryZone = jest.fn<Promise<DeliveryZone>, [string, SaveDeliveryZone]>();
+export const deleteDeliveryZone = jest.fn<Promise<void>, [string]>();

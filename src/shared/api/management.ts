@@ -38,7 +38,8 @@ import type {
     SalarySlipForm,
     StaffOption
 } from '../../domains/management/shift/types';
-import type { VatStatePayload } from '../../domains/management/statistics/types';
+import type { CourierProductivity, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliveryQualityStats, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, LostDemandStats, LostDemandZoneStats, TimeToCourierStats, VatStatePayload } from '../../domains/management/statistics/types';
+import type { DeliveryZone, SaveDeliveryZone } from '../../domains/management/config/types';
 import type { BlackListCstmr } from '../../domains/management/blacklist/types';
 import type {
     BranchBalanceResponse,
@@ -781,6 +782,227 @@ export async function generatePrepPlan(payload: GeneratePrepPlanRequest): Promis
     return res.json();
 }
 
+/**
+ * How long delivery was unavailable per branch over a period, and why (Statistics ->
+ * Performance). Branch ids are joined into the SINGLE `branchId` query param, the same
+ * shape `fetchStatistics` uses — the backend param is a List<UUID> and Spring binds a
+ * comma-joined value.
+ */
+export async function fetchDeliveryAvailabilityStats(
+    startDate: string,
+    finishDate: string,
+    joinedBranchIds: string
+): Promise<DeliveryAvailabilityStats> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/availability-stats?start_date=${startDate}` +
+        `&finish_date=${finishDate}&branchId=${joinedBranchIds}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Delivered total AND delivered count per weekday/hour cell (Statistics -> Delivery).
+ *
+ * `from`/`to` rather than `start_date`/`finish_date`: this endpoint is named after the dispatcher
+ * side of delivery, not after the statistics page's fetch shape. Branch ids are still the single
+ * comma-joined `branchId` param every other multi-branch call on this page sends.
+ */
+export async function fetchDeliveryHourlyStats(
+    from: string,
+    to: string,
+    joinedBranchIds: string
+): Promise<DeliveryHourBucket[]> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/hourly?from=${from}&to=${to}&branchId=${joinedBranchIds}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Quoted versus actual delivery timings over a window, split KITCHEN / ROAD / TOTAL
+ * (Statistics -> Delivery).
+ *
+ * **Sends no `branchId` at all, on purpose.** The parameter is optional on this endpoint and
+ * omitting it reads the whole chain, which is the meaningful default here for two reasons the
+ * backend states: the road half of every quote comes from one router and one speed constant
+ * shared by every branch, so "is our drive estimate wrong" is a chain-wide question; and an
+ * unscoped read is the only one that can see the pre-2025-10-11 orders whose `branch_id` is NULL,
+ * which `branch_id IN (...)` can never match. The card says so in its header rather than letting a
+ * manager assume the branch filter above it applied.
+ */
+export async function fetchDeliveryEstimateAccuracy(
+    startDate: string,
+    finishDate: string
+): Promise<DeliveryEstimateAccuracy> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/estimate-accuracy?start_date=${startDate}` +
+        `&finish_date=${finishDate}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * How often the assignment engine passed a rider over, per reason, over a window
+ * (Statistics -> Delivery).
+ *
+ * Chain-wide for the same reason as `fetchDeliveryEstimateAccuracy`: the staffing question is
+ * chain-wide before it is per-branch, and an unscoped read is the only one that can see a skip
+ * recorded against an order with no branch.
+ */
+export async function fetchDeliverySkipReasonStats(
+    startDate: string,
+    finishDate: string
+): Promise<DeliverySkipReasonStats> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/skip-reasons?start_date=${startDate}` +
+        `&finish_date=${finishDate}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Delivered in-house orders per hexagon of a fixed grid over Bahrain, with each cell's revenue,
+ * timings and late share (Statistics -> Delivery).
+ *
+ * `joinedBranchIds` follows `fetchDeliveryEstimateAccuracy`'s rule rather than the hourly call's:
+ * omitted (or empty) means the whole chain, so the map can be read against the estimate-accuracy
+ * card beside it, which is fetched unscoped. An empty string is treated as omitted: an empty
+ * selection has no branch to scope to, and a bare `branchId=` would leave its meaning to the
+ * server's binder.
+ */
+export async function fetchDeliveryZoneStats(
+    startDate: string,
+    finishDate: string,
+    cellMeters: DeliveryZoneCellMeters,
+    joinedBranchIds?: string
+): Promise<DeliveryZoneStats> {
+    const branchParam = joinedBranchIds ? `&branchId=${joinedBranchIds}` : "";
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/zones?start_date=${startDate}` +
+        `&finish_date=${finishDate}&cellMeters=${cellMeters}${branchParam}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delivery metrics (Statistics -> Delivery): time to a courier, quality, lost demand and courier
+// productivity. Every one is read chain-wide — no `branchId` — for the reason
+// `fetchDeliveryEstimateAccuracy` gives, so these cards reconcile with the ones beside them.
+// ---------------------------------------------------------------------------------------------
+
+async function fetchDeliveryWindowStats<T>(
+    path: string,
+    startDate: string,
+    finishDate: string,
+    extraQuery = ""
+): Promise<T> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/stats/${path}?start_date=${startDate}` +
+        `&finish_date=${finishDate}${extraQuery}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/** Ready -> assigned and first offer -> assigned, per delivered part (M1). */
+export async function fetchTimeToCourierStats(
+    startDate: string,
+    finishDate: string
+): Promise<TimeToCourierStats> {
+    return fetchDeliveryWindowStats<TimeToCourierStats>("time-to-courier", startDate, finishDate);
+}
+
+/** Lateness against the promise, freshness, waits, cancellations and returns (M2 + M4). */
+export async function fetchDeliveryQualityStats(
+    startDate: string,
+    finishDate: string
+): Promise<DeliveryQualityStats> {
+    return fetchDeliveryWindowStats<DeliveryQualityStats>("quality", startDate, finishDate);
+}
+
+/** Refused delivery checks, Keeta chosen instead, and abandoned unpaid delivery orders (M3). */
+export async function fetchLostDemandStats(
+    startDate: string,
+    finishDate: string
+): Promise<LostDemandStats> {
+    return fetchDeliveryWindowStats<LostDemandStats>("lost-demand", startDate, finishDate);
+}
+
+/**
+ * Where customers were turned away, on the same hexagon grid as `fetchDeliveryZoneStats` — a
+ * separate list, because those cells mostly lie where nothing was delivered (M3 per hexagon).
+ */
+export async function fetchLostDemandZoneStats(
+    startDate: string,
+    finishDate: string,
+    cellMeters: DeliveryZoneCellMeters
+): Promise<LostDemandZoneStats> {
+    return fetchDeliveryWindowStats<LostDemandZoneStats>(
+        "lost-demand/zones", startDate, finishDate, `&cellMeters=${cellMeters}`
+    );
+}
+
+/** On-shift time split and GPS km per courier (M5). Couriers have no branch, so there is no filter. */
+export async function fetchCourierProductivity(
+    startDate: string,
+    finishDate: string
+): Promise<CourierProductivity> {
+    return fetchDeliveryWindowStats<CourierProductivity>("courier-productivity", startDate, finishDate);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delivery zones (Config -> Schedule). A zone decides where the restaurant will deliver, and
+// DeliveryZoneService fails CLOSED — a polygon it cannot parse covers nothing — so whoever can
+// write one can also switch a branch's delivery off. Validate before calling any of these.
+// ---------------------------------------------------------------------------------------------
+
+/** One branch's zones, active and inactive alike: hiding an inactive one would make it unswitchable. */
+export async function fetchDeliveryZones(branchId: string): Promise<DeliveryZone[]> {
+    const res = await authFetch(
+        BASE_URL + `/management/delivery/zones?branchId=${encodeURIComponent(branchId)}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function createDeliveryZone(body: SaveDeliveryZone): Promise<DeliveryZone> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/** Full replace, never a patch: half a ring is not a smaller area, it is a broken one. */
+export async function updateDeliveryZone(zoneId: string, body: SaveDeliveryZone): Promise<DeliveryZone> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones/${zoneId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function deleteDeliveryZone(zoneId: string): Promise<void> {
+    const res = await authFetch(BASE_URL + `/management/delivery/zones/${zoneId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function getDoughInventory(branchId: string): Promise<DoughStatus> {
     const res = await authFetch(BASE_URL + `/branches/${branchId}/dough-inventory`, {
         method: "GET",
@@ -1097,4 +1319,30 @@ export async function updateComponentCost(
 
     if (!res.ok) throw await saveRequestError(res);
     return await res.json();
+}
+
+export type DeliveryEnabledResponse = {
+    branchId: string;
+    deliveryEnabled: boolean;
+};
+
+/**
+ * Per-branch delivery switch (gap G2 in DELIVERY_TODO.md).
+ *
+ * Distinct from `Branch.isActive`, which closes the branch entirely: this turns delivery off for
+ * one kitchen while it keeps taking pickup orders — the availability gate reads it, so a customer
+ * pinning an address near this branch is told delivery is unavailable rather than being routed to
+ * a kitchen that cannot serve them.
+ */
+export async function putDeliveryEnabled(
+    branchId: string,
+    deliveryEnabled: boolean
+): Promise<DeliveryEnabledResponse> {
+    const res = await authFetch(BASE_URL + "/branch/update_delivery_enabled", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId, deliveryEnabled }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
 }

@@ -25,6 +25,8 @@ const MATCHING_BRANCH: IBranch = {
     branchNo: 1,
     branchName: "Manama Branch",
     locale: "en",
+    latitude: null,
+    longitude: null,
 };
 
 const OTHER_BRANCH: IBranch = {
@@ -33,13 +35,15 @@ const OTHER_BRANCH: IBranch = {
     branchNo: 2,
     branchName: "Muharraq Branch",
     locale: "en",
+    latitude: null,
+    longitude: null,
 };
 
-function renderHero(branches: IBranch[], isKiosk = false) {
+function renderHero(branches: IBranch[], isKiosk = false, onBranchClick?: () => void) {
     return render(
         <CustomerAuthProvider>
             <CustomerAuthUiProvider>
-                <HeroSection isKiosk={isKiosk} branches={branches} workingHours={null} />
+                <HeroSection isKiosk={isKiosk} branches={branches} workingHours={null} onBranchClick={onBranchClick} />
             </CustomerAuthUiProvider>
         </CustomerAuthProvider>
     );
@@ -117,5 +121,38 @@ describe("HeroSection", () => {
 
         expect(screen.queryByText("Manama Branch")).toBeNull();
         rectSpy.mockRestore();
+    });
+
+    // Re-entry chip (task-spec.md §6.4).
+    // The separate chip was removed: BranchScheduleHeader already prints the branch name, so the
+    // chip showed the same branch a second time. The name itself is now the picker trigger, and
+    // these tests assert that one label carries both jobs rather than that a chip exists.
+    describe("branch name as the picker trigger", () => {
+        it("is a plain label, not a button, when no handler is provided", () => {
+            renderHero([MATCHING_BRANCH]);
+
+            expect(screen.queryByRole("button", { name: /change branch/i })).toBeNull();
+            // Still printed — losing the name entirely would be a regression, not a fix.
+            expect(screen.getByText("Manama Branch")).toBeTruthy();
+        });
+
+        it("renders the resolved name once and calls the handler on tap", () => {
+            const onBranchClick = jest.fn();
+            renderHero([OTHER_BRANCH, MATCHING_BRANCH], false, onBranchClick);
+
+            // Exactly one node carries the name — the duplication this change removed.
+            expect(screen.getAllByText("Manama Branch")).toHaveLength(1);
+
+            const trigger = screen.getByRole("button", { name: /change branch/i });
+            trigger.click();
+            expect(onBranchClick).toHaveBeenCalledTimes(1);
+        });
+
+        it("stays a plain label on kiosk, even with a handler provided", () => {
+            renderHero([MATCHING_BRANCH], true, jest.fn());
+
+            // The branch is not the customer's to change on a shared in-store tablet.
+            expect(screen.queryByRole("button", { name: /change branch/i })).toBeNull();
+        });
     });
 });

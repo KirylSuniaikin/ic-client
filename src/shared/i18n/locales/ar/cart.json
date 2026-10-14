@@ -9,12 +9,12 @@
   "comingSoon": "قريباً",
   "paymentTitle": "طريقة الدفع",
   "payment": {
-    "cash": "نقداً",
-    "card": "بطاقة",
-    "benefit": "بنفت"
+    "benefit": "بنفت",
+    "benefitPay": "بنفت باي"
   },
   "extras": {
     "thinDough": "عجينة رقيقة",
     "garlicCrust": "حافة بالثوم"
-  }
+  },
+  "pickupFrom": "الاستلام من"
 }

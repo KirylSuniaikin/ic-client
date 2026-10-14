@@ -14,6 +14,7 @@ import type {
     ReviewPromptOutcome,
     SuggestedOrderResponse,
 } from '../../domains/customer-auth/types';
+import type { OrderTrackingResponse } from '../../domains/order-status/types';
 
 // Type guard for a JSON error body shaped like `{ message: string }`.
 // The `as` cast is scoped to this guard's internal narrowing of an
@@ -247,6 +248,25 @@ export async function ackReviewPrompt(
         // on screen, and re-raising here would surface an error the customer can
         // do nothing about.
     }
+}
+
+// runs/1b/task-spec.md §5.3. Mirrors fetchOrderDetail's exact shape — same auth pattern, same
+// error type — against the frozen Phase 1a tracking endpoint.
+export async function fetchCourierLocation(
+    accessToken: string,
+    orderId: number
+): Promise<OrderTrackingResponse> {
+    const response = await fetch(`${BASE_URL}/customer/orders/${orderId}/courier-location`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: withClientPlatform({ Authorization: `Bearer ${accessToken}` }),
+    });
+
+    if (!response.ok) {
+        throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);
+    }
+
+    return await response.json();
 }
 
 export async function fetchSuggestedItems(accessToken: string): Promise<SuggestedOrderResponse> {

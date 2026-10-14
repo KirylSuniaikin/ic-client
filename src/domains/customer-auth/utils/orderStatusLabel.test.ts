@@ -20,6 +20,7 @@ const backendStatusLabels = [
     "New",
     "Out for delivery",
     "Delivered",
+    "Returned Undelivered",
     "Cancelled",
     "Timed out",
 ];

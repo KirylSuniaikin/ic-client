@@ -43,6 +43,28 @@ const baseStats: StatsResponse = {
 
 const noop = (): void => undefined;
 
+describe("PerformanceTab customer card title", () => {
+    it("names every channel the backend counts on the card", () => {
+        // The backend's StatsService.CUSTOMER_CARD_TYPES decides what the card counts; a title
+        // naming fewer channels makes the card look over-counted against the platform totals.
+        render(
+            <PerformanceTab
+                rangeStats={baseStats}
+                globalStats={null}
+                retentionStats={null}
+                sellStats={[]}
+                deliveryAvailability={null}
+                deliveryAvailabilityScope={null}
+                selectedDate={new Date()}
+                onSelectedDateChange={noop}
+                onRefresh={noop}
+            />
+        );
+
+        expect(screen.getByText("Customers · Pick Up + Delivery + Talabat + Keeta")).toBeTruthy();
+    });
+});
+
 describe("PerformanceTab customer card columns", () => {
     it("renders only New and Returning columns when there are no unknown-phone orders", () => {
         const stats: StatsResponse = {...baseStats, newCustomerOrderedCount: 1, oldCstmrOrderCount: 4, unknownCustomerOrderCount: 0};
@@ -53,6 +75,8 @@ describe("PerformanceTab customer card columns", () => {
                 globalStats={null}
                 retentionStats={null}
                 sellStats={[]}
+                deliveryAvailability={null}
+                deliveryAvailabilityScope={null}
                 selectedDate={new Date()}
                 onSelectedDateChange={noop}
                 onRefresh={noop}
@@ -78,6 +102,8 @@ describe("PerformanceTab customer card columns", () => {
                 globalStats={null}
                 retentionStats={null}
                 sellStats={[]}
+                deliveryAvailability={null}
+                deliveryAvailabilityScope={null}
                 selectedDate={new Date()}
                 onSelectedDateChange={noop}
                 onRefresh={noop}

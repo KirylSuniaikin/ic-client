@@ -18,6 +18,8 @@ function makeBranch(overrides: Partial<IBranch> = {}): IBranch {
         branchNo: 1,
         branchName: "Adliya",
         locale: "adl",
+        latitude: null,
+        longitude: null,
         ...overrides,
     };
 }

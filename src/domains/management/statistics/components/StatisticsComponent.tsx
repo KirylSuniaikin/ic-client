@@ -14,11 +14,12 @@ import MonthRangePickerPopover from "./business/MonthRangePickerPopover";
 import {useBusinessStats} from "../hooks/useBusinessStats";
 import type {ProductSettingsPatch} from "../hooks/useProductCatalog";
 import {PerformanceTab} from "./tabs/PerformanceTab";
+import {DeliveryTab} from "./tabs/DeliveryTab";
 import {useStatistics} from "../hooks/useStatistics";
 import {DateRangePickerPopover} from "./performance/DateRangePickerPopover";
-import {formatStatDate} from "./performance/statsFormat";
+import {formatStatDate, formatStatRange} from "./performance/statsFormat";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
-import {BranchMultiSelectComponent} from "../../_shared/components/BranchMultiSelectComponent";
+import {BranchMultiSelectComponent, renderSelectedLabel} from "../../_shared/components/BranchMultiSelectComponent";
 import {useBranchScope, useMultiBranchScope} from "../../_shared/hooks/useBranchScope";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import type {IBranch} from "../../inventory/types";
@@ -31,20 +32,26 @@ interface StatisticsComponentProps {
     role: StaffRoles | null;
 }
 
-type StatsMode = "Performance" | "Business" | "Consumption" | "Pricing" | "Reports" | "Shifts";
+type StatsMode = "Performance" | "Business" | "Delivery" | "Consumption" | "Pricing" | "Reports" | "Shifts";
 
 export default function StatisticsComponent({onClose, branchId, role}: StatisticsComponentProps): JSX.Element {
     // StatisticsComponent only receives a raw branchId string (not the full IBranch the
     // other adapted screens get from AdminHomePage), so the scope fallback is built here --
     // display fields are never read off it, only .id, since it's used only when no
     // ManagementBranchScopeProvider is mounted (see useBranchScope's graceful fallback).
-    const fallbackBranch: IBranch = {id: branchId, externalId: branchId, branchNo: 0, branchName: "", locale: ""};
+    const fallbackBranch: IBranch = {id: branchId, externalId: branchId, branchNo: 0, branchName: "", locale: "", latitude: null, longitude: null};
 
     // One multi-select scope shared by Performance + Consumption (both render the same
     // filter-row control and Consumption's DoughUsageTable is fed by this same useStatistics
     // call), and one single-select scope shared by Reports + Shifts.
     const multiScope = useMultiBranchScope(fallbackBranch);
     const singleScope = useBranchScope(fallbackBranch);
+
+    // Computed BEFORE useStatistics: it also decides whether the delivery fetches are worth
+    // making, and /api/management/delivery/** is MANAGER-and-up.
+    // Performance, Delivery and Shifts share the same audience: a branch manager sees their own
+    // branch's figures, a city-level role sees whichever branches they select.
+    const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
 
     const {
         loading,
@@ -53,16 +60,18 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
         retentionStats,
         sellStats,
         doughUsage,
+        deliveryAvailability,
+        deliveryStatsScope,
+        deliveryHourly,
+        deliveryEstimateAccuracy,
+        deliverySkipReasons,
+        deliveryChainScope,
         dateRange,
         setDateRange,
         selectedDate,
         setSelectedDate,
         refresh,
-    } = useStatistics(multiScope.selected.map(b => b.id));
-
-    // Performance and Shifts share the same audience: a branch manager sees their own branch's
-    // figures, a city-level role sees whichever branches they select.
-    const canSeePerformance = role === StaffRoles.MANAGER || hasCityAccess(role);
+    } = useStatistics(multiScope.selected.map(b => b.id), canSeePerformance);
 
     // Business Stats is the consolidated company P&L, owner withdrawals included, and it has no
     // branch dimension to scope it by -- so there is no version of it a branch manager could see
@@ -97,9 +106,39 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
 
     const joinedConsumptionBranchIds = multiScope.selected.map(b => b.id).join(",");
 
-    const showMultiBranchControl = (mode === "Performance" || mode === "Consumption") && multiScope.canSwitch;
+    /**
+     * What the availability card pins in its header, so two readings of the same figure can be
+     * told apart.
+     *
+     * The two halves come from different places on purpose. The DATES come from the hook, which
+     * records the range it actually fetched with — the picker's own range runs ahead of the data
+     * until Refresh is pressed. The BRANCHES come from the live selection, which cannot run ahead:
+     * changing it refetches. `renderSelectedLabel` is the branch control's own wording, reused so
+     * the header and the control above it cannot drift apart.
+     */
+    const availabilityScope = deliveryStatsScope === null ? null : {
+        branches: renderSelectedLabel(multiScope.selected, multiScope.branches.length),
+        range: formatStatRange(deliveryStatsScope.startDate, deliveryStatsScope.finishDate),
+    };
+
+    /**
+     * The applied range behind the two chain-wide delivery cards.
+     *
+     * Same rule as `availabilityScope` and for the same reason — it comes from the range the hook
+     * actually fetched with, never from the picker, which runs ahead of the data until Refresh is
+     * pressed. It carries no branch half at all: those two endpoints are called without a branch
+     * filter, so naming the selected branches beside their numbers would be a straight lie.
+     */
+    const deliveryChainRange = deliveryChainScope === null
+        ? null
+        : formatStatRange(deliveryChainScope.startDate, deliveryChainScope.finishDate);
+
+    const showMultiBranchControl =
+        (mode === "Performance" || mode === "Delivery" || mode === "Consumption") && multiScope.canSwitch;
     const showSingleBranchControl = (mode === "Reports" || mode === "Shifts") && singleScope.canSwitch;
-    const showDateRangeButton = mode === "Performance";
+    // Delivery reads the same range as Performance -- both grids are fetched by the same
+    // refresh, so hiding the picker on one of them would leave a range nobody could change.
+    const showDateRangeButton = mode === "Performance" || mode === "Delivery";
     // Business Stats deliberately opts into NO branch control: it is a business-level report, and a
     // branch selector on it would be a lie. It takes a MONTH range instead of the day-grained
     // picker, because the report has no day grain at all.
@@ -167,6 +206,12 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                         )}
                         {canSeeBusiness && (
                             <ToggleButton value="Business">Business</ToggleButton>
+                        )}
+                        {/* Same gate as Performance, and not a cosmetic one: every endpoint
+                            behind this tab is /api/management/delivery/**, which is
+                            MANAGER-and-up. */}
+                        {canSeePerformance && (
+                            <ToggleButton value="Delivery">Delivery</ToggleButton>
                         )}
                         <ToggleButton value="Consumption">Consumption</ToggleButton>
                         <ToggleButton value="Pricing">Pricing</ToggleButton>
@@ -291,6 +336,8 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             globalStats={globalStats}
                             retentionStats={retentionStats}
                             sellStats={sellStats}
+                            deliveryAvailability={deliveryAvailability}
+                            deliveryAvailabilityScope={availabilityScope}
                             selectedDate={selectedDate}
                             onSelectedDateChange={setSelectedDate}
                             onRefresh={refresh}
@@ -307,6 +354,17 @@ export default function StatisticsComponent({onClose, branchId, role}: Statistic
                             onSaveChannelCell={businessStats.saveChannelCell}
                             onRevertChannelRow={businessStats.revertChannelRow}
                             onDismissChannelSaveError={businessStats.clearChannelSaveError}
+                        />
+                    )}
+                    {mode === "Delivery" && (
+                        <DeliveryTab
+                            hourly={deliveryHourly}
+                            availability={deliveryAvailability}
+                            availabilityScope={availabilityScope}
+                            estimateAccuracy={deliveryEstimateAccuracy}
+                            skipReasons={deliverySkipReasons}
+                            chainRange={deliveryChainRange}
+                            chainScope={deliveryChainScope}
                         />
                     )}
                     {mode === "Consumption" && (
