@@ -4,9 +4,7 @@ import {
     Avatar,
     Box,
     Button,
-    CircularProgress,
     Dialog,
-    IconButton,
     Paper,
     Skeleton,
     Stack,
@@ -30,6 +28,7 @@ import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import TelegramIcon from "@mui/icons-material/Telegram";
+import ViewWeekRoundedIcon from "@mui/icons-material/ViewWeekRounded";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import theme from "../../../../shared/utils/theme";
 import { logger } from "../../../../shared/utils/logger";
@@ -47,6 +46,11 @@ import { copyToClipboard } from "../utils/copyToClipboard";
 import HireStaffDrawer from "./HireStaffDrawer";
 import ResetPasswordDrawer from "./ResetPasswordDrawer";
 import EditStaffDrawer from "./EditStaffDrawer";
+import { useRosterScores } from "../../discipline/hooks/useRosterScores";
+import DisciplineDrawer from "../../discipline/components/DisciplineDrawer";
+import ScoreBadge from "../../discipline/components/ScoreBadge";
+import StaffRowActionsMenu from "./StaffRowActionsMenu";
+import type { StaffRowAction } from "./StaffRowActionsMenu";
 import { shortStaffName, staffDisplayName } from "../../../../shared/utils/staffName";
 
 const colorRed = "#E44B4C";
@@ -104,10 +108,12 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // InventoryPage / CashRegisterPopup / HistoryComponent.
     const { branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch } = useBranchScope(branch);
     const { staff, loading, error, create, resetPassword, setEnabled, changeBranch, updatePayroll, updateDetails } = useStaffAccounts(scopedBranch.id);
+    const { scores, error: scoresError, refresh: refreshScores } = useRosterScores(scopedBranch.id);
 
     const [hireOpen, setHireOpen] = useState(false);
     const [resetTarget, setResetTarget] = useState<StaffAdminTO | null>(null);
     const [editTarget, setEditTarget] = useState<StaffAdminTO | null>(null);
+    const [disciplineTarget, setDisciplineTarget] = useState<StaffAdminTO | null>(null);
     const [showDeactivated, setShowDeactivated] = useState(false);
     const [roleFilter, setRoleFilter] = useState<string>("ALL");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -124,6 +130,11 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     useEffect(() => {
         if (error) setErrorMessage(error);
     }, [error]);
+
+    // A failed score fetch only costs the badges; it must never block the roster.
+    useEffect(() => {
+        if (scoresError) setErrorMessage(scoresError);
+    }, [scoresError]);
 
     // Fetched once on mount, not per row -- every row's connect link is built from the same
     // bot username, so there is nothing row-specific to refetch.
@@ -208,59 +219,82 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
     // Only roles actually on this branch, so the filter can never select an empty roster.
     const rolesPresent = Array.from(new Set(staff.map(s => s.role).filter((r): r is StaffRoles => r !== null))).sort();
 
-    const iconButtonSx = {
-        border: `1px solid ${hairline}`,
-        borderRadius: "10px",
-        color: "#6b7079",
-        backgroundColor: "#fff",
-        "&:hover": { backgroundColor: "#fff5f5", borderColor: colorRed, color: colorRed },
-    } as const;
+    // One helper for both layouts so they cannot diverge. Order is fixed: Edit, Reset, Discipline, Telegram.
+    const buildRowActions = (s: StaffAdminTO, administrable: boolean): StaffRowAction[] => {
+        const actions: StaffRowAction[] = [];
+        if (administrable) {
+            actions.push({
+                key: "edit",
+                label: "Edit",
+                icon: <EditOutlinedIcon fontSize="small" />,
+                onSelect: () => setEditTarget(s),
+                testId: `staff-edit-${s.id}`,
+            });
+            actions.push({
+                key: "reset-password",
+                label: "Reset password",
+                icon: <LockResetIcon fontSize="small" />,
+                onSelect: () => setResetTarget(s),
+                testId: `staff-reset-${s.id}`,
+            });
+            actions.push({
+                key: "discipline",
+                label: "Discipline",
+                icon: <ViewWeekRoundedIcon fontSize="small" />,
+                onSelect: () => setDisciplineTarget(s),
+                testId: `staff-discipline-${s.id}`,
+            });
+        }
+        if (!s.telegramConnected) {
+            actions.push({
+                key: "telegram-copy",
+                label: "Copy Telegram connect link",
+                icon: <TelegramIcon fontSize="small" />,
+                onSelect: () => handleCopyConnectLink(s),
+                testId: `staff-telegram-copy-${s.id}`,
+                disabled: !botUsername || connectLinkPendingIds.has(s.id),
+            });
+        }
+        return actions;
+    };
 
-    // Always visible rather than revealed on hover: the admin surface runs on kitchen tablets,
-    // where there is no hover and a hidden control is an unreachable one.
-    const rowActions = (s: StaffAdminTO): React.JSX.Element => (
-        <Stack direction="row" spacing={0.75} justifyContent="flex-end">
-            <Tooltip title="Edit">
-                <IconButton
-                    size="small"
-                    aria-label="Edit"
-                    onClick={() => setEditTarget(s)}
-                    data-testid={`staff-edit-${s.id}`}
-                    sx={iconButtonSx}
-                >
-                    <EditOutlinedIcon fontSize="small" />
-                </IconButton>
-            </Tooltip>
-            <Tooltip title="Reset password">
-                <IconButton
-                    size="small"
-                    aria-label="Reset password"
-                    onClick={() => setResetTarget(s)}
-                    data-testid={`staff-reset-${s.id}`}
-                    sx={iconButtonSx}
-                >
-                    <LockResetIcon fontSize="small" />
-                </IconButton>
-            </Tooltip>
-        </Stack>
+    const rowMenu = (s: StaffAdminTO, administrable: boolean): React.JSX.Element => (
+        <StaffRowActionsMenu
+            staffId={s.id}
+            actions={buildRowActions(s, administrable)}
+            busy={connectLinkPendingIds.has(s.id)}
+        />
     );
 
     const identity = (s: StaffAdminTO): React.JSX.Element => {
         const tint = roleTint(s.role);
+        const score = scores.get(s.id);
         return (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-                <Avatar
-                    sx={{
-                        width: 38,
-                        height: 38,
-                        fontSize: "0.85rem",
-                        fontWeight: 700,
-                        bgcolor: tint.bg,
-                        color: tint.fg,
-                    }}
-                >
-                    {initials(s)}
-                </Avatar>
+                <Box sx={{ position: "relative", flexShrink: 0 }}>
+                    <Avatar
+                        sx={{
+                            width: 38,
+                            height: 38,
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                            bgcolor: tint.bg,
+                            color: tint.fg,
+                        }}
+                    >
+                        {initials(s)}
+                    </Avatar>
+                    {score && (
+                        <Box sx={{ position: "absolute", top: -4, right: -4 }}>
+                            <ScoreBadge
+                                score={score.score}
+                                zone={score.zone}
+                                size="sm"
+                                testId={`staff-score-badge-${s.id}`}
+                            />
+                        </Box>
+                    )}
+                </Box>
                 <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "#1f2430", lineHeight: 1.3 }} noWrap>
                         {shortStaffName(staffDisplayName(s))}
@@ -318,8 +352,8 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
 
     const price = (s: StaffAdminTO): string => (s.pricePerHour !== null ? `BD ${s.pricePerHour}` : "—");
 
-    // Always visible, same rationale as rowActions above: no hover on a kitchen tablet.
-    const telegramCell = (s: StaffAdminTO): React.JSX.Element => {
+    // Status only: the copy-link action lives in the row menu.
+    const telegramCell = (s: StaffAdminTO): React.JSX.Element | null => {
         if (s.telegramConnected) {
             return (
                 <Tooltip title="Telegram connected">
@@ -343,23 +377,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
             );
         }
 
-        const pending = connectLinkPendingIds.has(s.id);
-        return (
-            <Tooltip title="Copy Telegram connect link">
-                <span>
-                    <IconButton
-                        size="small"
-                        aria-label="Copy Telegram connect link"
-                        data-testid={`staff-telegram-copy-${s.id}`}
-                        disabled={!botUsername || pending}
-                        onClick={() => void handleCopyConnectLink(s)}
-                        sx={iconButtonSx}
-                    >
-                        {pending ? <CircularProgress size={14} /> : <TelegramIcon fontSize="small" />}
-                    </IconButton>
-                </span>
-            </Tooltip>
-        );
+        return null;
     };
 
     return (
@@ -558,7 +576,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                         </Stack>
                                         <Stack direction="row" spacing={0.75} alignItems="center">
                                             {telegramCell(s)}
-                                            {administrable && rowActions(s)}
+                                            {rowMenu(s, administrable)}
                                         </Stack>
                                     </Box>
                                 </Paper>
@@ -629,7 +647,7 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                                                 {telegramCell(s)}
                                             </TableCell>
                                             <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                                                {administrable && rowActions(s)}
+                                                {rowMenu(s, administrable)}
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -664,6 +682,15 @@ export default function AccountManagerScreen({ open, role, branch, onClose }: Ac
                 changeBranch={changeBranch}
                 updatePayroll={updatePayroll}
                 setEnabled={setEnabled}
+            />
+
+            <DisciplineDrawer
+                open={disciplineTarget !== null}
+                target={disciplineTarget}
+                callerRole={role}
+                roster={staff}
+                onClose={() => setDisciplineTarget(null)}
+                onChanged={refreshScores}
             />
 
             <ErrorSnackbar

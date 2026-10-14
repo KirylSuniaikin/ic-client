@@ -52,6 +52,8 @@ const overtimePillSx = {
     text: "#c41c00",
 };
 
+const COLUMN_HEADERS = ["Staff", "Role", "Total Hrs", "Penalty Hrs", "Total(Basic Salary + Allowance + OT)"];
+
 const DATE_RANGE_HINT = "Hours are summed by each shift's own date across all of this branch's shift reports, "
     + "so a single report card's total won't match. An overnight shift counts on the day it started. "
     + "Salary slips default to the pay cycle instead — their dates are shown in the slip.";
@@ -226,10 +228,9 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                     <Table size="small" aria-label="staff summary" sx={{minWidth: 480}}>
                         <TableHead sx={{bgcolor: "#fafafa"}}>
                             <TableRow>
-                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Staff</TableCell>
-                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Role</TableCell>
-                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total Hrs</TableCell>
-                                <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}>Total(Basic Salary + Allowance + OT)</TableCell>
+                                {COLUMN_HEADERS.map((header) => (
+                                    <TableCell key={header} sx={{fontWeight: "bold", color: "text.secondary"}}>{header}</TableCell>
+                                ))}
                                 {showSlipColumn && (
                                     <TableCell sx={{fontWeight: "bold", color: "text.secondary"}}/>
                                 )}
@@ -296,6 +297,23 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                                             </Box>
                                         </TableCell>
 
+                                        {/* Penalty Hours -- an older backend omits the field */}
+                                        <TableCell>
+                                            <Box sx={{
+                                                backgroundColor: (s.penaltyHours ?? 0) > 0 ? overtimePillSx.bg : pillSx.bg,
+                                                color: (s.penaltyHours ?? 0) > 0 ? overtimePillSx.text : pillSx.text,
+                                                py: 0.5,
+                                                px: 1.5,
+                                                borderRadius: 2,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                fontWeight: "bold",
+                                                fontSize: "0.9rem",
+                                            }}>
+                                                {s.penaltyHours != null ? s.penaltyHours.toFixed(2) : "—"}
+                                            </Box>
+                                        </TableCell>
+
                                         {/* Total Salary */}
                                         <TableCell>
                                             <Box sx={{
@@ -356,7 +374,7 @@ export function StaffSummaryContent({branchId, role}: Props): JSX.Element {
                             {rows.length === 0 && (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={showSlipColumn ? 5 : 4}
+                                        colSpan={COLUMN_HEADERS.length + (showSlipColumn ? 1 : 0)}
                                         align="center"
                                         sx={{py: 3, color: "text.secondary"}}
                                     >

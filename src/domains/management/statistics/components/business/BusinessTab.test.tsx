@@ -11,11 +11,13 @@ import { PreResponseNetworkError } from "../../../../../shared/api/client";
 jest.mock("../../../../../shared/api/management");
 
 import {
-    getBusinessCategories, updateCategoryClassification
+    getBusinessCategories, getComponentCosts, getMenuCostCards, updateCategoryClassification
 } from "../../../../../shared/api/management";
 
 const mockGet = jest.mocked(getBusinessCategories);
 const mockUpdate = jest.mocked(updateCategoryClassification);
+const mockCostCards = jest.mocked(getMenuCostCards);
+const mockComponents = jest.mocked(getComponentCosts);
 
 const marketing: CategoryClassification = {
     id: 1, name: "Marketing", type: "DEBIT", pnlClass: null, kpiTag: null,
@@ -124,7 +126,7 @@ const report: BusinessStatsResponse = {
             period: "2026-06",
             grossRevenue: 3261.626, appFees: 672.836, netRevenue: 2588.79,
             recipeCogs: 800.0, grossProfit: 1788.79,
-            operatingExpenses: 936.17, operatingProfit: 852.62,
+            operatingExpenses: 936.17, notApplicable: 0, operatingProfit: 852.62,
             capex: 763.906, financing: 0, ownerWithdrawals: 21.38, adjustments: 0,
             netProfit: 67.334, unclassified: 4102.5,
             reconciliation: {
@@ -139,7 +141,7 @@ const report: BusinessStatsResponse = {
             period: "2026-07",
             grossRevenue: 3935.269, appFees: 858.264, netRevenue: 3077.005,
             recipeCogs: 1000.0, grossProfit: 2077.005,
-            operatingExpenses: 893.542, operatingProfit: 1183.463,
+            operatingExpenses: 893.542, notApplicable: 0, operatingProfit: 1183.463,
             capex: 661.283, financing: 0, ownerWithdrawals: 74.988, adjustments: 0,
             netProfit: 447.192, unclassified: 0,
             reconciliation: {
@@ -185,6 +187,14 @@ const report: BusinessStatsResponse = {
                 {
                     key: "dailyOrders", label: "Daily orders (avg)", value: 23.88, unit: "count",
                     previousValue: null, unavailableReason: null, detail: "÷ 27 trading days",
+                },
+                {
+                    key: "primeCost", label: "Prime cost", value: 1250.5, unit: "BD",
+                    previousValue: null, unavailableReason: null, detail: "recipe-costed COGS + labour",
+                },
+                {
+                    key: "primeCostPercent", label: "Prime cost %", value: 31.78, unit: "%",
+                    previousValue: null, unavailableReason: null, detail: "of gross revenue",
                 },
                 {
                     key: "debtEquity", label: "Debt / equity", value: null, unit: "x",
@@ -252,6 +262,13 @@ describe("BusinessTab", () => {
         mockGet.mockResolvedValue([marketing, rent]);
         mockUpdate.mockResolvedValue({ ...marketing, pnlClass: "OPEX" });
         mockRefresh.mockResolvedValue(undefined);
+        // Inventory COGS embeds the menu cost cards; without these the factoryless mock returns
+        // undefined and the card crashes on data.cards.
+        mockCostCards.mockResolvedValue({
+            cards: [], menuItemsWithoutRecipe: [],
+            costing: { componentsUsed: 0, componentsResolved: 0, coveragePercent: 100, warnings: [] },
+        });
+        mockComponents.mockResolvedValue([]);
     });
 
     describe("classification", () => {
@@ -426,72 +443,89 @@ describe("BusinessTab", () => {
         });
     });
 
-    describe("business income", () => {
-        function incomeRow(name: RegExp): string[] {
-            const table = screen.getByRole("table", { name: "Business income" });
-            return within(within(table).getByRole("row", { name }))
-                .getAllByRole("cell")
-                .map(cell => cell.textContent ?? "");
-        }
+    describe("N/A", () => {
+        const naBlock = {
+            pnlClass: "NOT_APPLICABLE" as const, label: "N/A",
+            note: "Counted as an expense above Operating Profit, but not part of Operating Expenses, COGS or Prime Cost.",
+            includedInOperatingExpenses: false,
+            rows: [{ categoryId: 41, categoryName: "N/A", kpiTag: null, amounts: [25.5, 0], total: 25.5 }],
+            totals: [25.5, 0], grandTotal: 25.5,
+        };
+        const naCategory: CategoryClassification = {
+            ...marketing, id: 41, name: "N/A", pnlClass: null,
+        };
 
-        it("shows ledger income in its own card as positive amounts, one row per category", async () => {
-            // The pivot signs a credit negative; read as income, "-3,000.500" says money went out.
-            renderTab();
-            await openCard("💰 Business income");
-
-            expect(incomeRow(/^Business Income/)).toEqual(["Business Income", "3,000.500", "3,500.000", "6,500.500"]);
-            expect(incomeRow(/^Gateway payouts/)).toEqual(["Gateway payouts", "120.000", "—", "120.000"]);
-            expect(screen.getByRole("table", { name: "Business income" }).textContent).not.toMatch(/-\d/);
-        });
-
-        it("totals each month across the income categories", async () => {
-            renderTab();
-            await openCard("💰 Business income");
-
-            expect(incomeRow(/^Total/)).toEqual(["Total", "3,120.500", "3,500.000", "6,620.500"]);
-        });
-
-        it("says the figures are for reference and counted in no total", async () => {
-            renderTab();
-            await openCard("💰 Business income");
-
-            expect(screen.getByText(
-                "Payouts received from platforms and payment gateways, as recorded in the ledger. "
-                + "Shown for reference — not part of any total; the profit statement takes revenue from orders."
-            )).toBeTruthy();
-        });
-
-        it("carries the range's income on the closed card", async () => {
-            renderTab();
-
-            expect(await screen.findByText("6,620.500 BHD in this range")).toBeTruthy();
-        });
-
-        it("says so when no business income was recorded", async () => {
-            const withoutIncome: BusinessStatsResponse = {
+        it("shows an N/A row between operating expenses and operating profit, negative like the other costs", async () => {
+            const withNa: BusinessStatsResponse = {
                 ...report,
-                expensePivot: {
-                    ...report.expensePivot,
-                    blocks: report.expensePivot.blocks.filter(block => block.pnlClass !== "REVENUE"),
-                },
+                profitAndLoss: report.profitAndLoss.map((m, i) => i === 0 ? { ...m, notApplicable: 25.5 } : m),
             };
-            renderTab(withoutIncome);
+            renderTab(withNa);
+            await openCard("📈 Profit & loss");
 
-            expect(await screen.findByText("none in this range")).toBeTruthy();
-            await openCard("💰 Business income");
-
-            expect(screen.getByText("No business income recorded in this range.")).toBeTruthy();
-            expect(screen.queryByRole("table", { name: "Business income" })).toBeNull();
+            const labelOf = (row: HTMLElement): string | null => row.querySelector("td, th")?.textContent ?? null;
+            const rows = (await screen.findAllByRole("row")).map(labelOf);
+            const na = rows.indexOf("N/A");
+            expect(na).toBeGreaterThan(-1);
+            expect(rows[na - 1]).toBe("Operating expenses");
+            expect(rows[na + 1]).toBe("Operating profit (EBITDA)");
+            const row = screen.getAllByRole("row")[na];
+            expect(within(row).getAllByRole("cell")[1].textContent).toBe("-25.500");
         });
 
-        it("sits right after Profit & loss and before Monthly expenses", async () => {
+        it("explains in the Profit & loss info that N/A is subtracted before operating profit", async () => {
+            renderTab();
+
+            await userEvent.hover(await screen.findByRole("img", { name: "About 📈 Profit & loss" }));
+
+            expect(await screen.findByText(/N\/A is subtracted before operating profit, but is not part of operating expenses\./)).toBeTruthy();
+            expect(screen.getByText(/Net profit is a cash view with one exception/)).toBeTruthy();
+        });
+
+        it("renders the N/A block in the pivot, outside operating expenses, and counts it", async () => {
+            const withNa: BusinessStatsResponse = {
+                ...report,
+                expensePivot: { ...report.expensePivot, blocks: [...report.expensePivot.blocks, naBlock] },
+            };
+            renderTab(withNa);
+
+            expect(await screen.findByText("3 blocks")).toBeTruthy();
+            await openCard("🧾 Monthly expenses");
+
+            expect((await screen.findAllByText("N/A")).length).toBeGreaterThanOrEqual(2);
+            expect(screen.getByText(naBlock.note)).toBeTruthy();
+            expect(screen.getAllByText(/not in Operating Expenses/).length).toBeGreaterThanOrEqual(2);
+        });
+
+        describe("in the drawer", () => {
+            it("classifies a category as N/A, shows its hint, and does not leave it unclassified", async () => {
+                mockGet.mockResolvedValue([naCategory, rent]);
+                mockUpdate.mockResolvedValue({ ...naCategory, pnlClass: "NOT_APPLICABLE" });
+                renderTab();
+                await userEvent.click(await screen.findByText(/1 unclassified/));
+                const row = screen.getByTestId("category-row-41");
+
+                await userEvent.click(within(row).getByRole("combobox", { name: /P&L class/i }));
+                await userEvent.click(await screen.findByRole("option", { name: /N\/A/ }));
+
+                await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(41, { pnlClass: "NOT_APPLICABLE", kpiTag: null }));
+                expect(within(row).getByRole("combobox", { name: /P&L class/i }).textContent)
+                    .toMatch(/N\/A \(expense outside Operating Expenses\)/);
+                expect(within(row).queryByText(/Unclassified/i)).toBeNull();
+                expect(within(row).getByText(/Spend that fits nowhere else/)).toBeTruthy();
+            });
+        });
+    });
+
+    describe("business income removal", () => {
+        it("has no Business income card, and Monthly expenses directly follows Profit & loss", async () => {
             renderTab();
 
             const cards = (await screen.findAllByRole("button", { name: /^Expand / }))
                 .map(button => button.getAttribute("aria-label"));
 
-            expect(cards.indexOf("Expand 💰 Business income")).toBe(cards.indexOf("Expand 📈 Profit & loss") + 1);
-            expect(cards.indexOf("Expand 🧾 Monthly expenses")).toBe(cards.indexOf("Expand 💰 Business income") + 1);
+            expect(cards).not.toContain("Expand 💰 Business income");
+            expect(cards.indexOf("Expand 🧾 Monthly expenses")).toBe(cards.indexOf("Expand 📈 Profit & loss") + 1);
         });
     });
 
@@ -625,7 +659,10 @@ describe("BusinessTab", () => {
             await openCard("📈 Profit & loss");
 
             expect(await screen.findByText(/COGS reconciliation/)).toBeTruthy();
-            expect(screen.getByText(/Unexplained variance/)).toBeTruthy();
+            expect(screen.getByText("COGS from stock movement")).toBeTruthy();
+            // The variance moved to the Inventory COGS card.
+            expect(screen.queryByText(/Unexplained variance/)).toBeNull();
+            expect(screen.queryByText("as % of gross revenue")).toBeNull();
         });
 
         it("says that net profit is not a cash figure", async () => {
@@ -638,16 +675,6 @@ describe("BusinessTab", () => {
             await userEvent.hover(await screen.findByRole("img", {name: /About .*Profit/}));
 
             expect(await screen.findByText(/COGS is recipe-costed, not cash/)).toBeTruthy();
-        });
-
-        it("states the variance as a share of gross revenue, with a dash for a month that has none", async () => {
-            renderTab();
-            await openCard("📈 Profit & loss");
-
-            const row = await screen.findByRole("row", { name: /^as % of gross revenue/ });
-            expect(within(row).getAllByRole("cell").map(cell => cell.textContent))
-                .toEqual(["as % of gross revenue", "1.53%", "—"]);
-            expect(screen.queryByText("as % of net revenue")).toBeNull();
         });
 
         it("shows an em dash rather than a variance when a stock count is missing", async () => {
@@ -690,6 +717,38 @@ describe("BusinessTab", () => {
             expect((await screen.findByTestId("kpi-dailyOrders")).textContent).toContain("trading days");
         });
 
+        it("shows prime cost and its share of gross revenue as formatted tiles", async () => {
+            renderTab();
+
+            expect((await screen.findByTestId("kpi-primeCost")).textContent).toContain("1,250.500 BHD");
+            expect(screen.getByTestId("kpi-primeCostPercent").textContent).toContain("31.78%");
+        });
+
+        it("renders an em dash, never 0.000, when prime cost is unavailable", async () => {
+            const unavailable: BusinessStatsResponse = {
+                ...report,
+                kpi: report.kpi.map(block => ({
+                    ...block,
+                    kpis: block.kpis.map(k => k.key === "primeCost"
+                        ? { ...k, value: null, unavailableReason: "No category is tagged LABOUR — tag one to compute this." }
+                        : k),
+                })),
+            };
+            renderTab(unavailable);
+
+            const tile = await screen.findByTestId("kpi-primeCost");
+            expect(tile.textContent).toContain("—");
+            expect(tile.textContent).not.toContain("0.000");
+        });
+
+        it("explains prime cost in the Key metrics info", async () => {
+            renderTab();
+
+            await userEvent.hover(await screen.findByRole("img", { name: "About 📊 Key metrics" }));
+
+            expect(await screen.findByText(/Prime cost is recipe-costed COGS plus labour/)).toBeTruthy();
+        });
+
         it("shows the latest month in the range", async () => {
             renderTab();
 
@@ -718,6 +777,48 @@ describe("BusinessTab", () => {
 
             expect(await screen.findByText("Groceries Purchases")).toBeTruthy();
             expect(await screen.findByText("Packaging Purchases")).toBeTruthy();
+        });
+
+        it("embeds the menu cost cards card", async () => {
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            expect(await screen.findByRole("button", { name: "Expand 🍕 Menu cost cards" })).toBeTruthy();
+        });
+
+        // Found by its text rather than by role name: the hinted labels sit in a Tooltip, which
+        // overrides the row's accessible name with the hint.
+        function cellsOfRow(label: string): (string | null)[] {
+            const row = screen.getByText(label).closest("tr");
+            if (row === null) throw new Error(`No row for ${label}`);
+            return within(row).getAllByRole("cell").map(cell => cell.textContent);
+        }
+
+        it("shows the recipe COGS per month as Current COGS", async () => {
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            await screen.findByText("Current COGS (recipe)");
+            expect(cellsOfRow("Current COGS (recipe)"))
+                .toEqual(["Current COGS (recipe)", "800.000", "1,000.000"]);
+        });
+
+        it("shows the unexplained variance, with a dash for a month that has none", async () => {
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            await screen.findByText("Unexplained variance (waste / yield / theft)");
+            expect(cellsOfRow("Unexplained variance (waste / yield / theft)"))
+                .toEqual(["Unexplained variance (waste / yield / theft)", "39.696", "—"]);
+        });
+
+        it("states the variance as a share of gross revenue, with a dash for a month that has none", async () => {
+            renderTab();
+            await openCard("📦 Inventory COGS");
+
+            await screen.findByText("as % of gross revenue");
+            expect(cellsOfRow("as % of gross revenue")).toEqual(["as % of gross revenue", "1.53%", "—"]);
+            expect(screen.queryByText("as % of net revenue")).toBeNull();
         });
 
         it("spells out the arithmetic so the breakdown cannot be read as the total", () => {

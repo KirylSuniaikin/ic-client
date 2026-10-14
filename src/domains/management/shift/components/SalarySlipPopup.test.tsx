@@ -3,7 +3,7 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SalarySlipPopup, { amountInWords } from "./SalarySlipPopup";
 import type { SalarySlipPopupProps } from "./SalarySlipPopup";
-import type { SalarySlipForm, ShiftDateRange } from "../types";
+import type { SalarySlipForm, SalarySlipPenalty, ShiftDateRange } from "../types";
 
 function makeForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
     return {
@@ -26,6 +26,7 @@ function makeForm(overrides: Partial<SalarySlipForm> = {}): SalarySlipForm {
         netPay: 310.96,
         amountInWords: "Bahraini Dinars Three Hundred And Ten and Fils Nine Hundred And Sixty Only",
         notes: ["1. Basic Salary of BD 240.000 paid in full with no deduction."],
+        penalty: null,
         ...overrides,
     };
 }
@@ -95,6 +96,58 @@ describe("SalarySlipPopup", () => {
 
         expect(input("slip-total-deductions").value).toBe("10.96");
         expect(input("slip-net").value).toBe("300");
+    });
+
+    it("renders a server-supplied deduction, totals it, reduces net pay and confirms it", () => {
+        const onConfirm = renderPopup(makeForm({
+            deductions: [{ description: "Penalty deduction", amount: 10 }],
+            totalDeductions: 10,
+            netPay: 300.96,
+        }));
+
+        expect(input("slip-deduction-desc-0").value).toBe("Penalty deduction");
+        expect(input("slip-deduction-amount-0").value).toBe("10");
+        expect(input("slip-total-deductions").value).toBe("10");
+        expect(input("slip-net").value).toBe("300.96");
+
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+        const sent = onConfirm.mock.calls[0][0];
+        expect(sent.deductions).toEqual([{ description: "Penalty deduction", amount: 10 }]);
+    });
+
+    it("renders a prefilled penalty-hours deduction and comment note, totals them and confirms them unchanged", () => {
+        const penaltyLine = { description: "Penalty hours (disciplinary): 4.00 hrs @ 1.500/hr", amount: 6 };
+        const penaltyNote =
+            "Penalty hours of 4.00 hrs (BD 6.000) are not paid because of disciplinary violations recorded in this pay period.";
+        const onConfirm = renderPopup(makeForm({
+            deductions: [penaltyLine],
+            totalDeductions: 6,
+            netPay: 304.96,
+            notes: ["1. Basic Salary of BD 240.000 paid in full.", penaltyNote],
+        }));
+
+        expect(input("slip-deduction-desc-0").value).toBe(penaltyLine.description);
+        expect(input("slip-deduction-amount-0").value).toBe("6");
+        expect(input("slip-total-deductions").value).toBe("6");
+        expect(input("slip-net").value).toBe("304.96");
+        expect(input("slip-note-1").value).toBe(penaltyNote);
+
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+
+        const sent = onConfirm.mock.calls[0][0];
+        expect(sent.deductions).toEqual([penaltyLine]);
+        expect(sent.notes).toEqual(["1. Basic Salary of BD 240.000 paid in full.", penaltyNote]);
+        expect(sent.totalDeductions).toBe(6);
+        expect(sent.netPay).toBe(304.96);
+    });
+
+    it("labels the hours field as paid overtime and explains the one-hour cap", () => {
+        renderPopup();
+
+        expect(screen.getByLabelText("Paid OT hours")).toBeTruthy();
+        expect(screen.getByText(/at most 1 hour per shift is paid/)).toBeTruthy();
     });
 
     it("recomputes the overtime amount when the rate changes", () => {
@@ -299,6 +352,115 @@ describe("SalarySlipPopup", () => {
         }
 
         expect((screen.getByTestId("slip-add-deduction") as HTMLButtonElement).disabled).toBe(true);
+    });
+});
+
+function makePenalty(overrides: Partial<SalarySlipPenalty> = {}): SalarySlipPenalty {
+    return {
+        entries: [
+            { code: "1.3", title: "Leaving the shift early", issuedOn: "2026-08-03", hours: 2, pending: false },
+            { code: "2.1", title: "Non-compliance with recipe", issuedOn: "2026-08-10", hours: 2, pending: true },
+        ],
+        totalHours: 4,
+        capHours: 6,
+        deductedHours: 4,
+        deductedAmount: 6,
+        capped: false,
+        ...overrides,
+    };
+}
+
+describe("SalarySlipPopup penalty section", () => {
+    it("is hidden when penalty is null", () => {
+        renderPopup(makeForm({ penalty: null }));
+
+        expect(screen.queryByText("Penalty hours")).toBeNull();
+        expect(screen.queryByText(/Total penalty hours/)).toBeNull();
+        expect(screen.queryByText(/Deducted this period/)).toBeNull();
+    });
+
+    it("lists each entry with code, title, date and hours, marking only pending ones", () => {
+        renderPopup(makeForm({ penalty: makePenalty() }));
+
+        expect(screen.getByText("Penalty hours")).toBeTruthy();
+        const confirmed = screen.getByText(/1\.3 — Leaving the shift early/).textContent ?? "";
+        const pending = screen.getByText(/2\.1 — Non-compliance with recipe/).textContent ?? "";
+        expect(confirmed).toContain("2026-08-03");
+        expect(confirmed).not.toContain("(pending confirmation)");
+        expect(pending).toContain("(pending confirmation)");
+    });
+
+    it("shows the total hours and the deducted hours and amount", () => {
+        renderPopup(makeForm({ penalty: makePenalty({ totalHours: 4, deductedHours: 3, deductedAmount: 4.5 }) }));
+
+        expect(screen.getByText(/Total penalty hours/).textContent).toContain("4");
+        const deducted = screen.getByText(/Deducted this period/).textContent ?? "";
+        expect(deducted).toContain("3");
+        expect(deducted).toContain("4.5");
+    });
+
+    it("shows the cap note only when capped", () => {
+        const note = /The deduction is limited to the hours worked in the employee's 5 latest shifts \(6 h\)\./;
+        const first = render(
+            <SalarySlipPopup open form={makeForm({ penalty: makePenalty({ capped: false }) })} employeeLabel="x"
+                loading={false} submitting={false} error={null} onConfirm={jest.fn<void, [SalarySlipForm]>()}
+                onPeriodChange={jest.fn<void, [ShiftDateRange]>()} onClose={jest.fn<void, []>()} />,
+        );
+        expect(screen.queryByText(note)).toBeNull();
+        first.unmount();
+
+        renderPopup(makeForm({ penalty: makePenalty({ capped: true, totalHours: 9, deductedHours: 6 }) }));
+        expect(screen.getByText(note)).toBeTruthy();
+    });
+
+    it("leaves the deduction limit and totals untouched and adds no deduction rows for entries", () => {
+        renderPopup(makeForm({ penalty: makePenalty() }));
+
+        expect(screen.queryByTestId("slip-deduction-desc-0")).toBeNull();
+        expect(input("slip-total-deductions").value).toBe("0");
+        for (let i = 0; i < 5; i++) {
+            const add = screen.getByTestId("slip-add-deduction") as HTMLButtonElement;
+            if (add.disabled) break;
+            fireEvent.click(add);
+        }
+        expect(screen.getAllByLabelText("Description")).toHaveLength(3);
+        expect((screen.getByTestId("slip-add-deduction") as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("posts penalty back unchanged on confirm", () => {
+        const penalty = makePenalty({ capped: true, totalHours: 9, deductedHours: 6 });
+        const onConfirm = renderPopup(makeForm({ penalty }));
+
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+
+        expect(onConfirm.mock.calls[0][0].penalty).toEqual(penalty);
+    });
+
+    it("posts a null penalty back as null", () => {
+        const onConfirm = renderPopup(makeForm({ penalty: null }));
+
+        fireEvent.click(screen.getByTestId("slip-confirm"));
+
+        expect(onConfirm.mock.calls[0][0].penalty).toBeNull();
+    });
+
+    it("renders 15 entries inside a scrollable, height-limited list", () => {
+        const entries = Array.from({ length: 15 }, (_, i) => ({
+            code: `3.${i + 1}`, title: `Entry title ${i + 1}`, issuedOn: "2026-08-05", hours: 1, pending: false,
+        }));
+        renderPopup(makeForm({ penalty: makePenalty({ entries, totalHours: 15 }) }));
+
+        const first = screen.getByText(/3\.1 — Entry title 1,/);
+        const last = screen.getByText(/3\.15 — Entry title 15/);
+        let node: HTMLElement | null = first;
+        let scrollable: HTMLElement | null = null;
+        while (node !== null && scrollable === null) {
+            const style = getComputedStyle(node);
+            if (style.overflowY === "auto" && style.maxHeight !== "" && style.maxHeight !== "none") scrollable = node;
+            node = node.parentElement;
+        }
+        expect(scrollable).not.toBeNull();
+        expect(scrollable?.contains(last)).toBe(true);
     });
 });
 

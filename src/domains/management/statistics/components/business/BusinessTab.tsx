@@ -6,11 +6,11 @@ import InventoryCogsCard from "./InventoryCogsCard";
 import ChannelPerformanceCard from "./ChannelPerformanceCard";
 import KpiBlockCard from "./KpiBlockCard";
 import ProfitAndLossCard from "./ProfitAndLossCard";
-import BusinessIncomeCard from "./BusinessIncomeCard";
 import CollapsibleCard from "./CollapsibleCard";
+import PricingCostCardsSection from "../PricingCostCardsSection";
 import {useBusinessCategories} from "../../hooks/useBusinessCategories";
 import type {CategoryClassificationPatch} from "../../hooks/useBusinessCategories";
-import {asIncome, formatBd, isLedgerIncomeBlock} from "./businessFormat";
+import {formatBd, isLedgerIncomeBlock} from "./businessFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
 import ErrorSnackbar from "../../../../../shared/components/ErrorSnackbar";
@@ -73,10 +73,6 @@ export default function BusinessTab({
         : "complete";
     const pivotBlocks = data?.expensePivot.blocks ?? [];
     const expenseBlockCount = pivotBlocks.filter(block => !isLedgerIncomeBlock(block)).length;
-    const incomeBlock = pivotBlocks.find(isLedgerIncomeBlock);
-    const incomeSummary = incomeBlock && incomeBlock.rows.length > 0
-        ? `${formatBd(asIncome(incomeBlock.grandTotal))} BHD in this range`
-        : "none in this range";
 
     // The unclassified count and total used to be computed here for the setup card at the top.
     // The badge that replaced it takes both straight from the report's own pivot, which is the
@@ -123,7 +119,7 @@ export default function BusinessTab({
                     ))}
 
                     <CollapsibleCard title="📊 Key metrics" defaultExpanded
-                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees); food cost, COGS and labour divide by gross revenue. Trading days are the days with a shift opening or any order, counted rather than assumed."
+                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees); food cost, COGS and labour divide by gross revenue. Trading days are the days with a shift opening or any order, counted rather than assumed. Prime cost is recipe-costed COGS plus labour, and its percentage divides by gross revenue."
                                      summary={monthLabel(data.months[data.months.length - 1])}>
                         <KpiBlockCard blocks={data.kpi}/>
                     </CollapsibleCard>
@@ -158,21 +154,15 @@ export default function BusinessTab({
                     <CollapsibleCard
                         title="📈 Profit &amp; loss"
                         summary={pnlSummary}
-                        info="Net profit is a cash view with one exception: COGS is recipe-costed, not cash. To reconcile to cash see net cash movement in the memo below the statement. There is no depreciation — capital expenditure is expensed in the month of purchase."
+                        info="Net profit is a cash view with one exception: COGS is recipe-costed, not cash. To reconcile to cash see net cash movement in the memo below the statement. There is no depreciation — capital expenditure is expensed in the month of purchase. N/A is subtracted before operating profit, but is not part of operating expenses."
                     >
                         <ProfitAndLossCard months={data.profitAndLoss}/>
-                    </CollapsibleCard>
-
-                    {/* Right after the profit statement, whose revenue comes from orders, and before
-                        Monthly expenses, where these payouts used to open the table as negatives. */}
-                    <CollapsibleCard title="💰 Business income" summary={incomeSummary}>
-                        <BusinessIncomeCard pivot={data.expensePivot}/>
                     </CollapsibleCard>
 
                     <CollapsibleCard
                         title="🧾 Monthly expenses"
                         summary={`${expenseBlockCount} blocks`}
-                        info="Every ledger entry in the range apart from business income, which has its own card, grouped by its category's P&L class. Groceries and packaging appear here but are deliberately kept out of operating expenses — they reach the statement through COGS. Spend in an unclassified category is shown and counted in no total."
+                        info="Every ledger entry in the range apart from ledger business income (REVENUE class), which this screen does not show, grouped by its category's P&L class. Groceries and packaging appear here but are deliberately kept out of operating expenses — they reach the statement through COGS. Spend in an unclassified category is shown and counted in no total."
                         badge={data.expensePivot.unclassifiedCategoryCount > 0
                             ? <Chip
                                 label={`⚠ ${data.expensePivot.unclassifiedCategoryCount} unclassified · ${formatBd(data.expensePivot.unclassifiedTotal)} BHD`}
@@ -189,9 +179,12 @@ export default function BusinessTab({
                     <CollapsibleCard
                         title="📦 Inventory COGS"
                         summary={inventorySummary}
-                        info="Opening + purchases − closing stock, across the whole business. Measured from stock counts, so it will not equal the recipe-costed COGS in the profit statement — that gap is waste, yield and miscounts. Purchases is split by what was bought; the split always adds back up to the total."
+                        info="Opening + purchases − closing stock, across the whole business. Measured from stock counts, so it will not equal the recipe-costed COGS in the profit statement — that gap is waste, yield and miscounts. Purchases is split by what was bought; the split always adds back up to the total. Current COGS is the recipe-costed figure from the profit statement; the unexplained variance is stock-movement COGS minus it."
                     >
-                        <InventoryCogsCard months={data.inventoryCogs}/>
+                        <InventoryCogsCard months={data.inventoryCogs} profitAndLoss={data.profitAndLoss}/>
+                        <Box sx={{mt: 1}}>
+                            <PricingCostCardsSection onCostSaved={onRefresh}/>
+                        </Box>
                     </CollapsibleCard>
                 </>
             )}

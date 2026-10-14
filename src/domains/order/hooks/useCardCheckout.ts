@@ -22,7 +22,7 @@ import type { CardDeclineReason, CardPaymentResponse } from "../cardPaymentTypes
 import { buildOrderItems } from "../utils/orderPayload";
 import { computeSheetTotal, trackApplePayPurchase } from "../utils/applePayRequest";
 import { loadHostedSessionScript } from "../utils/hostedSessionLoader";
-import { newIdempotencyKey } from "./useCheckout";
+import { newIdempotencyKey } from "../../../shared/utils/idempotencyKey";
 import { useCheckoutPrefetch } from "./useCheckoutPrefetch";
 import { describeError, isDefinitivePayRejection, pollUntilResolved, reportCreateOrderFailure } from "../utils/checkoutFlow";
 import type { Prefetch } from "./useCheckoutPrefetch";

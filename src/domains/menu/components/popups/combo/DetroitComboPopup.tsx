@@ -74,7 +74,7 @@ export function DetroitComboPopup({
         } else {
             const found = bricks
                 .flatMap(b => b.items)
-                .find(i => i.name === editItem?.comboItems[0].name);
+                .find(i => i.name === editItem?.comboItems?.[0]?.name);
 
             return {item: found || bricks[0].items[0]};
         }
@@ -87,7 +87,7 @@ export function DetroitComboPopup({
         } else {
             const foundDrink = drinks
                 .flatMap(list => list.items)
-                .find(i => i.name === editItem?.comboItems[1].name);
+                .find(i => i.name === editItem?.comboItems?.[1]?.name);
 
             return {item: foundDrink || drinks[0].items[0]}
         }
@@ -99,7 +99,7 @@ export function DetroitComboPopup({
         } else {
             const foundSauce = sauces
                 .flatMap(list => list.items)
-                .find(i => i.name === editItem?.comboItems[2].name);
+                .find(i => i.name === editItem?.comboItems?.[2]?.name);
 
             return {item: foundSauce || sauces[0].items[0]}
         }
@@ -107,16 +107,16 @@ export function DetroitComboPopup({
 
     const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>(() => {
         if (isEditMode && editItem) {
-            const editedBrick = editItem.comboItems[0];
+            const editedBrick = editItem.comboItems?.[0];
             const editRecipe = bricks
                 .flatMap(b => b.items)
-                .find(i => i.name === editedBrick.name)
+                .find(i => i.name === editedBrick?.name)
                 ?.recipe_components ?? [];
             // Structural removals win; legacy lines fall back to parsing the `-(x)` tokens.
-            const structural = removedFromCustomizations(editedBrick.customizations);
+            const structural = removedFromCustomizations(editedBrick?.customizations);
             return structural.length > 0
                 ? intersectRemovals(structural, editRecipe)
-                : matchRemovalNames(parseRemovalNames(editedBrick.description ?? ""), editRecipe);
+                : matchRemovalNames(parseRemovalNames(editedBrick?.description ?? ""), editRecipe);
         }
         if (selectedDetroitPizza) {
             // Upsell flow: carry the pending brick's removals into the combo instead of dropping them.

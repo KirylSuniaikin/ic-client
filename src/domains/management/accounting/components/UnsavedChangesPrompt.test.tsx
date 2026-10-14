@@ -55,4 +55,12 @@ describe("UnsavedChangesPrompt", () => {
         expect((screen.getByTestId("unsaved-revert") as HTMLButtonElement).disabled).toBe(true);
         expect((screen.getByTestId("unsaved-save") as HTMLButtonElement).disabled).toBe(true);
     });
+
+    it("renders the Save label as an element inside the button, not a bare text node", () => {
+        renderPrompt();
+
+        const label = screen.getByTestId("unsaved-save").querySelector("span");
+
+        expect(label?.textContent).toBe("Save");
+    });
 });

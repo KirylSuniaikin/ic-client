@@ -122,6 +122,7 @@ export type PnlClass =
     | "REVENUE"
     | "COGS_PURCHASES"
     | "OPEX"
+    | "NOT_APPLICABLE"
     | "CAPEX"
     | "OWNER_WITHDRAWAL"
     | "FINANCING"
@@ -354,6 +355,7 @@ export type ProfitAndLoss = {
     recipeCogs: number;
     grossProfit: number;
     operatingExpenses: number;
+    notApplicable: number;      // mirrors backend ProfitAndLossTO.notApplicable; a cost, positive
     operatingProfit: number;
     capex: number;
     financing: number;

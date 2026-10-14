@@ -75,6 +75,20 @@ describe("buildAdminNavSections", () => {
         );
     });
 
+    it.each([StaffRoles.COOK, StaffRoles.SUPERVISOR, StaffRoles.MANAGER, StaffRoles.SUPER_MANAGER, StaffRoles.OWNER])(
+        "shows Shifts to role %s and wires onShiftManagementPageOpen",
+        role => {
+            const handlers = makeHandlers();
+            const sections = buildAdminNavSections(role, handlers);
+            const item = sections.flatMap(s => s.items).find(i => i.label === "Shifts");
+
+            expect(item).toBeTruthy();
+            item?.onClick();
+
+            expect(handlers.onShiftManagementPageOpen).toHaveBeenCalledTimes(1);
+        }
+    );
+
     it("gives a REVIEWER only Order History", () => {
         const sections = buildAdminNavSections(StaffRoles.REVIEWER, makeHandlers());
 

@@ -3,6 +3,7 @@ import React from "react";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { StaffRoles } from "../../../auth/types";
 import type { UseStaffAccountsResult } from "../hooks/useStaffAccounts";
+import type { UseRosterScoresResult } from "../../discipline/hooks/useRosterScores";
 import type { HireStaffRequest, HiredStaffTO, StaffAdminTO, UpdateStaffDetailsRequest, UpdateStaffPayrollRequest } from "../types";
 
 // The staff auth context decodes a JWT out of storage on mount; the screen reads `userId`
@@ -61,6 +62,22 @@ jest.mock("./EditStaffDrawer", () => ({
     default: mockEditStaffDrawer,
 }));
 
+// Roster scores have their own hook tests; the screen only reads the map. The empty default keeps
+// the pre-discipline assertions free of badges.
+const mockUseRosterScores = jest.fn<UseRosterScoresResult, [string]>();
+jest.mock("../../discipline/hooks/useRosterScores", () => ({
+    useRosterScores: (branchId: string) => mockUseRosterScores(branchId),
+}));
+
+// Has its own test file -- the stub only reports whether the screen opened it for the clicked row.
+function mockDisciplineDrawer({ open, target }: { open: boolean; target: StaffAdminTO | null }): JSX.Element {
+    return <div data-testid="discipline-drawer-stub" data-open={open ? "true" : "false"} data-target={target ? String(target.id) : ""} />;
+}
+jest.mock("../../discipline/components/DisciplineDrawer", () => ({
+    __esModule: true,
+    default: mockDisciplineDrawer,
+}));
+
 import { useStaffAccounts } from "../hooks/useStaffAccounts";
 import { fetchTelegramBotUsername, generateTelegramConnectToken } from "../../../../shared/api/management";
 import AccountManagerScreen from "./AccountManagerScreen";
@@ -103,6 +120,13 @@ function staffAccountsValue(overrides: Partial<UseStaffAccountsResult> = {}): Us
     };
 }
 
+function openRowMenu(id: number): void {
+    fireEvent.click(screen.getByTestId(`staff-row-menu-${id}`));
+}
+
+// MUI marks a disabled MenuItem with aria-disabled (it is an li, not a button).
+const isItemDisabled = (testId: string): boolean => screen.getByTestId(testId).getAttribute("aria-disabled") === "true";
+
 describe("AccountManagerScreen", () => {
     // review-feedback-D.md Issue 7 (hygiene): restore the original descriptor rather than leaving
     // the redefined `navigator.clipboard` in place for tests outside this file/run order.
@@ -113,6 +137,7 @@ describe("AccountManagerScreen", () => {
         mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 99 });
         mockUseManagementBranchScope.mockReturnValue({ branches: [homeBranch], homeBranch });
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue());
+        mockUseRosterScores.mockReturnValue({ scores: new Map(), loading: false, error: null, refresh: jest.fn<void, []>() });
         mockFetchTelegramBotUsername.mockResolvedValue({ botUsername: "icpizza_bot" });
         mockGenerateTelegramConnectToken.mockResolvedValue({ token: "server-issued-token" });
         Object.defineProperty(navigator, "clipboard", {
@@ -246,8 +271,11 @@ describe("AccountManagerScreen", () => {
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
+        openRowMenu(1);
+
         expect(screen.queryByTestId("staff-reset-1")).toBeNull();
         expect(screen.queryByTestId("staff-edit-1")).toBeNull();
+        expect(screen.getByTestId("staff-telegram-copy-1")).toBeTruthy();
     });
 
     it("offers no actions on a peer the caller may not administer", () => {
@@ -257,24 +285,28 @@ describe("AccountManagerScreen", () => {
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
+        openRowMenu(3);
+
         expect(screen.queryByTestId("staff-reset-3")).toBeNull();
         expect(screen.queryByTestId("staff-edit-3")).toBeNull();
     });
 
     // Reset password stays exactly as it was before the consolidation -- its own icon, its own
     // drawer -- so this proves the change to the other three buttons did not touch it.
-    it("opens the reset drawer for the chosen row", () => {
+    it("opens the reset drawer for the chosen row", async () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 4 })] }));
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
         expect(screen.getByTestId("reset-password-drawer-stub").getAttribute("data-open")).toBe("false");
 
+        openRowMenu(4);
         fireEvent.click(screen.getByTestId("staff-reset-4"));
 
         const stub = screen.getByTestId("reset-password-drawer-stub");
         expect(stub.getAttribute("data-open")).toBe("true");
         expect(stub.getAttribute("data-target")).toBe("4");
+        await waitFor(() => expect(screen.queryByTestId("staff-reset-4")).toBeNull());
     });
 
     // Change branch, Edit payroll and Deactivate/Reactivate were consolidated into one Edit
@@ -286,6 +318,8 @@ describe("AccountManagerScreen", () => {
 
         render(<AccountManagerScreen open role={StaffRoles.OWNER} branch={homeBranch} onClose={jest.fn()} />);
         fireEvent.click(screen.getByTestId("staff-filter-all"));
+        openRowMenu(5);
+        openRowMenu(6);
 
         expect(screen.queryByTestId("staff-change-branch-5")).toBeNull();
         expect(screen.queryByTestId("staff-edit-payroll-5")).toBeNull();
@@ -300,6 +334,7 @@ describe("AccountManagerScreen", () => {
 
         expect(screen.getByTestId("edit-staff-drawer-stub").getAttribute("data-open")).toBe("false");
 
+        openRowMenu(8);
         fireEvent.click(screen.getByTestId("staff-edit-8"));
 
         const stub = screen.getByTestId("edit-staff-drawer-stub");
@@ -311,6 +346,8 @@ describe("AccountManagerScreen", () => {
         mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 11 })] }));
 
         render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+        openRowMenu(11);
 
         expect(screen.getByTestId("staff-edit-11")).toBeTruthy();
     });
@@ -414,6 +451,8 @@ describe("AccountManagerScreen", () => {
             await waitFor(() => expect(mockFetchTelegramBotUsername).toHaveBeenCalled());
 
             expect(screen.getByTestId("staff-telegram-connected-1")).toBeTruthy();
+            // Administrable row: the trigger exists, but with Edit and Reset only.
+            openRowMenu(1);
             expect(screen.queryByTestId("staff-telegram-copy-1")).toBeNull();
         });
 
@@ -424,7 +463,8 @@ describe("AccountManagerScreen", () => {
 
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
             expect(screen.queryByTestId("staff-telegram-connected-2")).toBeNull();
 
             fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
@@ -455,22 +495,24 @@ describe("AccountManagerScreen", () => {
 
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
 
             fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
 
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(true));
-            // The copy icon swaps for a spinner while in flight (mirrors ChannelPerformanceCard's
-            // regenerate button), not just a disabled attribute with the same icon still showing.
-            expect(within(screen.getByTestId("staff-telegram-copy-2")).getByRole("progressbar")).toBeTruthy();
+            // The menu closes on selection, so the in-flight state shows on the trigger (spinner
+            // instead of the kebab icon) and on the item when the menu is reopened.
+            await waitFor(() => expect(within(screen.getByTestId("staff-row-menu-2")).getByRole("progressbar", { hidden: true })).toBeTruthy());
+            openRowMenu(2);
+            expect(isItemDisabled("staff-telegram-copy-2")).toBe(true);
 
             resolveToken({ token: "server-issued-token" });
 
             await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
                 "https://t.me/icpizza_bot?start=server-issued-token"
             ));
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
-            expect(within(screen.getByTestId("staff-telegram-copy-2")).queryByRole("progressbar")).toBeNull();
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
+            expect(within(screen.getByTestId("staff-row-menu-2")).queryByRole("progressbar", { hidden: true })).toBeNull();
         });
 
         it("surfaces a token-fetch failure via the ErrorSnackbar and clears the in-flight state", async () => {
@@ -481,13 +523,15 @@ describe("AccountManagerScreen", () => {
 
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
 
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
 
             fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
 
             expect(await screen.findByText("HTTP 500")).toBeTruthy();
             expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
         });
 
         // Regression: the click handler previously awaited the token fetch BEFORE writing to the
@@ -511,7 +555,8 @@ describe("AccountManagerScreen", () => {
             (window as unknown as { ClipboardItem: typeof FakeClipboardItem }).ClipboardItem = FakeClipboardItem;
 
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
 
             fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
 
@@ -546,13 +591,247 @@ describe("AccountManagerScreen", () => {
             document.execCommand = jest.fn<boolean, [string, boolean?, string?]>().mockReturnValue(false);
 
             render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
-            await waitFor(() => expect(screen.getByTestId("staff-telegram-copy-2").hasAttribute("disabled")).toBe(false));
+            openRowMenu(2);
+            await waitFor(() => expect(isItemDisabled("staff-telegram-copy-2")).toBe(false));
 
             fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
 
             expect(await screen.findByText(
                 "Couldn't copy automatically — here's the link to copy manually: https://t.me/icpizza_bot?start=server-issued-token"
             )).toBeTruthy();
+        });
+    });
+
+    describe("discipline", () => {
+        const scoresOf = (...rows: Array<{ staffId: number; score: number; zone: "GREEN" | "YELLOW" | "ORANGE" | "RED" }>): UseRosterScoresResult => ({
+            scores: new Map(rows.map(r => [r.staffId, r])),
+            loading: false,
+            error: null,
+            refresh: jest.fn<void, []>(),
+        });
+
+        it("shows a score badge with the score and zone only for rows present in the score map", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 1 }), makeStaff({ id: 2, username: "other" })],
+            }));
+            mockUseRosterScores.mockReturnValue(scoresOf({ staffId: 1, score: 72, zone: "YELLOW" }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            const badge = within(screen.getByTestId("staff-row-1")).getByTestId("staff-score-badge-1");
+            expect(badge.textContent).toBe("72");
+            expect(badge.getAttribute("data-zone")).toBe("YELLOW");
+            expect(screen.queryByTestId("staff-score-badge-2")).toBeNull();
+        });
+
+        it("loads roster scores for the branch in scope", () => {
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(mockUseRosterScores).toHaveBeenCalledWith("branch-1");
+        });
+
+        it("surfaces a roster-score error via the ErrorSnackbar without hiding the roster", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 1 })] }));
+            mockUseRosterScores.mockReturnValue({ scores: new Map(), loading: false, error: "Scores unavailable", refresh: jest.fn<void, []>() });
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.getByText("Scores unavailable")).toBeTruthy();
+            expect(screen.getByTestId("staff-row-1")).toBeTruthy();
+        });
+
+        it("offers Discipline to a MANAGER viewing a COOK row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 2, role: StaffRoles.COOK })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(2);
+
+            expect(screen.getByTestId("staff-discipline-2")).toBeTruthy();
+        });
+
+        it("offers Discipline to a SUPER_MANAGER viewing a MANAGER row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 3, role: StaffRoles.MANAGER })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.SUPER_MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(3);
+
+            expect(screen.getByTestId("staff-discipline-3")).toBeTruthy();
+        });
+
+        it("withholds Discipline from a MANAGER viewing a MANAGER row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 3, role: StaffRoles.MANAGER })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(3);
+
+            expect(screen.getByTestId("staff-telegram-copy-3")).toBeTruthy();
+            expect(screen.queryByTestId("staff-discipline-3")).toBeNull();
+        });
+
+        it("withholds Discipline from the caller's own row", () => {
+            mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 1 });
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 1, role: StaffRoles.COOK })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(1);
+
+            expect(screen.queryByTestId("staff-discipline-1")).toBeNull();
+        });
+
+        it("withholds Discipline from a non-administrable connected row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 3, role: StaffRoles.MANAGER, telegramConnected: true })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.queryByTestId("staff-row-menu-3")).toBeNull();
+            expect(screen.queryByTestId("staff-discipline-3")).toBeNull();
+        });
+
+        it("opens the DisciplineDrawer for the clicked row", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({ staff: [makeStaff({ id: 6 })] }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.getByTestId("discipline-drawer-stub").getAttribute("data-open")).toBe("false");
+
+            openRowMenu(6);
+            fireEvent.click(screen.getByTestId("staff-discipline-6"));
+
+            const stub = screen.getByTestId("discipline-drawer-stub");
+            expect(stub.getAttribute("data-open")).toBe("true");
+            expect(stub.getAttribute("data-target")).toBe("6");
+            await waitFor(() => expect(screen.queryByTestId("staff-discipline-6")).toBeNull());
+        });
+    });
+
+    describe("row actions menu", () => {
+        it("renders no trigger for a connected row the caller may not administer, but keeps the connected roundel", () => {
+            mockUseAuth.mockReturnValue({ branchId: "branch-1", userId: 1 });
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 1, role: StaffRoles.COOK, telegramConnected: true })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.queryByTestId("staff-row-menu-1")).toBeNull();
+            expect(screen.getByTestId("staff-telegram-connected-1")).toBeTruthy();
+        });
+
+        it("keeps inline action buttons out of the row while the menu is closed, with exactly one trigger per row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2 }), makeStaff({ id: 4, username: "other" })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.getAllByTestId("staff-row-menu-2")).toHaveLength(1);
+            expect(screen.getAllByTestId("staff-row-menu-4")).toHaveLength(1);
+            expect(screen.queryByTestId("staff-edit-2")).toBeNull();
+            expect(screen.queryByTestId("staff-reset-2")).toBeNull();
+            expect(screen.queryByTestId("staff-telegram-copy-2")).toBeNull();
+        });
+
+        it("lists Edit, Reset password, Discipline and Copy Telegram connect link in that order with their labels", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(2);
+
+            const items = screen.getAllByRole("menuitem");
+            expect(items.map(i => i.textContent)).toEqual(["Edit", "Reset password", "Discipline", "Copy Telegram connect link"]);
+            expect(items.map(i => i.getAttribute("data-testid"))).toEqual(["staff-edit-2", "staff-reset-2", "staff-discipline-2", "staff-telegram-copy-2"]);
+        });
+
+        it("opens the Edit drawer for the row and closes the menu after the Edit item is chosen", async () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: true })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            openRowMenu(2);
+            fireEvent.click(screen.getByTestId("staff-edit-2"));
+
+            expect(screen.getByTestId("edit-staff-drawer-stub").getAttribute("data-target")).toBe("2");
+            await waitFor(() => expect(screen.queryByTestId("staff-edit-2")).toBeNull());
+        });
+
+        it("leaves the Telegram cell empty for a not-connected row", () => {
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+            expect(screen.queryByTestId("staff-telegram-connected-2")).toBeNull();
+            expect(screen.queryByTestId("staff-telegram-copy-2")).toBeNull();
+
+            // The Telegram cell is the one just before the trailing Actions cell.
+            const cells = screen.getByTestId("staff-row-2").querySelectorAll("td");
+            const telegramCellEl = cells[cells.length - 2];
+            expect(telegramCellEl.childElementCount).toBe(0);
+            expect(telegramCellEl.textContent).toBe("");
+        });
+
+        it("does not request a connect token when the Telegram item is chosen while the bot username is unavailable", async () => {
+            mockFetchTelegramBotUsername.mockRejectedValue(new Error("no bot"));
+            mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                staff: [makeStaff({ id: 2, telegramConnected: false })],
+            }));
+
+            render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+            await waitFor(() => expect(mockFetchTelegramBotUsername).toHaveBeenCalled());
+            openRowMenu(2);
+            expect(isItemDisabled("staff-telegram-copy-2")).toBe(true);
+            fireEvent.click(screen.getByTestId("staff-telegram-copy-2"));
+
+            expect(mockGenerateTelegramConnectToken).not.toHaveBeenCalled();
+        });
+
+        describe("mobile card layout", () => {
+            const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia");
+
+            beforeEach(() => {
+                Object.defineProperty(window, "matchMedia", {
+                    configurable: true,
+                    writable: true,
+                    value: (query: string): MediaQueryList => ({
+                        matches: true,
+                        media: query,
+                        onchange: null,
+                        addListener: jest.fn<void, []>(),
+                        removeListener: jest.fn<void, []>(),
+                        addEventListener: jest.fn<void, []>(),
+                        removeEventListener: jest.fn<void, []>(),
+                        dispatchEvent: (): boolean => false,
+                    }),
+                });
+            });
+
+            afterEach(() => {
+                if (originalMatchMedia) {
+                    Object.defineProperty(window, "matchMedia", originalMatchMedia);
+                } else {
+                    Reflect.deleteProperty(window, "matchMedia");
+                }
+            });
+
+            it("renders exactly one trigger inside the card and opens the Edit item from it", () => {
+                mockUseStaffAccounts.mockReturnValue(staffAccountsValue({
+                    staff: [makeStaff({ id: 2, telegramConnected: false })],
+                }));
+
+                render(<AccountManagerScreen open role={StaffRoles.MANAGER} branch={homeBranch} onClose={jest.fn()} />);
+
+                const card = screen.getByTestId("staff-row-2");
+                expect(within(card).getAllByTestId("staff-row-menu-2")).toHaveLength(1);
+                expect(screen.getAllByTestId("staff-row-menu-2")).toHaveLength(1);
+                openRowMenu(2);
+                expect(screen.getByTestId("staff-edit-2").textContent).toBe("Edit");
+            });
         });
     });
 });

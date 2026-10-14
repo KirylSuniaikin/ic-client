@@ -11,6 +11,8 @@ import TransactionDetailsTable from "./TransactionDetailsTable";
 import {IBranch} from "../../inventory/types";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
+import {newIdempotencyKey} from "../../../../shared/utils/idempotencyKey";
+import {describeSaveError} from "../../statistics/components/business/businessFormat";
 
 type Props = {
     branch: IBranch;
@@ -74,18 +76,28 @@ export default function CashRegisterPopup({branch, open, handleClose}: Props) {
 
     const handleSubmit = async (amount: number, type: CashUpdateType, note: string) => {
         setLoading(true);
-        const resp = await cashUpdate({amount: amount, branchId: scopedBranch.id.toString(), cashUpdateType: type, note: note});
-        const data = await resp.json();
-        if (resp.ok) {
-            setBalance(data.branchBalance)
+        try {
+            const resp = await cashUpdate({
+                amount: amount,
+                branchId: scopedBranch.id.toString(),
+                cashUpdateType: type,
+                note: note,
+                idempotency_key: newIdempotencyKey()
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                setBalance(data.branchBalance)
+            } else {
+                setErrorMessage(data.message)
+                setErrorSnackbarOpen(true)
+            }
+        } catch (error) {
+            logger.error("Failed to update cash register", error);
+            setErrorMessage(`Not saved: ${describeSaveError(error)}`);
+            setErrorSnackbarOpen(true);
+        } finally {
+            setLoading(false);
         }
-        if (!resp.ok) {
-            const massage = data.message
-            setErrorMessage(massage)
-            setErrorSnackbarOpen(true)
-        }
-
-        setLoading(false);
     }
 
     return (

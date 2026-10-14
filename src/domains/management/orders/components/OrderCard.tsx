@@ -429,6 +429,11 @@ function OrderCard({
                             <strong>Time:</strong> {formattedTime}
                         </Typography>
                     )}
+                    {isHistory && order.order_created_formatted && (
+                        <Typography variant="body2">
+                            <strong>Date:</strong> {order.order_created_formatted}
+                        </Typography>
+                    )}
                     {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})

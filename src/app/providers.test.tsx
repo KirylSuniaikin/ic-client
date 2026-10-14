@@ -1,7 +1,8 @@
 import { describe, it, expect } from "@jest/globals";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { Box } from "@mui/material";
+import i18n from "../shared/i18n";
 import { AppProviders } from "./providers";
 
 describe("AppProviders", () => {
@@ -41,6 +42,37 @@ describe("AppProviders", () => {
 
             expect(screen.getByText("sibling-a")).toBeTruthy();
             expect(screen.getByText("sibling-b")).toBeTruthy();
+        });
+    });
+
+    describe("document language and direction", () => {
+        it("switches <html> dir and lang between Arabic and English and never adds translate=no", async () => {
+            const originalLanguage = i18n.language;
+            try {
+                render(
+                    <AppProviders>
+                        <div>child</div>
+                    </AppProviders>
+                );
+
+                await act(async () => {
+                    await i18n.changeLanguage("ar");
+                });
+                expect(document.documentElement.dir).toBe("rtl");
+                expect(document.documentElement.lang).toBe("ar");
+                expect(document.documentElement.getAttribute("translate")).toBeNull();
+
+                await act(async () => {
+                    await i18n.changeLanguage("en");
+                });
+                expect(document.documentElement.dir).toBe("ltr");
+                expect(document.documentElement.lang).toBe("en");
+                expect(document.documentElement.getAttribute("translate")).toBeNull();
+            } finally {
+                await act(async () => {
+                    await i18n.changeLanguage(originalLanguage);
+                });
+            }
         });
     });
 

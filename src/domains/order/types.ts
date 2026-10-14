@@ -154,6 +154,7 @@ export type Order = {
     external_id: string | null;
     phone_number: string;
     order_created: string;
+    order_created_formatted?: string;
     status: ObservedOrderStatus;
     isPaid: boolean;
     branch_id: string;
@@ -219,11 +220,22 @@ export type AvailabilityChange = {
     available: boolean;
 };
 
+export class OrderPaymentError extends Error {
+    readonly status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'OrderPaymentError';
+        this.status = status;
+    }
+}
+
 export type OrderPaymentPayload = {
     orderId: string;
     amount: number;
     type: PaymentType;
     branchId: string;
+    idempotency_key?: string;
 };
 
 export type UpdateOrderStatusPayload = {

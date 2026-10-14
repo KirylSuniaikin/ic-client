@@ -13,8 +13,33 @@ const EDGE_SCROLL_ZONE_PX = 72;
 const EDGE_SCROLL_STEP_PX = 18;
 const EDGE_SCROLL_INTERVAL_MS = 16;
 
+// Vertical scrolling needs a roomier zone than the sideways one: on a laptop the page header sits
+// above the board, so a card carried "to the top" is released well below the viewport's top edge
+// and a 72px band was never reached. The zone grows with the window, and the speed ramps up the
+// closer the card gets to the edge so a long column crosses quickly while a short hop stays gentle.
+const VERTICAL_ZONE_MIN_PX = 72;
+const VERTICAL_ZONE_MAX_PX = 180;
+const VERTICAL_ZONE_VIEWPORT_RATIO = 0.22;
+const VERTICAL_MIN_STEP_PX = 6;
+const VERTICAL_MAX_STEP_PX = 28;
+
 // Marks the horizontally-scrollable board container that edge auto-scroll drives.
 export const BOARD_SCROLLER_SELECTOR = "[data-board-scroller]";
+
+// The board only scrolls sideways; its columns grow with their cards, so the vertical scroll
+// belongs to an ancestor (in practice the page). A card held near the top or bottom of that
+// scroller drives it too, otherwise a card at the foot of a long column can never be carried to
+// the top of it.
+function findVerticalScroller(start: HTMLElement | null, doc: Document): HTMLElement {
+    const view = doc.defaultView;
+    let el = start?.parentElement ?? null;
+    while (el !== null && el !== doc.body && el !== doc.documentElement) {
+        const overflowY = view?.getComputedStyle(el).overflowY;
+        if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) return el;
+        el = el.parentElement;
+    }
+    return doc.scrollingElement instanceof HTMLElement ? doc.scrollingElement : doc.documentElement;
+}
 
 export interface UseCardDragOptions {
     onDrop: (input: { cardId: number; targetStatus: TaskCardStatus; targetIndex: number }) => void;
@@ -57,6 +82,9 @@ interface DragState {
     // so without compensating for scroll it slides out from under the finger the moment edge
     // auto-scroll kicks in — which looks exactly like "the card won't come with me".
     startScrollLeft: number;
+    // Same compensation for the vertical scroller, which carries the card along as it scrolls.
+    verticalScroller: HTMLElement | null;
+    startScrollTop: number;
 }
 
 interface ActiveDragVisual {
@@ -140,6 +168,8 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
     const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const edgeScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const edgeScrollDirectionRef = useRef<-1 | 0 | 1>(0);
+    // Signed px per tick; 0 when the card is not near the top or bottom edge.
+    const edgeScrollVerticalStepRef = useRef(0);
 
     // Drives the live transform/zIndex/opacity of whichever card is actively being dragged —
     // this one DOES need to be state, since it must repaint on every pointermove.
@@ -211,15 +241,17 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
         if (!state || !state.dragging) return;
         const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
         const scrolled = scroller ? scroller.scrollLeft - state.startScrollLeft : 0;
+        const scrolledY = state.verticalScroller ? state.verticalScroller.scrollTop - state.startScrollTop : 0;
         setActiveDrag({
             cardId: state.cardId,
             dx: lastPointRef.current.x - state.startX + scrolled,
-            dy: lastPointRef.current.y - state.startY,
+            dy: lastPointRef.current.y - state.startY + scrolledY,
         });
     }, [containerDocument]);
 
     const stopEdgeScroll = useCallback((): void => {
         edgeScrollDirectionRef.current = 0;
+        edgeScrollVerticalStepRef.current = 0;
         if (edgeScrollTimerRef.current !== null) {
             clearInterval(edgeScrollTimerRef.current);
             edgeScrollTimerRef.current = null;
@@ -237,13 +269,21 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
         if (scroller) scroller.style.scrollSnapType = "none";
         edgeScrollTimerRef.current = setInterval(() => {
             const direction = edgeScrollDirectionRef.current;
-            if (direction === 0) return;
-            const target = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
-            if (!target) return;
-            target.scrollLeft += direction * EDGE_SCROLL_STEP_PX;
+            const verticalStep = edgeScrollVerticalStepRef.current;
+            if (direction === 0 && verticalStep === 0) return;
+            if (direction !== 0) {
+                const target = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
+                if (target) target.scrollLeft += direction * EDGE_SCROLL_STEP_PX;
+            }
+            const verticalScroller = dragStateRef.current?.verticalScroller;
+            if (verticalStep !== 0 && verticalScroller) {
+                verticalScroller.scrollTop += verticalStep;
+            }
             applyDragVisual();
+            // Scrolling moves the columns under a still finger, so the drop preview must follow.
+            scheduleDropTargetUpdate();
         }, EDGE_SCROLL_INTERVAL_MS);
-    }, [containerDocument, applyDragVisual]);
+    }, [containerDocument, applyDragVisual, scheduleDropTargetUpdate]);
 
     const cancelLongPress = useCallback((): void => {
         if (longPressTimerRef.current !== null) {
@@ -268,6 +308,8 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
             const beginDragging = (state: DragState): void => {
                 const scroller = containerDocument.querySelector<HTMLElement>(BOARD_SCROLLER_SELECTOR);
                 state.startScrollLeft = scroller ? scroller.scrollLeft : 0;
+                state.verticalScroller = findVerticalScroller(scroller ?? state.target, containerDocument);
+                state.startScrollTop = state.verticalScroller.scrollTop;
                 state.dragging = true;
                 if (state.isTouch) startBlockingTouchScroll();
                 startEdgeScroll();
@@ -300,6 +342,8 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                     target,
                     isTouch: event.pointerType === "touch",
                     startScrollLeft: 0,
+                    verticalScroller: null,
+                    startScrollTop: 0,
                 };
                 dragStateRef.current = state;
                 lastPointRef.current = { x: event.clientX, y: event.clientY };
@@ -323,6 +367,31 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                         if (current === state && !current.dragging) beginDragging(current);
                     }, longPressMs);
                 }
+            };
+
+            const updateVerticalEdgeScrollStep = (clientY: number): void => {
+                const verticalScroller = dragStateRef.current?.verticalScroller;
+                if (!verticalScroller) {
+                    edgeScrollVerticalStepRef.current = 0;
+                    return;
+                }
+                // The page's own element spans the whole document, so its visible band is the viewport.
+                const viewportHeight = containerDocument.defaultView?.innerHeight ?? 0;
+                const isPage = verticalScroller === containerDocument.scrollingElement
+                    || verticalScroller === containerDocument.documentElement;
+                const rect = verticalScroller.getBoundingClientRect();
+                const top = isPage ? 0 : Math.max(0, rect.top);
+                const bottom = isPage ? viewportHeight : Math.min(viewportHeight, rect.bottom);
+                const zone = Math.min(
+                    VERTICAL_ZONE_MAX_PX,
+                    Math.max(VERTICAL_ZONE_MIN_PX, viewportHeight * VERTICAL_ZONE_VIEWPORT_RATIO),
+                );
+                const stepFor = (depth: number): number =>
+                    VERTICAL_MIN_STEP_PX
+                    + (VERTICAL_MAX_STEP_PX - VERTICAL_MIN_STEP_PX) * (Math.min(Math.max(depth, 0), zone) / zone);
+                if (clientY > bottom - zone) edgeScrollVerticalStepRef.current = stepFor(clientY - (bottom - zone));
+                else if (clientY < top + zone) edgeScrollVerticalStepRef.current = -stepFor(top + zone - clientY);
+                else edgeScrollVerticalStepRef.current = 0;
             };
 
             const updateEdgeScrollDirection = (clientX: number): void => {
@@ -372,6 +441,7 @@ export function useCardDrag(options: UseCardDragOptions): UseCardDragResult {
                 state.moved = true;
                 lastPointRef.current = { x: event.clientX, y: event.clientY };
                 updateEdgeScrollDirection(event.clientX);
+                updateVerticalEdgeScrollStep(event.clientY);
                 applyDragVisual();
                 scheduleDropTargetUpdate();
             };

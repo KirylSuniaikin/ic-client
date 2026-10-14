@@ -85,6 +85,27 @@ describe("AuthPage", () => {
         });
     });
 
+    it("opts the staff login surface out of browser auto-translate", () => {
+        const { container } = render(
+            <MemoryRouter initialEntries={["/auth"]}>
+                <AuthPage />
+            </MemoryRouter>
+        );
+
+        expect(container.querySelector('[translate="no"]')).not.toBeNull();
+    });
+
+    it("renders the Login label inside an element so a translator-wrapped text node cannot break unmounting", () => {
+        render(
+            <MemoryRouter initialEntries={["/auth"]}>
+                <AuthPage />
+            </MemoryRouter>
+        );
+
+        const label = screen.getByText("Login", { selector: "button span" });
+        expect(label.tagName).toBe("SPAN");
+    });
+
     it("falls back to /admin with no query string when there is no redirect target to preserve", async () => {
         const { container } = render(
             <MemoryRouter initialEntries={["/auth"]}>

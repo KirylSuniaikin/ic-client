@@ -21,7 +21,30 @@ import type {
     UnpaidInvoicesResponse,
     VendorTO
 } from "../../../domains/management/purchases/types";
-import type { WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse } from '../management';
+import type {
+    WorkingHoursResponse, WorkingHoursRequest, SalarySlipDownload, DeliveryEnabledResponse, PdfDownload
+} from '../management';
+import type {
+    CancelViolationRequest,
+    CatalogCategoryTO,
+    CatalogItemTO,
+    CreateCatalogEntryRequest,
+    DisciplinaryActionTO,
+    DisciplineSettingsTO,
+    DisputeRequest,
+    ExplanationRequest,
+    IssuePreviewTO,
+    IssueViolationRequest,
+    MyWorkSummaryTO,
+    RefusalActRequest,
+    RejectDisputeRequest,
+    RosterScoreTO,
+    StaffDisciplineTO,
+    UpdateCatalogEntryRequest,
+    UpdateDisciplineSettingsRequest,
+    ViolationPhotoMetaTO,
+    ViolationTO
+} from '../../../domains/management/discipline/types';
 import type { AuthRequest } from '../../../domains/auth/types';
 import type { GeneratePrepPlanRequest, PrepPlanResponse } from '../../../domains/management/prep-plan/types';
 import type { VatStatePayload, BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost, DeliveryAvailabilityStats, DeliveryEstimateAccuracy, DeliveryHourBucket, DeliverySkipReasonStats, DeliveryZoneCellMeters, DeliveryZoneStats, CourierProductivity, DeliveryQualityStats, LostDemandStats, LostDemandZoneStats, TimeToCourierStats } from '../../../domains/management/statistics/types';
@@ -228,3 +251,28 @@ export const fetchDeliveryZones = jest.fn<Promise<DeliveryZone[]>, [string]>();
 export const createDeliveryZone = jest.fn<Promise<DeliveryZone>, [SaveDeliveryZone]>();
 export const updateDeliveryZone = jest.fn<Promise<DeliveryZone>, [string, SaveDeliveryZone]>();
 export const deleteDeliveryZone = jest.fn<Promise<void>, [string]>();
+
+// Staff discipline.
+export const fetchDisciplineCatalog = jest.fn<Promise<CatalogCategoryTO[]>, []>();
+export const fetchRosterScores = jest.fn<Promise<RosterScoreTO[]>, [string]>();
+export const fetchStaffDiscipline = jest.fn<Promise<StaffDisciplineTO>, [number]>();
+export const fetchMyDiscipline = jest.fn<Promise<StaffDisciplineTO>, []>();
+export const fetchMyWorkSummary = jest.fn<Promise<MyWorkSummaryTO>, []>();
+export const previewViolation = jest.fn<Promise<IssuePreviewTO>, [number, IssueViolationRequest]>();
+export const issueViolation = jest.fn<Promise<ViolationTO>, [number, IssueViolationRequest]>();
+export const uploadViolationPhoto = jest.fn<Promise<ViolationPhotoMetaTO>, [number, Blob]>();
+export const fetchViolationPhoto = jest.fn<Promise<Blob | null>, [number]>();
+export const submitExplanation = jest.fn<Promise<ViolationTO>, [number, ExplanationRequest]>();
+export const disputeViolation = jest.fn<Promise<ViolationTO>, [number, DisputeRequest]>();
+export const confirmViolation = jest.fn<Promise<ViolationTO>, [number]>();
+export const cancelViolation = jest.fn<Promise<ViolationTO>, [number, CancelViolationRequest]>();
+export const rejectDispute = jest.fn<Promise<ViolationTO>, [number, RejectDisputeRequest]>();
+export const downloadDisciplinaryDocument = jest.fn<Promise<PdfDownload>, [number]>();
+export const markActionSigned = jest.fn<Promise<DisciplinaryActionTO>, [number]>();
+export const recordRefusal = jest.fn<Promise<DisciplinaryActionTO>, [number, RefusalActRequest]>();
+export const downloadRefusalAct = jest.fn<Promise<PdfDownload>, [number]>();
+export const createCatalogEntry = jest.fn<Promise<CatalogItemTO>, [CreateCatalogEntryRequest]>();
+export const updateCatalogEntry = jest.fn<Promise<CatalogItemTO>, [number, UpdateCatalogEntryRequest]>();
+export const fetchDisciplineSettings = jest.fn<Promise<DisciplineSettingsTO>, []>();
+export const updateDisciplineSettings =
+    jest.fn<Promise<DisciplineSettingsTO>, [UpdateDisciplineSettingsRequest]>();

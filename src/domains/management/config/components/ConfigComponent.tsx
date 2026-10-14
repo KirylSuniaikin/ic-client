@@ -17,6 +17,7 @@ import {StaffRoles, hasCityAccess} from "../../../auth/types";
 import ScheduleView from "./ScheduleView";
 import DeliverySwitch from "./DeliverySwitch";
 import DeliveryZonesSection from "./DeliveryZonesSection";
+import PenaltiesView from "./PenaltiesView";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 import type {IBranch} from "../../inventory/types";
@@ -67,7 +68,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     // separate rule here could only ever be wrong in one direction.
     const showScheduleToggle =
         role === StaffRoles.MANAGER || hasCityAccess(role);
-    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule" | "Delivery">("Menu");
+    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule" | "Delivery" | "Penalties">("Menu");
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
         M: true,
@@ -277,7 +278,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         <ManagementTopBar
             title="Config"
             onBack={onClose}
-            branchSelector={canSwitch ? (
+            branchSelector={canSwitch && activeTab !== "Penalties" ? (
                 <BranchSelectorComponent
                     branches={branches}
                     selectedBranch={scopedBranch}
@@ -314,8 +315,8 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         exclusive
                         value={activeTab}
                         // MUI types ToggleButtonGroup's onChange value as `any`; the buttons only
-                        // emit the three tab names, so we narrow it back at this boundary.
-                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule" | "Delivery")}
+                        // emit the four tab names, so we narrow it back at this boundary.
+                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule" | "Delivery" | "Penalties")}
                         size="small"
                         sx={{
                             columnGap: 1,
@@ -343,6 +344,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         <ToggleButton value="Menu">Menu</ToggleButton>
                         <ToggleButton value="Schedule">Schedule</ToggleButton>
                         <ToggleButton value="Delivery">Delivery</ToggleButton>
+                        {hasCityAccess(role) && <ToggleButton value="Penalties">Penalties</ToggleButton>}
                     </ToggleButtonGroup>
                 </Box>
             )}
@@ -372,6 +374,18 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         branchRadiusKm={scopedBranch.deliveryRadiusKm ?? null}
                         onDirtyChange={setZonesDirty}
                     />
+                </Box>
+            ) : activeTab === "Penalties" ? (
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflowY: "auto",
+                        p: 2,
+                        pb: 4,
+                        "&::-webkit-scrollbar": { display: "none" }
+                    }}
+                >
+                    <PenaltiesView />
                 </Box>
             ) : activeTab === "Schedule" ? (
                 <Box

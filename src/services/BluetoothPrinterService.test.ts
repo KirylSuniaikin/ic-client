@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
-import bluetoothPrinterService, { REVERSE_VIDEO_ON, REVERSE_VIDEO_OFF } from "./BluetoothPrinterService";
+import bluetoothPrinterService, { REVERSE_VIDEO_ON, REVERSE_VIDEO_OFF, splitTicketTotals } from "./BluetoothPrinterService";
 
 // Every buildTicketLines() row (dough/crust flags, ADD extras/toppings, REMOVE lines) and every
 // note prints inside reverse-video (black box, white text) so kitchen staff can't skim past a
@@ -306,5 +306,30 @@ describe("BluetoothPrinterService.formatOrderItems -- part marker (courier-capac
 
         const payload = mockWriteCalls[0];
         expect(payload).toContain("1x Pepperoni (Medium) [Part 1/2]\n");
+    });
+});
+
+describe("BluetoothPrinterService.printOrder -- totals rounding", () => {
+    it("prints totals rounded to three decimals, never a float-noise tail", async () => {
+        const order = { ...buildOrder([PIZZA_ITEM]), amount_paid: 13.5 };
+
+        await bluetoothPrinterService.printOrder(order);
+
+        const payload = mockWriteCalls[0];
+        expect(payload).toContain("Total: 12.150 BHD\n");
+        expect(payload).toContain("VAT: 1.350 BHD\n");
+        expect(payload).toContain("Grand TOTAL: 13.500 BHD\n");
+    });
+
+    it("keeps net + VAT equal to the grand total when the split does not divide evenly", () => {
+        const { net, vat, grand } = splitTicketTotals(4.123);
+
+        expect(net).toBe("3.711");
+        expect(vat).toBe("0.412");
+        expect(grand).toBe("4.123");
+    });
+
+    it("rounds an amount that is itself float noise", () => {
+        expect(splitTicketTotals(0.1 + 0.2).grand).toBe("0.300");
     });
 });

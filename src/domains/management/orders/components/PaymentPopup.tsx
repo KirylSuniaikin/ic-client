@@ -13,12 +13,19 @@ import InputBase from "@mui/material/InputBase";
 import Divider from "@mui/material/Divider";
 import type { Order } from '../../../order/types';
 import { logger } from "../../../../shared/utils/logger";
+import { createPaymentLegLedger, type PaymentLeg } from "../utils/paymentLegLedger";
 
 const COLOR_RED = "#E44B4C";
 const GRAY_BG = "#F7F7F8";
 const GRAY_BORDER = "#E0E0E0";
 const GRAY_TEXT = "#3A3A3A";
 const FOCUS_BG = "#F0F0F0";
+
+const PAYMENT_ERROR = "Payment could not be recorded. The order may have expired — check the board and re-ring it if it is gone.";
+// Re-ringing would mint new keys and charge the already-saved legs again, so tell the cashier to retry instead.
+const partialPaymentError = (settled: number, total: number): string =>
+    `Payment partly recorded: ${settled} of ${total} payments saved. Press Confirm Payment again to send the rest. Saved payments will not be charged twice.`;
+const SINGLE_LEG_ID = "single";
 
 
 const mkId = (): string => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -68,6 +75,10 @@ export default function PaymentPopup({
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Stable holder for the keys (mutating it needs no re-render); the state mirror only drives the `disabled` props.
+    const [ledger] = useState(createPaymentLegLedger);
+    const [settledLegIds, setSettledLegIds] = useState<string[]>([]);
+
     useEffect(() => {
         if (open && order) {
             setSelectedType(null);
@@ -80,6 +91,8 @@ export default function PaymentPopup({
             }]);
             setPaymentError(null);
             setSubmitting(false);
+            ledger.clear();
+            setSettledLegIds([]);
         }
     }, [open, order, amountPaid]);
 
@@ -104,39 +117,37 @@ export default function PaymentPopup({
         const branchId = order.branch_id ?? "1";
         if (splitMode && !remainingZero) return;
 
+        const legs: PaymentLeg[] = splitMode
+            ? payers
+                .map(p => ({ legId: p.id, amount: toNumber(p.amount), type: p.type }))
+                .filter(p => p.amount > 0 && ["Cash", "Card", "Benefit"].includes(p.type))
+            : [{ legId: SINGLE_LEG_ID, type: selectedType ?? "", amount: amountPaid }];
+
         setPaymentError(null);
         setSubmitting(true);
         try {
-            if (!splitMode) {
-                // single transaction
+            for (const leg of legs) {
+                if (ledger.isSettled(leg.legId)) continue;
                 await sendOrderPayment({
                     orderId: order.id,
-                    amount: amountPaid,
-                    type: selectedType as import('../../../order/types').PaymentType,
-                    branchId
+                    amount: leg.amount,
+                    type: leg.type as import('../../../order/types').PaymentType,
+                    branchId,
+                    idempotency_key: ledger.keyFor(leg)
                 });
-            } else {
-                const txs = payers
-                    .map(p => ({ amount: toNumber(p.amount), type: p.type }))
-                    .filter(p => p.amount > 0 && ["Cash", "Card", "Benefit"].includes(p.type));
-
-                for (const tx of txs) {
-                    await sendOrderPayment({
-                        orderId: order.id,
-                        amount: tx.amount,
-                        type: tx.type as import('../../../order/types').PaymentType,
-                        branchId
-                    });
-                }
+                ledger.markSettled(leg.legId);
+                setSettledLegIds(prev => [...prev, leg.legId]);
             }
         } catch (e) {
             logger.error("[PAYMENT POPUP] Payment failed", e);
-            setPaymentError("Payment could not be recorded. The order may have expired — check the board and re-ring it if it is gone.");
+            const settled = ledger.settledCount();
+            setPaymentError(settled === 0 ? PAYMENT_ERROR : partialPaymentError(settled, legs.length));
             return;
         } finally {
             setSubmitting(false);
         }
 
+        ledger.clear();
         onPaymentSuccess?.(order.id);
         onClose();
     };
@@ -253,6 +264,7 @@ export default function PaymentPopup({
                                     }}
                                 >
                                     <Select
+                                        disabled={settledLegIds.includes(payer.id)}
                                         value={payer.type}
                                         onChange={(e) => updatePayerType(index, e.target.value)}
                                         variant="standard"
@@ -267,6 +279,7 @@ export default function PaymentPopup({
                                     <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: GRAY_BORDER }} />
 
                                     <InputBase
+                                        disabled={settledLegIds.includes(payer.id)}
                                         value={String(payer.amount ?? "")}
                                         onChange={(e) => updatePayerAmount(index, e.target.value)}
                                         onBlur={(e) => {
@@ -287,6 +300,7 @@ export default function PaymentPopup({
                                     <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: GRAY_BORDER }} />
 
                                     <IconButton
+                                        disabled={settledLegIds.includes(payer.id)}
                                         onClick={() => removePayer(index)}
                                         sx={{ color: GRAY_TEXT }}
                                         size="small"

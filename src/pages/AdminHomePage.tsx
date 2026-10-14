@@ -124,7 +124,7 @@ function AdminHomePage(): JSX.Element {
     return (
         <LtrBoundary>
         <ManagementBranchScopeProvider branches={availableBranches ?? []} homeBranch={selectedBranch}>
-        <div className="p-4 max-w-4xl mx-auto">
+        <div className="p-4 max-w-4xl mx-auto" translate="no">
             {ui.cashWarning && (
                 <Box sx={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 2000, width: '90%', maxWidth: 480 }}>
                     <Alert severity="warning" variant="filled" onClose={() => ui.setCashWarning(null)}

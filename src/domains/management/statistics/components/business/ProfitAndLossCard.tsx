@@ -35,6 +35,10 @@ const STATEMENT: Row[] = [
     },
     {label: "Gross profit", pick: m => m.grossProfit, emphasis: true},
     {label: "Operating expenses", pick: m => -m.operatingExpenses, indent: true},
+    {
+        label: "N/A", pick: m => -m.notApplicable, indent: true,
+        hint: "Spend in the N/A category. Subtracted above operating profit, but not part of operating expenses.",
+    },
     {label: "Operating profit (EBITDA)", pick: m => m.operatingProfit, emphasis: true},
     {label: "Capital expenditure", pick: m => -m.capex, indent: true},
     {label: "Financing & interest", pick: m => -m.financing, indent: true},
@@ -58,11 +62,6 @@ const RECONCILIATION: Row[] = [
     {label: "Closing inventory", pick: m => m.reconciliation.endingInventory},
     {label: "COGS from stock movement", pick: m => m.reconciliation.movementCogs},
     {label: "COGS from recipes (in the statement above)", pick: m => m.reconciliation.recipeCogs},
-    {
-        label: "Unexplained variance (waste / yield / theft)",
-        pick: m => m.reconciliation.unexplainedVariance, emphasis: true,
-        hint: "Positive means more was consumed than the recipes predict.",
-    },
     {
         label: "Net cash movement", pick: m => m.reconciliation.netCashMovement, emphasis: true,
         hint: "Net profit + recipe COGS − purchases. What the bank balance actually moved by, since COGS here is not cash.",
@@ -127,19 +126,6 @@ export default function ProfitAndLossCard({months}: Props): React.JSX.Element {
                 <Table size="small">
                     <TableBody>
                         {RECONCILIATION.map(renderRow)}
-                        <TableRow>
-                            <TableCell sx={{pl: 4}}>as % of gross revenue</TableCell>
-                            {months.map(m => (
-                                <TableCell key={m.period} align="right" sx={{whiteSpace: 'nowrap'}}>
-                                    {/* == null, not === null: a backend that predates the rename
-                                        sends no such field, and undefined.toFixed would take the
-                                        whole card down instead of printing a dash. */}
-                                    {m.reconciliation.variancePercentOfGrossRevenue == null
-                                        ? "—"
-                                        : `${m.reconciliation.variancePercentOfGrossRevenue.toFixed(2)}%`}
-                                </TableCell>
-                            ))}
-                        </TableRow>
                     </TableBody>
                 </Table>
             </TableContainer>

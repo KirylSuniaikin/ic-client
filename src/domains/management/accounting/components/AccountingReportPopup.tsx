@@ -912,7 +912,7 @@ export function AccountingReportPopup({
                                 "&:hover": { bgcolor: "#c93d3e" },
                             }}
                         >
-                            {saving ? <CircularProgress size={18} color="inherit" /> : "Save"}
+                            {saving ? <CircularProgress size={18} color="inherit" /> : <span>Save</span>}
                         </Button>
                     </>
                 }

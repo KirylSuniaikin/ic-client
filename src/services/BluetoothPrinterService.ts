@@ -2,6 +2,7 @@ import { logger } from "../shared/utils/logger";
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 import type { Order } from '../domains/order/types';
 import { buildTicketLines, resolveKitchenNote } from '../domains/menu/utils/orderLines';
+import { q3, toDecimal } from '../shared/utils/decimalUtils';
 
 function formatExternalId(id: string | number | null | undefined): string {
     if (!id) return "—";
@@ -27,6 +28,15 @@ export const REVERSE_VIDEO_OFF = GS + "B" + "\x00";
  * (a web UI, not a printer) and must stay plain, printer-format-free text. */
 function highlightLine(line: string): string {
     return `${REVERSE_VIDEO_ON}${line}${REVERSE_VIDEO_OFF}`;
+}
+
+// BHD has three decimals. Plain float math prints amounts like 12.150000000000002, so the ticket
+// totals go through Decimal and are rounded once. VAT is derived from the rounded net so the three
+// printed lines always add up exactly.
+export function splitTicketTotals(amountPaid: number): { net: string; vat: string; grand: string } {
+    const grand = q3(toDecimal(amountPaid));
+    const net = q3(grand.times(0.9));
+    return { net: net.toFixed(3), vat: grand.minus(net).toFixed(3), grand: grand.toFixed(3) };
 }
 
 class BluetoothPrinterService {
@@ -212,6 +222,8 @@ class BluetoothPrinterService {
         const LF = "\x0A";
         const alignLeft = ESC + "a" + "\x00";
 
+        const totals = splitTicketTotals(order.amount_paid);
+
         const text = [
             ESC + "@",
             alignLeft,
@@ -240,9 +252,9 @@ class BluetoothPrinterService {
             "--------------------------\n",
             this.formatOrderItems(order.items, order.partsTotal),
             "--------------------------\n",
-            `Total: ${order.amount_paid * 0.9} BHD\n`,
-            `VAT: ${order.amount_paid * 0.1} BHD\n`,
-            `Grand TOTAL: ${order.amount_paid} BHD\n`,
+            `Total: ${totals.net} BHD\n`,
+            `VAT: ${totals.vat} BHD\n`,
+            `Grand TOTAL: ${totals.grand} BHD\n`,
             "--------------------------\n",
             "220026867000002\n",
             "Flat/Shop No. 0,\n",
