@@ -1,3 +1,4 @@
+import type { PayrollSettingsTO, UpdatePayrollSettingsRequest } from '../../../domains/management/config/types';
 import type { SalarySlipForm } from '../../../domains/management/shift/types';
 import { jest } from "@jest/globals";
 import type {
@@ -276,3 +277,5 @@ export const updateCatalogEntry = jest.fn<Promise<CatalogItemTO>, [number, Updat
 export const fetchDisciplineSettings = jest.fn<Promise<DisciplineSettingsTO>, []>();
 export const updateDisciplineSettings =
     jest.fn<Promise<DisciplineSettingsTO>, [UpdateDisciplineSettingsRequest]>();
+export const fetchPayrollSettings = jest.fn<Promise<PayrollSettingsTO>, []>();
+export const updatePayrollSettings = jest.fn<Promise<PayrollSettingsTO>, [UpdatePayrollSettingsRequest]>();

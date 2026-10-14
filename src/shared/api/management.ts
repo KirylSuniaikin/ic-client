@@ -97,6 +97,8 @@ import type {
     ViolationTO
 } from '../../domains/management/discipline/types';
 
+import type {PayrollSettingsTO, UpdatePayrollSettingsRequest} from '../../domains/management/config/types';
+
 type VatStatsResponse = { totalOrders: number; totalRevenue: number; branchName: string };
 
 type ListableReportType = 'INVENTORY' | 'PURCHASE' | 'SHIFT_REPORT';
@@ -1519,4 +1521,23 @@ export async function fetchDisciplineSettings(): Promise<DisciplineSettingsTO> {
 
 export async function updateDisciplineSettings(request: UpdateDisciplineSettingsRequest): Promise<DisciplineSettingsTO> {
     return disciplineSend("PUT", "/settings", request);
+}
+
+export async function fetchPayrollSettings(): Promise<PayrollSettingsTO> {
+    const res = await authFetch(BASE_URL + "/payroll/settings", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    return await res.json();
+}
+
+export async function updatePayrollSettings(request: UpdatePayrollSettingsRequest): Promise<PayrollSettingsTO> {
+    const res = await authFetch(BASE_URL + "/payroll/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await disciplineRequestError(res);
+    return await res.json();
 }

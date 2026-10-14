@@ -1596,6 +1596,8 @@ const JSON_CASES: JsonCase[] = [
     },
     { name: "fetchDisciplineSettings", call: () => discipline.fetchDisciplineSettings(), method: "GET", url: `${D}/settings` },
     { name: "updateDisciplineSettings", call: () => discipline.updateDisciplineSettings({ shadowPilot: true }), method: "PUT", url: `${D}/settings`, body: { shadowPilot: true } },
+    { name: "fetchPayrollSettings", call: () => discipline.fetchPayrollSettings(), method: "GET", url: `${D.replace("/discipline", "/payroll")}/settings` },
+    { name: "updatePayrollSettings", call: () => discipline.updatePayrollSettings({ capPaidOvertime: true }), method: "PUT", url: `${D.replace("/discipline", "/payroll")}/settings`, body: { capPaidOvertime: true } },
 ];
 
 describe.each(JSON_CASES)("discipline API: $name", ({ call, method, url, body }) => {

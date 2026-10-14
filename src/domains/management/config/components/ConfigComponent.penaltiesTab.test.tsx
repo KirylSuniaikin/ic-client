@@ -21,6 +21,11 @@ jest.mock("./PenaltiesView", () => ({
     ),
 }));
 
+jest.mock("./PayrollView", () => ({
+    __esModule: true,
+    default: () => <div data-testid="payroll-view">Payroll stub</div>,
+}));
+
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockGetDoughInventory = jest.mocked(getDoughInventory);
 
@@ -90,5 +95,29 @@ describe("ConfigComponent Penalties tab", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Menu" }));
         await waitFor(() => expect(branchSelector()).toBeTruthy());
+    });
+
+    it("shows the Payroll button to OWNER only", async () => {
+        renderConfig(StaffRoles.OWNER);
+        await waitFor(() => expect(screen.getByText("Menu Availability")).toBeTruthy());
+        expect(screen.getByRole("button", { name: "Payroll" })).toBeTruthy();
+    });
+
+    it.each([StaffRoles.SUPER_MANAGER, StaffRoles.MANAGER])("hides the Payroll button for %s", async (role) => {
+        renderConfig(role);
+        await waitFor(() => expect(screen.getByText("Menu Availability")).toBeTruthy());
+
+        expect(screen.queryByRole("button", { name: "Payroll" })).toBeNull();
+    });
+
+    it("renders PayrollView and hides the branch selector on the Payroll tab", async () => {
+        renderConfig(StaffRoles.OWNER);
+        await waitFor(() => expect(branchSelector()).toBeTruthy());
+
+        await userEvent.click(screen.getByRole("button", { name: "Payroll" }));
+
+        expect(screen.getByTestId("payroll-view")).toBeTruthy();
+        expect(screen.queryByText("Menu Availability")).toBeNull();
+        expect(branchSelector()).toBeNull();
     });
 });

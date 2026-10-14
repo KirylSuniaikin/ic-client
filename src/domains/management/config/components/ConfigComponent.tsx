@@ -18,6 +18,7 @@ import ScheduleView from "./ScheduleView";
 import DeliverySwitch from "./DeliverySwitch";
 import DeliveryZonesSection from "./DeliveryZonesSection";
 import PenaltiesView from "./PenaltiesView";
+import PayrollView from "./PayrollView";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 import type {IBranch} from "../../inventory/types";
@@ -46,6 +47,8 @@ type MenuGroup = {
 
 type DoughAvailability = Record<string, boolean>;
 
+type ConfigTab = "Menu" | "Schedule" | "Delivery" | "Penalties" | "Payroll";
+
 function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponentProps): JSX.Element {
     const {branches, branch: scopedBranch, setBranch: setScopedBranch, canSwitch} = useBranchScope(selectedBranch);
     const [pendingBranch, setPendingBranch] = useState<IBranch | null>(null);
@@ -68,7 +71,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
     // separate rule here could only ever be wrong in one direction.
     const showScheduleToggle =
         role === StaffRoles.MANAGER || hasCityAccess(role);
-    const [activeTab, setActiveTab] = useState<"Menu" | "Schedule" | "Delivery" | "Penalties">("Menu");
+    const [activeTab, setActiveTab] = useState<ConfigTab>("Menu");
     const [doughAvailability, setDoughAvailability] = useState<DoughAvailability>({
         S: true,
         M: true,
@@ -278,7 +281,7 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
         <ManagementTopBar
             title="Config"
             onBack={onClose}
-            branchSelector={canSwitch && activeTab !== "Penalties" ? (
+            branchSelector={canSwitch && activeTab !== "Penalties" && activeTab !== "Payroll" ? (
                 <BranchSelectorComponent
                     branches={branches}
                     selectedBranch={scopedBranch}
@@ -315,8 +318,8 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         exclusive
                         value={activeTab}
                         // MUI types ToggleButtonGroup's onChange value as `any`; the buttons only
-                        // emit the four tab names, so we narrow it back at this boundary.
-                        onChange={(_, v) => v && setActiveTab(v as "Menu" | "Schedule" | "Delivery" | "Penalties")}
+                        // emit a ConfigTab, so we narrow it back at this boundary.
+                        onChange={(_, v) => v && setActiveTab(v as ConfigTab)}
                         size="small"
                         sx={{
                             columnGap: 1,
@@ -345,11 +348,24 @@ function ConfigComponent({isOpen, onClose, selectedBranch, role}: ConfigComponen
                         <ToggleButton value="Schedule">Schedule</ToggleButton>
                         <ToggleButton value="Delivery">Delivery</ToggleButton>
                         {hasCityAccess(role) && <ToggleButton value="Penalties">Penalties</ToggleButton>}
+                        {role === StaffRoles.OWNER && <ToggleButton value="Payroll">Payroll</ToggleButton>}
                     </ToggleButtonGroup>
                 </Box>
             )}
 
-            {activeTab === "Delivery" ? (
+            {activeTab === "Payroll" ? (
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflowY: "auto",
+                        p: 2,
+                        pb: 4,
+                        "&::-webkit-scrollbar": { display: "none" }
+                    }}
+                >
+                    <PayrollView />
+                </Box>
+            ) : activeTab === "Delivery" ? (
                 <Box
                     sx={{
                         flex: 1,

@@ -38,3 +38,10 @@ export type SaveDeliveryZone = {
     polygon: number[][];
     active: boolean;
 };
+
+export type PayrollSettingsTO = {
+    capPaidOvertime: boolean;
+    updatedAt: string | null;
+    updatedByName: string | null;
+};
+export type UpdatePayrollSettingsRequest = { capPaidOvertime: boolean };
