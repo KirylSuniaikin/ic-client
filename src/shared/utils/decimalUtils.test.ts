@@ -1,6 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import Decimal from "decimal.js-light";
-import { toDecimal, p2, q3, toDecimalOrNull, fmt3, normalizeDecimal } from "./decimalUtils";
+import { toDecimal, p2, q3, toDecimalOrNull, fmt3, normalizeDecimal, splitGrossVat } from "./decimalUtils";
 
 describe("toDecimal", () => {
     describe("Decimal input", () => {
@@ -227,5 +227,26 @@ describe("normalizeDecimal", () => {
     it("returns an empty string for null/undefined-ish input", () => {
         expect(normalizeDecimal(null)).toBe("");
         expect(normalizeDecimal(undefined)).toBe("");
+    });
+});
+
+describe("splitGrossVat", () => {
+    it("treats VAT as 10% on top of the net, not 10% of the gross (the month the POS overstated VAT)", () => {
+        const { net, vat, grand } = splitGrossVat(25868.3);
+
+        expect(net.toFixed(3)).toBe("23516.636");
+        expect(vat.toFixed(3)).toBe("2351.664");
+        expect(grand.toFixed(3)).toBe("25868.300");
+    });
+
+    it("always adds back up to the grand total", () => {
+        for (const gross of [0.1 + 0.2, 4.123, 13.5, 99999.999]) {
+            const { net, vat, grand } = splitGrossVat(gross);
+            expect(net.plus(vat).toFixed(3)).toBe(grand.toFixed(3));
+        }
+    });
+
+    it("returns zeros for a missing amount", () => {
+        expect(splitGrossVat(undefined).vat.toFixed(3)).toBe("0.000");
     });
 });

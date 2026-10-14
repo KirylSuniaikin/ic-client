@@ -14,6 +14,17 @@ export function toDecimal(v: unknown): Decimal {
 }
 
 export const q3 = (x: Decimal): Decimal => x.toDecimalPlaces(3, Decimal.ROUND_HALF_UP);
+// Bahrain VAT is 10% ON TOP of the net price, so a gross (VAT-inclusive) amount is net x 1.1 and its
+// VAT is gross / 11. Taking 90% / 10% of the gross overstates VAT by ~10%. The net is rounded once
+// and VAT is the remainder, so net + VAT always equals the gross exactly.
+const VAT_INCLUSIVE_DIVISOR = 1.1;
+
+export function splitGrossVat(gross: unknown): { net: Decimal; vat: Decimal; grand: Decimal } {
+    const grand = q3(toDecimal(gross));
+    const net = q3(grand.dividedBy(VAT_INCLUSIVE_DIVISOR));
+    return { net, vat: grand.minus(net), grand };
+}
+
 export const p2 = (x: Decimal): Decimal => x.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
 // Null-preserving counterpart to toDecimal — returns null for null/undefined input

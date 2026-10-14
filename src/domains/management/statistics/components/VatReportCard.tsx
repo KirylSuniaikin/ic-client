@@ -4,6 +4,7 @@ import React, {useState} from "react";
 import PrintIcon from '@mui/icons-material/Print';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import {getVatStats} from "../../../../shared/api/management";
+import {splitGrossVat} from "../../../../shared/utils/decimalUtils";
 
 
 type Stats = {
@@ -56,6 +57,8 @@ export function VatReportCard({branchId}: { branchId: string }) {
             setLoading(false);
         }
     };
+
+    const vat = splitGrossVat(reportStats?.totalRevenue);
 
     const StatRow = ({label, value, bold = false}: {label: string, value: string, bold?: boolean}) => (
         <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 1}}>
@@ -156,15 +159,15 @@ export function VatReportCard({branchId}: { branchId: string }) {
 
                                 <Divider sx={{my: 1.5}} />
 
-                                <StatRow label="Net Amount (Total)" value={`${(reportStats.totalRevenue * 0.9).toFixed(3)} BD`} />
-                                <StatRow label="VAT (10%)" value={`${(reportStats.totalRevenue * 0.1).toFixed(3)} BD`} />
+                                <StatRow label="Net Amount (Total)" value={`${vat.net.toFixed(3)} BD`} />
+                                <StatRow label="VAT (10%)" value={`${vat.vat.toFixed(3)} BD`} />
 
                                 <Divider sx={{my: 1.5}} />
 
                                 <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                                     <Typography variant="h6" fontWeight="bold">Grand Total:  </Typography>
                                     <Typography variant="h6" fontWeight="bold" color="primary">
-                                        {reportStats.totalRevenue.toFixed(3)} BD
+                                        {vat.grand.toFixed(3)} BD
                                     </Typography>
                                 </Box>
                             </Paper>
