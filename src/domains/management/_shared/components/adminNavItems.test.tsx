@@ -14,7 +14,6 @@ function makeHandlers(): AdminNavHandlers {
         onPurchaseOpen: jest.fn(),
         onCashRegisterOpen: jest.fn(),
         onAccountingOpen: jest.fn(),
-        onCourierDispatcherOpen: jest.fn(),
         onBlacklistopen: jest.fn(),
         onAccountManagerOpen: jest.fn(),
         onSwitchSurface: jest.fn(),
@@ -41,9 +40,6 @@ describe("buildAdminNavSections", () => {
                 "New Order", "Shifts", "Order History", "Statistics", "Config",
                 "Inventory", "Purchase", "Cash Register", "Accounting", "Blacklist",
                 "Account Manager", "Task Board",
-                // The dispatcher board (DELIVERY_SPEC.md §4), manager-and-up like Account
-                // Manager and behind the same class of backend gate.
-                "Delivery",
             ].sort()
         );
         expect(labelsOf(sections)).not.toContain("Logout");
@@ -93,17 +89,6 @@ describe("buildAdminNavSections", () => {
         const sections = buildAdminNavSections(StaffRoles.REVIEWER, makeHandlers());
 
         expect(labelsOf(sections)).toEqual(["Order History"]);
-    });
-
-    // Dispatching a rider happens DURING service, next to the order board -- so Operations,
-    // not Management, which is where settings live. A cook must not see it: the backend gates
-    // /api/management/delivery/** to MANAGER and up.
-    it("puts Delivery in the Operations section for a MANAGER and hides it from a COOK", () => {
-        const managerSections = buildAdminNavSections(StaffRoles.MANAGER, makeHandlers());
-        const operations = managerSections.find(s => s.title === "Operations");
-
-        expect(operations?.items.map(item => item.label)).toContain("Delivery");
-        expect(labelsOf(buildAdminNavSections(StaffRoles.COOK, makeHandlers()))).not.toContain("Delivery");
     });
 
     // Account Manager moved out of the top tab strip into this drawer. It belongs in Management

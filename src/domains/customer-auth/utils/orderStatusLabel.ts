@@ -23,7 +23,6 @@ export const STATUS_LABEL_KEYS: Record<string, string> = {
     "New": "orderDetail.status.new",
     "Out for delivery": "orderDetail.status.outForDelivery",
     "Delivered": "orderDetail.status.delivered",
-    "Returned Undelivered": "orderDetail.status.returnedUndelivered",
     "Cancelled": "orderDetail.status.cancelled",
     "Timed out": "orderDetail.status.timedOut",
 };

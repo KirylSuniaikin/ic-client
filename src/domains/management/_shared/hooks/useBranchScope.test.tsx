@@ -5,9 +5,9 @@ import { useBranchScope, useMultiBranchScope } from "./useBranchScope";
 import { ManagementBranchScopeProvider } from "../context/ManagementBranchScope";
 import type { IBranch } from "../../inventory/types";
 
-const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en", latitude: null, longitude: null };
-const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en", latitude: null, longitude: null };
-const fallbackBranch: IBranch = { id: "fallback", externalId: "ext-fallback", branchNo: 3, branchName: "Fallback Branch", locale: "en", latitude: null, longitude: null };
+const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en" };
+const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en" };
+const fallbackBranch: IBranch = { id: "fallback", externalId: "ext-fallback", branchNo: 3, branchName: "Fallback Branch", locale: "en" };
 
 function withProvider(branches: IBranch[], homeBranch: IBranch | null) {
     return ({ children }: { children: React.ReactNode }): React.JSX.Element => (

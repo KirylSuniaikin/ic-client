@@ -4,10 +4,8 @@ import {CustomerStatCard, CustomerColumn} from "../CustomerStatCard";
 import {DateRangeStatsCard} from "../performance/DateRangeStatsCard";
 import {RetentionCheckCard} from "../performance/RetentionCheckCard";
 import {GlobalStatsCard} from "../performance/GlobalStatsCard";
-import {DeliveryAvailabilityCard} from "../performance/DeliveryAvailabilityCard";
 import {countPercentage} from "../performance/statsFormat";
-import type {AvailabilityScope} from "../performance/DeliveryAvailabilityCard";
-import type {DeliveryAvailabilityStats, SellsByHourStat, StatsResponse} from "../../types";
+import type {SellsByHourStat, StatsResponse} from "../../types";
 
 // Decodes the raw customer counts into the labeled column shape the card renders. A third
 // "Unknown / No phone" column is appended only when there are any such orders, so ordinary days
@@ -16,7 +14,7 @@ function buildCustomerColumns(stats: StatsResponse): CustomerColumn[] {
     const newOrders = stats.newCustomerOrderedCount;
     const returningOrders = stats.oldCstmrOrderCount;
     const unknownOrders = stats.unknownCustomerOrderCount;
-    // Share of all the card's orders, not just New + Returning -- unknownOrders is part of the
+    // Share of 89 (Pick Up + Keeta), not 88 (New + Returning) -- unknownOrders is part of the
     // same platform total, so it must be in the percentage denominator too.
     const totalOrders = newOrders + returningOrders + unknownOrders;
     const returningCustomers = stats.oldCustomerOrderedCount;
@@ -49,9 +47,6 @@ type Props = {
     globalStats: StatsResponse | null;
     retentionStats: StatsResponse | null;
     sellStats: SellsByHourStat[];
-    deliveryAvailability: DeliveryAvailabilityStats | null;
-    /** Passed straight through: the card pins the branches and dates its figures were fetched for. */
-    deliveryAvailabilityScope: AvailabilityScope | null;
     selectedDate: Date;
     onSelectedDateChange: (date: Date) => void;
     onRefresh: () => void;
@@ -62,8 +57,6 @@ export function PerformanceTab({
                                    globalStats,
                                    retentionStats,
                                    sellStats,
-                                   deliveryAvailability,
-                                   deliveryAvailabilityScope,
                                    selectedDate,
                                    onSelectedDateChange,
                                    onRefresh,
@@ -71,8 +64,7 @@ export function PerformanceTab({
     return (
         <>
             <CustomerStatCard
-                // Must name exactly the types the backend counts (StatsService.CUSTOMER_CARD_TYPES).
-                title="Customers · Pick Up + Delivery + Talabat + Keeta"
+                title="Customers · Pick Up + Keeta"
                 columns={rangeStats ? buildCustomerColumns(rangeStats) : null}
             />
 
@@ -80,11 +72,6 @@ export function PerformanceTab({
                 stats={rangeStats}
                 sellStats={sellStats}
             />
-
-            {/* Directly under the revenue card: the staffing question is about the same
-                period and the same branches, and a manager reading "Keeta took 40% of
-                orders" wants to know how much of that was our own delivery being shut. */}
-            <DeliveryAvailabilityCard stats={deliveryAvailability} scope={deliveryAvailabilityScope}/>
 
             <Grid container spacing={2} sx={{mb: 2}}>
                 <Grid size={{xs: 12, md: 6}}>

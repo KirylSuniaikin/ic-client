@@ -10,12 +10,10 @@ import {
     deleteOrder,
     updateAvailability,
     fetchBaseAppInfo,
-    fetchPublicBranches,
     getAllActiveOrders,
     getHistory,
     updateOrderStatus,
 } from "./public";
-import type { IBranch } from "../../domains/management/inventory/types";
 import { ItemsUnavailableError, BranchClosedError } from "../../domains/order/types";
 import type { CreateOrderRequest, AvailabilityChange } from "../../domains/order/types";
 import { CLIENT_PLATFORM_HEADER, CLIENT_PLATFORM_WEB } from "./clientPlatform";
@@ -441,98 +439,6 @@ describe("fetchBaseAppInfo", () => {
         );
 
         await fetchBaseAppInfo(null, "branch-xyz");
-
-        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        const headers = new Headers(init?.headers);
-        expect(headers.get(CLIENT_PLATFORM_HEADER)).toBe(CLIENT_PLATFORM_WEB);
-    });
-});
-
-// ── fetchPublicBranches ───────────────────────────────────────────────────────
-
-describe("fetchPublicBranches", () => {
-    // fetchPublicBranches uses raw fetch (not authFetch) — the customer branch picker is an
-    // anonymous, unauthenticated screen and must never be gated by authFetch's 401 redirect.
-    let mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
-    let savedFetch: typeof globalThis.fetch;
-
-    const branches: IBranch[] = [
-        {
-            id: "branch-1",
-            externalId: "ext-1",
-            branchNo: 1,
-            branchName: "Seef",
-            locale: "en",
-            latitude: 26.2285,
-            longitude: 50.586,
-        },
-        {
-            id: "branch-2",
-            externalId: "ext-2",
-            branchNo: 2,
-            branchName: "Karlin",
-            locale: "en",
-            latitude: null,
-            longitude: null,
-        },
-    ];
-
-    beforeEach(() => {
-        savedFetch = global.fetch;
-        mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
-        // Cast: jest.Mock carries extra mock methods beyond the fetch call signature;
-        // structurally compatible at the call site.
-        global.fetch = mockFetch as typeof fetch;
-    });
-
-    afterEach(() => {
-        global.fetch = savedFetch;
-    });
-
-    it("throws when the server responds with a non-ok status", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
-
-        await expect(fetchPublicBranches()).rejects.toThrow();
-    });
-
-    it("calls GET on the branch/fetch_branches endpoint without authFetch", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(branches), { status: 200 }));
-
-        await fetchPublicBranches();
-
-        expect(mockAuthFetch).not.toHaveBeenCalled();
-        const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        expect(url).toContain("branch/fetch_branches");
-        expect(init.method).toBe("GET");
-    });
-
-    it("returns the parsed array of branches, including nullable coordinates", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(branches), { status: 200 }));
-
-        const result = await fetchPublicBranches();
-
-        expect(result).toEqual(branches);
-    });
-
-    it("throws when the response is HTML instead of JSON", async () => {
-        mockFetch.mockResolvedValueOnce(new Response("<!DOCTYPE html><html></html>", { status: 200 }));
-
-        await expect(fetchPublicBranches()).rejects.toThrow();
-    });
-
-    it("wires a fetch rejection into reportNetworkError and re-throws it", async () => {
-        const networkError = new Error("offline");
-        mockFetch.mockRejectedValueOnce(networkError);
-
-        await expect(fetchPublicBranches()).rejects.toBe(networkError);
-
-        expect(mockReportNetworkError).toHaveBeenCalledTimes(1);
-    });
-
-    it("sends X-Client-Platform: web", async () => {
-        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(branches), { status: 200 }));
-
-        await fetchPublicBranches();
 
         const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
         const headers = new Headers(init?.headers);

@@ -9,7 +9,6 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import StackedLineChartIcon from "@mui/icons-material/StackedLineChart";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
-import TwoWheelerOutlinedIcon from "@mui/icons-material/TwoWheelerOutlined";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
@@ -39,8 +38,6 @@ export type AdminNavHandlers = {
     onPurchaseOpen: () => void;
     onCashRegisterOpen: () => void;
     onAccountingOpen: () => void;
-    /** Courier dispatcher panel (DELIVERY_SPEC.md §4). */
-    onCourierDispatcherOpen: () => void;
     onBlacklistopen: () => void;
     onAccountManagerOpen: () => void;
     /** Flips between the order desk and the task board. */
@@ -78,8 +75,6 @@ export function buildAdminNavSections(
                     // Manager-and-up only, matching the backend gate on /api/staff/**. A COOK or
                     // SUPERVISOR reaching it would only be 403'd.
                     "Account Manager",
-                    // Manager-and-up, matching the backend gate on /api/management/delivery/**.
-                    "Delivery",
                 ]);
 
     // One toggle, not two rows: whichever surface you are NOT on is the one worth offering. The
@@ -95,9 +90,6 @@ export function buildAdminNavSections(
         {label: "New Order", icon: <AddIcon fontSize="small"/>, onClick: handlers.onGoToMenu},
         {label: "Order History", icon: <HistoryIcon fontSize="small"/>, onClick: handlers.onOpenHistory},
         {label: "Shifts", icon: <ScheduleIcon fontSize="small"/>, onClick: handlers.onShiftManagementPageOpen},
-        // Operations, not Management: dispatching a rider is something a manager does DURING
-        // service, alongside the order board -- not a setting they configure once.
-        {label: "Delivery", icon: <TwoWheelerOutlinedIcon fontSize="small"/>, onClick: handlers.onCourierDispatcherOpen},
     ];
 
     const money: AdminNavItem[] = [

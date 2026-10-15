@@ -35,7 +35,7 @@ const mockFetchVendors = jest.mocked(fetchVendors);
 const mockGetUser = jest.mocked(getUser);
 const mockCreateProduct = jest.mocked(createProduct);
 
-const branch: IBranch = { id: "branch-uuid", externalId: "ext-1", branchNo: 1, branchName: "Main", locale: "en", latitude: null, longitude: null };
+const branch: IBranch = { id: "branch-uuid", externalId: "ext-1", branchNo: 1, branchName: "Main", locale: "en" };
 
 function product(overrides: Partial<ProductTO> = {}): ProductTO {
     return {

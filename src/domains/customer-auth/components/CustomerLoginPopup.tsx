@@ -54,17 +54,6 @@ function formatCountdown(totalSeconds: number): string {
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-// Writes `digits` into the code string from `start` onwards, preserving the
-// digits-only / max-CODE_LENGTH semantics of the segmented boxes. Shared by the
-// paste handler and by multi-digit change events (SMS autofill).
-function fillCode(previous: string, start: number, digits: string): string {
-    const chars = previous.split("");
-    for (let k = 0; k < digits.length && start + k < CODE_LENGTH; k++) {
-        chars[start + k] = digits[k];
-    }
-    return chars.join("").slice(0, CODE_LENGTH);
-}
-
 export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, checkoutMode }: Props): React.JSX.Element {
     const { t, i18n } = useTranslation("customerAuth");
     const { login } = useCustomerAuth();
@@ -95,13 +84,6 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
     // displayed char from code[i].
     const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-    // The exact code string that was last handed to a verify attempt. The code step
-    // has no submit button, so this is what makes auto-verify fire once per completed
-    // code: a re-render (or any state change that leaves `code` untouched) can never
-    // spend the same one-time code twice. Reset to null whenever the boxes are cleared,
-    // so re-entering the same code after a failure or a resend still verifies.
-    const autoVerifiedCodeRef = useRef<string | null>(null);
-
     const countryObj = countries.find((c) => c.name === selectedCountry) ?? countries[0];
 
     // Reset all local state whenever the popup is (re)opened, so a previous
@@ -114,7 +96,6 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
             setStep("phone");
             setFullPhone("");
             setCode("");
-            autoVerifiedCodeRef.current = null;
             setName(prefillName ?? "");
             setAwaitingName(false);
             setPendingAccessToken(null);
@@ -204,7 +185,6 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
         try {
             await requestOtp({ phone: fullPhone, language: resolveCustomerLanguage(i18n.language) });
             setCode("");
-            autoVerifiedCodeRef.current = null;
             setCodeSentAt(Date.now());
         } catch (err) {
             setError(resolveErrorMessage(err, t("errors.sendFailed"), t("errors.tooManyAttempts")));
@@ -234,38 +214,10 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
             }
         } catch (err) {
             setError(resolveErrorMessage(err, t("errors.invalidCode"), t("errors.tooManyAttempts")));
-            // A rejected code must not stay in the boxes: with auto-verify, editing a
-            // single digit of it would instantly spend another attempt on a code that is
-            // still three-quarters stale. Clearing gives "completed" an unambiguous
-            // meaning after a failure -- four freshly entered digits -- and returns the
-            // cursor to the first box.
-            setCode("");
-            autoVerifiedCodeRef.current = null;
-            focusBox(0);
         } finally {
             setIsSubmitting(false);
         }
     }
-
-    // Routed through a ref for the same reason as sendCodeRef above: the auto-verify
-    // effect must call the latest handleVerifyCode without listing an identity that
-    // changes every render in its dependency array.
-    const verifyCodeRef = useRef(handleVerifyCode);
-    verifyCodeRef.current = handleVerifyCode;
-
-    // The code step carries no submit button, so a completed code verifies itself --
-    // which covers SMS autofill (all four digits land at once) as well as typing.
-    // Fires at most once per distinct completed code: `autoVerifiedCodeRef` is stamped
-    // before the call, and `isSubmitting` blocks a second attempt while one is in
-    // flight. The stamp only happens when a verify actually starts, so a code entered
-    // during an in-flight request is still verified once that request settles.
-    useEffect(() => {
-        if (step !== "code" || awaitingName) return;
-        if (!isCodeValid || isSubmitting) return;
-        if (autoVerifiedCodeRef.current === code) return;
-        autoVerifiedCodeRef.current = code;
-        void verifyCodeRef.current();
-    }, [step, awaitingName, isCodeValid, isSubmitting, code]);
 
     async function handleContinueName(): Promise<void> {
         if (name.trim() === "") {
@@ -293,7 +245,6 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
     function handleChangeNumber(): void {
         setStep("phone");
         setCode("");
-        autoVerifiedCodeRef.current = null;
         setError(null);
     }
 
@@ -310,17 +261,13 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
     function handleDigitChange(index: number, e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void {
         const digits = e.target.value.replace(/\D/g, "");
         if (!digits) return;
+        const digit = digits.slice(-1);
         setError(null);
-        // A whole code arriving through one box is an SMS autofill -- iOS and Android
-        // deliver the full one-time-code into the focused field rather than a keystroke
-        // per box -- so spread it across the boxes from the first one. Anything shorter
-        // is typing, where the trailing character overwrites just this box.
-        if (digits.length >= CODE_LENGTH) {
-            setCode((prev) => fillCode(prev, 0, digits.slice(0, CODE_LENGTH)));
-            focusBox(CODE_LENGTH - 1);
-            return;
-        }
-        setCode((prev) => fillCode(prev, index, digits.slice(-1)));
+        setCode((prev) => {
+            const chars = prev.split("");
+            chars[index] = digit;
+            return chars.join("").slice(0, CODE_LENGTH);
+        });
         if (index < CODE_LENGTH - 1) focusBox(index + 1);
     }
 
@@ -352,7 +299,13 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
         const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
         if (!pasted) return;
         setError(null);
-        setCode((prev) => fillCode(prev, index, pasted));
+        setCode((prev) => {
+            const chars = prev.split("");
+            for (let k = 0; k < pasted.length && index + k < CODE_LENGTH; k++) {
+                chars[index + k] = pasted[k];
+            }
+            return chars.join("").slice(0, CODE_LENGTH);
+        });
         focusBox(Math.min(index + pasted.length, CODE_LENGTH - 1));
     }
 
@@ -550,15 +503,6 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                             </Stack>
                         )}
 
-                        {/* With the code step's CTA gone, this spinner is the only sign that a
-                            completed code is being verified -- so it sits right under the digits,
-                            where the customer is already looking. */}
-                        {step === "code" && !awaitingName && isSubmitting && (
-                            <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
-                                <CircularProgress size={24} sx={{ color: brandRed }} />
-                            </Box>
-                        )}
-
                         {step === "code" && !awaitingName && (
                             <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
                                 <Button
@@ -616,44 +560,44 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                     </motion.div>
                 </Box>
 
-                {/* The code step has no CTA at all: a completed code verifies itself (see the
-                    auto-verify effect above), which leaves Resend as its only control. */}
-                {(step === "phone" || awaitingName) && (
-                    <Box sx={{ px: { xs: 3, sm: 4 }, pt: 2, pb: { xs: 4, sm: 5 } }}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={step === "phone" ? handleGetCode : handleContinueName}
-                            // The name prompt intentionally does NOT pre-disable on a blank value —
-                            // Continue is clickable and surfaces an inline validation error instead
-                            // (task-spec.md §5.5a requirement 5/step 5), unlike the phone step.
-                            disabled={isSubmitting || (step === "phone" && !isPhoneValid)}
-                            sx={{
-                                py: 1.6,
-                                color: "#fff",
-                                textTransform: "none",
-                                fontSize: "1.05rem",
-                                fontWeight: 700,
-                                borderRadius: 999,
-                                background: "linear-gradient(135deg, #E44B4C 0%, #D0393A 100%)",
-                                boxShadow: "0 10px 24px rgba(228,75,76,0.30)",
-                                "&:hover": {
-                                    background: "linear-gradient(135deg, #d83f40 0%, #C33132 100%)",
-                                    boxShadow: "0 10px 24px rgba(228,75,76,0.34)",
-                                },
-                                "&.Mui-disabled": { background: "#f0c9ca", color: "#fff", boxShadow: "none" },
-                            }}
-                        >
-                            {isSubmitting ? (
-                                <CircularProgress size={24} sx={{ color: "#fff" }} />
-                            ) : step === "phone" ? (
-                                t("login.getCode")
-                            ) : (
-                                t("login.continue")
-                            )}
-                        </Button>
-                    </Box>
-                )}
+                <Box sx={{ px: { xs: 3, sm: 4 }, pt: 2, pb: { xs: 4, sm: 5 } }}>
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={step === "phone" ? handleGetCode : awaitingName ? handleContinueName : handleVerifyCode}
+                        // The name prompt intentionally does NOT pre-disable on a blank value —
+                        // Continue is clickable and surfaces an inline validation error instead
+                        // (task-spec.md §5.5a requirement 5/step 5), unlike the phone/code steps.
+                        disabled={isSubmitting || (step === "phone" ? !isPhoneValid : awaitingName ? false : !isCodeValid)}
+                        sx={{
+                            py: 1.6,
+                            color: "#fff",
+                            textTransform: "none",
+                            fontSize: "1.05rem",
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            background: "linear-gradient(135deg, #E44B4C 0%, #D0393A 100%)",
+                            boxShadow: "0 10px 24px rgba(228,75,76,0.30)",
+                            "&:hover": {
+                                background: "linear-gradient(135deg, #d83f40 0%, #C33132 100%)",
+                                boxShadow: "0 10px 24px rgba(228,75,76,0.34)",
+                            },
+                            "&.Mui-disabled": { background: "#f0c9ca", color: "#fff", boxShadow: "none" },
+                        }}
+                    >
+                        {isSubmitting ? (
+                            <CircularProgress size={24} sx={{ color: "#fff" }} />
+                        ) : step === "phone" ? (
+                            t("login.getCode")
+                        ) : awaitingName ? (
+                            t("login.continue")
+                        ) : checkoutMode ? (
+                            t("login.checkoutSubmit")
+                        ) : (
+                            t("login.submit")
+                        )}
+                    </Button>
+                </Box>
             </Box>
         </Drawer>
     );

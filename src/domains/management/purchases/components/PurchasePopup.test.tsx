@@ -22,8 +22,6 @@ const branch: IBranch = {
     branchNo: 1,
     branchName: "Main",
     locale: "en",
-    latitude: null,
-    longitude: null,
 };
 
 function report(overrides: Partial<BasePurchaseResponse> = {}): BasePurchaseResponse {

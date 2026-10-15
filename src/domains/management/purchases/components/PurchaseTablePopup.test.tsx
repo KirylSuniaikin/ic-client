@@ -33,8 +33,6 @@ const branch: IBranch = {
     branchNo: 1,
     branchName: "Main",
     locale: "en",
-    latitude: null,
-    longitude: null,
 };
 
 // One DatePicker per INVOICE header now, so DD.MM.YYYY inputs in DOM order are the invoice order.

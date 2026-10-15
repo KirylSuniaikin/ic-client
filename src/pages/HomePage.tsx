@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Box, IconButton, Typography } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -7,8 +7,6 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useMenuData } from "../domains/menu/hooks/useMenuData";
 import { useCart } from "../domains/cart/hooks/useCart";
 import { useCheckout } from "../domains/order/hooks/useCheckout";
-import { useApplePayCheckout } from "../domains/order/hooks/useApplePayCheckout";
-import { useCardCheckout } from "../domains/order/hooks/useCardCheckout";
 import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import { useActiveOrderIsland } from "../domains/customer-auth/hooks/useActiveOrderIsland";
 import { ActiveOrderIslandPill } from "../domains/customer-auth/components/ActiveOrderIslandPill";
@@ -33,15 +31,12 @@ import { DEFAULT_PAYMENT_METHOD } from "../domains/order/types";
 import type { UseCheckoutResult } from "../domains/order/hooks/useCheckout";
 import { enI18n } from "../shared/i18n";
 import { isKioskSearch } from "../shared/utils/kioskMode";
-import { writeChosenBranch } from "../domains/branch/utils/customerBranch";
-import { useBranchSwitch } from "../domains/branch/hooks/useBranchSwitch";
 import type { Group, MenuItem } from "../domains/menu/types";
 import type { GroupWithCategory } from "../domains/menu/components/MenuItemCardHorizontal";
 import { SeoHead } from "../shared/components/SeoHead";
 import { DEFAULT_LOCATION } from "../shared/utils/restaurantLocations";
 import { buildRestaurantJsonLd, buildMenuJsonLd, buildFaqJsonLd } from "../shared/utils/structuredData";
 import { MENU_PAGE_FAQ } from "../shared/utils/faq";
-import type { IBranch } from "../domains/management/inventory/types";
 
 interface HomePageProps {
     userParam: string | null;
@@ -131,52 +126,11 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     });
     checkoutRef.current = checkout;
 
-    const applePay = useApplePayCheckout({
-        isAdmin, isKiosk,
-        cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
-        setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
-        setPaymentMethod: checkout.setPaymentMethod, setOrderType: checkout.setOrderType,
-        refreshMenu: menu.refreshMenu,
-        setUnavailableItems: checkout.setUnavailableItems,
-        setUnavailableMessage: checkout.setUnavailableMessage,
-        setUnavailablePopupOpen: checkout.setUnavailablePopupOpen,
-    });
-
-    const cardPayment = useCardCheckout({
-        isAdmin, isKiosk,
-        cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
-        setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
-        setPaymentMethod: checkout.setPaymentMethod, setOrderType: checkout.setOrderType,
-        refreshMenu: menu.refreshMenu,
-        setUnavailableItems: checkout.setUnavailableItems,
-        setUnavailableMessage: checkout.setUnavailableMessage,
-        setUnavailablePopupOpen: checkout.setUnavailablePopupOpen,
-    });
-
     // Staff re-pairing: three taps on the top of the hero video reopens the branch picker. No PIN
     // by product decision — the gesture itself is the only gate.
     const handleRepairGesture = useTripleClick(() => {
         menu.setBranchSelector(true);
     });
-
-    // Re-entry chip (task-spec.md §6.4): a voluntary mid-session branch switch, distinct from the
-    // mandatory first-visit gate above — warns about cart-item loss instead of forcing a choice.
-    // Lifted out of HomePageModals: see openOverlays below — the cart pill must know.
-    const [keetaOpen, setKeetaOpen] = useState(false);
-    const branchSwitch = useBranchSwitch({
-        cartItems: cart.cartItems,
-        setCartItems: cart.setCartItems,
-        refreshMenu: menu.refreshMenu,
-    });
-
-    // Entry gate (task-spec.md §6.2 step 3): persist the choice, close the gate, then reload the
-    // menu — the initial fetch ran against DEFAULT_BRANCH_ID before any choice existed, mirroring
-    // KioskBranchSelector's onSelect sequence in HomePageModals.tsx.
-    function handleCustomerBranchSelect(branch: IBranch): void {
-        writeChosenBranch(branch);
-        menu.setCustomerBranchGateOpen(false);
-        menu.refreshMenu();
-    }
 
     usePixelTracking();
 
@@ -286,48 +240,21 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         }
     }
 
-    /**
-     * Every popup, sheet and overlay this page can put on screen.
-     *
-     * The cart pill below is `position: fixed` at zIndex 9999 while MUI's Drawer sits at 1200, so
-     * anything missing from this list gets the pill painted across it — usually straight over the
-     * buttons at the bottom of a sheet. That is exactly how the branch-switch warning lost its
-     * Confirm/Cancel, and why this is one list rather than a condition repeated per consumer.
-     *
-     * Transient toasts (ErrorSnackbar, the delivery notice) are deliberately absent: they sit at
-     * the top, auto-dismiss, and hiding the pill for them would make it flicker.
-     */
-    const openOverlays: boolean[] = [
-        cart.pizzaPopupOpen,
-        cart.comboPopupOpen,
-        cart.genericPopupOpen,
-        cart.pizzaComboPopupOpen,
-        cart.detroitComboPopupOpen,
-        cart.baguettePizzaPopupOpen,
-        cart.cartOpen,
-        cart.closedPopup,
-        cart.upsellPopupOpen,
-        checkout.phonePopupOpen,
-        checkout.adminOrderDetailsPopUp,
-        checkout.unavailablePopupOpen,
-        checkout.isCrossSellOpen,
-        checkout.pickUpReminder,
-        checkout.showOrderConfirmed,
-        // DeliveryCheckoutDrawer, plus the address picker and confirm sheet it opens.
-        checkout.pendingDeliveryOrder !== null,
-        keetaOpen,
-        isAnyCustomerAuthPopupOpen,
-        kiosk.isSheetOpen,
-        menu.customerBranchGateOpen,
-        Boolean(menu.branchSelector),
-        branchSwitch.pickerOpen,
-        branchSwitch.warningOpen,
-    ];
+    // `!kiosk.isSheetOpen` is what stops the fixed cart pill (zIndex 9999, below) and the
+    // active-order card painting over a live payment sheet.
+    const noPopupOpen = !cart.pizzaPopupOpen && !cart.comboPopupOpen && !cart.genericPopupOpen && !cart.cartOpen && !checkout.phonePopupOpen && !checkout.adminOrderDetailsPopUp && !cart.pizzaComboPopupOpen && !cart.detroitComboPopupOpen && !cart.upsellPopupOpen && !isAnyCustomerAuthPopupOpen && !kiosk.isSheetOpen;
 
-    const noPopupOpen = !openOverlays.some(Boolean);
-
-    // Kept as its own name because ScrollHintArrow reads it; the two are now exact complements.
-    const anyPopupOpen = !noPopupOpen;
+    // Superset of noPopupOpen: also covers popups noPopupOpen omits (baguette/closed/unavailable/
+    // cross-sell/pickup-reminder/order-confirmed/branch-selector) plus everything noPopupOpen already
+    // covers. Used only to gate ScrollHintArrow -- must not affect noPopupOpen or its consumers.
+    const anyPopupOpen = !noPopupOpen
+        || cart.baguettePizzaPopupOpen
+        || cart.closedPopup
+        || checkout.unavailablePopupOpen
+        || checkout.isCrossSellOpen
+        || checkout.pickUpReminder
+        || checkout.showOrderConfirmed
+        || !!menu.branchSelector;
 
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the
@@ -344,15 +271,11 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     branchName={activeOrderIsland.activeOrder.branchName}
                     orderNumber={activeOrderIsland.activeOrder.orderNumber}
                     status={activeOrderIsland.status}
-                    orderType={activeOrderIsland.activeOrder.type}
                     timeLeft={activeOrderIsland.timeLeft}
-                    arrivalTimeLeft={activeOrderIsland.arrivalTimeLeft}
-                    rideProgress={activeOrderIsland.rideProgress}
-                    riderSlots={activeOrderIsland.riderSlots}
                     onClick={activeOrderIsland.handleClick}
                 />
             )}
-            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} onAdminGesture={handleRepairGesture} onBranchClick={branchSwitch.openPicker} />}
+            {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} onAdminGesture={handleRepairGesture} />}
             <Box ref={menuTopRef} />
             <MenuSections
                 groups={groups}
@@ -372,7 +295,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 </Box>
             )}
             <HomePageModals
-                cart={cart} checkout={checkout} applePay={applePay} cardPayment={cardPayment} menuData={menu.menuData}
+                cart={cart} checkout={checkout} menuData={menu.menuData}
                 toppings={menu.toppings} extraIngredients={menu.extraIngredients}
                 availableBranches={menu.availableBranches}
                 isSDoughAvailable={menu.isSDoughAvailable}
@@ -384,13 +307,8 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 beverages={groups.beverages} sauces={groups.sauces}
                 isAdmin={isAdmin} isKiosk={isKiosk} adminBranchId={adminBranchId}
                 workingHours={menu.workingHours}
-                customerBranchGateOpen={menu.customerBranchGateOpen}
-                onCustomerBranchSelect={handleCustomerBranchSelect}
-                branchSwitch={branchSwitch}
-                keetaOpen={keetaOpen}
-                setKeetaOpen={setKeetaOpen}
             />
-            {cart.cartItems.length > 0 && noPopupOpen && (
+            {cart.cartItems.length > 0 && noPopupOpen && !checkout.unavailablePopupOpen && !cart.baguettePizzaPopupOpen && !cart.closedPopup && !checkout.pickUpReminder && (
                 <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>
                     {cart.totalPrice !== "0.00" && <Box sx={{ flexGrow: 1, textAlign: "center" }}><TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>{cart.totalPrice} {tr("common:currency")}</TextButton></Box>}
                     <Badge badgeContent={cart.cartItems.length} color="error" sx={{ "& .MuiBadge-badge": { fontSize: "12px", height: "22px", minWidth: "22px", backgroundColor: brandRed, color: "white", top: 2, right: 2 } }}>

@@ -34,8 +34,7 @@ async function waitForAuthReady(): Promise<void> {
 
 // The code step renders 4 segmented boxes (aria-labels "Digit 1".."Digit 4"),
 // each driven by the same single `code` string. Typing a digit into a box
-// updates code[index]; this mirrors real per-box entry. There is no submit
-// button on the code step — entering the fourth digit verifies on its own.
+// updates code[index]; this mirrors real per-box entry.
 function typeCode(value: string): void {
     value.split("").forEach((digit, i) => {
         fireEvent.change(screen.getByLabelText(`Digit ${i + 1}`), { target: { value: digit } });
@@ -188,6 +187,7 @@ describe("CustomerLoginPopup", () => {
             await goToCodeStep();
 
             typeCode("4821");
+            fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
             await waitFor(() =>
                 expect(mockVerifyOtp).toHaveBeenCalledWith({ phone: "97333607710", code: "4821", branchId: undefined, name: undefined })
@@ -202,6 +202,7 @@ describe("CustomerLoginPopup", () => {
             await goToCodeStep();
 
             typeCode("0000");
+            fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
             expect(await screen.findByText("Invalid code")).toBeTruthy();
         });
@@ -217,6 +218,7 @@ describe("CustomerLoginPopup", () => {
                 await goToCodeStep();
 
                 typeCode("4821");
+                fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
                 const nameInput = await screen.findByLabelText("Full name");
                 expect(onClose).not.toHaveBeenCalled();
@@ -235,6 +237,7 @@ describe("CustomerLoginPopup", () => {
                 await goToCodeStep();
 
                 typeCode("4821");
+                fireEvent.click(screen.getByRole("button", { name: "Submit" }));
                 await screen.findByLabelText("Full name");
 
                 fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -251,6 +254,7 @@ describe("CustomerLoginPopup", () => {
                 await goToCodeStep();
 
                 typeCode("4821");
+                fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
                 await waitFor(() => expect(onClose).toHaveBeenCalled());
                 expect(screen.queryByLabelText("Full name")).toBeNull();
@@ -264,6 +268,7 @@ describe("CustomerLoginPopup", () => {
                 await goToCodeStep();
 
                 typeCode("4821");
+                fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
                 await waitFor(() =>
                     expect(mockVerifyOtp).toHaveBeenCalledWith({
@@ -285,176 +290,11 @@ describe("CustomerLoginPopup", () => {
             await goToCodeStep();
 
             typeCode("0000");
+            fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
             expect(
                 await screen.findByText("Too many attempts — please wait a bit before trying again.")
             ).toBeTruthy();
-        });
-
-        // The code step submits itself once four digits are in, so it carries no CTA —
-        // Resend is its only control. Every case below guards one half of that: the
-        // verify fires exactly once per completed code, and never twice for the same one.
-        describe("auto-submit on the fourth digit", () => {
-            it("verifies exactly once when the fourth digit is entered, with no submit button on the step", async () => {
-                mockVerifyOtp.mockResolvedValueOnce({ accessToken: "token-123", isNewAccount: false });
-                const onClose = jest.fn<void, []>();
-                renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
-                expect(screen.queryByRole("button", { name: "Confirm & continue" })).toBeNull();
-
-                typeCode("4821");
-
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-                expect(mockVerifyOtp).toHaveBeenCalledWith({
-                    phone: "97333607710",
-                    code: "4821",
-                    branchId: undefined,
-                    name: undefined,
-                });
-            });
-
-            it("does not verify while the code is still incomplete", async () => {
-                renderPopup();
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                typeCode("482");
-
-                await waitFor(() => expect((screen.getByLabelText("Digit 3") as HTMLInputElement).value).toBe("2"));
-                expect(mockVerifyOtp).not.toHaveBeenCalled();
-            });
-
-            it("does not verify again when the popup re-renders with the same completed code", async () => {
-                // The popup stays mounted with open=true after onClose, so the completed
-                // code is still in the boxes and the effect re-runs on every commit — only
-                // the once-per-code stamp keeps it from spending the code a second time.
-                mockVerifyOtp.mockResolvedValueOnce({ accessToken: "token-123", isNewAccount: false });
-                const onClose = jest.fn<void, []>();
-                const { rerender } = renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                typeCode("4821");
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-
-                rerender(
-                    <CustomerAuthProvider>
-                        <CustomerLoginPopup open={true} onClose={onClose} />
-                    </CustomerAuthProvider>
-                );
-
-                await waitFor(() => expect((screen.getByLabelText("Digit 4") as HTMLInputElement).value).toBe("1"));
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-            });
-
-            it("does not start a second verify while one is in flight", async () => {
-                let resolveVerify: (value: { accessToken: string; isNewAccount: boolean }) => void = () => undefined;
-                mockVerifyOtp.mockReturnValueOnce(
-                    new Promise((resolve) => {
-                        resolveVerify = resolve;
-                    })
-                );
-                const onClose = jest.fn<void, []>();
-                renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                typeCode("4821");
-                await waitFor(() => expect(mockVerifyOtp).toHaveBeenCalledTimes(1));
-
-                // A pending verify shows a spinner next to the digits — with the CTA gone
-                // it is the only sign that anything is happening.
-                expect(screen.getByRole("progressbar")).toBeTruthy();
-
-                // Editing a digit mid-flight completes a *different* code, which still must
-                // not open a second request while the first is unresolved.
-                fireEvent.change(screen.getByLabelText("Digit 1"), { target: { value: "9" } });
-                await waitFor(() => expect((screen.getByLabelText("Digit 1") as HTMLInputElement).value).toBe("9"));
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-
-                await act(async () => {
-                    resolveVerify({ accessToken: "token-123", isNewAccount: false });
-                });
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-            });
-
-            it("verifies once when all four digits are pasted at once", async () => {
-                mockVerifyOtp.mockResolvedValueOnce({ accessToken: "token-123", isNewAccount: false });
-                const onClose = jest.fn<void, []>();
-                renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                fireEvent.paste(screen.getByLabelText("Digit 1"), {
-                    clipboardData: { getData: () => "4821" },
-                });
-
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-                expect(mockVerifyOtp).toHaveBeenCalledWith({
-                    phone: "97333607710",
-                    code: "4821",
-                    branchId: undefined,
-                    name: undefined,
-                });
-            });
-
-            it("verifies once when an SMS autofill drops the whole code into the first box", async () => {
-                // iOS/Android one-time-code autofill fires a single change event carrying
-                // the full code on the focused field, not one keystroke per box.
-                mockVerifyOtp.mockResolvedValueOnce({ accessToken: "token-123", isNewAccount: false });
-                const onClose = jest.fn<void, []>();
-                renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                fireEvent.change(screen.getByLabelText("Digit 1"), { target: { value: "4821" } });
-
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-                expect(mockVerifyOtp).toHaveBeenCalledWith({
-                    phone: "97333607710",
-                    code: "4821",
-                    branchId: undefined,
-                    name: undefined,
-                });
-            });
-
-            it("clears the boxes after a rejected code and verifies again only once a fresh four digits are entered", async () => {
-                mockVerifyOtp.mockRejectedValueOnce(new CustomerAuthApiError("Invalid code", 400));
-                mockVerifyOtp.mockResolvedValueOnce({ accessToken: "token-123", isNewAccount: false });
-                const onClose = jest.fn<void, []>();
-                renderPopup(onClose);
-                await waitForAuthReady();
-                await goToCodeStep();
-
-                typeCode("0000");
-                expect(await screen.findByText("Invalid code")).toBeTruthy();
-
-                // Cleared on failure, so editing one digit of a stale code can never spend
-                // another attempt: "completed" means four freshly entered digits.
-                await waitFor(() => {
-                    for (let i = 1; i <= 4; i++) {
-                        expect((screen.getByLabelText(`Digit ${i}`) as HTMLInputElement).value).toBe("");
-                    }
-                });
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
-
-                typeCode("4821");
-
-                await waitFor(() => expect(onClose).toHaveBeenCalled());
-                expect(mockVerifyOtp).toHaveBeenCalledTimes(2);
-                expect(mockVerifyOtp).toHaveBeenLastCalledWith({
-                    phone: "97333607710",
-                    code: "4821",
-                    branchId: undefined,
-                    name: undefined,
-                });
-            });
         });
 
         // task-spec.md §4.4/§6.4/§7.4/§9.4/§11.4 — resend affordance + 45s countdown.
@@ -504,9 +344,7 @@ describe("CustomerLoginPopup", () => {
                 renderPopup();
                 await waitForAuthReady();
                 await goToCodeStep();
-                // Three digits, not four: a completed code auto-verifies on the spot, which
-                // would clear the boxes before the resend ever got the chance.
-                typeCode("482");
+                typeCode("4821");
                 // Queued after the initial send resolves, so this resolution is served to
                 // the resend call specifically.
                 mockRequestOtp.mockResolvedValueOnce(undefined);
@@ -635,14 +473,14 @@ describe("CustomerLoginPopup", () => {
             expect(screen.getByLabelText("Phone number")).toBe(screen.getByDisplayValue("33607710"));
         });
 
-        it("shows the checkout-specific title on the code step and no submit CTA", async () => {
+        it("shows the checkout-specific title and submit copy on the code step", async () => {
             mockRequestOtp.mockResolvedValueOnce(undefined);
             renderPopup(jest.fn(), "97333607710", undefined, true);
             await waitForAuthReady();
             await screen.findByLabelText("Digit 1");
 
             expect(screen.getByText("Let's confirm your number")).toBeTruthy();
-            expect(screen.queryByRole("button", { name: "Confirm & continue" })).toBeNull();
+            expect(screen.getByRole("button", { name: "Confirm & continue" })).toBeTruthy();
         });
     });
 });

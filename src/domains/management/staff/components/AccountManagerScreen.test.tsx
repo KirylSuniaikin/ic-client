@@ -24,10 +24,9 @@ jest.mock("../../../../shared/api/management");
 
 // useBranchScope reads this context; canSwitch is branches.length > 1, so the fixture decides
 // whether a selector renders. Mirrors HireStaffDrawer.test.tsx's stub.
-type Branch = { id: string; externalId: string; branchNo: number; branchName: string; locale: string;
-                 latitude: number | null; longitude: number | null };
-const homeBranch: Branch = { id: "branch-1", externalId: "b1", branchNo: 1, branchName: "Main", locale: "BH", latitude: null, longitude: null };
-const secondBranch: Branch = { id: "branch-2", externalId: "b2", branchNo: 2, branchName: "Seef", locale: "BH", latitude: null, longitude: null };
+type Branch = { id: string; externalId: string; branchNo: number; branchName: string; locale: string };
+const homeBranch: Branch = { id: "branch-1", externalId: "b1", branchNo: 1, branchName: "Main", locale: "BH" };
+const secondBranch: Branch = { id: "branch-2", externalId: "b2", branchNo: 2, branchName: "Seef", locale: "BH" };
 const mockUseManagementBranchScope = jest.fn<{ branches: Branch[]; homeBranch: Branch | null }, []>();
 jest.mock("../../_shared/context/ManagementBranchScope", () => ({
     useManagementBranchScope: () => mockUseManagementBranchScope(),

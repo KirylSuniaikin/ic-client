@@ -48,8 +48,6 @@ const BRANCH: IBranch = {
     branchNo: 1,
     branchName: "Adliya",
     locale: "adl",
-    latitude: null,
-    longitude: null,
 };
 
 const CATEGORIES: AccountingCategoryTO[] = [

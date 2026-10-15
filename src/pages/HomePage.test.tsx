@@ -46,21 +46,20 @@ jest.mock("../shared/hooks/useImagePreloader", () => ({
     },
 }));
 
-import { fetchBaseAppInfo, fetchPublicBranches } from "../shared/api/public";
+import { fetchBaseAppInfo } from "../shared/api/public";
+import { fetchAllBranches } from "../shared/api/management";
 import { refreshCustomerToken } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
 import { createOrder } from "../shared/api/public";
-import { CHOSEN_BRANCH_KEY } from "../domains/branch/constants";
 import type { BaseAppInfoResponse, Order } from "../domains/order/types";
-import type { IBranch } from "../domains/management/inventory/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
-const mockFetchPublicBranches = jest.mocked(fetchPublicBranches);
+const mockFetchAllBranches = jest.mocked(fetchAllBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockCreateOrder = jest.mocked(createOrder);
 
@@ -148,8 +147,8 @@ beforeEach(() => {
     mockRefreshCustomerToken.mockRejectedValue(new Error("no session"));
     mockFetchBaseAppInfo.mockReset();
     mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
-    mockFetchPublicBranches.mockReset();
-    mockFetchPublicBranches.mockResolvedValue([]);
+    mockFetchAllBranches.mockReset();
+    mockFetchAllBranches.mockResolvedValue([]);
     // Default: branch open, matching the real isWithinWorkingHours(null) behavior every existing
     // test above already relies on. Only the closed-branch ScrollHintArrow test overrides this.
     mockIsWithinWorkingHours.mockReset();
@@ -157,11 +156,6 @@ beforeEach(() => {
     mockImagesReady = true;
     mockPreloadedUrls.length = 0;
     localStorage.clear();
-    // task-spec.md §6.2: an ordinary customer with no stored branch is blocked by the entry gate.
-    // Every PRE-EXISTING scenario in this file exercises the menu as an ordinary customer, so a
-    // branch is pre-seeded here to keep them unblocked; the new gate tests below seed themselves
-    // (or deliberately clear this) to exercise the gate directly.
-    seedChosenBranch();
 });
 
 function makeDomRect(top: number): DOMRect {
@@ -190,17 +184,6 @@ function mockMenuTopScrolledIntoView(): void {
 // exactly as a real kiosk would be after its one-time setup.
 function seedKioskBranchSelected(): void {
     localStorage.setItem("kiosk_branch_data", JSON.stringify({ id: "test-branch-id" }));
-}
-
-const CHOSEN_BRANCH: IBranch = {
-    id: "chosen-branch-id", externalId: "ext-chosen", branchNo: 1, branchName: "Chosen Branch",
-    locale: "en", latitude: null, longitude: null,
-};
-
-// task-spec.md §6.2: seeds a stored branch choice so an ordinary-customer render does not hit
-// the mandatory entry gate -- mirrors seedKioskBranchSelected's role for kiosk mode.
-function seedChosenBranch(): void {
-    localStorage.setItem(CHOSEN_BRANCH_KEY, JSON.stringify(CHOSEN_BRANCH));
 }
 
 describe("HomePage -- noPopupOpen suppression", () => {
@@ -440,222 +423,5 @@ describe("HomePage -- kiosk checkout flow", () => {
         fireEvent.click(hotspot);
 
         await waitFor(() => expect(screen.getByText("Setup Kiosk Mode")).toBeTruthy());
-    });
-});
-
-// task-spec.md §6.1/§6.2 -- the mandatory entry gate for an ordinary customer with no stored
-// branch, and the precedence that must keep winning over it (kiosk/admin/edit mode).
-describe("HomePage -- customer branch entry gate", () => {
-    const GATE_BRANCH: IBranch = {
-        id: "gate-branch-id", externalId: "ext-gate", branchNo: 5, branchName: "Gate Branch",
-        locale: "en", latitude: null, longitude: null,
-    };
-
-    it("blocks an ordinary customer with no stored branch until one is chosen", async () => {
-        // Overrides this file's beforeEach seeding -- this test exercises the unseeded case.
-        localStorage.clear();
-        mockFetchPublicBranches.mockResolvedValue([GATE_BRANCH]);
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-        expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(1);
-
-        fireEvent.click(screen.getByText("Gate Branch"));
-
-        // Tapping describes the branch first; the gate is only satisfied by the sheet's CTA. The
-        // count is taken after the sheet's own descriptive fetch so the assertion below stays
-        // about the menu reload, not about how the sheet sources its copy.
-        const confirm = await screen.findByRole("button", { name: /order here/i });
-        const fetchCallsBefore = mockFetchBaseAppInfo.mock.calls.length;
-        fireEvent.click(confirm);
-
-        await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
-        // The initial fetch ran against DEFAULT_BRANCH_ID before any choice existed -- selecting
-        // a branch must reload the menu (task-spec.md §6.2 step 3).
-        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(fetchCallsBefore + 1));
-        expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(GATE_BRANCH);
-    });
-
-    it("does not block entry when a branch is already stored", async () => {
-        // beforeEach already seeded a chosen branch via seedChosenBranch().
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-    });
-
-    it("leaves kiosk mode unaffected by the customer entry gate", async () => {
-        localStorage.clear();
-        seedKioskBranchSelected();
-        renderHomePage(["/menu?mode=kiosk"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-    });
-
-    it("lets adminBranchId keep winning over the entry gate", async () => {
-        localStorage.clear();
-        renderHomePage(["/menu?isAdmin=true&branchId=admin-branch-xyz"]);
-        await waitForAuthReady();
-
-        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "admin-branch-xyz"));
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-    });
-
-    it("bypasses the gate in edit mode and inherits the order's branch", async () => {
-        localStorage.clear();
-        localStorage.setItem("orderToEdit", JSON.stringify({ branch_id: "order-branch-xyz", items: [] }));
-        renderHomePage(["/menu?isEditMode=true"]);
-        await waitForAuthReady();
-
-        await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "order-branch-xyz"));
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-    });
-});
-
-// task-spec.md §6.4 -- the re-entry chip and the cart-loss switch warning, driven end to end
-// through the real HeroSection/BranchPickerDrawer/BranchSwitchWarningDrawer.
-describe("HomePage -- branch chip and cart-loss switch warning", () => {
-    const TARGET_BRANCH: IBranch = {
-        id: "target-branch-id", externalId: "ext-target", branchNo: 9, branchName: "New Branch",
-        locale: "en", latitude: null, longitude: null,
-    };
-
-    it("chip tap reopens the picker; picking a different branch with cart items opens the warning; confirm drops only the unavailable line and switches", async () => {
-        // beforeEach already seeded CHOSEN_BRANCH and BASE_APP_INFO (carries "Cola").
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        mockFetchBaseAppInfo.mockImplementation(async (_userId: string | null, branchId: string) =>
-            branchId === TARGET_BRANCH.id ? { ...BASE_APP_INFO, menu: [] } : BASE_APP_INFO
-        );
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        fireEvent.click(screen.getByRole("button", { name: /change branch/i }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-
-        fireEvent.click(screen.getByText("New Branch"));
-        fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
-
-        // The target branch's menu carries nothing, so the cart's one item (Cola) is unavailable
-        // there -- the switch is not applied immediately; the warning names it and asks first.
-        await waitFor(() => expect(screen.getByText("Switch to New Branch?")).toBeTruthy());
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-        await waitFor(() => {
-            const items = screen.getAllByTestId("branch-switch-unavailable-item");
-            expect(items.map(i => i.textContent)).toContain("Cola");
-        });
-
-        fireEvent.click(screen.getByRole("button", { name: "Switch branch" }));
-
-        // Cola was the only cart item and the one dropped -- the floating cart bar disappears and
-        // the stored choice moves to the target branch.
-        await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
-        expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(TARGET_BRANCH);
-    });
-
-    // The pill is position:fixed at zIndex 9999 and lands exactly on the warning's Switch/Cancel
-    // buttons, so a customer with a full cart — the only customer who ever sees this sheet —
-    // could not answer it.
-    it("hides the floating cart pill while the cart-loss warning is open", async () => {
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        mockFetchBaseAppInfo.mockImplementation(async (_userId: string | null, branchId: string) =>
-            branchId === TARGET_BRANCH.id ? { ...BASE_APP_INFO, menu: [] } : BASE_APP_INFO
-        );
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        // The cart is seeded, so the pill is on screen before the sheet opens.
-        expect(screen.getByTestId("ShoppingCartIcon")).toBeTruthy();
-
-        fireEvent.click(screen.getByRole("button", { name: /change branch/i }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-        fireEvent.click(screen.getByText("New Branch"));
-        fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
-        await waitFor(() => expect(screen.getByText("Switch to New Branch?")).toBeTruthy());
-
-        expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
-    });
-
-    // The owner's complaint on mobile: changing branch from the cart dropped the customer on the
-    // menu. On web the picker opens over the cart and the cart never closes, so every exit from
-    // the picker — and from the warning that follows — lands back in it.
-    it("changing branch from the cart's 'Pick up from' card returns the customer to the cart", async () => {
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        // Cola is on the target's menu too, so the switch keeps the cart non-empty.
-        mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-        // Opened on top: the cart is still mounted underneath.
-        expect(screen.getByText("Pick up from")).toBeTruthy();
-
-        fireEvent.click(screen.getByTestId(`branch-option-${TARGET_BRANCH.id}`));
-        fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
-        await waitFor(() => expect(screen.getByText("Switch to New Branch?")).toBeTruthy());
-        fireEvent.click(await screen.findByRole("button", { name: "Switch branch" }));
-
-        await waitFor(() => expect(screen.queryByText("Switch to New Branch?")).toBeNull());
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-        expect(await screen.findByRole("button", { name: "Pick up from New Branch" })).toBeTruthy();
-        expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(TARGET_BRANCH);
-    });
-
-    it("dismissing the picker opened from the cart leaves the cart open", async () => {
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-
-        fireEvent.click(screen.getByRole("button", { name: /close/i }));
-
-        await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
-        expect(screen.getByRole("button", { name: "Pick up from Chosen Branch" })).toBeTruthy();
-    });
-
-    it("does not render the chip in kiosk mode", async () => {
-        seedKioskBranchSelected();
-        renderHomePage(["/menu?mode=kiosk"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        // Kiosk keeps the branch name as a plain label — the branch is not the guest's to change.
-        expect(screen.queryByRole("button", { name: /change branch/i })).toBeNull();
-    });
-
-    it("confirming the branch already chosen is a no-op -- no warning, no menu refetch", async () => {
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
-
-        fireEvent.click(screen.getByRole("button", { name: /change branch/i }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-        // By test id, not by name: "Chosen Branch" also appears in the chip behind the drawer
-        // and in the drawer heading, so a text query matches three nodes.
-        fireEvent.click(screen.getByTestId(`branch-option-${CHOSEN_BRANCH.id}`));
-
-        // The details sheet fetches this branch's hours and menu to describe it — that is
-        // informational and expected. The count is taken AFTER it, so what this asserts is the
-        // thing that matters: confirming the branch you are already on reloads nothing.
-        const confirm = await screen.findByRole("button", { name: /order here/i });
-        const fetchCallsBefore = mockFetchBaseAppInfo.mock.calls.length;
-        fireEvent.click(confirm);
-
-        await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
-        expect(screen.queryByText(/Switch to/)).toBeNull();
-        expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(fetchCallsBefore);
     });
 });

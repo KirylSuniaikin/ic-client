@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
-import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
 
 const brandRed = "#E44B4C";
@@ -19,20 +19,13 @@ interface ClientInfoPopupProps {
     customerName: string;
     branches: Branch[];
     // Optional — populated from GET /customer/me for a logged-in customer (task-spec.md §4
-    // req. 23). Pick-Up orders have no address field to save, so this is shown as read-only
-    // reference info rather than wired into onSave.
+    // req. 23). Pick-Up orders (the only flow this popup drives) have no address field to save,
+    // so this is shown as read-only reference info rather than wired into onSave.
     prefillAddress?: string;
-    /** Delivery routes through this popup too (phone + name, then DeliveryCheckoutDrawer takes
-     * the address), so the confirm button must not promise Take Out. */
-    orderType?: string;
 }
 
-function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress, orderType}: ClientInfoPopupProps): JSX.Element {
+function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, customerName, branches, prefillAddress}: ClientInfoPopupProps): JSX.Element {
     const { t, i18n } = useTranslation("checkout");
-    // Req. D (branch-picker-task.txt): the guest/no-name-on-file path falls back to the
-    // chosen branch, not DEFAULT_BRANCH_ID, so a saved order lands where the customer actually
-    // browsed. The in-popup branch field (IS_MULTI_BRANCH_ENABLED) still wins when set.
-    const { chosenBranchId } = useBranchResolution();
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -78,7 +71,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
         onSave?.(
             fullPhone,
             name,
-            selectedBranch?.id || chosenBranchId
+            selectedBranch?.id || DEFAULT_BRANCH_ID
         );
         onClose?.();
     }
@@ -196,7 +189,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
                             "&:hover": { backgroundColor: "#d23f40" },
                         }}
                     >
-                        {t(orderType === "Delivery" ? "clientInfo.checkoutDelivery" : "clientInfo.checkoutTakeOut")}
+                        {t("clientInfo.checkoutTakeOut")}
                     </Button>
                 </Box>
             </Box>

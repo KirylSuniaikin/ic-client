@@ -22,12 +22,9 @@ interface HeroSectionProps {
      * hotspot over the top of the hero video (see below).
      */
     onAdminGesture?: (event: MouseEvent<HTMLDivElement>) => void;
-    /** Re-entry chip (task-spec.md §6.4): reopens the branch picker mid-session. Never rendered
-     * on kiosk — kiosk branch pairing goes through the staff triple-tap gesture instead. */
-    onBranchClick?: () => void;
 }
 
-export default function HeroSection({ isKiosk, branches, workingHours, hideTopBar = false, onAdminGesture, onBranchClick }: HeroSectionProps): JSX.Element {
+export default function HeroSection({ isKiosk, branches, workingHours, hideTopBar = false, onAdminGesture }: HeroSectionProps): JSX.Element {
     const { t } = useTranslation("home");
     const heroRef = useRef<HTMLDivElement>(null);
     // Hide the branch schedule header once the hero video has scrolled fully above the viewport,
@@ -61,17 +58,7 @@ export default function HeroSection({ isKiosk, branches, workingHours, hideTopBa
                     sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "20%", zIndex: 1 }}
                 />
             )}
-            {/* One label, not two. BranchScheduleHeader already prints the branch name, so the
-                separate chip that used to sit beneath it showed the same branch twice. The name
-                itself is now the picker trigger; on kiosk no handler is passed and it stays a
-                plain label. */}
-            {!hideTopBar && !heroScrolledAway && (
-                <BranchScheduleHeader
-                    branches={branches}
-                    workingHours={workingHours}
-                    onBranchClick={!isKiosk ? onBranchClick : undefined}
-                />
-            )}
+            {!hideTopBar && !heroScrolledAway && <BranchScheduleHeader branches={branches} workingHours={workingHours} />}
             {!hideTopBar && (
                 <Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 2, display: "flex", gap: 1 }}>
                     {/*<Fab size="medium" onClick={() => window.open("https://url-eu.mykeeta.com/4creMhXz", "_blank")} sx={{ p: 0, minHeight: "unset", minWidth: "unset", width: 40, height: 40, borderRadius: "50%", boxShadow: "none" }}>*/}

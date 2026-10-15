@@ -21,8 +21,6 @@ const branch: IBranch = {
     branchNo: 1,
     branchName: "Main",
     locale: "en",
-    latitude: null,
-    longitude: null,
 };
 
 function reports(n: number, unpaidEach = 0): BasePurchaseResponse[] {

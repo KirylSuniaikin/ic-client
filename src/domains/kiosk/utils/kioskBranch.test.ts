@@ -9,8 +9,6 @@ const BRANCH: IBranch = {
     branchNo: 1,
     branchName: "Seef",
     locale: "en",
-    latitude: null,
-    longitude: null,
 };
 
 describe("kioskBranch", () => {

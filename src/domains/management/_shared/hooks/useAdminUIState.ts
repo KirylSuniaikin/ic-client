@@ -20,8 +20,6 @@ export type AdminUIState = {
     blacklistOpen: boolean; setBlacklistOpen: (v: boolean) => void;
     cashRegisterOpen: boolean; setCashRegisterOpen: (v: boolean) => void;
     accountingOpen: boolean; setAccountingOpen: (v: boolean) => void;
-    /** Courier dispatcher panel (DELIVERY_SPEC.md §4). */
-    courierDispatcherOpen: boolean; setCourierDispatcherOpen: (v: boolean) => void;
     accountManagerOpen: boolean; setAccountManagerOpen: (v: boolean) => void;
     activeAdminTab: AdminTabKey; setActiveAdminTab: (v: AdminTabKey) => void;
 };
@@ -42,7 +40,6 @@ export function useAdminUIState(): AdminUIState {
     const [blacklistOpen, setBlacklistOpen] = useState(false);
     const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
     const [accountingOpen, setAccountingOpen] = useState(false);
-    const [courierDispatcherOpen, setCourierDispatcherOpen] = useState(false);
     const [accountManagerOpen, setAccountManagerOpen] = useState(false);
     const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>(() => (isManagerRole(role) ? 'board' : 'orders'));
 
@@ -61,7 +58,6 @@ export function useAdminUIState(): AdminUIState {
         blacklistOpen, setBlacklistOpen,
         cashRegisterOpen, setCashRegisterOpen,
         accountingOpen, setAccountingOpen,
-        courierDispatcherOpen, setCourierDispatcherOpen,
         accountManagerOpen, setAccountManagerOpen,
         activeAdminTab, setActiveAdminTab,
     };

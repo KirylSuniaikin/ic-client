@@ -15,7 +15,6 @@ import type { ProductSettingsPatch } from "../hooks/useProductCatalog";
 // Every other heavy tab child is still stubbed, for the same reasons as the sibling suite
 // (TextEncoder polyfill gap in this test environment; unrelated to this file's coverage).
 jest.mock("./tabs/PerformanceTab", () => ({ PerformanceTab: () => null }));
-jest.mock("./tabs/DeliveryTab", () => ({ DeliveryTab: () => null }));
 jest.mock("./PrepPlanTable", () => ({ __esModule: true, default: () => null }));
 jest.mock("./DoughUsageTable", () => ({ DoughUsageTable: () => null }));
 jest.mock("../../consumption/components/ConsumptionStatistics", () => ({ ConsumptionStatistics: () => null }));
@@ -51,8 +50,8 @@ const mockComponents = jest.mocked(getComponentCosts);
 const mockBusinessStats = jest.mocked(getBusinessStats);
 const mockUpdateComponentCost = jest.mocked(updateComponentCost);
 
-const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en", latitude: null, longitude: null };
-const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en", latitude: null, longitude: null };
+const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en" };
+const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en" };
 
 const emptyStats = {
     totalPickUpRevenue: 0,

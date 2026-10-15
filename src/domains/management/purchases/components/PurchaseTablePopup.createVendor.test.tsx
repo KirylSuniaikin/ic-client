@@ -38,7 +38,7 @@ const mockGetUser = jest.mocked(getUser);
 const mockCreateVendor = jest.mocked(createVendor);
 const mockCreatePurchaseReport = jest.mocked(createPurchaseReport);
 
-const branch: IBranch = { id: "branch-uuid", externalId: "ext-1", branchNo: 1, branchName: "Main", locale: "en", latitude: null, longitude: null };
+const branch: IBranch = { id: "branch-uuid", externalId: "ext-1", branchNo: 1, branchName: "Main", locale: "en" };
 
 const flour: ProductTO = {
     id: 1,
