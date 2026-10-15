@@ -238,16 +238,16 @@ describe("BluetoothPrinterService.printOrder -- totals rounding", () => {
         await bluetoothPrinterService.printOrder(order);
 
         const payload = mockWriteCalls[0];
-        expect(payload).toContain("Total: 12.150 BHD\n");
-        expect(payload).toContain("VAT: 1.350 BHD\n");
+        expect(payload).toContain("Total: 12.273 BHD\n");
+        expect(payload).toContain("VAT: 1.227 BHD\n");
         expect(payload).toContain("Grand TOTAL: 13.500 BHD\n");
     });
 
     it("keeps net + VAT equal to the grand total when the split does not divide evenly", () => {
         const { net, vat, grand } = splitTicketTotals(4.123);
 
-        expect(net).toBe("3.711");
-        expect(vat).toBe("0.412");
+        expect(net).toBe("3.748");
+        expect(vat).toBe("0.375");
         expect(grand).toBe("4.123");
     });
 

@@ -2,7 +2,7 @@ import { logger } from "../shared/utils/logger";
 import BluetoothSerial from "cordova-plugin-bluetooth-serial";
 import type { Order } from '../domains/order/types';
 import { buildTicketLines, resolveKitchenNote } from '../domains/menu/utils/orderLines';
-import { q3, toDecimal } from '../shared/utils/decimalUtils';
+import { splitGrossVat } from '../shared/utils/decimalUtils';
 
 function formatExternalId(id: string | number | null | undefined): string {
     if (!id) return "—";
@@ -31,12 +31,10 @@ function highlightLine(line: string): string {
 }
 
 // BHD has three decimals. Plain float math prints amounts like 12.150000000000002, so the ticket
-// totals go through Decimal and are rounded once. VAT is derived from the rounded net so the three
-// printed lines always add up exactly.
+// totals go through Decimal and are rounded once (see splitGrossVat for the VAT maths).
 export function splitTicketTotals(amountPaid: number): { net: string; vat: string; grand: string } {
-    const grand = q3(toDecimal(amountPaid));
-    const net = q3(grand.times(0.9));
-    return { net: net.toFixed(3), vat: grand.minus(net).toFixed(3), grand: grand.toFixed(3) };
+    const { net, vat, grand } = splitGrossVat(amountPaid);
+    return { net: net.toFixed(3), vat: vat.toFixed(3), grand: grand.toFixed(3) };
 }
 
 class BluetoothPrinterService {
