@@ -8,7 +8,7 @@ import { AddressPickerDrawer } from './AddressPickerDrawer';
 import { OneLastCheckDrawer } from './OneLastCheckDrawer';
 import {
     BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SEGMENTED_BUTTON_SX,
-    SEGMENTED_GROUP_SX, SHEET_DESKTOP, SHEET_PAPER_SX, SheetHandle, SheetNotice,
+    SEGMENTED_GROUP_SX, SHEET_DESKTOP, SHEET_PAPER_SX, SheetCloseButton, SheetHandle, SheetNotice,
 } from './sheetStyles';
 import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
@@ -199,6 +199,7 @@ export function DeliveryCheckoutDrawer({
             >
                 <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
                     <SheetHandle />
+                    <SheetCloseButton onClose={onClose} />
 
                     <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 2 }}>
                         {t('delivery.checkoutTitle')}

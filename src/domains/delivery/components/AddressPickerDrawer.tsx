@@ -9,7 +9,7 @@ import type {
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import {
     FIELD_SX, OUTLINED_BUTTON_SX, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
-    SHEET_DESKTOP, SHEET_PAPER_SX, SheetHandle, SheetNotice,
+    SHEET_DESKTOP, SHEET_PAPER_SX, SheetCloseButton, SheetHandle, SheetNotice,
 } from './sheetStyles';
 import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 
@@ -137,6 +137,7 @@ export function AddressPickerDrawer({
         <CustomerSheet open={open} onClose={onClose} desktop={SHEET_DESKTOP} PaperProps={{ sx: SHEET_PAPER_SX }}>
             <Box sx={{ p: 3, pb: 4, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
                 <SheetHandle />
+                <SheetCloseButton onClose={onClose} />
 
                 <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 0.5 }}>
                     {isEditing ? t('delivery.editAddressTitle') : t('delivery.addressTitle')}

@@ -1,5 +1,7 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import { Box, IconButton, Typography } from '@mui/material';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import type { SxProps, Theme } from '@mui/material';
 import { useSheetPresentation } from '../../../shared/components/CustomerSheet';
 import type { CustomerSheetDesktop } from '../../../shared/components/CustomerSheet';
@@ -136,6 +138,28 @@ export function SheetHandle(): JSX.Element | null {
     // A grab handle on a PC dialog or panel promises a drag that does not exist.
     if (useSheetPresentation() !== 'sheet') return null;
     return <Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2, mx: 'auto', mb: 2 }} />;
+}
+
+/**
+ * The PC dialog's visible way out. On a phone the sheet is dismissed by swiping or tapping the
+ * page behind it, so it renders nothing there; a centred PC dialog otherwise closes only through
+ * Esc or a click outside, which nothing on screen tells the customer about.
+ */
+export function SheetCloseButton({ onClose }: { onClose: () => void }): JSX.Element | null {
+    // The label comes from `branch`, not `checkout`: the mobile app checks `checkout` byte for
+    // byte against these files, so a new key there would break its locale-parity test.
+    const { t } = useTranslation('branch');
+    if (useSheetPresentation() === 'sheet') return null;
+    return (
+        <IconButton
+            aria-label={t('picker.close')}
+            onClick={onClose}
+            size="small"
+            sx={{ position: 'absolute', top: 12, right: 12, color: '#8a807a' }}
+        >
+            <CloseRoundedIcon />
+        </IconButton>
+    );
 }
 
 /**

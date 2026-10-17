@@ -153,4 +153,20 @@ describe("OneLastCheckDrawer on PC", () => {
         fireEvent.click(screen.getByRole("button", { name: /looks good/i }));
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
+
+    it("shows a Close button, since a centred dialog has no swipe to dismiss it", () => {
+        stubMatchMedia(true);
+        const { onClose } = renderSheet();
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the phone sheet free of a Close button", () => {
+        stubMatchMedia(false);
+        renderSheet();
+
+        expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    });
 });

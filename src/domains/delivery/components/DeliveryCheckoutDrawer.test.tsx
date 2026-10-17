@@ -48,13 +48,14 @@ beforeEach(() => {
 function renderDrawer() {
     const onConfirm = jest.fn<void, [CustomerAddress, typeof AVAILABLE, DeliveryPaymentMethod]>();
     const onUnavailable = jest.fn<void, [typeof AVAILABLE]>();
+    const onClose = jest.fn<void, []>();
     render(
         <I18nextProvider i18n={i18n}>
-            <DeliveryCheckoutDrawer open onClose={jest.fn()} items={ITEMS}
+            <DeliveryCheckoutDrawer open onClose={onClose} items={ITEMS}
                                     onConfirm={onConfirm} onUnavailable={onUnavailable} />
         </I18nextProvider>
     );
-    return { onConfirm, onUnavailable };
+    return { onConfirm, onUnavailable, onClose };
 }
 
 describe("DeliveryCheckoutDrawer", () => {
@@ -328,5 +329,23 @@ describe("DeliveryCheckoutDrawer on PC", () => {
         fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
 
         await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    });
+
+    it("shows a Close button, since a centred dialog has no swipe to dismiss it", async () => {
+        stubMatchMedia(true);
+        const { onClose } = renderDrawer();
+        await screen.findByText(/20–30 min/);
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the phone sheet free of a Close button", async () => {
+        stubMatchMedia(false);
+        renderDrawer();
+        await screen.findByText(/20–30 min/);
+
+        expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
     });
 });

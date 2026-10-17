@@ -8,7 +8,7 @@ import type { CustomerAddress } from '../types';
 import type { CartItem } from '../../menu/types';
 import {
     BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SHEET_PAPER_SX, SUBTLE_BUTTON_SX,
-    SHEET_DESKTOP, SheetHandle,
+    SHEET_DESKTOP, SheetCloseButton, SheetHandle,
 } from './sheetStyles';
 import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 
@@ -54,6 +54,7 @@ export function OneLastCheckDrawer({
         <CustomerSheet open={open} onClose={onClose} desktop={SHEET_DESKTOP} PaperProps={{ sx: SHEET_PAPER_SX }}>
             <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
                 <SheetHandle />
+                <SheetCloseButton onClose={onClose} />
 
                 <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', mb: 2 }}>
                     {t('delivery.lastCheckTitle')}

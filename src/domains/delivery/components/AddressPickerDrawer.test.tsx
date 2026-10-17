@@ -379,4 +379,20 @@ describe("AddressPickerDrawer on PC", () => {
 
         expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ latitude: 26.2285, longitude: 50.586 }));
     });
+
+    it("shows a Close button, since a centred dialog has no swipe to dismiss it", () => {
+        stubMatchMedia(true);
+        const { onClose } = renderDrawer();
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the phone sheet free of a Close button", () => {
+        stubMatchMedia(false);
+        renderDrawer();
+
+        expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    });
 });
