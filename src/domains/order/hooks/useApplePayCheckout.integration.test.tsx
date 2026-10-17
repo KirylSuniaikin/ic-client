@@ -9,7 +9,9 @@ import {
 import { CustomerAuthUiProvider } from "../../customer-auth/context/CustomerAuthUiProvider";
 import "../../../shared/i18n";
 import { useApplePayCheckout } from "./useApplePayCheckout";
+import { writeChosenBranch } from "../../branch/utils/customerBranch";
 import type { CartItem } from "../../menu/types";
+import type { IBranch } from "../../management/inventory/types";
 
 // The real API functions run against a mocked global fetch serving the frozen §5 JSON.
 const ACCESS_TOKEN = "ACCESS-TOKEN-SENTINEL";
@@ -19,6 +21,17 @@ const ROOT = `${BASE_URL}/customer/apple-pay`;
 const PROFILE = {
     id: "c1", phone: "97333111222", preferredBranchId: null, name: "Sara",
     address: null, amountOfOrders: 3, lastOrderDate: null,
+};
+
+// Saar: any branch other than DEFAULT_BRANCH_ID (Al-Hidd) proves the chosen branch is sent.
+const SAAR: IBranch = {
+    id: "2e8c35f7-d75e-4442-b496-cbb929842c11",
+    externalId: "ext-saar",
+    branchNo: 2,
+    branchName: "Saar",
+    locale: "en",
+    latitude: 26.19,
+    longitude: 50.49,
 };
 
 class FakeApplePaySession implements ApplePaySessionInstance {
@@ -134,6 +147,7 @@ beforeEach(() => {
     FakeApplePaySession.instances = [];
     window.ApplePaySession = FakeApplePaySession;
     __resetCustomerAuthStoreForTests();
+    localStorage.clear();
     calls = [];
     routes = {
         [`POST ${BASE_URL}/auth/refresh`]: () => json({ accessToken: ACCESS_TOKEN, isNewAccount: false }),
@@ -179,6 +193,16 @@ describe("useApplePayCheckout — end to end over the real API functions", () =>
         expect(session.completePayment).toHaveBeenCalledWith(FakeApplePaySession.STATUS_SUCCESS);
         expect(params.setCartItems).toHaveBeenCalledWith([]);
         expect(result.current.busy).toBe(false);
+    });
+
+    it("sends the chosen pickup branch in the order body", async () => {
+        writeChosenBranch(SAAR);
+        const { result } = await renderAvailable();
+        const session = tap(result.current.start);
+
+        await authorize(session);
+
+        expect(callsTo("POST", `${ROOT}/orders`)[0].body).toMatchObject({ branchId: SAAR.id });
     });
 
     it("sends orderType Delivery as type Delivery (order-type-agnostic)", async () => {

@@ -12,6 +12,8 @@ import {
     fetchApplePayPaymentStatus,
 } from "../../../shared/api/customerAuth";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { writeChosenBranch } from "../../branch/utils/customerBranch";
 import {
     CustomerAuthProvider,
     useCustomerAuth,
@@ -24,6 +26,7 @@ import { ApplePayApiError } from "../applePayTypes";
 import { BranchClosedError, ItemsUnavailableError } from "../types";
 import type { CartItem } from "../../menu/types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
+import type { IBranch } from "../../management/inventory/types";
 
 jest.mock("../../../shared/api/customerAuth");
 jest.mock("../../../shared/api/management");
@@ -73,6 +76,17 @@ function installFakeSession(): void {
 const PROFILE: CustomerMeResponse = {
     id: "c1", phone: "97333111222", preferredBranchId: null, name: "Sara",
     address: null, amountOfOrders: 3, lastOrderDate: null,
+};
+
+// Saar: any branch other than DEFAULT_BRANCH_ID (Al-Hidd) proves the chosen branch is sent.
+const SAAR: IBranch = {
+    id: "2e8c35f7-d75e-4442-b496-cbb929842c11",
+    externalId: "ext-saar",
+    branchNo: 2,
+    branchName: "Saar",
+    locale: "en",
+    latitude: 26.19,
+    longitude: 50.49,
 };
 
 function makeItem(): CartItem {
@@ -146,6 +160,7 @@ let consoleSpies: Array<ReturnType<typeof jest.spyOn>>;
 beforeEach(() => {
     installFakeSession();
     __resetCustomerAuthStoreForTests();
+    localStorage.clear();
     mockRefreshToken.mockReset();
     mockRefreshToken.mockResolvedValue({ accessToken: TOKEN_SENTINEL, isNewAccount: false });
     mockMe.mockReset();
@@ -515,6 +530,38 @@ describe("useApplePayCheckout — authorization", () => {
 
         expect(result.current.error).toBe("Apple Pay payment could not be completed. You were not charged.");
         expect(result.current.busy).toBe(false);
+    });
+});
+
+describe("useApplePayCheckout — pickup branch", () => {
+    it("files the order against the chosen pickup branch", async () => {
+        writeChosenBranch(SAAR);
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+
+        await authorize(session);
+
+        expect(mockCreateOrder.mock.calls[0][1].branchId).toBe(SAAR.id);
+    });
+
+    it("uses the branch chosen after a mid-cart switch", async () => {
+        const { result, rerender } = await renderAvailable();
+        writeChosenBranch(SAAR);
+        rerender();
+        const session = tapAndGetSession(result.current.start);
+
+        await authorize(session);
+
+        expect(mockCreateOrder.mock.calls[0][1].branchId).toBe(SAAR.id);
+    });
+
+    it("falls back to DEFAULT_BRANCH_ID when no branch is stored", async () => {
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+
+        await authorize(session);
+
+        expect(mockCreateOrder.mock.calls[0][1].branchId).toBe(DEFAULT_BRANCH_ID);
     });
 });
 

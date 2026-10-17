@@ -11,6 +11,8 @@ import {
     fetchCardPaymentStatus,
 } from "../../../shared/api/customerAuth";
 import { getAllBannedCstmrs } from "../../../shared/api/management";
+import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { writeChosenBranch } from "../../branch/utils/customerBranch";
 import {
     CustomerAuthProvider,
     __resetCustomerAuthStoreForTests,
@@ -24,6 +26,7 @@ import { loadHostedSessionScript, HostedSessionLoadError } from "../utils/hosted
 import { BranchClosedError, ItemsUnavailableError } from "../types";
 import type { CartItem } from "../../menu/types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
+import type { IBranch } from "../../management/inventory/types";
 
 jest.mock("../../../shared/api/customerAuth");
 jest.mock("../../../shared/api/management");
@@ -47,6 +50,17 @@ const SCRIPT_URL = "https://eazypay.gateway.mastercard.com/form/version/100/merc
 const PROFILE: CustomerMeResponse = {
     id: "c1", phone: "97333111222", preferredBranchId: null, name: "Sara",
     address: null, amountOfOrders: 3, lastOrderDate: null,
+};
+
+// Saar: any branch other than DEFAULT_BRANCH_ID (Al-Hidd) proves the chosen branch is sent.
+const SAAR: IBranch = {
+    id: "2e8c35f7-d75e-4442-b496-cbb929842c11",
+    externalId: "ext-saar",
+    branchNo: 2,
+    branchName: "Saar",
+    locale: "en",
+    latitude: 26.19,
+    longitude: 50.49,
 };
 
 class FakeSdk implements PaymentSessionStatic {
@@ -154,6 +168,7 @@ beforeAll(() => {
 beforeEach(() => {
     sdk = new FakeSdk();
     __resetCustomerAuthStoreForTests();
+    localStorage.clear();
     mockRefreshToken.mockReset();
     mockRefreshToken.mockResolvedValue({ accessToken: TOKEN_SENTINEL, isNewAccount: false });
     mockMe.mockReset();
@@ -613,6 +628,42 @@ describe("useCardCheckout — drawer lifecycle", () => {
         act(() => { rendered.result.current.closeDrawer(); });
 
         expect(rendered.result.current.drawerOpen).toBe(true);
+    });
+});
+
+describe("useCardCheckout — pickup branch", () => {
+    it("files the order against the chosen pickup branch", async () => {
+        writeChosenBranch(SAAR);
+        const rendered = await renderAvailable();
+
+        await startReady(rendered);
+
+        expect(mockCreateOrder.mock.calls[0][1].branchId).toBe(SAAR.id);
+    });
+
+    it("creates a new order with a fresh key at the branch chosen after the drawer was closed", async () => {
+        const rendered = await renderAvailable();
+        await startReady(rendered);
+        act(() => { rendered.result.current.closeDrawer(); });
+        await waitFor(() => expect(rendered.result.current.busy).toBe(false));
+        writeChosenBranch(SAAR);
+        rendered.rerender();
+
+        act(() => { rendered.result.current.start(); });
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(2));
+
+        const [first, second] = mockCreateOrder.mock.calls.map(([, request]) => request);
+        expect(first.branchId).toBe(DEFAULT_BRANCH_ID);
+        expect(second.branchId).toBe(SAAR.id);
+        expect(second.idempotency_key).not.toBe(first.idempotency_key);
+    });
+
+    it("falls back to DEFAULT_BRANCH_ID when no branch is stored", async () => {
+        const rendered = await renderAvailable();
+
+        await startReady(rendered);
+
+        expect(mockCreateOrder.mock.calls[0][1].branchId).toBe(DEFAULT_BRANCH_ID);
     });
 });
 

@@ -8,7 +8,7 @@ import {
     fetchCardPaymentStatus,
     payCardOrder,
 } from "../../../shared/api/customerAuth";
-import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
@@ -101,6 +101,7 @@ type Latest = {
     token: string | null;
     items: CartItem[];
     orderType: string;
+    branchId: string;
     prefetch: Prefetch | null;
     isAdmin: boolean;
     isKiosk: boolean;
@@ -124,6 +125,9 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
     } = params;
 
     const { token } = useCustomerAuth();
+    // The order is filed at the pickup branch the customer chose, as useCheckout does; the
+    // DEFAULT_BRANCH_ID fallback lives in the resolver.
+    const { chosenBranchId } = useBranchResolution();
     const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
     const { t, i18n } = useTranslation("cardPayment");
 
@@ -161,8 +165,8 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
     // order instead of orphaning a new one.
     const orderKeyRef = useRef<{ signature: string; key: string } | null>(null);
 
-    const latest = useRef<Latest>({ token, items: cartItems, orderType, prefetch, isAdmin, isKiosk });
-    latest.current = { token, items: cartItems, orderType, prefetch, isAdmin, isKiosk };
+    const latest = useRef<Latest>({ token, items: cartItems, orderType, branchId: chosenBranchId, prefetch, isAdmin, isKiosk });
+    latest.current = { token, items: cartItems, orderType, branchId: chosenBranchId, prefetch, isAdmin, isKiosk };
     const handlers = useRef({ t, language: i18n.language, setCartItems, setCartOpen, setPaymentMethod, setOrderType, refreshMenu, setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen, openOrderDetail, refreshActiveOrder });
     handlers.current = { t, language: i18n.language, setCartItems, setCartOpen, setPaymentMethod, setOrderType, refreshMenu, setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen, openOrderDetail, refreshActiveOrder };
 
@@ -338,13 +342,15 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
     }
 
     async function createOrderAndPrepare(profile: CustomerMeResponse, generation: number): Promise<void> {
-        const { items, orderType: currentOrderType } = latest.current;
+        const { items, orderType: currentOrderType, branchId } = latest.current;
         try {
             const accessToken = latest.current.token;
             if (!accessToken) throw new CardPaymentApiError("NO_TOKEN", 401);
             const { amount, sheetAmount } = computeSheetTotal(items);
             const orderItems = buildOrderItems(items);
-            const signature = JSON.stringify([orderItems, currentOrderType, sheetAmount]);
+            // The branch is part of the signature: the backend returns the existing order for a
+            // reused key without comparing the body, so a branch switch must get a new order.
+            const signature = JSON.stringify([orderItems, currentOrderType, sheetAmount, branchId]);
             if (orderKeyRef.current?.signature !== signature) {
                 orderKeyRef.current = { signature, key: newIdempotencyKey() };
             }
@@ -353,7 +359,7 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
                 customer_name: profile.name,
                 type: currentOrderType,
                 payment_type: "Card",
-                branchId: DEFAULT_BRANCH_ID,
+                branchId,
                 notes: "",
                 items: orderItems,
                 amount_paid: amount,

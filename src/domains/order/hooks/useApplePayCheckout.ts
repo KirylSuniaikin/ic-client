@@ -8,7 +8,7 @@ import {
     payApplePayOrder,
     requestApplePayMerchantSession,
 } from "../../../shared/api/customerAuth";
-import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
+import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
 import { resolveFbc, resolveFbp } from "../../../shared/utils/adAttribution";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { useCustomerAuth } from "../../customer-auth/context/CustomerAuthProvider";
@@ -78,6 +78,7 @@ type Latest = {
     token: string | null;
     items: CartItem[];
     orderType: string;
+    branchId: string;
     prefetch: Prefetch | null;
     isAdmin: boolean;
     isKiosk: boolean;
@@ -95,6 +96,9 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     } = params;
 
     const { token } = useCustomerAuth();
+    // The order is filed at the pickup branch the customer chose, as useCheckout does; the
+    // DEFAULT_BRANCH_ID fallback lives in the resolver.
+    const { chosenBranchId } = useBranchResolution();
     const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
     const { t, i18n } = useTranslation("applePay");
 
@@ -115,8 +119,8 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     const mountedRef = useRef(true);
     const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const latest = useRef<Latest>({ token, items: cartItems, orderType, prefetch, isAdmin, isKiosk });
-    latest.current = { token, items: cartItems, orderType, prefetch, isAdmin, isKiosk };
+    const latest = useRef<Latest>({ token, items: cartItems, orderType, branchId: chosenBranchId, prefetch, isAdmin, isKiosk });
+    latest.current = { token, items: cartItems, orderType, branchId: chosenBranchId, prefetch, isAdmin, isKiosk };
     // Same trick for the translator and the cart/menu callbacks used from async session handlers.
     const handlers = useRef({ t, language: i18n.language, setCartItems, setCartOpen, setPaymentMethod, setOrderType, refreshMenu, setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen, openOrderDetail, refreshActiveOrder });
     handlers.current = { t, language: i18n.language, setCartItems, setCartOpen, setPaymentMethod, setOrderType, refreshMenu, setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen, openOrderDetail, refreshActiveOrder };
@@ -197,7 +201,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     async function authorize(
         session: ApplePaySessionInstance,
         event: ApplePayPaymentAuthorizedEvent,
-        snapshot: { items: CartItem[]; orderType: string; profile: CustomerMeResponse; amount: number; sheetAmount: string },
+        snapshot: { items: CartItem[]; orderType: string; branchId: string; profile: CustomerMeResponse; amount: number; sheetAmount: string },
     ): Promise<void> {
         const { items, profile, amount, sheetAmount } = snapshot;
         const tel = profile.phone;
@@ -210,7 +214,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
                 customer_name: profile.name,
                 type: snapshot.orderType,
                 payment_type: "Card",
-                branchId: DEFAULT_BRANCH_ID,
+                branchId: snapshot.branchId,
                 notes: "",
                 items: buildOrderItems(items),
                 amount_paid: amount,
@@ -291,7 +295,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         try {
             const { amount, sheetAmount } = computeSheetTotal(current.items);
             const session = new SessionClass(APPLE_PAY_VERSION, buildApplePayRequest(sheetAmount));
-            const snapshot = { items: current.items, orderType: current.orderType, profile, amount, sheetAmount };
+            const snapshot = { items: current.items, orderType: current.orderType, branchId: current.branchId, profile, amount, sheetAmount };
             session.onvalidatemerchant = (event): void => { void validateMerchant(session, event.validationURL); };
             session.onpaymentauthorized = (event): void => { void authorize(session, event, snapshot); };
             session.oncancel = (): void => { release(); };
