@@ -1,14 +1,13 @@
 import React, { type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, Box, Typography, IconButton, Button, ToggleButtonGroup, ToggleButton } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
-import RadioButtonCheckedRoundedIcon from "@mui/icons-material/RadioButtonCheckedRounded";
-import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
@@ -19,6 +18,8 @@ import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayChe
 import type { UseCardCheckoutResult } from "../../order/hooks/useCardCheckout";
 import { APPLE_PAY_CHOICE, CARD_CHOICE, usePaymentChoice } from "../hooks/usePaymentChoice";
 import type { PaymentChoice } from "../hooks/usePaymentChoice";
+import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
+import { BRAND_RED } from "../../../shared/utils/theme";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -38,8 +39,8 @@ const brandGray = "#f3f3f3";
 // kiosk's tender (useKioskCheckout) — it is the customer-facing CHOICE that was removed, not the
 // tender string, so historic orders and the admin dropdown are unaffected.
 //
-// Apple Pay and card join the same list when the customer can use them, so every method is one
-// row of one list and a single button below pays with the selected one (owner's choice, Oct 2026).
+// Apple Pay and card join the same row when the customer can use them, so every method is one
+// chip of one row and a single button below pays with the selected one (owner's choice, Oct 2026).
 // Their labels reuse the delivery drawer's, which already names the same methods.
 //
 // Paying at the counter is back for now (owner, 17 Oct 2026) while BenefitPay confirmation is made
@@ -61,6 +62,73 @@ const PAYMENT_OPTIONS: Readonly<Record<PaymentChoice, { labelKey: string; logo?:
  * use for partner marks. They are trademarks: use the files BENEFIT supply, never a redraw.
  */
 const PAYMENT_LOGO_HEIGHT = 20;
+
+/**
+ * The payment methods as one row of pill chips (owner's option B, Oct 2026): every method stays
+ * visible with no extra tap, and the row is one line high however many methods a customer gets.
+ * On the phone it scrolls sideways under a hidden scrollbar.
+ *
+ * The chip styles hang off the group rather than each ToggleButton's own sx because the group's
+ * first/middle/last-button rules (squared inner corners, a -1px overlap, a hairline start border)
+ * are selected through the group's class, which outranks a single class on the button.
+ */
+const PAYMENT_CHIP_ROW_SX = {
+    display: "flex",
+    width: "100%",
+    gap: 0.75,
+    flexWrap: "nowrap",
+    overflowX: "auto",
+    scrollSnapType: "x proximity",
+    scrollbarWidth: "none",
+    "&::-webkit-scrollbar": { display: "none" },
+    "& .MuiToggleButtonGroup-grouped": {
+        flexShrink: 0,
+        scrollSnapAlign: "start",
+        m: 0,
+        border: "1.5px solid transparent",
+        borderRadius: "999px",
+        backgroundColor: brandGray,
+        color: "#666",
+        textTransform: "none",
+        fontSize: "14px",
+        whiteSpace: "nowrap",
+        gap: 0.75,
+        px: 1.5,
+        py: 0.75,
+        minHeight: 40,
+        "&:hover": { backgroundColor: brandGray },
+        "&.Mui-selected, &.Mui-selected:hover": {
+            backgroundColor: "#fff",
+            borderColor: BRAND_RED,
+            color: BRAND_RED,
+        },
+    },
+} satisfies SxProps<Theme>;
+
+/** PC: wrap instead of a hidden-scrollbar strip that a mouse wheel cannot move. */
+const PAYMENT_CHIP_ROW_DESKTOP_SX = {
+    ...PAYMENT_CHIP_ROW_SX,
+    flexWrap: "wrap",
+    overflowX: "visible",
+} satisfies SxProps<Theme>;
+
+// Key order matches the literal this replaced, so the phone's CSS class is unchanged.
+const CART_ROOT_SX = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#FAFAFA",
+} satisfies SxProps<Theme>;
+
+/** PC: a panel docked to the inline end over the dimmed menu. The RTL stylis plugin flips
+ *  `left: auto` to `right: auto`, so the Arabic panel docks on the left. */
+const CART_ROOT_DESKTOP_SX = {
+    ...CART_ROOT_SX,
+    left: "auto",
+    width: 440,
+    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+} satisfies SxProps<Theme>;
 
 interface CartPopupProps {
     open: boolean;
@@ -135,6 +203,7 @@ function CartPopup({
     // The RTL emotion cache mirrors the card's layout but not an icon's glyph, so the chevron has
     // to be chosen by direction to keep pointing "onward".
     const isRtl = useTheme().direction === "rtl";
+    const isDesktop = useDesktopLayout();
     const totalPrice = items
         .reduce((acc, i) => {
             const discount = i.discountAmount || 0;
@@ -175,25 +244,6 @@ function CartPopup({
         },
         "&.Mui-disabled": { border: 0, color: "#bbb" },
     };
-    // The same track and pill, stacked: a row per method reads as a list that can grow, where
-    // four side-by-side segments would not fit a phone.
-    const paymentGroupSx = {
-        ...toggleGroupSx,
-        "& .MuiToggleButtonGroup-grouped": {
-            border: 0,
-            borderRadius: 3,
-            mb: "4px",
-            "&:last-of-type": { mb: 0 },
-        },
-    };
-    const paymentBtnSx = {
-        ...toggleBtnSx,
-        justifyContent: "flex-start",
-        gap: 1,
-        px: 1.5,
-        minHeight: 44,
-    };
-
     // A delivery order goes to whichever kitchen the address resolves to, so naming the pickup
     // branch there would be wrong; an empty name would be a blank card.
     const pickupBranchName = pickupBranch ? branchDisplayName(pickupBranch, i18n.language) : "";
@@ -270,15 +320,7 @@ function CartPopup({
              * so the absolutely-positioned UnavailablePopup renders on top of the cart,
              * not behind it as it did when it was a sibling in HomePage.
              */}
-            <Box
-                sx={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    backgroundColor: "#FAFAFA",
-                }}
-            >
+            <Box sx={isDesktop ? CART_ROOT_DESKTOP_SX : CART_ROOT_SX}>
                 {/* Header */}
                 <Box
                     sx={{
@@ -428,19 +470,14 @@ function CartPopup({
                                 </Typography>
                                 <ToggleButtonGroup
                                     exclusive
-                                    orientation="vertical"
                                     value={payment.selected}
                                     onChange={(_e, val: PaymentChoice | null) => val && payment.select(val)}
-                                    sx={paymentGroupSx}
-                                    fullWidth
+                                    sx={isDesktop ? PAYMENT_CHIP_ROW_DESKTOP_SX : PAYMENT_CHIP_ROW_SX}
                                 >
                                     {payment.choices.map((choice) => {
                                         const option = PAYMENT_OPTIONS[choice];
-                                        const isSelected = choice === payment.selected;
-                                        const RadioIcon = isSelected ? RadioButtonCheckedRoundedIcon : RadioButtonUncheckedRoundedIcon;
                                         return (
-                                            <ToggleButton key={choice} value={choice} sx={paymentBtnSx}>
-                                                <RadioIcon aria-hidden sx={{ fontSize: 20, flexShrink: 0 }} />
+                                            <ToggleButton key={choice} value={choice}>
                                                 {option.logo ? (
                                                     <Box
                                                         component="img"
