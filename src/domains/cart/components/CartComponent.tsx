@@ -6,6 +6,9 @@ import CartItemHorizontal from "./CartItemHorizontal";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
+import RadioButtonCheckedRoundedIcon from "@mui/icons-material/RadioButtonCheckedRounded";
+import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
@@ -13,8 +16,9 @@ import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { branchDisplayName } from "../../branch/utils/branchDisplayName";
 import { ApplePayButton } from "../../order/components/ApplePayButton";
 import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayCheckout";
-import { CardPaymentButton } from "../../order/components/CardPaymentButton";
 import type { UseCardCheckoutResult } from "../../order/hooks/useCardCheckout";
+import { APPLE_PAY_CHOICE, CARD_CHOICE, usePaymentChoice } from "../hooks/usePaymentChoice";
+import type { PaymentChoice } from "../hooks/usePaymentChoice";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
@@ -34,14 +38,20 @@ const brandGray = "#f3f3f3";
 // kiosk's tender (useKioskCheckout) — it is the customer-facing CHOICE that was removed, not the
 // tender string, so historic orders and the admin dropdown are unaffected.
 //
+// Apple Pay and card join the same list when the customer can use them, so every method is one
+// row of one list and a single button below pays with the selected one (owner's choice, Oct 2026).
+// Their labels reuse the delivery drawer's, which already names the same methods.
+//
 // Paying at the counter is back for now (owner, 17 Oct 2026) while BenefitPay confirmation is made
 // independent of the customer's browser. It sends DEFAULT_PAYMENT_METHOD, which useCheckout routes
 // to the plain createOrder flow exactly as before the online rollout.
-const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string; logo?: string; alt: string }> = [
-    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.atCounter", alt: "At counter" },
-    { value: PAY_ONLINE_METHOD, labelKey: "payment.benefit", logo: "/benefit-logo.png", alt: "Benefit" },
-    { value: WALLET_METHOD, labelKey: "payment.benefitPay", logo: "/benefitpay-logo.png", alt: "BenefitPay" },
-];
+const PAYMENT_OPTIONS: Readonly<Record<PaymentChoice, { labelKey: string; logo?: string }>> = {
+    [DEFAULT_PAYMENT_METHOD]: { labelKey: "payment.atCounter" },
+    [PAY_ONLINE_METHOD]: { labelKey: "payment.benefit", logo: "/benefit-logo.png" },
+    [WALLET_METHOD]: { labelKey: "payment.benefitPay", logo: "/benefitpay-logo.png" },
+    [APPLE_PAY_CHOICE]: { labelKey: "checkout:delivery.payApplePay" },
+    [CARD_CHOICE]: { labelKey: "checkout:delivery.payCard" },
+};
 
 /**
  * Height of the payment marks. Both are cropped square-ish lockups, so one height reads as one
@@ -165,6 +175,24 @@ function CartPopup({
         },
         "&.Mui-disabled": { border: 0, color: "#bbb" },
     };
+    // The same track and pill, stacked: a row per method reads as a list that can grow, where
+    // four side-by-side segments would not fit a phone.
+    const paymentGroupSx = {
+        ...toggleGroupSx,
+        "& .MuiToggleButtonGroup-grouped": {
+            border: 0,
+            borderRadius: 3,
+            mb: "4px",
+            "&:last-of-type": { mb: 0 },
+        },
+    };
+    const paymentBtnSx = {
+        ...toggleBtnSx,
+        justifyContent: "flex-start",
+        gap: 1,
+        px: 1.5,
+        minHeight: 44,
+    };
 
     // A delivery order goes to whichever kitchen the address resolves to, so naming the pickup
     // branch there would be wrong; an empty name would be a blank card.
@@ -172,6 +200,68 @@ function CartPopup({
     const pickupBranchAddress = pickupBranch?.address?.trim() ?? "";
     const showPickupBranch = orderType !== "Delivery" && pickupBranchName !== "" && onChangeBranch !== undefined;
     const singleLineSx = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
+    // Delivery picks its method in DeliveryCheckoutDrawer, and admin/kiosk never choose, so those
+    // keep the original buttons and the tender they were handed.
+    const showPaymentChoice = !isAdmin && !isKiosk && orderType !== "Delivery";
+    const payment = usePaymentChoice({
+        enabled: showPaymentChoice,
+        paymentMethod,
+        onPaymentChange,
+        applePayAvailable: applePay?.available === true,
+        cardAvailable: cardPayment?.available === true,
+    });
+
+    const checkoutButton = (onClick: () => void, disabled = false): JSX.Element => (
+        <Box
+            sx={{
+                flexShrink: 0,
+                height: 56,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                px: 2,
+                pb: 2,
+            }}
+        >
+            <Button
+                variant="contained"
+                onClick={onClick}
+                disabled={disabled}
+                sx={{
+                    backgroundColor: brandRed,
+                    color: "#fff",
+                    textTransform: "none",
+                    fontWeight: "bold",
+                    borderRadius: 4,
+                    width: "100%",
+                    "&:hover": { backgroundColor: brandRed },
+                }}
+            >
+                {t("checkout")}
+            </Button>
+        </Box>
+    );
+
+    const checkoutWith = (tender: string): void =>
+        onCheckout?.(items, null, null, orderType, tender, "", null, false);
+
+    // One button pays with whatever is selected. Apple Pay's must be Apple's own button, and the
+    // session has to open inside this very tap, so it calls start() directly.
+    function renderPayButton(): JSX.Element {
+        if (payment.selected === APPLE_PAY_CHOICE && applePay) {
+            return (
+                <ApplePayButton
+                    onClick={() => { payment.remember(); applePay.start(); }}
+                    disabled={applePay.busy}
+                />
+            );
+        }
+        if (payment.selected === CARD_CHOICE && cardPayment) {
+            return checkoutButton(() => { payment.remember(); cardPayment.start(); }, cardPayment.busy);
+        }
+        return checkoutButton(() => { payment.remember(); checkoutWith(payment.selected); });
+    }
 
     return (
         <Modal open={open} onClose={onClose}>
@@ -338,47 +428,49 @@ function CartPopup({
                                 </Typography>
                                 <ToggleButtonGroup
                                     exclusive
-                                    value={paymentMethod}
-                                    onChange={(_e, val) => val && onPaymentChange(val)}
-                                    sx={toggleGroupSx}
+                                    orientation="vertical"
+                                    value={payment.selected}
+                                    onChange={(_e, val: PaymentChoice | null) => val && payment.select(val)}
+                                    sx={paymentGroupSx}
                                     fullWidth
                                 >
-                                    {PAYMENT_OPTIONS.map((opt) => (
-                                        <ToggleButton key={opt.value} value={opt.value} sx={toggleBtnSx}>
-                                            <Box sx={{
-                                                display: "flex", alignItems: "center",
-                                                gap: 0.75, minWidth: 0,
-                                            }}>
-                                                {opt.logo && <Box
-                                                    component="img"
-                                                    src={opt.logo}
-                                                    alt=""
-                                                    aria-hidden
-                                                    sx={{
-                                                        height: PAYMENT_LOGO_HEIGHT,
-                                                        width: "auto",
-                                                        flexShrink: 0,
-                                                        objectFit: "contain",
-                                                        display: "block",
-                                                    }}
-                                                    // The mark is decoration beside a label that
-                                                    // already names the method, so a missing file
-                                                    // must cost nothing: hide it and let the text
-                                                    // stand alone rather than show a broken image.
-                                                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                                                        e.currentTarget.style.display = "none";
-                                                    }}
-                                                />}
-                                                <Box component="span" sx={{
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                }}>
-                                                    {t(opt.labelKey)}
+                                    {payment.choices.map((choice) => {
+                                        const option = PAYMENT_OPTIONS[choice];
+                                        const isSelected = choice === payment.selected;
+                                        const RadioIcon = isSelected ? RadioButtonCheckedRoundedIcon : RadioButtonUncheckedRoundedIcon;
+                                        return (
+                                            <ToggleButton key={choice} value={choice} sx={paymentBtnSx}>
+                                                <RadioIcon aria-hidden sx={{ fontSize: 20, flexShrink: 0 }} />
+                                                {option.logo ? (
+                                                    <Box
+                                                        component="img"
+                                                        src={option.logo}
+                                                        alt=""
+                                                        aria-hidden
+                                                        sx={{
+                                                            height: PAYMENT_LOGO_HEIGHT,
+                                                            width: "auto",
+                                                            flexShrink: 0,
+                                                            objectFit: "contain",
+                                                            display: "block",
+                                                        }}
+                                                        // The mark is decoration beside a label that
+                                                        // already names the method, so a missing file
+                                                        // must cost nothing: hide it and let the text
+                                                        // stand alone rather than show a broken image.
+                                                        onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                                                            e.currentTarget.style.display = "none";
+                                                        }}
+                                                    />
+                                                ) : choice === CARD_CHOICE ? (
+                                                    <CreditCardRoundedIcon aria-hidden sx={{ fontSize: PAYMENT_LOGO_HEIGHT, flexShrink: 0 }} />
+                                                ) : null}
+                                                <Box component="span" sx={singleLineSx}>
+                                                    {t(option.labelKey)}
                                                 </Box>
-                                            </Box>
-                                        </ToggleButton>
-                                    ))}
+                                            </ToggleButton>
+                                        );
+                                    })}
                                 </ToggleButtonGroup>
                             </>
                         )}
@@ -409,44 +501,10 @@ function CartPopup({
                     </Typography>
                 </Box>
 
-                {/* Pickup only: these create a pickup order with no address. Delivery is paid in
-                    DeliveryCheckoutDrawer, and the backend now refuses a Delivery order here. */}
-                {applePay?.available && !isAdmin && !isKiosk && orderType !== "Delivery" && (
-                    <ApplePayButton onClick={applePay.start} disabled={applePay.busy} />
-                )}
-
-                {cardPayment?.available && !isAdmin && !isKiosk && orderType !== "Delivery" && (
-                    <CardPaymentButton onClick={cardPayment.start} disabled={cardPayment.busy} />
-                )}
-
-                {/* Checkout button */}
-                <Box
-                    sx={{
-                        flexShrink: 0,
-                        height: 56,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        px: 2,
-                        pb: 2,
-                    }}
-                >
-                    <Button
-                        variant="contained"
-                        onClick={() => onCheckout?.(items, null, null, orderType, paymentMethod, "", null, false)}
-                        sx={{
-                            backgroundColor: brandRed,
-                            color: "#fff",
-                            textTransform: "none",
-                            fontWeight: "bold",
-                            borderRadius: 4,
-                            width: "100%",
-                            "&:hover": { backgroundColor: brandRed },
-                        }}
-                    >
-                        {t("checkout")}
-                    </Button>
-                </Box>
+                {/* Delivery is paid in DeliveryCheckoutDrawer, so it gets no Apple Pay or card button:
+                    those create a pickup order with no address, and the backend refuses one. Admin
+                    and kiosk never had them. */}
+                {showPaymentChoice ? renderPayButton() : checkoutButton(() => checkoutWith(paymentMethod))}
 
                 {/*
                  * UnavailablePopup is now a child of CartComponent.

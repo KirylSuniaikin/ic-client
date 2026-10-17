@@ -1,4 +1,4 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "../../../shared/i18n";
@@ -40,52 +40,81 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
     return { onCheckout };
 }
 
-describe("CartPopup — Pay by card button", () => {
-    it("renders no card button when the cardPayment prop is absent", () => {
+const AVAILABLE = { available: true, busy: false, start: jest.fn<void, []>() };
+
+beforeEach(() => {
+    window.localStorage.clear();
+});
+
+describe("CartPopup — card in the payment list", () => {
+    it("offers no Card row when the cardPayment prop is absent", () => {
         renderCart();
 
-        expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
     });
 
-    it("renders no card button when it is not available", () => {
+    it("offers no Card row when it is not available", () => {
         renderCart({ cardPayment: { available: false, busy: false, start: jest.fn() } });
 
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
+    });
+
+    it("lists Card after the BENEFIT methods instead of a separate button", () => {
+        renderCart({ cardPayment: AVAILABLE });
+
+        const names = ["Benefit", "BenefitPay", "Card"].map(name => screen.getByRole("button", { name }));
+        expect(names[1].compareDocumentPosition(names[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
     });
 
-    it("renders the button when available and calls start without touching checkout", () => {
+    it("makes Checkout open the card drawer when Card is selected, without touching checkout", () => {
         const start = jest.fn<void, []>();
         const { onCheckout } = renderCart({ cardPayment: { available: true, busy: false, start } });
 
-        fireEvent.click(screen.getByRole("button", { name: "Pay by card" }));
+        fireEvent.click(screen.getByRole("button", { name: "Card" }));
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
 
         expect(start).toHaveBeenCalledTimes(1);
         expect(onCheckout).not.toHaveBeenCalled();
+        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe("card");
     });
 
-    it("disables the button while busy", () => {
+    it("never sends Card as the order's payment_type", () => {
+        const onPaymentChange = jest.fn<void, [string]>();
+        renderCart({ onPaymentChange, cardPayment: AVAILABLE });
+
+        fireEvent.click(screen.getByRole("button", { name: "Card" }));
+
+        expect(onPaymentChange).not.toHaveBeenCalled();
+    });
+
+    it("disables Checkout while a card payment is busy", () => {
         renderCart({ cardPayment: { available: true, busy: true, start: jest.fn() } });
 
-        expect(screen.getByRole("button", { name: "Pay by card" }).hasAttribute("disabled")).toBe(true);
+        fireEvent.click(screen.getByRole("button", { name: "Card" }));
+
+        expect(screen.getByRole("button", { name: "Checkout" }).hasAttribute("disabled")).toBe(true);
     });
 
     // Delivery is paid in DeliveryCheckoutDrawer; this button would create an address-less order.
-    it("hides the button for a Delivery order even when available", () => {
-        renderCart({ orderType: "Delivery", cardPayment: { available: true, busy: false, start: jest.fn() } });
+    it("offers no card for a Delivery order, only Checkout", () => {
+        renderCart({ orderType: "Delivery", cardPayment: AVAILABLE });
 
         expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
         expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
     });
 
-    it("hides the button for kiosk even when available", () => {
-        renderCart({ isKiosk: true, cardPayment: { available: true, busy: false, start: jest.fn() } });
+    it("hides Card for kiosk even when available", () => {
+        renderCart({ isKiosk: true, cardPayment: AVAILABLE });
 
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
     });
 
-    it("hides the button for admin even when available", () => {
-        renderCart({ isAdmin: true, cardPayment: { available: true, busy: false, start: jest.fn() } });
+    it("hides Card for admin even when available", () => {
+        renderCart({ isAdmin: true, cardPayment: AVAILABLE });
 
+        expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
     });
 });

@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, afterEach } from "@jest/globals";
+import { jest, describe, it, expect, afterEach, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -191,11 +191,74 @@ describe("CartPopup — checkout", () => {
     // checkout hook still gates guests/logged-in-without-name into ClientInfoPopup.
     it("passes order type, payment method and infoCollected=false to onCheckout", () => {
         const onCheckout = jest.fn();
-        renderCart({ onCheckout });
+        renderCart({ onCheckout, paymentMethod: WALLET_METHOD });
+
+        fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
+
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+    });
+
+    // The highlighted row and the sent value must agree, so a tender the list does not offer (the
+    // retired "Cash" option, say) falls back to BENEFIT for both.
+    it("sends BENEFIT, the highlighted method, when handed a tender the list does not offer", () => {
+        const onCheckout = jest.fn();
+        renderCart({ onCheckout, paymentMethod: "Cash" });
+
+        expect(screen.getByRole("button", { name: "Benefit" }).getAttribute("aria-pressed")).toBe("true");
+        fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
+
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", PAY_ONLINE_METHOD, "", null, false);
+    });
+
+    it("keeps sending the kiosk its own tender — kiosk never chooses", () => {
+        const onCheckout = jest.fn();
+        renderCart({ onCheckout, isKiosk: true, paymentMethod: DEFAULT_PAYMENT_METHOD });
 
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
         expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null, false);
+    });
+});
+
+describe("CartPopup — remembered payment method", () => {
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    it("restores the BENEFIT method the customer paid with last time", () => {
+        window.localStorage.setItem("ic.preferredPaymentMethod", WALLET_METHOD);
+        const onPaymentChange = jest.fn<void, [string]>();
+
+        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
+
+        expect(onPaymentChange).toHaveBeenCalledWith(WALLET_METHOD);
+    });
+
+    it("remembers the method only when the customer actually checks out", () => {
+        renderCart({ paymentMethod: WALLET_METHOD });
+        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBeNull();
+
+        fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
+
+        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe(WALLET_METHOD);
+    });
+
+    it("ignores a stored value that is not a method", () => {
+        window.localStorage.setItem("ic.preferredPaymentMethod", "Cash");
+        const onPaymentChange = jest.fn<void, [string]>();
+
+        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
+
+        expect(onPaymentChange).not.toHaveBeenCalled();
+    });
+
+    it("restores nothing for delivery, which picks its method elsewhere", () => {
+        window.localStorage.setItem("ic.preferredPaymentMethod", WALLET_METHOD);
+        const onPaymentChange = jest.fn<void, [string]>();
+
+        renderCart({ onPaymentChange, orderType: "Delivery", paymentMethod: PAY_ONLINE_METHOD });
+
+        expect(onPaymentChange).not.toHaveBeenCalled();
     });
 });
 

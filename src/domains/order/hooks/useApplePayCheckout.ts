@@ -24,11 +24,11 @@ import {
     APPLE_PAY_VERSION,
     buildApplePayRequest,
     computeSheetTotal,
-    isApplePayCapable,
     trackApplePayPurchase,
 } from "../utils/applePayRequest";
 import { newIdempotencyKey } from "../../../shared/utils/idempotencyKey";
 import { useCheckoutPrefetch } from "./useCheckoutPrefetch";
+import { useApplePayCapability } from "./useApplePayCapability";
 import { describeError, isDefinitivePayRejection, pollUntilResolved, reportCreateOrderFailure } from "../utils/checkoutFlow";
 import type { Prefetch } from "./useCheckoutPrefetch";
 const IN_PROGRESS_CODE = "APPLE_PAY_PAYMENT_IN_PROGRESS";
@@ -102,8 +102,9 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     const { openOrderDetail, refreshActiveOrder } = useCustomerAuthUi();
     const { t, i18n } = useTranslation("applePay");
 
+    const capable = useApplePayCapability(cartOpen && !isAdmin && !isKiosk);
     const prefetch = useCheckoutPrefetch({
-        active: cartOpen && !isAdmin && !isKiosk && isApplePayCapable(),
+        active: cartOpen && !isAdmin && !isKiosk && capable,
         token,
         fetchEligibility: fetchApplePayEligibility,
         failureLabel: "Apple Pay prefetch failed:",
@@ -136,7 +137,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     const available =
         !isAdmin && !isKiosk && token !== null && cartItems.length > 0 &&
         prefetch !== null && prefetch.eligible && !prefetch.banned && !!prefetch.profile.name &&
-        isApplePayCapable();
+        capable;
 
     function release(): void {
         busyRef.current = false;
