@@ -399,6 +399,8 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                         isBack={step === "code" && !awaitingName}
                         label={step === "code" && !awaitingName ? t("login.back") : t("login.close")}
                         onClick={step === "code" && !awaitingName ? handleChangeNumber : onClose}
+                        closeLabel={t("login.close")}
+                        onClose={onClose}
                     />
                 </Box>
 
@@ -670,30 +672,40 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
 }
 
 /**
- * The popup's one header control. The phone sheet keeps its back chevron in the top-start corner
- * for both jobs. In the PC dialog a left-pointing arrow reads as "go back a step", so when it
- * closes the popup it becomes a close X in the top-end corner, like the other PC dialogs; the
- * code step's real "back" keeps the chevron there too.
+ * The popup's header controls. The phone sheet keeps one back chevron in the top-start corner
+ * for both jobs. In the PC dialog a left-pointing arrow reads as "go back a step", so closing
+ * always has its own X in the top-end corner, like the other PC dialogs; on the code step the
+ * real "back" keeps the chevron beside it, so a customer whose code never arrives can still leave
+ * in one click.
  */
-function LoginHeaderButton({ isBack, label, onClick }: {
+function LoginHeaderButton({ isBack, label, onClick, closeLabel, onClose }: {
     isBack: boolean;
     label: string;
     onClick: () => void;
+    closeLabel: string;
+    onClose: () => void;
 }): JSX.Element {
     const isDialog = useSheetPresentation() !== "sheet";
 
-    if (isDialog && !isBack) {
-        return (
-            <IconButton aria-label={label} onClick={onClick} sx={{ color: "#333", ml: "auto" }}>
-                <CloseRoundedIcon />
-            </IconButton>
-        );
-    }
+    const closeButton = (
+        <IconButton aria-label={closeLabel} onClick={onClose} sx={{ color: "#333", ml: "auto" }}>
+            <CloseRoundedIcon />
+        </IconButton>
+    );
+    if (isDialog && !isBack) return closeButton;
 
-    return (
+    const backButton = (
         <IconButton aria-label={label} onClick={onClick} sx={{ color: "#333" }}>
             <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
         </IconButton>
+    );
+    if (!isDialog) return backButton;
+
+    return (
+        <>
+            {backButton}
+            {closeButton}
+        </>
     );
 }
 

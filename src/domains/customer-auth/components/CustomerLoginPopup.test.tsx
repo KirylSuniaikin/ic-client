@@ -704,6 +704,37 @@ describe("CustomerLoginPopup", () => {
             expect(back.querySelector('[data-testid="ArrowBackIosNewRoundedIcon"]')).toBeTruthy();
         });
 
+        // A customer whose WhatsApp code never arrives should not have to go Back and then close.
+        it("also offers the X on the code step", async () => {
+            stubMatchMedia(true);
+            const onClose = jest.fn<void, []>();
+            mockRequestOtp.mockResolvedValueOnce(undefined);
+            renderPopup(onClose);
+            await waitForAuthReady();
+
+            fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "33607710" } });
+            fireEvent.click(screen.getByRole("button", { name: "Get code" }));
+            await screen.findByLabelText("Digit 1");
+
+            const close = screen.getByRole("button", { name: "Close" });
+            expect(close.querySelector('[data-testid="CloseRoundedIcon"]')).toBeTruthy();
+            fireEvent.click(close);
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it("keeps the phone sheet's code step to the one back chevron", async () => {
+            mockRequestOtp.mockResolvedValueOnce(undefined);
+            renderPopup();
+            await waitForAuthReady();
+
+            fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "33607710" } });
+            fireEvent.click(screen.getByRole("button", { name: "Get code" }));
+            await screen.findByLabelText("Digit 1");
+
+            expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
+            expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+        });
+
         it("still closes from the back chevron on the phone", async () => {
             renderPopup();
             await waitForAuthReady();
