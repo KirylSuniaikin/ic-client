@@ -1,23 +1,23 @@
 import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {
-    Modal,
     Box,
     Typography,
-    Fab,
     Button,
     ToggleButton,
     ToggleButtonGroup,
     TextField,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import * as PropTypes from "prop-types";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
 import {ToppingsScroll} from "../ToppingsScroll";
 import {RecipeComponentsLine} from "../RecipeComponentsLine";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
+import {ItemPopupShell} from "./ItemPopupShell";
+import {useCardRowSx} from "../cardRowSx";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
+import {useDesktopLayout} from "../../../../shared/hooks/useDesktopLayout";
 import type { MenuItem, CartItem, ExtraIngr, Topping, Group, Customization, RecipeComponent } from '../../types';
 import {
     buildAdditionTokens,
@@ -94,6 +94,8 @@ function PizzaPopup({
     const [note, setNote] = useState("");
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
     const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
+    const isDesktop = useDesktopLayout();
+    const cardRowSx = useCardRowSx();
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -351,9 +353,11 @@ function PizzaPopup({
     if (loading) return <PizzaLoader/>;
     if (!item) return null;
     return (
-        <Modal open={open} onClose={onClose}>
-            <Box
-                sx={{
+        <ItemPopupShell
+            open={open}
+            onClose={onClose}
+            legacy={{
+                paperSx: {
                     position: "absolute",
                     top: "3%",
                     bottom: "0%",
@@ -367,33 +371,17 @@ function PizzaPopup({
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
-                }}
-            >
-                <Fab
-                    size="small"
-                    onClick={onClose}
-                    sx={{
-                        position: "absolute",
-                        top: 16,
-                        right: 16,
-                        color: brandRed,
-                        backgroundColor: "#fff",
-                        zIndex: 9999
-                    }}
-                >
-                    <CloseIcon/>
-                </Fab>
-
-                <Box
-                    sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        scrollbarWidth: "none",
-                        boxSizing: "border-box",
-                        "&::-webkit-scrollbar": {
-                            display: "none"
-                        }
-                    }}>
+                },
+                scrollSx: {
+                    flex: 1,
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
+                    boxSizing: "border-box",
+                    "&::-webkit-scrollbar": {
+                        display: "none"
+                    }
+                },
+                media: (
                     <Box sx={{
                         width: "100%",
                         height: {
@@ -416,276 +404,10 @@ function PizzaPopup({
                             style={{width: "100%", height: "100%", objectFit: "contain"}}
                         />
                     </Box>
-
-                    <Box
-                        sx={{
-                            px: {xs: 2, md: 3},
-                            boxSizing: "border-box",
-                            pt: 2,
-                            pb: 2
-                        }}
-                    >
-                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
-                            {localizeName(item)}
-                        </Typography>
-
-                        <TogglesWithQuantity
-                            selectedSize={selectedSize}
-                            selectedDough={selectedDough}
-                            setSelectedDough={setSelectedDough}
-                            quantity={quantity}
-                            setQuantity={setQuantity}
-                            showDoughSelector={showDoughSelector}
-                            isAdmin={isAdmin}
-                        />
-
-                        <RecipeComponentsLine
-                            components={recipeComponents}
-                            removedIds={removedComponents.map(r => r.id)}
-                            onToggle={handleToggleComponent}
-                        />
-
-                        <TextField
-                            label={t("pizzaPopup.addNote")}
-                            fullWidth
-                            multiline
-                            rows={2}
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                            sx={{mb: 3}}
-                            InputProps={{sx: {borderRadius: 4}}}
-                        />
-
-                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            {t("pizzaPopup.customize")}
-                        </Typography>
-
-                        <Box
-                            sx={{
-                                display: "flex",
-                                overflowX: "auto",
-                                gap: 1,
-                                mb: 2,
-                                py: 1,
-                                px: 0.2,
-                                scrollSnapType: "x mandatory",
-                                scrollbarWidth: "none",
-                                "&::-webkit-scrollbar": {
-                                    display: "none"
-                                }
-                            }}
-                        >
-                            <Box
-                                key={"garlic crust"}
-                                onClick={() => {
-                                    handleToggleIngr("garlic crust");
-                                }}
-                                sx={{
-                                    width: 140,
-                                    flexShrink: 0,
-                                    textAlign: "center",
-                                    p: 2,
-                                    borderRadius: 4,
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                    color: "#000",
-                                    boxShadow: selectedIngr.includes("garlic crust")
-                                        ? `0 0 0 2px ${brandRed}`
-                                        : "0 1px 3px rgba(0,0,0,0.25)",
-                                    border: "none",
-                                    "&:hover": {
-                                        boxShadow: selectedIngr.includes("garlic crust")
-                                            ? `0 0 0 2px ${brandRed}`
-                                            : "0 2px 5px rgba(0,0,0,0.2)"
-                                    }
-                                }}
-                            >
-                                <img
-                                    src="/crust.png"
-                                    alt="CRUST"
-                                    style={{
-                                        maxWidth: "100%",
-                                        height: 120,
-                                        objectFit: "contain"
-                                    }}
-                                />
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: "bold",
-                                        mt: 1,
-                                        overflowWrap: "break-word",
-                                        wordWrap: "break-word",
-                                        whiteSpace: "normal",
-                                        lineHeight: 1.2
-                                    }}
-                                >
-                                    {t("pizzaPopup.garlicCrust")}
-                                </Typography>
-                                <Typography variant="body2" sx={{mt: 1.2}}>
-                                    {t("pizzaPopup.free")}
-                                </Typography>
-                            </Box>
-                            {item.name === "Margherita" && <Box
-                                key={"cherry"}
-                                onClick={() => {
-                                    handleToggleIngr("cherry");
-                                }}
-                                sx={{
-                                    width: 140,
-                                    flexShrink: 0,
-                                    textAlign: "center",
-                                    p: 2,
-                                    borderRadius: 4,
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                    color: "#000",
-                                    boxShadow: selectedIngr.includes("cherry")
-                                        ? `0 0 0 2px ${brandRed}`
-                                        : "0 1px 3px rgba(0,0,0,0.25)",
-                                    border: "none",
-                                    "&:hover": {
-                                        boxShadow: selectedIngr.includes("cherry")
-                                            ? `0 0 0 2px ${brandRed}`
-                                            : "0 2px 5px rgba(0,0,0,0.2)"
-                                    }
-                                }}
-                            >
-                                <img
-                                    src="/cherry.png"
-                                    alt="CRUST"
-                                    style={{
-                                        maxWidth: "100%",
-                                        height: 120,
-                                        objectFit: "contain"
-                                    }}
-                                />
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: "bold",
-                                        mt: 1,
-                                        overflowWrap: "break-word",
-                                        wordWrap: "break-word",
-                                        whiteSpace: "normal",
-                                        lineHeight: 1.2
-                                    }}
-                                >
-                                    {t("pizzaPopup.cherry")}
-                                </Typography>
-                                <Typography variant="body2" sx={{mt: 1.2}}>
-                                    {t("pizzaPopup.free")}
-                                </Typography>
-                            </Box>
-                            }
-                            {ingrsForSize.map((ing) => {
-                                const active = selectedIngr.includes(ing.name);
-                                const ingWithPhoto = ing as unknown as Record<string, unknown>;
-                                return (
-                                    <Box
-                                        key={ing.name}
-                                        onClick={() => handleToggleIngr(ing.name)}
-                                        sx={{
-                                            width: 140,
-                                            flexShrink: 0,
-                                            textAlign: "center",
-                                            p: 2,
-                                            borderRadius: 4,
-                                            cursor: "pointer",
-                                            fontSize: "13px",
-                                            color: "#000",
-                                            boxShadow: active
-                                                ? `0 0 0 2px ${brandRed}`
-                                                : "0 1px 3px rgba(0,0,0,0.25)",
-                                            border: "none",
-                                            "&:hover": {
-                                                boxShadow: active
-                                                    ? `0 0 0 2px ${brandRed}`
-                                                    : "0 2px 5px rgba(0,0,0,0.2)"
-                                            }
-                                        }}
-                                    >
-                                        {ingWithPhoto.photo ? (
-                                            <img
-                                                src={ingWithPhoto.photo as string}
-                                                alt={localizeName(ing)}
-                                                style={{
-                                                    maxWidth: "100%",
-                                                    height: 120,
-                                                    objectFit: "contain"
-                                                }}
-                                            />
-                                        ) : (
-                                            <Box
-                                                sx={{
-                                                    width: "100%",
-                                                    height: 120,
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    backgroundColor: "#f9f9f9"
-                                                }}
-                                            />
-                                        )}
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                fontWeight: "bold",
-                                                mt: 1,
-                                                overflowWrap: "break-word",
-                                                wordWrap: "break-word",
-                                                whiteSpace: "normal",
-                                                lineHeight: 1.2
-                                            }}
-                                        >
-                                            {localizeName(ing)}
-                                        </Typography>
-                                        <Typography variant="body2" sx={{mt: 0.5}}>
-                                            +{ingWithPhoto.price as number}
-                                        </Typography>
-                                    </Box>
-                                );
-                            })}
-                        </Box>
-
-                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                            {t("pizzaPopup.drizzles")}
-                        </Typography>
-
-                        <ToppingsScroll
-                            toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
-                            selectedToppings={selectedToppings}
-                            onUpdateSelectedToppings={setSelectedToppings}
-                        />
-
-                        <BetterTogetherComponent
-                            betterTogether={crossSellItems}
-                            selectedItems={crossSellMap}
-                            increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
-                            decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
-                        />
-
-                        {!isEditMode &&
-                            <Box>
-                                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                    {t("pizzaPopup.about")}
-                                </Typography>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        mb: 2,
-                                        color: "#444",
-                                        lineHeight: 1.4,
-                                        fontSize: "14px"
-                                    }}
-                                >
-                                    {localizeDescription(item)}
-                                </Typography>
-                            </Box>
-                        }
-                    </Box>
-                </Box>
-
+                ),
+            }}
+            desktop={{photo: {src: item.photo, alt: localizeName(item)}}}
+            footer={
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",
@@ -761,8 +483,270 @@ function PizzaPopup({
                         {t("pizzaPopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
+            }
+        >
+            <Box
+                sx={{
+                    px: {xs: 2, md: 3},
+                    boxSizing: "border-box",
+                    pt: 2,
+                    pb: 2
+                }}
+            >
+                <Typography variant="h6" sx={{fontWeight: "bold", mb: isDesktop && !isEditMode ? 1 : 3, textAlign: "center"}}>
+                    {localizeName(item)}
+                </Typography>
+                {isDesktop && !isEditMode &&
+                    <Typography
+                        variant="body2"
+                        sx={{mb: 3, color: "#444", lineHeight: 1.4, fontSize: "14px", textAlign: "center"}}
+                    >
+                        {localizeDescription(item)}
+                    </Typography>
+                }
+
+                <TogglesWithQuantity
+                    selectedSize={selectedSize}
+                    selectedDough={selectedDough}
+                    setSelectedDough={setSelectedDough}
+                    quantity={quantity}
+                    setQuantity={setQuantity}
+                    showDoughSelector={showDoughSelector}
+                    isAdmin={isAdmin}
+                />
+
+                <RecipeComponentsLine
+                    components={recipeComponents}
+                    removedIds={removedComponents.map(r => r.id)}
+                    onToggle={handleToggleComponent}
+                />
+
+                <TextField
+                    label={t("pizzaPopup.addNote")}
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    sx={{mb: 3}}
+                    InputProps={{sx: {borderRadius: 4}}}
+                />
+
+                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                    {t("pizzaPopup.customize")}
+                </Typography>
+
+                <Box sx={cardRowSx}>
+                    <Box
+                        key={"garlic crust"}
+                        onClick={() => {
+                            handleToggleIngr("garlic crust");
+                        }}
+                        sx={{
+                            width: 140,
+                            flexShrink: 0,
+                            textAlign: "center",
+                            p: 2,
+                            borderRadius: 4,
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: "#000",
+                            boxShadow: selectedIngr.includes("garlic crust")
+                                ? `0 0 0 2px ${brandRed}`
+                                : "0 1px 3px rgba(0,0,0,0.25)",
+                            border: "none",
+                            "&:hover": {
+                                boxShadow: selectedIngr.includes("garlic crust")
+                                    ? `0 0 0 2px ${brandRed}`
+                                    : "0 2px 5px rgba(0,0,0,0.2)"
+                            }
+                        }}
+                    >
+                        <img
+                            src="/crust.png"
+                            alt="CRUST"
+                            style={{
+                                maxWidth: "100%",
+                                height: 120,
+                                objectFit: "contain"
+                            }}
+                        />
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontWeight: "bold",
+                                mt: 1,
+                                overflowWrap: "break-word",
+                                wordWrap: "break-word",
+                                whiteSpace: "normal",
+                                lineHeight: 1.2
+                            }}
+                        >
+                            {t("pizzaPopup.garlicCrust")}
+                        </Typography>
+                        <Typography variant="body2" sx={{mt: 1.2}}>
+                            {t("pizzaPopup.free")}
+                        </Typography>
+                    </Box>
+                    {item.name === "Margherita" && <Box
+                        key={"cherry"}
+                        onClick={() => {
+                            handleToggleIngr("cherry");
+                        }}
+                        sx={{
+                            width: 140,
+                            flexShrink: 0,
+                            textAlign: "center",
+                            p: 2,
+                            borderRadius: 4,
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: "#000",
+                            boxShadow: selectedIngr.includes("cherry")
+                                ? `0 0 0 2px ${brandRed}`
+                                : "0 1px 3px rgba(0,0,0,0.25)",
+                            border: "none",
+                            "&:hover": {
+                                boxShadow: selectedIngr.includes("cherry")
+                                    ? `0 0 0 2px ${brandRed}`
+                                    : "0 2px 5px rgba(0,0,0,0.2)"
+                            }
+                        }}
+                    >
+                        <img
+                            src="/cherry.png"
+                            alt="CRUST"
+                            style={{
+                                maxWidth: "100%",
+                                height: 120,
+                                objectFit: "contain"
+                            }}
+                        />
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontWeight: "bold",
+                                mt: 1,
+                                overflowWrap: "break-word",
+                                wordWrap: "break-word",
+                                whiteSpace: "normal",
+                                lineHeight: 1.2
+                            }}
+                        >
+                            {t("pizzaPopup.cherry")}
+                        </Typography>
+                        <Typography variant="body2" sx={{mt: 1.2}}>
+                            {t("pizzaPopup.free")}
+                        </Typography>
+                    </Box>
+                    }
+                    {ingrsForSize.map((ing) => {
+                        const active = selectedIngr.includes(ing.name);
+                        const ingWithPhoto = ing as unknown as Record<string, unknown>;
+                        return (
+                            <Box
+                                key={ing.name}
+                                onClick={() => handleToggleIngr(ing.name)}
+                                sx={{
+                                    width: 140,
+                                    flexShrink: 0,
+                                    textAlign: "center",
+                                    p: 2,
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    color: "#000",
+                                    boxShadow: active
+                                        ? `0 0 0 2px ${brandRed}`
+                                        : "0 1px 3px rgba(0,0,0,0.25)",
+                                    border: "none",
+                                    "&:hover": {
+                                        boxShadow: active
+                                            ? `0 0 0 2px ${brandRed}`
+                                            : "0 2px 5px rgba(0,0,0,0.2)"
+                                    }
+                                }}
+                            >
+                                {ingWithPhoto.photo ? (
+                                    <img
+                                        src={ingWithPhoto.photo as string}
+                                        alt={localizeName(ing)}
+                                        style={{
+                                            maxWidth: "100%",
+                                            height: 120,
+                                            objectFit: "contain"
+                                        }}
+                                    />
+                                ) : (
+                                    <Box
+                                        sx={{
+                                            width: "100%",
+                                            height: 120,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            backgroundColor: "#f9f9f9"
+                                        }}
+                                    />
+                                )}
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontWeight: "bold",
+                                        mt: 1,
+                                        overflowWrap: "break-word",
+                                        wordWrap: "break-word",
+                                        whiteSpace: "normal",
+                                        lineHeight: 1.2
+                                    }}
+                                >
+                                    {localizeName(ing)}
+                                </Typography>
+                                <Typography variant="body2" sx={{mt: 0.5}}>
+                                    +{ingWithPhoto.price as number}
+                                </Typography>
+                            </Box>
+                        );
+                    })}
+                </Box>
+
+                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                    {t("pizzaPopup.drizzles")}
+                </Typography>
+
+                <ToppingsScroll
+                    toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
+                    selectedToppings={selectedToppings}
+                    onUpdateSelectedToppings={setSelectedToppings}
+                />
+
+                <BetterTogetherComponent
+                    betterTogether={crossSellItems}
+                    selectedItems={crossSellMap}
+                    increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
+                    decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
+                />
+
+                {!isEditMode && !isDesktop &&
+                    <Box>
+                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                            {t("pizzaPopup.about")}
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                mb: 2,
+                                color: "#444",
+                                lineHeight: 1.4,
+                                fontSize: "14px"
+                            }}
+                        >
+                            {localizeDescription(item)}
+                        </Typography>
+                    </Box>
+                }
             </Box>
-        </Modal>
+        </ItemPopupShell>
     );
 }
 

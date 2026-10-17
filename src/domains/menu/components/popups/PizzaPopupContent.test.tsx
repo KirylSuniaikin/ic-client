@@ -1,6 +1,9 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
+import type { ComponentProps } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { clearMatchMedia, stubMatchMedia } from "../../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../../management/couriers/components/emotionRules.testutil";
 
 // PizzaPopupContent renders its copy (note label, Add button) via useTranslation("menu") —
 // initialize the real i18n instance so keys resolve to English, mirroring PizzaComboPopup.test.tsx.
@@ -41,22 +44,26 @@ function makeExtra(overrides: Partial<ExtraIngrFixture> = {}): ExtraIngrFixture 
     return { id: 5, name: "Mushroom", size: "M", price: 0.5, ...overrides };
 }
 
-function renderPopup(extraIngredients: ExtraIngrFixture[] = []) {
+type PopupOverrides = Partial<Omit<ComponentProps<typeof PizzaPopup>, "onClose" | "onAddToCart" | "removeFromCart">>;
+
+function renderPopup(extraIngredients: ExtraIngrFixture[] = [], overrides: PopupOverrides = {}) {
     const onAddToCart = jest.fn<void, [CartItem[]]>();
     const removeFromCart = jest.fn<void, [string, number, number]>();
+    const onClose = jest.fn<void, []>();
 
     render(
         <PizzaPopup
             open
-            onClose={jest.fn()}
+            onClose={onClose}
             group={GROUP}
             onAddToCart={onAddToCart}
             removeFromCart={removeFromCart}
             extraIngredients={extraIngredients as unknown as ExtraIngr[]}
+            {...overrides}
         />
     );
 
-    return { onAddToCart };
+    return { onAddToCart, onClose };
 }
 
 function clickAdd(): void {
@@ -123,5 +130,88 @@ describe("PizzaPopupContent — note is its own field, never folded into descrip
 
         const [products] = onAddToCart.mock.calls[0];
         expect(products[0].note).toBe("");
+    });
+});
+
+// A cart line as it comes back into the popup for editing: its description is the built
+// customization string, never the menu copy.
+const EDIT_ITEM: CartItem = {
+    id: 1,
+    name: "Margherita",
+    size: "M",
+    category: "Pizzas",
+    isThinDough: false,
+    isGarlicCrust: false,
+    extraIngredients: [],
+    toppings: [],
+    note: "",
+    quantity: 1,
+    description: "+(Mushroom)",
+    amount: 3.5,
+    discountAmount: 0,
+    comboItems: [],
+    photo: "",
+};
+
+describe("PC layout", () => {
+    beforeEach(() => {
+        stubMatchMedia(true);
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("renders one dialog with a single note field and Add button, and still builds the description", async () => {
+        const { onAddToCart } = renderPopup([makeExtra()]);
+        await screen.findByLabelText("Add a note");
+
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
+        expect(screen.getAllByLabelText("Add a note")).toHaveLength(1);
+        expect(screen.getAllByRole("button", { name: /^Add ·/ })).toHaveLength(1);
+
+        fireEvent.click(screen.getByText("Mushroom"));
+        clickAdd();
+
+        const [products] = onAddToCart.mock.calls[0];
+        expect(products[0].description).toBe("+(Mushroom)");
+    });
+
+    it("puts the description directly under the title, with no About block", async () => {
+        renderPopup();
+        await screen.findByLabelText("Add a note");
+
+        const title = screen.getByRole("heading", { name: "Margherita" });
+        expect(title.nextElementSibling).toBe(screen.getByText("Classic tomato and mozzarella"));
+        expect(screen.queryByText("About")).toBeNull();
+    });
+
+    it("shows no description in edit mode", async () => {
+        renderPopup([], { isEditMode: true, editItem: EDIT_ITEM });
+        await screen.findByLabelText("Add a note");
+
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
+        expect(screen.queryByText("+(Mushroom)")).toBeNull();
+        expect(screen.queryByText("Classic tomato and mozzarella")).toBeNull();
+    });
+
+    it("closes the popup with the labelled close button", async () => {
+        const { onClose } = renderPopup();
+        await screen.findByLabelText("Add a note");
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("wraps the extras row instead of scrolling it", async () => {
+        renderPopup([makeExtra()]);
+        await screen.findByLabelText("Add a note");
+
+        const card = screen.getByText("Mushroom").parentElement;
+        const row = card?.parentElement;
+        if (row === null || row === undefined) throw new Error("Mushroom card has no row");
+
+        expect(emotionRulesFor(row)).toContain("flex-wrap:wrap");
     });
 });
