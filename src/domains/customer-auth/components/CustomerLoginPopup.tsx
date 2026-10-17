@@ -7,6 +7,7 @@ import SmartphoneRoundedIcon from "@mui/icons-material/SmartphoneRounded";
 import SmsRoundedIcon from "@mui/icons-material/SmsRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { motion } from "framer-motion";
 import { registerCustomerName, requestOtp } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
@@ -14,7 +15,7 @@ import { CustomerAuthApiError } from "../types";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
-import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import { CustomerSheet, useSheetPresentation } from "../../../shared/components/CustomerSheet";
 import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
 import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
 
@@ -394,13 +395,11 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                     account already exists by then) — so this closes instead, same as
                     the tolerated "dismiss while awaitingName" edge case. */}
                 <Box sx={{ display: "flex", alignItems: "center", minHeight: 56, px: 1 }}>
-                    <IconButton
-                        aria-label={step === "code" && !awaitingName ? t("login.back") : t("login.close")}
+                    <LoginHeaderButton
+                        isBack={step === "code" && !awaitingName}
+                        label={step === "code" && !awaitingName ? t("login.back") : t("login.close")}
                         onClick={step === "code" && !awaitingName ? handleChangeNumber : onClose}
-                        sx={{ color: "#333" }}
-                    >
-                        <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
+                    />
                 </Box>
 
                 <Box sx={{ flex: 1, overflowY: "auto", px: { xs: 3, sm: 4 }, pt: { xs: 3, sm: 5 } }}>
@@ -667,6 +666,34 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                 )}
             </Box>
         </CustomerSheet>
+    );
+}
+
+/**
+ * The popup's one header control. The phone sheet keeps its back chevron in the top-start corner
+ * for both jobs. In the PC dialog a left-pointing arrow reads as "go back a step", so when it
+ * closes the popup it becomes a close X in the top-end corner, like the other PC dialogs; the
+ * code step's real "back" keeps the chevron there too.
+ */
+function LoginHeaderButton({ isBack, label, onClick }: {
+    isBack: boolean;
+    label: string;
+    onClick: () => void;
+}): JSX.Element {
+    const isDialog = useSheetPresentation() !== "sheet";
+
+    if (isDialog && !isBack) {
+        return (
+            <IconButton aria-label={label} onClick={onClick} sx={{ color: "#333", ml: "auto" }}>
+                <CloseRoundedIcon />
+            </IconButton>
+        );
+    }
+
+    return (
+        <IconButton aria-label={label} onClick={onClick} sx={{ color: "#333" }}>
+            <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
+        </IconButton>
     );
 }
 

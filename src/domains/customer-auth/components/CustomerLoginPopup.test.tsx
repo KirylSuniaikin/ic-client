@@ -673,5 +673,44 @@ describe("CustomerLoginPopup", () => {
             await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710", language: "en" }));
             expect(await screen.findByLabelText("Digit 1")).toBeTruthy();
         });
+
+        // In a centred dialog a left-pointing arrow reads as "go back a step", not "close".
+        it("closes from an X in the top-end corner instead of the phone sheet's back chevron", async () => {
+            stubMatchMedia(true);
+            const onClose = jest.fn<void, []>();
+            renderPopup(onClose);
+            await waitForAuthReady();
+
+            const close = screen.getByRole("button", { name: "Close" });
+            expect(close.querySelector('[data-testid="CloseRoundedIcon"]')).toBeTruthy();
+            expect(close.querySelector('[data-testid="ArrowBackIosNewRoundedIcon"]')).toBeNull();
+            expect(emotionRulesFor(close)).toContain("margin-left:auto");
+
+            fireEvent.click(close);
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it("keeps the chevron for the code step's real back", async () => {
+            stubMatchMedia(true);
+            mockRequestOtp.mockResolvedValueOnce(undefined);
+            renderPopup();
+            await waitForAuthReady();
+
+            fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "33607710" } });
+            fireEvent.click(screen.getByRole("button", { name: "Get code" }));
+            await screen.findByLabelText("Digit 1");
+
+            const back = screen.getByRole("button", { name: "Back" });
+            expect(back.querySelector('[data-testid="ArrowBackIosNewRoundedIcon"]')).toBeTruthy();
+        });
+
+        it("still closes from the back chevron on the phone", async () => {
+            renderPopup();
+            await waitForAuthReady();
+
+            const close = screen.getByRole("button", { name: "Close" });
+            expect(close.querySelector('[data-testid="ArrowBackIosNewRoundedIcon"]')).toBeTruthy();
+            expect(close.querySelector('[data-testid="CloseRoundedIcon"]')).toBeNull();
+        });
     });
 });
