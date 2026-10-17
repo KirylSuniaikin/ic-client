@@ -1,18 +1,16 @@
 import React, {useEffect, useState} from "react";
 import {
-    Modal,
     Box,
     Typography,
-    Fab,
     Button,
     ToggleButton,
     ToggleButtonGroup,
     Checkbox,
     FormControlLabel, TextField
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import {useTranslation} from "react-i18next";
 import PizzaLoader from "../../../order-status/components/animations/PizzaLoader";
+import {ItemPopupShell} from "./ItemPopupShell";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
 import type { CartItem, Group } from '../../types';
@@ -235,9 +233,11 @@ function ComboPopup({
     if (loading) return <PizzaLoader/>;
     if (!item) return null;
     return (
-        <Modal open={open} onClose={onClose}>
-            <Box
-                sx={{
+        <ItemPopupShell
+            open={open}
+            onClose={onClose}
+            legacy={{
+                paperSx: {
                     position: "absolute",
                     top: "3%",
                     bottom: "0%",
@@ -249,33 +249,17 @@ function ComboPopup({
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
-                }}
-            >
-                <Fab
-                    size="small"
-                    onClick={onClose}
-                    sx={{
-                        position: "absolute",
-                        top: 16,
-                        right: 16,
-                        color: brandRed,
-                        backgroundColor: "#fff",
-                        zIndex: 9999
-                    }}
-                >
-                    <CloseIcon/>
-                </Fab>
-
-                <Box
-                    sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        scrollbarWidth: "none",
-                        boxSizing: "border-box",
-                        "&::-webkit-scrollbar": {
-                            display: "none"
-                        }
-                    }}>
+                },
+                scrollSx: {
+                    flex: 1,
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
+                    boxSizing: "border-box",
+                    "&::-webkit-scrollbar": {
+                        display: "none"
+                    }
+                },
+                media: (
                     <Box sx={{width: "100%", height: 350, overflow: "hidden"}}>
                         <img
                             src={item.photo}
@@ -283,193 +267,10 @@ function ComboPopup({
                             style={{width: "100%", height: "100%", objectFit: "cover"}}
                         />
                     </Box>
-
-                    <Box
-                        sx={{
-                            px: {xs: 2, md: 3},
-                            boxSizing: "border-box",
-                            pt: 2,
-                            pb: 2
-                        }}
-                    >
-                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 2}}>
-                            {localizeName(item)}
-                        </Typography>
-
-                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
-                            {t("comboPopup.pick2Pizzas")}
-                        </Typography>
-
-                        {groupedPizzas.map(({pizza, configs}) => {
-                            if (!pizza) return null;
-                            const isSelected = configs.length > 0;
-                            return (
-                                <Box key={pizza.name} sx={{
-                                    p: 2, mb: 2, borderRadius: 3,
-                                    boxShadow: isSelected
-                                        ? `0 0 0 2px ${brandRed}`
-                                        : "0 1px 3px rgba(0,0,0,0.15)"
-                                }}>
-                                    <FormControlLabel
-                                        label={<Typography sx={{fontWeight: "bold"}}>{localizeName(pizza)}</Typography>}
-                                        control={<Checkbox
-                                            checked={isSelected}
-                                            onChange={(e) => handleTogglePizza(pizza.name, e.target.checked)}
-                                            sx={{color: brandRed, "&.Mui-checked": {color: brandRed}}}
-                                        />}
-                                    />
-
-                                    {isSelected && (
-                                        <>
-                                            {/* Quantity */}
-                                            <Box sx={{
-                                                backgroundColor: brandGray,
-                                                borderRadius: "9999px",
-                                                p: "4px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                gap: "4px",
-                                                height: 30,
-                                                mt: 1,
-                                                mb: 2,
-                                                maxWidth: "130px"
-                                            }}>
-                                                <Button onClick={() => handleQuantityChange(pizza.name, -1)}
-                                                        sx={{minWidth: 36, color: "#666",}}>–</Button>
-                                                <Box sx={{minWidth: 22, textAlign: "center"}}>
-                                                    {configs.length}
-                                                </Box>
-                                                <Button onClick={() => handleQuantityChange(pizza.name, 1)}
-                                                        sx={{minWidth: 36, color: "#666"}}>+</Button>
-                                            </Box>
-
-                                            {configs.map((p, i) => (
-                                                <Box key={i} sx={{ mb: 2 }}>
-                                                    <TextField
-                                                        label="Add a note"
-                                                        fullWidth
-                                                        multiline
-                                                        rows={2}
-                                                        value={p.note ?? ""}
-                                                        onChange={(e) => handleChangeNote(pizza.name, e.target.value)}
-                                                        sx={{ mb: 3 }}
-                                                        InputProps={{ sx: { borderRadius: 4 } }}
-                                                    />
-
-                                                    {/* Dough */}
-                                                    <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        {t("options.doughHeading")}
-                                                    </Typography>
-                                                    <ToggleButtonGroup
-                                                        exclusive
-                                                        value={p.dough}
-                                                        onChange={(e, val) => val && updatePizzaConfig(p.name, i, "dough", val)}
-                                                        sx={{
-                                                            backgroundColor: brandGray,
-                                                            borderRadius: "9999px",
-                                                            p: "4px",
-                                                            mb: 1,
-                                                            "& .MuiToggleButtonGroup-grouped": {
-                                                                border: 0,
-                                                                flex: 1,
-                                                                borderRadius: "9999px",
-                                                                mr: "4px",
-                                                                "&:not(:last-of-type)": { borderRight: "none" },
-                                                            },
-                                                        }}
-                                                        fullWidth
-                                                    >
-                                                        {["Traditional", "Thin"].map((dough) => (
-                                                            <ToggleButton
-                                                                key={dough}
-                                                                value={dough}
-                                                                sx={{
-                                                                    textTransform: "none",
-                                                                    fontSize: "13px",
-                                                                    justifyContent: "center",
-                                                                    color: "#666",
-                                                                    borderRadius: "9999px",
-                                                                    height: 30,
-                                                                    "&:hover": {
-                                                                        backgroundColor: "transparent",
-                                                                    },
-                                                                    "&.Mui-selected": {
-                                                                        backgroundColor: "#fff",
-                                                                        color: brandRed,
-                                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                                                        "&:hover": {
-                                                                            backgroundColor: "#fff",
-                                                                        },
-                                                                    },
-                                                                }}
-                                                            >
-                                                                {optionLabel(dough)}
-                                                            </ToggleButton>
-                                                        ))}
-                                                    </ToggleButtonGroup>
-
-                                                    {/* Crust */}
-                                                    <Typography variant="body2" sx={{ mt: 1 }}>
-                                                        {t("options.crustHeading")}
-                                                    </Typography>
-                                                    <ToggleButtonGroup
-                                                        exclusive
-                                                        value={p.crust}
-                                                        onChange={(e, val) => val && updatePizzaConfig(p.name, i, "crust", val)}
-                                                        sx={{
-                                                            backgroundColor: brandGray,
-                                                            borderRadius: "9999px",
-                                                            p: "4px",
-                                                            mb: 1,
-                                                            "& .MuiToggleButtonGroup-grouped": {
-                                                                border: 0,
-                                                                flex: 1,
-                                                                borderRadius: "9999px",
-                                                                mr: "4px",
-                                                                "&:not(:last-of-type)": { borderRight: "none" },
-                                                            },
-                                                        }}
-                                                        fullWidth
-                                                    >
-                                                        {["Classic Crust", "Garlic Crust"].map((crust) => (
-                                                            <ToggleButton
-                                                                key={crust}
-                                                                value={crust}
-                                                                sx={{
-                                                                    textTransform: "none",
-                                                                    fontSize: "13px",
-                                                                    justifyContent: "center",
-                                                                    color: "#666",
-                                                                    borderRadius: "9999px",
-                                                                    height: 30,
-                                                                    "&:hover": {
-                                                                        backgroundColor: "transparent",
-                                                                    },
-                                                                    "&.Mui-selected": {
-                                                                        backgroundColor: "#fff",
-                                                                        color: brandRed,
-                                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
-                                                                        "&:hover": {
-                                                                            backgroundColor: "#fff",
-                                                                        },
-                                                                    },
-                                                                }}
-                                                            >
-                                                                {optionLabel(crust)}
-                                                            </ToggleButton>
-                                                        ))}
-                                                    </ToggleButtonGroup>
-                                                </Box>
-                                            ))}
-                                        </>
-                                    )}
-                                </Box>
-                            );
-                        })}
-                    </Box>
-                </Box>
-
+                ),
+            }}
+            desktop={{photo: {src: item.photo, alt: localizeName(item)}}}
+            footer={
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",
@@ -546,8 +347,193 @@ function ComboPopup({
                         {t("comboPopup.add", {price: basePrice.toFixed(2)})}
                     </Button>
                 </Box>
+            }
+        >
+            <Box
+                sx={{
+                    px: {xs: 2, md: 3},
+                    boxSizing: "border-box",
+                    pt: 2,
+                    pb: 2
+                }}
+            >
+                <Typography variant="h6" sx={{fontWeight: "bold", mb: 2}}>
+                    {localizeName(item)}
+                </Typography>
+
+                <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1}}>
+                    {t("comboPopup.pick2Pizzas")}
+                </Typography>
+
+                {groupedPizzas.map(({pizza, configs}) => {
+                    if (!pizza) return null;
+                    const isSelected = configs.length > 0;
+                    return (
+                        <Box key={pizza.name} sx={{
+                            p: 2, mb: 2, borderRadius: 3,
+                            boxShadow: isSelected
+                                ? `0 0 0 2px ${brandRed}`
+                                : "0 1px 3px rgba(0,0,0,0.15)"
+                        }}>
+                            <FormControlLabel
+                                label={<Typography sx={{fontWeight: "bold"}}>{localizeName(pizza)}</Typography>}
+                                control={<Checkbox
+                                    checked={isSelected}
+                                    onChange={(e) => handleTogglePizza(pizza.name, e.target.checked)}
+                                    sx={{color: brandRed, "&.Mui-checked": {color: brandRed}}}
+                                />}
+                            />
+
+                            {isSelected && (
+                                <>
+                                    {/* Quantity */}
+                                    <Box sx={{
+                                        backgroundColor: brandGray,
+                                        borderRadius: "9999px",
+                                        p: "4px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "4px",
+                                        height: 30,
+                                        mt: 1,
+                                        mb: 2,
+                                        maxWidth: "130px"
+                                    }}>
+                                        <Button onClick={() => handleQuantityChange(pizza.name, -1)}
+                                                sx={{minWidth: 36, color: "#666",}}>–</Button>
+                                        <Box sx={{minWidth: 22, textAlign: "center"}}>
+                                            {configs.length}
+                                        </Box>
+                                        <Button onClick={() => handleQuantityChange(pizza.name, 1)}
+                                                sx={{minWidth: 36, color: "#666"}}>+</Button>
+                                    </Box>
+
+                                    {configs.map((p, i) => (
+                                        <Box key={i} sx={{ mb: 2 }}>
+                                            <TextField
+                                                label="Add a note"
+                                                fullWidth
+                                                multiline
+                                                rows={2}
+                                                value={p.note ?? ""}
+                                                onChange={(e) => handleChangeNote(pizza.name, e.target.value)}
+                                                sx={{ mb: 3 }}
+                                                InputProps={{ sx: { borderRadius: 4 } }}
+                                            />
+
+                                            {/* Dough */}
+                                            <Typography variant="body2" sx={{ mt: 1 }}>
+                                                {t("options.doughHeading")}
+                                            </Typography>
+                                            <ToggleButtonGroup
+                                                exclusive
+                                                value={p.dough}
+                                                onChange={(e, val) => val && updatePizzaConfig(p.name, i, "dough", val)}
+                                                sx={{
+                                                    backgroundColor: brandGray,
+                                                    borderRadius: "9999px",
+                                                    p: "4px",
+                                                    mb: 1,
+                                                    "& .MuiToggleButtonGroup-grouped": {
+                                                        border: 0,
+                                                        flex: 1,
+                                                        borderRadius: "9999px",
+                                                        mr: "4px",
+                                                        "&:not(:last-of-type)": { borderRight: "none" },
+                                                    },
+                                                }}
+                                                fullWidth
+                                            >
+                                                {["Traditional", "Thin"].map((dough) => (
+                                                    <ToggleButton
+                                                        key={dough}
+                                                        value={dough}
+                                                        sx={{
+                                                            textTransform: "none",
+                                                            fontSize: "13px",
+                                                            justifyContent: "center",
+                                                            color: "#666",
+                                                            borderRadius: "9999px",
+                                                            height: 30,
+                                                            "&:hover": {
+                                                                backgroundColor: "transparent",
+                                                            },
+                                                            "&.Mui-selected": {
+                                                                backgroundColor: "#fff",
+                                                                color: brandRed,
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                                                "&:hover": {
+                                                                    backgroundColor: "#fff",
+                                                                },
+                                                            },
+                                                        }}
+                                                    >
+                                                        {optionLabel(dough)}
+                                                    </ToggleButton>
+                                                ))}
+                                            </ToggleButtonGroup>
+
+                                            {/* Crust */}
+                                            <Typography variant="body2" sx={{ mt: 1 }}>
+                                                {t("options.crustHeading")}
+                                            </Typography>
+                                            <ToggleButtonGroup
+                                                exclusive
+                                                value={p.crust}
+                                                onChange={(e, val) => val && updatePizzaConfig(p.name, i, "crust", val)}
+                                                sx={{
+                                                    backgroundColor: brandGray,
+                                                    borderRadius: "9999px",
+                                                    p: "4px",
+                                                    mb: 1,
+                                                    "& .MuiToggleButtonGroup-grouped": {
+                                                        border: 0,
+                                                        flex: 1,
+                                                        borderRadius: "9999px",
+                                                        mr: "4px",
+                                                        "&:not(:last-of-type)": { borderRight: "none" },
+                                                    },
+                                                }}
+                                                fullWidth
+                                            >
+                                                {["Classic Crust", "Garlic Crust"].map((crust) => (
+                                                    <ToggleButton
+                                                        key={crust}
+                                                        value={crust}
+                                                        sx={{
+                                                            textTransform: "none",
+                                                            fontSize: "13px",
+                                                            justifyContent: "center",
+                                                            color: "#666",
+                                                            borderRadius: "9999px",
+                                                            height: 30,
+                                                            "&:hover": {
+                                                                backgroundColor: "transparent",
+                                                            },
+                                                            "&.Mui-selected": {
+                                                                backgroundColor: "#fff",
+                                                                color: brandRed,
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                                                                "&:hover": {
+                                                                    backgroundColor: "#fff",
+                                                                },
+                                                            },
+                                                        }}
+                                                    >
+                                                        {optionLabel(crust)}
+                                                    </ToggleButton>
+                                                ))}
+                                            </ToggleButtonGroup>
+                                        </Box>
+                                    ))}
+                                </>
+                            )}
+                        </Box>
+                    );
+                })}
             </Box>
-        </Modal>
+        </ItemPopupShell>
     );
 }
 

@@ -3,9 +3,11 @@
 // so the children are mocked to probes and only this file's own logic is exercised.
 import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React from "react";
-import { act, render, waitFor, type RenderResult } from "@testing-library/react";
+import { act, render, screen, waitFor, type RenderResult } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../shared/i18n";
+import type { Group } from "../domains/menu/types";
+import { clearMatchMedia, stubMatchMedia } from "../shared/hooks/stubMatchMedia.testutil";
 
 jest.mock("../shared/api/delivery");
 // lottie-web touches a canvas jsdom doesn't provide; the popup tree pulls it in transitively.
@@ -930,3 +932,63 @@ describe("HomePageModals — the Keeta choice event", () => {
     });
 });
 
+/**
+ * The PC item dialog is for customers only: admin staff and the kiosk keep the phone-shaped popups
+ * at any width, because their screen sizes are unknown. This file is where that is decided, for
+ * every popup at once, through the DesktopLayoutAllowedContext provider.
+ */
+describe("HomePageModals — PC item popups are customer-only", () => {
+    const BEVERAGES: Group = {
+        name: "Water",
+        items: [{
+            id: 50, name: "Water", category: "Beverages", size: "", price: 0.2, available: true,
+            is_best_seller: false, photo: "", description: "",
+        }],
+    };
+
+    function renderGenericPopup(modalsOverrides: Record<string, unknown>): RenderResult {
+        return renderModals(
+            {
+                cartOpen: false,
+                genericPopupOpen: true,
+                popupGroup: BEVERAGES,
+                setGenericPopupOpen: jest.fn(),
+                setPopupGroup: jest.fn(),
+                handleAddToCart: jest.fn(),
+            },
+            { generalCrossSellItems: [] },
+            { beverages: [BEVERAGES], ...modalsOverrides },
+        );
+    }
+
+    beforeEach(() => {
+        // The generic popup's mount effect bootstraps the TikTok pixel through a <script> tag
+        // jsdom does not have; a seeded window.ttq skips that branch.
+        window.ttq = { track: jest.fn() };
+        stubMatchMedia(true);
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("renders the PC dialog for a customer on a wide screen", () => {
+        renderGenericPopup({ isAdmin: false, isKiosk: false });
+
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
+    });
+
+    it("keeps the phone popup on the kiosk at the same width", () => {
+        renderGenericPopup({ isKiosk: true });
+
+        expect(screen.getByRole("button", { name: /^Add ·/ })).toBeTruthy();
+        expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+    });
+
+    it("keeps the phone popup for admin staff at the same width", () => {
+        renderGenericPopup({ isAdmin: true });
+
+        expect(screen.getByRole("button", { name: /^Add ·/ })).toBeTruthy();
+        expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+    });
+});

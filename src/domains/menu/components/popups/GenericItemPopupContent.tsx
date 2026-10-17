@@ -1,17 +1,15 @@
 import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {
-    Modal,
     Box,
     Typography,
-    Fab,
     Button, Checkbox, FormControlLabel, TextField
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import type { MenuItem, CartItem, ExtraIngr, Group, RecipeComponent } from '../../types';
 import {RecipeComponentsLine} from "../RecipeComponentsLine";
+import {ItemPopupShell} from "./ItemPopupShell";
 import {
     buildRemovalTokens,
     toRemoveCustomizations,
@@ -214,9 +212,11 @@ function GenericItemPopupContent({
     }
 
     return (
-        <Modal open={open} onClose={onClose}>
-            <Box
-                sx={{
+        <ItemPopupShell
+            open={open}
+            onClose={onClose}
+            legacy={{
+                paperSx: {
                     position: "absolute",
                     top: "3%",
                     bottom: 0,
@@ -228,24 +228,8 @@ function GenericItemPopupContent({
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
-                }}
-            >
-                <Fab
-                    size="small"
-                    onClick={onClose}
-                    sx={{
-                        position: "absolute",
-                        top: 16,
-                        right: 16,
-                        color: brandRed,
-                        backgroundColor: "#fff",
-                        zIndex: 9999
-                    }}
-                >
-                    <CloseIcon/>
-                </Fab>
-
-                <Box sx={{
+                },
+                scrollSx: {
                     flex: 1,
                     overflowY: "auto",
                     scrollbarWidth: "none",
@@ -253,7 +237,8 @@ function GenericItemPopupContent({
                     "&::-webkit-scrollbar": {
                         display: "none"
                     }
-                }}>
+                },
+                media: (
                     <Box sx={{width: "100%",
                         aspectRatio: "5 / 3",
                         maxHeight: {
@@ -269,179 +254,10 @@ function GenericItemPopupContent({
                             style={{width: "100%", height: "100%", objectFit: "cover"}}
                         />
                     </Box>
-
-                    <Box
-                        sx={{
-                            flex: 1,
-                            overflowY: "auto",
-                            px: {xs: 2, md: 3},
-                            pt: 2,
-                            pb: 2
-                        }}
-                    >
-                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 1}}>
-                            {localizeName(item)}
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            sx={{
-                                mb: 2,
-                                color: "#444",
-                                lineHeight: 1.4,
-                                fontSize: "14px"
-                            }}
-                        >
-                            {localizeDescription(item)}
-                        </Typography>
-                        {item.name === "Pizza Rolls" && (
-                            <>
-                                <FormControlLabel
-                                    label={
-                                        <Typography variant="body1" sx={{fontWeight: "bold"}}>
-                                            Pepperoni
-                                        </Typography>
-                                    }
-                                    control={
-                                        <Checkbox
-                                            checked={selectedToppings.includes("Pepperoni")}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setSelectedToppings(["Pepperoni"]);
-                                                    setDescription("Pepperoni");
-                                                } else {
-                                                    setSelectedToppings([]);
-                                                    setDescription("");
-                                                }
-                                            }}
-                                            sx={{
-                                                color: brandRed,
-                                                "&.Mui-checked": {color: brandRed},
-                                            }}
-                                        />
-                                    }
-                                />
-                                <FormControlLabel
-                                    label={
-                                        <Typography variant="body1" sx={{fontWeight: "bold"}}>
-                                            Smoked Turkey
-                                        </Typography>
-                                    }
-                                    control={
-                                        <Checkbox
-                                            checked={selectedToppings.includes("Smoked Turkey")}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setSelectedToppings(["Smoked Turkey"]);
-                                                    setDescription("Smoked Turkey");
-                                                } else {
-                                                    setSelectedToppings([]);
-                                                    setDescription("");
-                                                }
-                                            }}
-                                            sx={{
-                                                color: brandRed,
-                                                "&.Mui-checked": {color: brandRed},
-                                            }}
-                                        />
-                                    }
-                                />
-                            </>
-                        )}
-
-                        <Box
-                            sx={{
-                                backgroundColor: brandGray,
-                                borderRadius: "9999px",
-                                p: "4px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "4px",
-                                height: 34,
-                                mb: 2,
-                                maxWidth: "130px",
-                                mx: "auto"
-                            }}
-                        >
-                            <Button
-                                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                                sx={{
-                                    minWidth: 40,
-                                    height: 26,
-                                    backgroundColor: "transparent",
-                                    color: "#666",
-                                    fontSize: "16px",
-                                    textTransform: "none",
-                                    borderRadius: "9999px",
-                                    p: 0,
-                                    "&:hover": {
-                                        backgroundColor: "rgba(0,0,0,0.1)"
-                                    }
-                                }}
-                            >
-                                –
-                            </Button>
-                            <Box
-                                sx={{
-                                    minWidth: 30,
-                                    textAlign: "center",
-                                    fontSize: "15px",
-                                    color: "#666"
-                                }}
-                            >
-                                {quantity}
-                            </Box>
-                            <Button
-                                onClick={() => setQuantity((q) => q + 1)}
-                                sx={{
-                                    minWidth: 40,
-                                    height: 26,
-                                    backgroundColor: "transparent",
-                                    color: "#666",
-                                    fontSize: "16px",
-                                    textTransform: "none",
-                                    borderRadius: "9999px",
-                                    p: 0,
-                                    "&:hover": {
-                                        backgroundColor: "rgba(0,0,0,0.1)"
-                                    }
-                                }}
-                            >
-                                +
-                            </Button>
-                        </Box>
-                        {item.category === "Brick Pizzas" &&
-                            <Box>
-
-                                <RecipeComponentsLine
-                                    components={recipeComponents}
-                                    removedIds={removedComponents.map(r => r.id)}
-                                    onToggle={handleToggleComponent}
-                                />
-
-                                <TextField
-                                    label={t("genericPopup.addNote")}
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    value={note}
-                                    onChange={(e) => setNote(e.target.value)}
-                                    sx={{mb: 3}}
-                                    InputProps={{sx: {borderRadius: 4}}}
-                                />
-
-                                <BetterTogetherComponent
-                                    betterTogether={crossSellItems}
-                                    selectedItems={crossSellMap}
-                                    increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
-                                    decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
-                                    title={t("genericPopup.betterTogether")}
-                                />
-                            </Box>
-                        }
-
-                    </Box>
-                </Box>
+                ),
+            }}
+            desktop={{photo: {src: item.photo, alt: localizeName(item)}}}
+            footer={
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",
@@ -466,8 +282,180 @@ function GenericItemPopupContent({
                         {t("genericPopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
+            }
+        >
+            <Box
+                sx={{
+                    flex: 1,
+                    overflowY: "auto",
+                    px: {xs: 2, md: 3},
+                    pt: 2,
+                    pb: 2
+                }}
+            >
+                <Typography variant="h6" sx={{fontWeight: "bold", mb: 1}}>
+                    {localizeName(item)}
+                </Typography>
+                <Typography
+                    variant="body2"
+                    sx={{
+                        mb: 2,
+                        color: "#444",
+                        lineHeight: 1.4,
+                        fontSize: "14px"
+                    }}
+                >
+                    {localizeDescription(item)}
+                </Typography>
+                {item.name === "Pizza Rolls" && (
+                    <>
+                        <FormControlLabel
+                            label={
+                                <Typography variant="body1" sx={{fontWeight: "bold"}}>
+                                    Pepperoni
+                                </Typography>
+                            }
+                            control={
+                                <Checkbox
+                                    checked={selectedToppings.includes("Pepperoni")}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedToppings(["Pepperoni"]);
+                                            setDescription("Pepperoni");
+                                        } else {
+                                            setSelectedToppings([]);
+                                            setDescription("");
+                                        }
+                                    }}
+                                    sx={{
+                                        color: brandRed,
+                                        "&.Mui-checked": {color: brandRed},
+                                    }}
+                                />
+                            }
+                        />
+                        <FormControlLabel
+                            label={
+                                <Typography variant="body1" sx={{fontWeight: "bold"}}>
+                                    Smoked Turkey
+                                </Typography>
+                            }
+                            control={
+                                <Checkbox
+                                    checked={selectedToppings.includes("Smoked Turkey")}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedToppings(["Smoked Turkey"]);
+                                            setDescription("Smoked Turkey");
+                                        } else {
+                                            setSelectedToppings([]);
+                                            setDescription("");
+                                        }
+                                    }}
+                                    sx={{
+                                        color: brandRed,
+                                        "&.Mui-checked": {color: brandRed},
+                                    }}
+                                />
+                            }
+                        />
+                    </>
+                )}
+
+                <Box
+                    sx={{
+                        backgroundColor: brandGray,
+                        borderRadius: "9999px",
+                        p: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "4px",
+                        height: 34,
+                        mb: 2,
+                        maxWidth: "130px",
+                        mx: "auto"
+                    }}
+                >
+                    <Button
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        sx={{
+                            minWidth: 40,
+                            height: 26,
+                            backgroundColor: "transparent",
+                            color: "#666",
+                            fontSize: "16px",
+                            textTransform: "none",
+                            borderRadius: "9999px",
+                            p: 0,
+                            "&:hover": {
+                                backgroundColor: "rgba(0,0,0,0.1)"
+                            }
+                        }}
+                    >
+                        –
+                    </Button>
+                    <Box
+                        sx={{
+                            minWidth: 30,
+                            textAlign: "center",
+                            fontSize: "15px",
+                            color: "#666"
+                        }}
+                    >
+                        {quantity}
+                    </Box>
+                    <Button
+                        onClick={() => setQuantity((q) => q + 1)}
+                        sx={{
+                            minWidth: 40,
+                            height: 26,
+                            backgroundColor: "transparent",
+                            color: "#666",
+                            fontSize: "16px",
+                            textTransform: "none",
+                            borderRadius: "9999px",
+                            p: 0,
+                            "&:hover": {
+                                backgroundColor: "rgba(0,0,0,0.1)"
+                            }
+                        }}
+                    >
+                        +
+                    </Button>
+                </Box>
+                {item.category === "Brick Pizzas" &&
+                    <Box>
+
+                        <RecipeComponentsLine
+                            components={recipeComponents}
+                            removedIds={removedComponents.map(r => r.id)}
+                            onToggle={handleToggleComponent}
+                        />
+
+                        <TextField
+                            label={t("genericPopup.addNote")}
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            sx={{mb: 3}}
+                            InputProps={{sx: {borderRadius: 4}}}
+                        />
+
+                        <BetterTogetherComponent
+                            betterTogether={crossSellItems}
+                            selectedItems={crossSellMap}
+                            increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
+                            decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
+                            title={t("genericPopup.betterTogether")}
+                        />
+                    </Box>
+                }
+
             </Box>
-        </Modal>
+        </ItemPopupShell>
     );
 }
 

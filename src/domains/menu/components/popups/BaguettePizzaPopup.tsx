@@ -1,12 +1,13 @@
 import {MenuItem} from "../../types";
-import {Box, Button, Fab, Modal, TextField, Typography} from "@mui/material";
+import {Box, Button, TextField, Typography} from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
-import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
+import {useDesktopLayout} from "../../../../shared/hooks/useDesktopLayout";
 import type { CartItem, RecipeComponent } from "../../types";
 import {RecipeComponentsLine} from "../RecipeComponentsLine";
+import {ItemPopupShell} from "./ItemPopupShell";
 import {
     buildRemovalTokens,
     toRemoveCustomizations,
@@ -32,6 +33,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
     const [quantity, setQuantity] = useState<number>(1);
     const [crossSellMap, setSelectedCrossSellItems] = useState<Record<string, number>>({});
     const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
+    const isDesktop = useDesktopLayout();
 
     const recipeComponents = menuItem.recipe_components ?? [];
 
@@ -122,9 +124,11 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
 
 
     return (
-        <Modal open={open} onClose={onClose}>
-            <Box
-                sx={{
+        <ItemPopupShell
+            open={open}
+            onClose={onClose}
+            legacy={{
+                paperSx: {
                     position: "absolute",
                     top: "3%",
                     bottom: "0%",
@@ -136,32 +140,17 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column"
-                }}
-            >
-                <Fab
-                    size="small"
-                    onClick={onClose}
-                    sx={{
-                        position: "absolute",
-                        top: 16,
-                        right: 16,
-                        color: brandRed,
-                        backgroundColor: "#fff",
-                        zIndex: 9999
-                    }}
-                >
-                    <CloseIcon />
-                </Fab>
-                <Box
-                    sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        scrollbarWidth: "none",
-                        boxSizing: "border-box",
-                        "&::-webkit-scrollbar": {
-                            display: "none"
-                        }
-                    }}>
+                },
+                scrollSx: {
+                    flex: 1,
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
+                    boxSizing: "border-box",
+                    "&::-webkit-scrollbar": {
+                        display: "none"
+                    }
+                },
+                media: (
                     <Box sx={{
                         width: "100%",
                         height: { xs: 250, sm: 400, md: 300 },
@@ -173,123 +162,10 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                             style={{width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#fff"}}
                         />
                     </Box>
-
-                    <Box
-                        sx={{
-                            px: {xs: 2, md: 3},
-                            boxSizing: "border-box",
-                            pt: 2,
-                            pb: 2
-                        }}
-                    >
-                        <Typography variant="h6" sx={{fontWeight: "bold", mb: 3, textAlign: "center"}}>
-                            {localizeName(menuItem)}
-                        </Typography>
-
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                mb: 3,
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    backgroundColor: brandGray,
-                                    borderRadius: "9999px",
-                                    p: "4px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    height: 34,
-                                    minWidth: 108,
-                                }}
-                            >
-                                <Button
-                                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                                    sx={{
-                                        minWidth: 34,
-                                        height: 26,
-                                        backgroundColor: "transparent",
-                                        color: "#666",
-                                        fontSize: "16px",
-                                        textTransform: "none",
-                                        borderRadius: "9999px",
-                                        p: 0,
-                                        "&:hover": {
-                                            backgroundColor: "rgba(0,0,0,0.1)"
-                                        }
-                                    }}
-                                >
-                                    –
-                                </Button>
-                                <Box sx={{minWidth: 30, textAlign: "center", fontSize: "15px", color: "#666"}}>
-                                    {quantity}
-                                </Box>
-                                <Button
-                                    onClick={() => setQuantity((q) => q + 1)}
-                                    sx={{
-                                        minWidth: 34,
-                                        height: 26,
-                                        backgroundColor: "transparent",
-                                        color: "#666",
-                                        fontSize: "16px",
-                                        textTransform: "none",
-                                        borderRadius: "9999px",
-                                        p: 0,
-                                        "&:hover": {
-                                            backgroundColor: "rgba(0,0,0,0.1)"
-                                        }
-                                    }}
-                                >
-                                    +
-                                </Button>
-                            </Box>
-                        </Box>
-
-                        <RecipeComponentsLine
-                            components={recipeComponents}
-                            removedIds={removedComponents.map(r => r.id)}
-                            onToggle={handleToggleComponent}
-                        />
-
-                        <TextField
-                            label={t("baguettePopup.addNote")}
-                            fullWidth
-                            multiline
-                            rows={2}
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            sx={{mb: 3}}
-                            InputProps={{sx: {borderRadius: 4}}}
-                        />
-
-                        <BetterTogetherComponent
-                            betterTogether={crossSellItems}
-                            selectedItems={crossSellMap}
-                            increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
-                            decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
-                        />
-
-                        <Box>
-                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
-                                {t("baguettePopup.about")}
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    mb: 2,
-                                    color: "#444",
-                                    lineHeight: 1.4,
-                                    fontSize: "14px"
-                                }}
-                            >
-                                {localizeDescription(menuItem)}
-                            </Typography>
-                        </Box>
-                    </Box>
-                </Box>
+                ),
+            }}
+            desktop={{photo: {src: menuItem.photo, alt: localizeName(menuItem)}}}
+            footer={
                 <Box
                     sx={{
                         borderTop: "1px solid #eee",
@@ -317,7 +193,133 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                         {t("baguettePopup.add", {price: getFinalPriceOnPopup()})}
                     </Button>
                 </Box>
+            }
+        >
+            <Box
+                sx={{
+                    px: {xs: 2, md: 3},
+                    boxSizing: "border-box",
+                    pt: 2,
+                    pb: 2
+                }}
+            >
+                <Typography variant="h6" sx={{fontWeight: "bold", mb: isDesktop ? 1 : 3, textAlign: "center"}}>
+                    {localizeName(menuItem)}
+                </Typography>
+                {isDesktop &&
+                    <Typography
+                        variant="body2"
+                        sx={{mb: 3, color: "#444", lineHeight: 1.4, fontSize: "14px", textAlign: "center"}}
+                    >
+                        {localizeDescription(menuItem)}
+                    </Typography>
+                }
+
+                <Box
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mb: 3,
+                    }}
+                >
+                    <Box
+                        sx={{
+                            backgroundColor: brandGray,
+                            borderRadius: "9999px",
+                            p: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            height: 34,
+                            minWidth: 108,
+                        }}
+                    >
+                        <Button
+                            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                            sx={{
+                                minWidth: 34,
+                                height: 26,
+                                backgroundColor: "transparent",
+                                color: "#666",
+                                fontSize: "16px",
+                                textTransform: "none",
+                                borderRadius: "9999px",
+                                p: 0,
+                                "&:hover": {
+                                    backgroundColor: "rgba(0,0,0,0.1)"
+                                }
+                            }}
+                        >
+                            –
+                        </Button>
+                        <Box sx={{minWidth: 30, textAlign: "center", fontSize: "15px", color: "#666"}}>
+                            {quantity}
+                        </Box>
+                        <Button
+                            onClick={() => setQuantity((q) => q + 1)}
+                            sx={{
+                                minWidth: 34,
+                                height: 26,
+                                backgroundColor: "transparent",
+                                color: "#666",
+                                fontSize: "16px",
+                                textTransform: "none",
+                                borderRadius: "9999px",
+                                p: 0,
+                                "&:hover": {
+                                    backgroundColor: "rgba(0,0,0,0.1)"
+                                }
+                            }}
+                        >
+                            +
+                        </Button>
+                    </Box>
+                </Box>
+
+                <RecipeComponentsLine
+                    components={recipeComponents}
+                    removedIds={removedComponents.map(r => r.id)}
+                    onToggle={handleToggleComponent}
+                />
+
+                <TextField
+                    label={t("baguettePopup.addNote")}
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    sx={{mb: 3}}
+                    InputProps={{sx: {borderRadius: 4}}}
+                />
+
+                <BetterTogetherComponent
+                    betterTogether={crossSellItems}
+                    selectedItems={crossSellMap}
+                    increaseQuantityOnCrossSell={increaseQuantityOnCrossSell}
+                    decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
+                />
+
+                {!isDesktop &&
+                    <Box>
+                        <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
+                            {t("baguettePopup.about")}
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                mb: 2,
+                                color: "#444",
+                                lineHeight: 1.4,
+                                fontSize: "14px"
+                            }}
+                        >
+                            {localizeDescription(menuItem)}
+                        </Typography>
+                    </Box>
+                }
             </Box>
-        </Modal>
+        </ItemPopupShell>
     )
 }

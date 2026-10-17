@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 
@@ -8,6 +8,7 @@ import "../../../../shared/i18n";
 
 import GenericItemPopupContent from "./GenericItemPopupContent";
 import type { CartItem, Group, MenuItem } from "../../types";
+import { clearMatchMedia, stubMatchMedia } from "../../../../shared/hooks/stubMatchMedia.testutil";
 
 function makeBrickItem(overrides: Partial<MenuItem> = {}): MenuItem {
     return {
@@ -111,6 +112,59 @@ describe("GenericItemPopupContent — Brick Pizza note bug fix (task RW)", () =>
         expect(screen.queryByLabelText("Add a note")).toBeNull();
 
         fireEvent.click(screen.getByRole("button", { name: /^Add ·/ }));
+
+        const [products] = onAddToCart.mock.calls[0];
+        expect(products[0].note).toBe("");
+    });
+});
+
+// The PC dialog is the same component with a different shell, so the payload must not change with it.
+describe("GenericItemPopupContent — PC layout", () => {
+    beforeEach(() => {
+        stubMatchMedia(true);
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("keeps the Brick Pizza note and removal payload inside the PC dialog", async () => {
+        const { onAddToCart } = renderPopup();
+
+        expect(await screen.findByTestId("item-popup-dialog")).toBeTruthy();
+        fireEvent.change(screen.getByLabelText("Add a note"), {
+            target: { value: "extra crispy edges" },
+        });
+        fireEvent.click(screen.getByText("Red Onion"));
+        clickAdd();
+
+        expect(onAddToCart).toHaveBeenCalledTimes(1);
+        const [products] = onAddToCart.mock.calls[0];
+        expect(products[0].note).toBe("extra crispy edges");
+        expect(products[0].description).toBe("-(Red Onion)");
+        expect(products[0].customizations).toEqual([
+            { action: "REMOVE", componentId: 7, quantity: 1, name: "Red Onion" },
+        ]);
+    });
+
+    it("renders no note field for a non-Brick item and adds it with an empty note", async () => {
+        const nonBrick = makeBrickItem({ category: "Sides", recipe_components: undefined });
+        const onAddToCart = jest.fn<void, [CartItem[]]>();
+
+        render(
+            <GenericItemPopupContent
+                open
+                onClose={jest.fn()}
+                group={{ name: "Sides", items: [nonBrick] }}
+                onAddToCart={onAddToCart}
+                crossSellItems={[]}
+            />
+        );
+
+        expect(await screen.findByTestId("item-popup-dialog")).toBeTruthy();
+        expect(screen.queryByLabelText("Add a note")).toBeNull();
+
+        clickAdd();
 
         const [products] = onAddToCart.mock.calls[0];
         expect(products[0].note).toBe("");
