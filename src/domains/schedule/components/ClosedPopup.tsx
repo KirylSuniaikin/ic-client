@@ -15,13 +15,16 @@ import type { SxArrayEntry } from "../../../shared/utils/desktopDialog";
 // but JSON modules are typed as `unknown` per global.d.ts
 const sadMan = sadManData as object;
 
-// PC: a centred card over the dimmed menu instead of a full-screen white page.
+// PC: a centred card over the dimmed menu instead of a full-screen white page. It scrolls rather
+// than clips once a short laptop screen or a long weekly schedule outgrows the max height, and it
+// is not centred vertically: the card is already as tall as its content, and a centred column
+// that overflows spills off the top edge where no scroll can reach it.
 const CLOSED_DESKTOP_SX: ReadonlyArray<SxArrayEntry> = [
     ...toArray(centredModalPaperSx(440)),
     {
         background: "linear-gradient(180deg, #fff 0%, #FBFAF6 100%)",
         alignItems: "center",
-        justifyContent: "center",
+        overflowY: "auto",
         p: 4,
         textAlign: "center",
     },

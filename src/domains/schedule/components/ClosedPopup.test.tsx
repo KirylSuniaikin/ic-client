@@ -57,6 +57,17 @@ describe("ClosedPopup", () => {
         expect(rules).not.toContain("inset:0");
     });
 
+    // A short laptop screen or a branch with many different hour rows outgrows the card's max
+    // height; it must scroll, and from the top, rather than clip the Lottie and the button.
+    it("scrolls instead of clipping when its content outgrows the card on PC", () => {
+        stubMatchMedia(true);
+        renderPopup();
+
+        const rules = emotionRulesFor(paper());
+        expect(rules).toContain("overflow-y:auto");
+        expect(rules).not.toContain("justify-content:center");
+    });
+
     it("closes from See you soon!", () => {
         stubMatchMedia(true);
         const { onClose } = renderPopup();
