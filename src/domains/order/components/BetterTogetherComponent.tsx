@@ -3,6 +3,7 @@ import {Box, Button, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import React from "react";
 import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
+import {useCardRowSx} from "../../menu/components/cardRowSx";
 
 type BetterTogetherProps = {
     betterTogether: MenuItem[],
@@ -19,27 +20,14 @@ const brandGray = "#F5F5F5";
 export function BetterTogetherComponent({betterTogether, selectedItems, increaseQuantityOnCrossSell, decreaseQuantityOnCrossSell, title}: BetterTogetherProps) {
     const { t } = useTranslation("checkout");
     const {name: localizeName} = useLocalizedItem();
+    const rowSx = useCardRowSx();
     return (
         <Box>
             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
                 {title ?? t("betterTogether")}
             </Typography>
 
-            <Box
-                sx={{
-                    display: "flex",
-                    overflowX: "auto",
-                    gap: 1,
-                    mb: 2,
-                    py: 1,
-                    px: 0.2,
-                    scrollSnapType: "x mandatory",
-                    scrollbarWidth: "none",
-                    "&::-webkit-scrollbar": {
-                        display: "none"
-                    }
-                }}
-            >
+            <Box sx={rowSx}>
                 {betterTogether.map((item) => {
                     const active = selectedItems[item.name] != null;
                     return (

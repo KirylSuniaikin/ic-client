@@ -1,6 +1,7 @@
 import {Box, Typography} from "@mui/material";
 import React from "react";
 import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
+import {useCardRowSx} from "./cardRowSx";
 
 type Props = {
     toppings: Topping[],
@@ -21,6 +22,7 @@ const brandRed = "#E44B4C";
 
 export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedToppings}: Props) {
     const {name: localizeName} = useLocalizedItem();
+    const rowSx = useCardRowSx();
     const handleToggleIngr = (name: string) => {
         if (selectedToppings.includes(name)) {
             onUpdateSelectedToppings((prev) => prev.filter((x) => x !== name));
@@ -30,21 +32,7 @@ export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedTopp
     };
 
     return (
-        <Box
-            sx={{
-                display: "flex",
-                overflowX: "auto",
-                gap: 1,
-                mb: 2,
-                py: 1,
-                px: 0.2,
-                scrollSnapType: "x mandatory",
-                scrollbarWidth: "none",
-                "&::-webkit-scrollbar": {
-                    display: "none",
-                },
-            }}
-        >
+        <Box sx={rowSx}>
             {toppings.map((topping) => {
                 const active = selectedToppings.includes(topping.name);
                 return (

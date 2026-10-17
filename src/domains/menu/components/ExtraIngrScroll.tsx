@@ -3,6 +3,7 @@ import { Box, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
 import type { ExtraIngr } from "../types";
+import { useCardRowSx } from "./cardRowSx";
 
 const brandRed = "#E44B4C";
 
@@ -21,6 +22,7 @@ interface ExtraIngrScrollProps {
 export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, selected, onToggle }) => {
     const { t } = useTranslation("menu");
     const { name: localizeName } = useLocalizedItem();
+    const rowSx = useCardRowSx();
 
     if (ingredients.length === 0) return null;
 
@@ -29,21 +31,7 @@ export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, s
             <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1, px: 0.2 }}>
                 {t("pizzaPopup.customize")}
             </Typography>
-            <Box
-                sx={{
-                    display: "flex",
-                    overflowX: "auto",
-                    gap: 1,
-                    mb: 2,
-                    py: 1,
-                    px: 0.2,
-                    scrollSnapType: "x mandatory",
-                    scrollbarWidth: "none",
-                    "&::-webkit-scrollbar": {
-                        display: "none"
-                    }
-                }}
-            >
+            <Box sx={rowSx}>
                 {ingredients.map((ing) => {
                     const active = selected.includes(ing.name);
                     const ingWithPhoto = ing as unknown as Record<string, unknown>;
