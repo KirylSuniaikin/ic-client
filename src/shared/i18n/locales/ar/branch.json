@@ -32,9 +32,10 @@
         "noAddress": "العنوان غير محدد",
         "openNow": "مفتوح الآن",
         "checkingHours": "جارٍ التحقق من ساعات العمل…",
-        "closedOpensToday": "مغلق · يفتح اليوم الساعة {{time}}",
-        "closedOpensTomorrow": "مغلق · يفتح غداً الساعة {{time}}",
-        "closedOpensOn": "مغلق · يفتح يوم {{day}} الساعة {{time}}",
+        "opensToday": "يفتح اليوم الساعة {{time}}",
+        "opensTomorrow": "يفتح غداً الساعة {{time}}",
+        "opensOn": "يفتح يوم {{day}} الساعة {{time}}",
+        "opensNextWeek": "يفتح يوم {{day}} القادم الساعة {{time}}",
         "findUsTitle": "كيف تصل إلينا",
         "photosLabel": "صور فرع {{branchName}}",
         "photoAlt": "{{branchName}}، الصورة {{n}}"

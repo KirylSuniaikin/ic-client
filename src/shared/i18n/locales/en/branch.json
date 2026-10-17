@@ -32,9 +32,10 @@
         "noAddress": "Address not specified",
         "openNow": "Open now",
         "checkingHours": "Checking hours…",
-        "closedOpensToday": "Closed · opens today at {{time}}",
-        "closedOpensTomorrow": "Closed · opens tomorrow at {{time}}",
-        "closedOpensOn": "Closed · opens {{day}} at {{time}}",
+        "opensToday": "Opens today at {{time}}",
+        "opensTomorrow": "Opens tomorrow at {{time}}",
+        "opensOn": "Opens {{day}} at {{time}}",
+        "opensNextWeek": "Opens next {{day}} at {{time}}",
         "findUsTitle": "How to find us",
         "photosLabel": "Photos of {{branchName}}",
         "photoAlt": "{{branchName}}, photo {{n}}"

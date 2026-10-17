@@ -18,7 +18,7 @@ export interface NextOpening {
 const DAY_INDEX_TO_NAME: DayName[] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /**
- * When a closed branch next opens, for the branch details sheet's "Closed · opens …" line.
+ * When a closed branch next opens, for the branch details sheet's "Opens …" line.
  *
  * A sibling of getTimeUntilNextOpening rather than a new export of it: BranchScheduleHeader's
  * tests replace that whole module with a manual mock, under which a second export would be

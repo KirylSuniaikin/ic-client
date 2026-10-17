@@ -128,19 +128,33 @@ export function BranchDetailsContent({
                 </Typography>
             )}
 
-            {/* The status is a statement, the route an action: only the route looks pressable. */}
-            <Box sx={{ display: "flex", gap: 1, justifyContent: "center", flexWrap: "wrap", mt: 2, mb: 2.5 }}>
-                <HoursPill hours={hours} />
-                {mapsUrl !== null && (
-                    <Button
-                        href={mapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        startIcon={<DirectionsRoundedIcon sx={{ color: BRAND_RED }} />}
-                        sx={ROUTE_BUTTON_SX}
+            <Box sx={{ mt: 2, mb: 2.5 }}>
+                {/* The status is a statement, the route an action: only the route looks pressable. */}
+                <Box sx={{ display: "flex", gap: 1, justifyContent: "center", flexWrap: "wrap" }}>
+                    <HoursPill hours={hours} />
+                    {mapsUrl !== null && (
+                        <Button
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            startIcon={<DirectionsRoundedIcon sx={{ color: BRAND_RED }} />}
+                            sx={ROUTE_BUTTON_SX}
+                        >
+                            {t("details.route")}
+                        </Button>
+                    )}
+                </Box>
+                {/* The reopening time sits under the pills, not inside the status pill: "Closed ·
+                    opens tomorrow at 15:00" in the pill pushed Route onto a line of its own on a
+                    390px phone and in the PC column, where the two should read as one pair. */}
+                {hours.state === "closed" && hours.nextOpening !== null && (
+                    <Typography
+                        data-testid="branch-details-reopens"
+                        variant="body2"
+                        sx={{ mt: 1, color: "#8a807a", fontWeight: 600, textAlign: "center" }}
                     >
-                        {t("details.route")}
-                    </Button>
+                        {reopensLabel(hours.nextOpening, t)}
+                    </Typography>
                 )}
             </Box>
 
@@ -273,19 +287,20 @@ function HoursPill({ hours }: { hours: BranchHours }): JSX.Element | null {
     return (
         <Box role="status" data-testid="branch-details-hours" sx={{ ...PILL_SX, bgcolor: "#FCE9E9", color: BRAND_RED }}>
             <BedtimeRoundedIcon sx={{ fontSize: 18 }} />
-            {closedLabel(hours.nextOpening, t)}
+            {t("details.closedNow")}
         </Box>
     );
 }
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
-function closedLabel(nextOpening: NextOpening | null, t: Translate): string {
-    if (nextOpening === null) return t("details.closedNow");
-    if (nextOpening.daysAhead === 0) return t("details.closedOpensToday", { time: nextOpening.time });
-    if (nextOpening.daysAhead === 1) return t("details.closedOpensTomorrow", { time: nextOpening.time });
-    return t("details.closedOpensOn", {
-        day: t(`days.${nextOpening.day}`, { ns: "schedule" }),
-        time: nextOpening.time,
-    });
+function reopensLabel(nextOpening: NextOpening, t: Translate): string {
+    const { time } = nextOpening;
+    if (nextOpening.daysAhead === 0) return t("details.opensToday", { time });
+    if (nextOpening.daysAhead === 1) return t("details.opensTomorrow", { time });
+    const day = t(`days.${nextOpening.day}`, { ns: "schedule" });
+    // Seven days ahead is today's own weekday: read on a Sunday, "Opens Sunday at 10:00" sounds
+    // like later today, so it says next Sunday.
+    if (nextOpening.daysAhead === 7) return t("details.opensNextWeek", { day, time });
+    return t("details.opensOn", { day, time });
 }

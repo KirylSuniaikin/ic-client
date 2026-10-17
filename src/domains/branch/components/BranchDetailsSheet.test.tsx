@@ -95,6 +95,8 @@ describe("BranchDetailsSheet", () => {
         renderSheet();
 
         expect(await screen.findByText("Closed right now")).toBeTruthy();
+        // No opening in the next seven days: there is no time to promise.
+        expect(screen.queryByTestId("branch-details-reopens")).toBeNull();
     });
 
     // The old sheet said "Closed right now" until the answer came back.
@@ -121,6 +123,8 @@ describe("BranchDetailsSheet", () => {
         expect(await screen.findByText("Open now")).toBeTruthy();
     });
 
+    // A closed branch says so in the pill and says when it reopens on a line of its own under the
+    // pills, so the pill stays short enough to share one row with Route.
     describe("on a fixed clock (Sunday 11:00 in Bahrain)", () => {
         beforeEach(() => {
             // Jest 27's modern timers cannot leave setTimeout real ("doNotFake" arrived in Jest
@@ -134,22 +138,77 @@ describe("BranchDetailsSheet", () => {
             jest.useRealTimers();
         });
 
+        function closedExcept(open: Record<string, { isOpen: boolean; shifts: string[][] }>): BaseAppInfoResponse["workingHours"] {
+            return { ...CLOSED_WEEK, ...open } as unknown as BaseAppInfoResponse["workingHours"];
+        }
+
         it("says a closed branch opens tomorrow, and at what time", async () => {
             mockFetch.mockResolvedValue(baseInfo({
-                workingHours: { ...CLOSED_WEEK, Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } } as unknown as BaseAppInfoResponse["workingHours"],
+                workingHours: closedExcept({ Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } }),
             }));
             renderSheet();
 
-            expect(await screen.findByText("Closed · opens tomorrow at 15:00")).toBeTruthy();
+            expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("Opens tomorrow at 15:00");
+            expect(screen.getByTestId("branch-details-hours").textContent).toBe("Closed right now");
         });
 
         it("says a closed branch opens later today, and at what time", async () => {
             mockFetch.mockResolvedValue(baseInfo({
-                workingHours: { ...CLOSED_WEEK, Sunday: { isOpen: true, shifts: [["18:00", "23:59"]] } } as unknown as BaseAppInfoResponse["workingHours"],
+                workingHours: closedExcept({ Sunday: { isOpen: true, shifts: [["18:00", "23:59"]] } }),
             }));
             renderSheet();
 
-            expect(await screen.findByText("Closed · opens today at 18:00")).toBeTruthy();
+            expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("Opens today at 18:00");
+        });
+
+        // The only label that reads its day name from another namespace (schedule:days.*): a
+        // wrong key path would print "Opens days.Wednesday at 16:30".
+        it("names the weekday a branch two or more days away reopens on", async () => {
+            mockFetch.mockResolvedValue(baseInfo({
+                workingHours: closedExcept({ Wednesday: { isOpen: true, shifts: [["16:30", "23:00"]] } }),
+            }));
+            renderSheet();
+
+            expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("Opens Wednesday at 16:30");
+        });
+
+        // Read on a Sunday afternoon, "Opens Sunday at 10:00" sounds like later today.
+        it("says next week when the only open day is today and today's shift is over", async () => {
+            jest.setSystemTime(new Date("2026-07-12T11:00:00.000Z")); // Sunday 14:00 in Bahrain
+            mockFetch.mockResolvedValue(baseInfo({
+                workingHours: closedExcept({ Sunday: { isOpen: true, shifts: [["10:00", "13:00"]] } }),
+            }));
+            renderSheet();
+
+            expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("Opens next Sunday at 10:00");
+        });
+
+        describe("in Arabic", () => {
+            afterEach(async () => {
+                await i18n.changeLanguage("en");
+            });
+
+            it("names the weekday", async () => {
+                await i18n.changeLanguage("ar");
+                mockFetch.mockResolvedValue(baseInfo({
+                    workingHours: closedExcept({ Wednesday: { isOpen: true, shifts: [["16:30", "23:00"]] } }),
+                }));
+                renderSheet();
+
+                expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("يفتح يوم الأربعاء الساعة 16:30");
+                expect(screen.getByTestId("branch-details-hours").textContent).toBe("مغلق الآن");
+            });
+
+            it("says next week", async () => {
+                await i18n.changeLanguage("ar");
+                jest.setSystemTime(new Date("2026-07-12T11:00:00.000Z")); // Sunday 14:00 in Bahrain
+                mockFetch.mockResolvedValue(baseInfo({
+                    workingHours: closedExcept({ Sunday: { isOpen: true, shifts: [["10:00", "13:00"]] } }),
+                }));
+                renderSheet();
+
+                expect((await screen.findByTestId("branch-details-reopens")).textContent).toBe("يفتح يوم الأحد القادم الساعة 10:00");
+            });
         });
     });
 
