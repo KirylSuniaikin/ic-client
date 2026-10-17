@@ -152,6 +152,15 @@ describe("BranchDetailsSheet", () => {
             expect(screen.getByTestId("branch-details-hours").textContent).toBe("Closed right now");
         });
 
+        it("announces the reopening time, not only \"Closed right now\"", async () => {
+            mockFetch.mockResolvedValue(baseInfo({
+                workingHours: closedExcept({ Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } }),
+            }));
+            renderSheet();
+
+            expect((await screen.findByTestId("branch-details-reopens")).getAttribute("role")).toBe("status");
+        });
+
         it("says a closed branch opens later today, and at what time", async () => {
             mockFetch.mockResolvedValue(baseInfo({
                 workingHours: closedExcept({ Sunday: { isOpen: true, shifts: [["18:00", "23:59"]] } }),

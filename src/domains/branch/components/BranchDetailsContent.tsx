@@ -146,9 +146,11 @@ export function BranchDetailsContent({
                 </Box>
                 {/* The reopening time sits under the pills, not inside the status pill: "Closed ·
                     opens tomorrow at 15:00" in the pill pushed Route onto a line of its own on a
-                    390px phone and in the PC column, where the two should read as one pair. */}
+                    390px phone and in the PC column, where the two should read as one pair. It is
+                    a live region of its own so a screen reader still hears when the branch reopens. */}
                 {hours.state === "closed" && hours.nextOpening !== null && (
                     <Typography
+                        role="status"
                         data-testid="branch-details-reopens"
                         variant="body2"
                         sx={{ mt: 1, color: "#8a807a", fontWeight: 600, textAlign: "center" }}
