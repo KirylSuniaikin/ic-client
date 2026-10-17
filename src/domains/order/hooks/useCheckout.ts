@@ -75,6 +75,8 @@ export interface UseCheckoutResult {
     generalCrossSellItems: MenuItem[];
     finalCrossSellItems: MenuItem[];
     handleCheckout: (items: CartItem[], tel: string, customerName: string | null, deliveryMethod: string | null, paymentMethod: string | null, notes: string, branchId?: string | null, infoCollected?: boolean) => Promise<void>;
+    /** CrossSellPopup's "Next": resumes checkout once the picks it just added are in the cart. */
+    continueAfterCrossSell: () => void;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
     /** Non-null only while a BenefitPay wallet payment is on screen. */
     walletSession: BenefitPaySession | null;
@@ -123,6 +125,9 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [adminOrderDetailsPopUp, setAdminOrderDetailsPopUpOpen] = useState(false);
     const [wasCrossSellShown, setWasCrossSellShown] = useState(false);
     const [isCrossSellOpen, setIsCrossSellOpen] = useState(false);
+    // Raised by continueAfterCrossSell; the effect below that consumes it explains why checkout
+    // cannot simply be called from the cross-sell click.
+    const [resumeAfterCrossSell, setResumeAfterCrossSell] = useState(false);
     const [pickUpReminder, setPickUpReminder] = useState(false);
     const [pendingOrder, setPendingOrder] = useState<CreateOrderRequest | null>(null);
     const [pendingCartItems, setPendingCartItems] = useState<CartItem[]>([]);
@@ -537,6 +542,25 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
+    // Same latest-closure ref as completeVerifiedCheckoutRef: the resume effect below must call
+    // the handleCheckout of the render it runs after, without listing it as a dependency.
+    const handleCheckoutRef = useRef(handleCheckout);
+    handleCheckoutRef.current = handleCheckout;
+
+    // CrossSellPopup adds its picks and continues checkout in the same click. The add only queues
+    // a cart update, so a cart read inside that click is the cart from before the picks, and the
+    // picks were left out of the order. The queued update and this flag commit in the same
+    // batched render, so resuming here hands checkout the cart the customer actually sees.
+    useEffect(() => {
+        if (!resumeAfterCrossSell) return;
+        setResumeAfterCrossSell(false);
+        void handleCheckoutRef.current(cartItems, null, null, orderType, paymentMethod, "", null, false);
+    }, [resumeAfterCrossSell, cartItems, orderType, paymentMethod]);
+
+    function continueAfterCrossSell(): void {
+        setResumeAfterCrossSell(true);
+    }
+
     // Called by resetKioskSession at session end so the next walk-up customer sees the
     // cross-sell popup again -- wasCrossSellShown was never reset before this, so on a
     // long-lived kiosk tab only the day's first customer would ever see it.
@@ -561,7 +585,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         errorSnackBarOpen, setErrorSnackBarOpen, errorMessage,
         showOrderConfirmed, setShowOrderConfirmed,
         generalCrossSellItems, finalCrossSellItems,
-        handleCheckout, executeOrderCreation,
+        handleCheckout, continueAfterCrossSell, executeOrderCreation,
         walletSession, setWalletSession,
         resetCrossSellShown,
     };

@@ -405,8 +405,11 @@ export default function HomePageModals({
                     open={checkout.isCrossSellOpen}
                     crossSellItems={checkout.finalCrossSellItems}
                     onClose={() => checkout.setIsCrossSellOpen(false)}
-                    onAddToCart={cart.handleAddToCart}
-                    onCheckout={() => checkout.handleCheckout(cart.cartItems, null, null, checkout.orderType, checkout.paymentMethod, "", null, false)}
+                    // Checkout carries straight on after this sheet, so a Detroit Brick picked here
+                    // goes in as a plain brick: a combo offer would hold the whole batch back while
+                    // the order is placed without it.
+                    onAddToCart={(products) => cart.handleAddToCart(products, true)}
+                    onCheckout={checkout.continueAfterCrossSell}
                 />
             )}
 

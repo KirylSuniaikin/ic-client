@@ -2,7 +2,7 @@
 // no real UI control to open the login/profile popup in that mode -- a small test-only
 // trigger against the shared context is used instead, alongside one case that drives the
 // real CustomerIconButton for the non-admin path (per the task spec's test plan).
-import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -46,15 +46,18 @@ jest.mock("../shared/hooks/useImagePreloader", () => ({
     },
 }));
 
-import { fetchBaseAppInfo, fetchPublicBranches } from "../shared/api/public";
-import { refreshCustomerToken } from "../shared/api/customerAuth";
-import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
+import { fetchBaseAppInfo, fetchPublicBranches, bpgCheckout } from "../shared/api/public";
+import { getAllBannedCstmrs } from "../shared/api/management";
+import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../shared/api/customerAuth";
+import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
 import { createOrder } from "../shared/api/public";
 import { CHOSEN_BRANCH_KEY } from "../domains/branch/constants";
-import type { BaseAppInfoResponse, Order } from "../domains/order/types";
+import type { BaseAppInfoResponse, CreateOrderRequest, Order } from "../domains/order/types";
 import type { IBranch } from "../domains/management/inventory/types";
+import type { CustomerMeResponse } from "../domains/customer-auth/types";
+import type { BpgCheckoutResult } from "../domains/payment/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 
@@ -63,6 +66,10 @@ const mockIsWithinWorkingHours = jest.mocked(isWithinWorkingHours);
 const mockFetchPublicBranches = jest.mocked(fetchPublicBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockCreateOrder = jest.mocked(createOrder);
+const mockBpgCheckout = jest.mocked(bpgCheckout);
+const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
+const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
+const mockVerifyOtp = jest.mocked(verifyOtp);
 
 // A single available, non-pizza item so useMenuData's recommended-items effect seeds the
 // cart directly (upsellDeclined=true bypasses the pizza/brick-pizza upsell popup entirely --
@@ -86,6 +93,9 @@ const UNAVAILABLE_ITEM = {
     available: false,
 };
 
+// What ClientInfoPopup submits for "12345678" (Bahrain's 973 prefix is its default country).
+const VERIFIED_PHONE = "97312345678";
+
 const BASE_APP_INFO: BaseAppInfoResponse = {
     menu: [AVAILABLE_ITEM],
     extraIngr: [],
@@ -99,12 +109,16 @@ const BASE_APP_INFO: BaseAppInfoResponse = {
 // the exact `isAnyCustomerAuthPopupOpen` state HomePage folds into `noPopupOpen`, independent of
 // whether a UI trigger (CustomerIconButton) is present in the current mode (it is hidden in admin
 // mode, so this is also the only way to open it there).
+// The login sheet itself mounts at the app root (CustomerAuthModals, app/providers.tsx), outside
+// this tree, so test-verify-otp stands in for a customer entering the right code in it.
 function AuthUiTestTrigger(): React.JSX.Element {
     const { openLogin, closeAll } = useCustomerAuthUi();
+    const { login } = useCustomerAuth();
     return (
         <>
             <button onClick={() => openLogin()}>test-open-login</button>
             <button onClick={() => closeAll()}>test-close-all</button>
+            <button onClick={() => { void login(VERIFIED_PHONE, "4821"); }}>test-verify-otp</button>
         </>
     );
 }
@@ -440,6 +454,173 @@ describe("HomePage -- kiosk checkout flow", () => {
         fireEvent.click(hotspot);
 
         await waitFor(() => expect(screen.getByText("Setup Kiosk Mode")).toBeTruthy());
+    });
+});
+
+// The cross-sell sheet's "Next" adds the picks and carries on with checkout in the same click.
+// The add only queues a cart update, so checkout used to get the cart from before the picks: the
+// customer saw the items in their cart, and the order went out without them. Only the paths that
+// place the order straight from that click were hit -- the kiosk, and a logged-in customer with a
+// name on file. Guests pass through ClientInfoPopup, which reads a later cart, so they are the
+// regression guard here, not the bug.
+describe("HomePage -- items picked in the cross-sell reach the order", () => {
+    // FINAL_CROSS_SELL (useCheckout.ts) offers items by exact name, so these carry those names.
+    const COLA_ZERO = { ...AVAILABLE_ITEM, id: 3, name: "Coca Cola Zero", photo: "zero.png", price: 0.5 };
+    const DETROIT_BRICK = {
+        ...AVAILABLE_ITEM, id: 4, name: "BBQ Chicken Ranch Detroit Brick", category: "Brick Pizzas",
+        photo: "brick.png", price: 2.5, size: "",
+    };
+
+    // amountOfOrders > 0 keeps the first-timer pick-up reminder out of the way, and the phone is
+    // the one the guest types, so the guest path's verified phone matches the typed one.
+    const NAMED_CUSTOMER: CustomerMeResponse = {
+        id: "account-1", phone: VERIFIED_PHONE, preferredBranchId: null, name: "Layla",
+        address: null, amountOfOrders: 4, lastOrderDate: null,
+    };
+
+    const BPG_CHECKOUT: BpgCheckoutResult = {
+        orderNo: 77, status: "Pending Payment", reference: "ref-1", redirectUrl: "https://gateway.test/pay",
+    };
+
+    const PLACED_ORDER: Order = {
+        id: "4321", order_no: 12, tel: VERIFIED_PHONE, customer_name: "Layla", delivery_method: "Pick Up",
+        payment_type: "Cash", address: "", notes: "", items: [], amount_paid: 1.5, order_type: "Pick Up",
+        external_id: null, phone_number: VERIFIED_PHONE, order_created: "2026-10-17T12:00:00",
+        status: "Kitchen Phase", isPaid: false, branch_id: "test-branch-id",
+    };
+
+    // Pay online (the cart's default method) ends in a full-page `window.location.assign` to the
+    // gateway, which jsdom does not implement -- swapped for a spy for this block only, mirroring
+    // HomePageModals.test.tsx, and restored so the rest of the file keeps the real location.
+    const mockLocationAssign = jest.fn<void, [string]>();
+    const originalLocation = window.location;
+
+    beforeAll(() => {
+        Object.defineProperty(window, "location", {
+            writable: true,
+            configurable: true,
+            value: { ...originalLocation, assign: mockLocationAssign },
+        });
+    });
+
+    afterAll(() => {
+        Object.defineProperty(window, "location", { writable: true, configurable: true, value: originalLocation });
+    });
+
+    beforeEach(() => {
+        mockFetchBaseAppInfo.mockResolvedValue({ ...BASE_APP_INFO, menu: [AVAILABLE_ITEM, COLA_ZERO, DETROIT_BRICK] });
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockBpgCheckout.mockResolvedValue(BPG_CHECKOUT);
+        mockCreateOrder.mockResolvedValue(PLACED_ORDER);
+    });
+
+    function signInAs(profile: CustomerMeResponse): void {
+        mockRefreshCustomerToken.mockResolvedValue({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValue(profile);
+    }
+
+    /** Opens the cart, lets the first Checkout press open the cross-sell sheet, picks, and presses Next. */
+    async function checkoutThroughCrossSell(picks: string[]): Promise<void> {
+        await waitForAuthReady();
+        await waitForCartSeeded();
+        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+        fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
+        await screen.findByText("Customers also buy");
+        // The menu behind the sheet shows the same photos, but the open sheet hides it from the
+        // accessibility tree, so a role query finds only the sheet's own card.
+        picks.forEach(pick => fireEvent.click(screen.getByRole("img", { name: pick })));
+        fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+
+    async function waitForGatewayOrder(): Promise<CreateOrderRequest> {
+        await waitFor(() => expect(mockBpgCheckout).toHaveBeenCalledTimes(1));
+        return mockBpgCheckout.mock.calls[0][0].order;
+    }
+
+    function orderLines(order: CreateOrderRequest): string[] {
+        return order.items.map(item => `${item.name} x${item.quantity}`);
+    }
+
+    it("kiosk: the order placed from the phone sheet carries the drink picked in the cross-sell", async () => {
+        seedKioskBranchSelected();
+        renderHomePage(["/menu?mode=kiosk"]);
+
+        await checkoutThroughCrossSell(["Coca Cola Zero"]);
+        await screen.findByText("Enter your phone number");
+        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
+        fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
+        fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+        const order = mockCreateOrder.mock.calls[0][0];
+        expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);
+        expect(order.amount_paid).toBe(1.5);
+    });
+
+    it("named logged-in customer: the order sent to the payment gateway carries the pick", async () => {
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell(["Coca Cola Zero"]);
+
+        const order = await waitForGatewayOrder();
+        expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);
+        expect(order.amount_paid).toBe(1.5);
+    });
+
+    it("named logged-in customer: a pick already in the cart goes out as one line with both units", async () => {
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"], ["3"]);
+
+        await checkoutThroughCrossSell(["Coca Cola Zero"]);
+
+        // The cart merges the pick into the existing line, so the stale cart sent x1 while the
+        // screen showed x2.
+        const order = await waitForGatewayOrder();
+        expect(orderLines(order)).toEqual(["Coca Cola Zero x2"]);
+        expect(order.amount_paid).toBe(1);
+    });
+
+    it("named logged-in customer: a Detroit Brick picked in the cross-sell goes out as a plain brick, with no combo offer", async () => {
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell(["BBQ Chicken Ranch Detroit Brick"]);
+
+        // The combo offer would hold the brick back while checkout carried on without it.
+        expect(screen.queryByText(/Sauce \+ Drink just for/)).toBeNull();
+        const order = await waitForGatewayOrder();
+        expect(orderLines(order)).toEqual(["Cola x1", "BBQ Chicken Ranch Detroit Brick x1"]);
+    });
+
+    it("named logged-in customer who picks nothing still checks out once, with the cart as it was", async () => {
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell([]);
+
+        const order = await waitForGatewayOrder();
+        expect(orderLines(order)).toEqual(["Cola x1"]);
+        await waitFor(() => expect(mockLocationAssign).toHaveBeenCalledWith(BPG_CHECKOUT.redirectUrl));
+        expect(mockBpgCheckout).toHaveBeenCalledTimes(1);
+    });
+
+    it("guest: the order placed after ClientInfoPopup and the phone code carries the pick", async () => {
+        mockVerifyOtp.mockResolvedValue({ accessToken: "tok-verified", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValue(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell(["Coca Cola Zero"]);
+        fireEvent.change(await screen.findByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
+        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
+        fireEvent.click(screen.getByRole("button", { name: "Checkout (Take Out)" }));
+        // The guest's order is held until the phone is verified, so nothing has gone out yet.
+        await waitFor(() => expect(mockGetAllBannedCstmrs).toHaveBeenCalled());
+        expect(mockBpgCheckout).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByText("test-verify-otp"));
+
+        const order = await waitForGatewayOrder();
+        expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);
     });
 });
 
