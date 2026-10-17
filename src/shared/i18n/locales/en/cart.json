@@ -9,6 +9,7 @@
   "comingSoon": "Coming soon",
   "paymentTitle": "Payment method",
   "payment": {
+    "atCounter": "At counter",
     "benefit": "Benefit",
     "benefitPay": "BenefitPay"
   },

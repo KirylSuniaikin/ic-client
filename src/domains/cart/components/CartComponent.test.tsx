@@ -78,12 +78,15 @@ describe("CartPopup — payment toggle", () => {
         expect(screen.getByRole("button", { name: "Benefit" }).getAttribute("aria-pressed")).toBe("true");
     });
 
-    // Customer orders are paid before they reach the kitchen, so there is no pay-at-counter
-    // choice. The tender string still exists for the kiosk — only the option was removed.
-    it("does not offer paying at the counter", () => {
-        renderCart();
+    // Back for now (17 Oct 2026): a pickup customer may pay on collection again, sent as the same
+    // counter tender the kiosk uses, which useCheckout routes to the plain createOrder flow.
+    it("offers paying at the counter, sent as the counter tender", () => {
+        const onPaymentChange = jest.fn<void, [string]>();
+        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
 
-        expect(screen.queryByRole("button", { name: "At counter" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "At counter" }));
+
+        expect(onPaymentChange).toHaveBeenCalledWith(DEFAULT_PAYMENT_METHOD);
     });
 
     it("calls onPaymentChange with the canonical value when a method is selected", () => {

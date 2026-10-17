@@ -8,7 +8,7 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
-import { PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
+import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { branchDisplayName } from "../../branch/utils/branchDisplayName";
 import { ApplePayButton } from "../../order/components/ApplePayButton";
@@ -33,7 +33,12 @@ const brandGray = "#f3f3f3";
 // so there is no pay-at-counter option here. DEFAULT_PAYMENT_METHOD still exists and is still the
 // kiosk's tender (useKioskCheckout) — it is the customer-facing CHOICE that was removed, not the
 // tender string, so historic orders and the admin dropdown are unaffected.
-const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string; logo: string; alt: string }> = [
+//
+// Paying at the counter is back for now (owner, 17 Oct 2026) while BenefitPay confirmation is made
+// independent of the customer's browser. It sends DEFAULT_PAYMENT_METHOD, which useCheckout routes
+// to the plain createOrder flow exactly as before the online rollout.
+const PAYMENT_OPTIONS: ReadonlyArray<{ value: string; labelKey: string; logo?: string; alt: string }> = [
+    { value: DEFAULT_PAYMENT_METHOD, labelKey: "payment.atCounter", alt: "At counter" },
     { value: PAY_ONLINE_METHOD, labelKey: "payment.benefit", logo: "/benefit-logo.png", alt: "Benefit" },
     { value: WALLET_METHOD, labelKey: "payment.benefitPay", logo: "/benefitpay-logo.png", alt: "BenefitPay" },
 ];
@@ -344,7 +349,7 @@ function CartPopup({
                                                 display: "flex", alignItems: "center",
                                                 gap: 0.75, minWidth: 0,
                                             }}>
-                                                <Box
+                                                {opt.logo && <Box
                                                     component="img"
                                                     src={opt.logo}
                                                     alt=""
@@ -363,7 +368,7 @@ function CartPopup({
                                                     onError={(e: SyntheticEvent<HTMLImageElement>) => {
                                                         e.currentTarget.style.display = "none";
                                                     }}
-                                                />
+                                                />}
                                                 <Box component="span" sx={{
                                                     overflow: "hidden",
                                                     textOverflow: "ellipsis",
