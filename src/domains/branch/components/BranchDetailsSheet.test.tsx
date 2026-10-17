@@ -1,6 +1,6 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { BranchDetailsSheet } from "./BranchDetailsSheet";
@@ -36,17 +36,27 @@ function baseInfo(overrides: Partial<BaseAppInfoResponse> = {}): BaseAppInfoResp
     };
 }
 
+const CLOSED_DAY = { isOpen: false, shifts: [] };
+const CLOSED_WEEK = {
+    Sunday: CLOSED_DAY, Monday: CLOSED_DAY, Tuesday: CLOSED_DAY, Wednesday: CLOSED_DAY,
+    Thursday: CLOSED_DAY, Friday: CLOSED_DAY, Saturday: CLOSED_DAY,
+};
+
 const COLA = { name: "Cola", quantity: 1, amount: 0.49 } as unknown as CartItem;
 
 function renderSheet(props: Partial<React.ComponentProps<typeof BranchDetailsSheet>> = {}) {
     const onConfirm = jest.fn<void, [IBranch]>();
     const onClose = jest.fn<void, []>();
-    render(
+    const sheet = (overrides: Partial<React.ComponentProps<typeof BranchDetailsSheet>>): JSX.Element => (
         <I18nextProvider i18n={i18n}>
-            <BranchDetailsSheet branch={BRANCH} cartItems={[]} onConfirm={onConfirm} onClose={onClose} {...props} />
+            <BranchDetailsSheet branch={BRANCH} cartItems={[]} onConfirm={onConfirm} onClose={onClose} {...overrides} />
         </I18nextProvider>
     );
-    return { onConfirm, onClose };
+    const view = render(sheet(props));
+    const rerender = (overrides: Partial<React.ComponentProps<typeof BranchDetailsSheet>>): void => {
+        view.rerender(sheet({ ...props, ...overrides }));
+    };
+    return { onConfirm, onClose, rerender };
 }
 
 describe("BranchDetailsSheet", () => {
@@ -76,11 +86,88 @@ describe("BranchDetailsSheet", () => {
         expect(await screen.findByText(/Open until 00:00/)).toBeTruthy();
     });
 
+    // A closed week rather than `workingHours: null`: null now means "no schedule", which reads
+    // as open, the same answer the header and the order gate give.
     it("says it is closed when no shift is running", async () => {
-        mockFetch.mockResolvedValue(baseInfo({ workingHours: null }));
+        mockFetch.mockResolvedValue(baseInfo({
+            workingHours: CLOSED_WEEK as unknown as BaseAppInfoResponse["workingHours"],
+        }));
         renderSheet();
 
         expect(await screen.findByText("Closed right now")).toBeTruthy();
+    });
+
+    // The old sheet said "Closed right now" until the answer came back.
+    it("says it is checking the hours, never closed, while the fetch is pending", () => {
+        mockFetch.mockReturnValue(new Promise<BaseAppInfoResponse>(() => undefined));
+        renderSheet();
+
+        expect(screen.getByTestId("branch-details-hours").textContent).toBe("Checking hours…");
+        expect(screen.queryByText(/closed/i)).toBeNull();
+    });
+
+    it("shows no hours at all when the fetch fails, rather than calling the branch closed", async () => {
+        mockFetch.mockRejectedValue(new Error("Network error"));
+        renderSheet();
+
+        await waitFor(() => expect(screen.queryByTestId("branch-details-hours")).toBeNull());
+        expect(screen.queryByText("Closed right now")).toBeNull();
+    });
+
+    it("reads a branch with no schedule as open now", async () => {
+        mockFetch.mockResolvedValue(baseInfo({ workingHours: null }));
+        renderSheet();
+
+        expect(await screen.findByText("Open now")).toBeTruthy();
+    });
+
+    describe("on a fixed clock (Sunday 11:00 in Bahrain)", () => {
+        beforeEach(() => {
+            // Jest 27's modern timers cannot leave setTimeout real ("doNotFake" arrived in Jest
+            // 28). RTL's waitFor detects the fake clock and advances it itself, as
+            // DeliveryBoardPanel.test.tsx relies on.
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date("2026-07-12T08:00:00.000Z"));
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it("says a closed branch opens tomorrow, and at what time", async () => {
+            mockFetch.mockResolvedValue(baseInfo({
+                workingHours: { ...CLOSED_WEEK, Monday: { isOpen: true, shifts: [["15:00", "23:59"]] } } as unknown as BaseAppInfoResponse["workingHours"],
+            }));
+            renderSheet();
+
+            expect(await screen.findByText("Closed · opens tomorrow at 15:00")).toBeTruthy();
+        });
+
+        it("says a closed branch opens later today, and at what time", async () => {
+            mockFetch.mockResolvedValue(baseInfo({
+                workingHours: { ...CLOSED_WEEK, Sunday: { isOpen: true, shifts: [["18:00", "23:59"]] } } as unknown as BaseAppInfoResponse["workingHours"],
+            }));
+            renderSheet();
+
+            expect(await screen.findByText("Closed · opens today at 18:00")).toBeTruthy();
+        });
+    });
+
+    // Statement, not action: only the route next to it may look or behave pressable.
+    it("renders the hours as a status, never as a link or a button", async () => {
+        renderSheet();
+
+        await screen.findByText(/Open until 00:00/);
+        const pill = screen.getByTestId("branch-details-hours");
+        expect(pill.getAttribute("role")).toBe("status");
+        expect(within(pill).queryByRole("link")).toBeNull();
+        expect(within(pill).queryByRole("button")).toBeNull();
+    });
+
+    it("prints how far away the branch is once a distance is known", () => {
+        renderSheet({ distanceKm: 2.44 });
+
+        expect(screen.getByText("2.4 km away")).toBeTruthy();
     });
 
     it("offers a route link pointing at the branch's own coordinates", () => {
@@ -127,6 +214,40 @@ describe("BranchDetailsSheet", () => {
         fireEvent.click(screen.getByRole("button", { name: /order here/i }));
 
         expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ id: "b1" }));
+    });
+
+    // The Drawer keeps painting while it slides away; a blank title and "Address not specified"
+    // flashing past read as a glitch.
+    it("keeps describing the branch while the sheet is closing", () => {
+        const { rerender } = renderSheet();
+
+        rerender({ branch: null });
+
+        expect(screen.getByText("Karlin")).toBeTruthy();
+        expect(screen.getByText("Sokolovska 100")).toBeTruthy();
+        expect(screen.queryByText("Address not specified")).toBeNull();
+    });
+
+    it("closes from its own close button", () => {
+        const { onClose } = renderSheet();
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    describe("in Arabic", () => {
+        afterEach(async () => {
+            await i18n.changeLanguage("en");
+        });
+
+        it("names the branch in Arabic and calls the route link directions", async () => {
+            await i18n.changeLanguage("ar");
+            renderSheet({ branch: { ...BRANCH, branchNameAr: "فرع كارلين" } });
+
+            expect(screen.getByText("فرع كارلين")).toBeTruthy();
+            expect(screen.getByRole("link", { name: "الاتجاهات" })).toBeTruthy();
+        });
     });
 
     it("asks nothing while it is shut", () => {

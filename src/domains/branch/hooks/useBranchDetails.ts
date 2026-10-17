@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchBaseAppInfo } from "../../../shared/api/public";
-import { getClosingTime, toDisplayClosing } from "../../schedule/utils/getClosingTime";
+import { describeBranchHours, type BranchHours } from "../utils/branchHours";
 import type { CartItem } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 
 export interface UseBranchDetailsResult {
     loading: boolean;
-    /** "HH:MM" while a shift is running at this branch, null when it is closed or unknown. */
-    closingTime: string | null;
+    /** "loading" until the fetch answers, "unknown" when it failed; never "closed" for either. */
+    hours: BranchHours;
     /** Cart items this branch cannot make. Empty when the cart is empty or everything is available. */
     unavailableNames: string[];
     error: string | null;
@@ -27,7 +27,7 @@ export interface UseBranchDetailsResult {
  */
 export function useBranchDetails(branch: IBranch | null, cartItems: CartItem[]): UseBranchDetailsResult {
     const [loading, setLoading] = useState(false);
-    const [closingTime, setClosingTime] = useState<string | null>(null);
+    const [hours, setHours] = useState<BranchHours>({ state: "loading" });
     const [unavailableNames, setUnavailableNames] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +47,7 @@ export function useBranchDetails(branch: IBranch | null, cartItems: CartItem[]):
 
         setLoading(true);
         setError(null);
-        setClosingTime(null);
+        setHours({ state: "loading" });
         setUnavailableNames([]);
 
         void (async () => {
@@ -55,8 +55,7 @@ export function useBranchDetails(branch: IBranch | null, cartItems: CartItem[]):
                 const baseInfo = await fetchBaseAppInfo(null, branch.id);
                 if (requestIdRef.current !== requestId) return;
 
-                const closing = getClosingTime(baseInfo.workingHours ?? null);
-                setClosingTime(closing === null ? null : toDisplayClosing(closing));
+                setHours(describeBranchHours(baseInfo.workingHours ?? null));
                 setUnavailableNames(
                     cartItemsRef.current
                         .filter(item => !baseInfo.menu.some(
@@ -68,10 +67,11 @@ export function useBranchDetails(branch: IBranch | null, cartItems: CartItem[]):
             } catch (err) {
                 if (requestIdRef.current !== requestId) return;
                 setError(err instanceof Error ? err.message : String(err));
+                setHours({ state: "unknown" });
                 setLoading(false);
             }
         })();
     }, [branch]);
 
-    return { loading, closingTime, unavailableNames, error };
+    return { loading, hours, unavailableNames, error };
 }

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, CircularProgress } from "@mui/material";
 import { GoogleMap, useJsApiLoader } from "@react-google-maps/api";
+import { useTranslation } from "react-i18next";
 import type { IBranch } from "../../management/inventory/types";
+import { branchDisplayName } from "../utils/branchDisplayName";
 import {
     BRANCH_PIN_URL,
     GOOGLE_MAPS_API_KEY,
@@ -55,6 +57,7 @@ export function BranchMapView({
     activeBranchId = null,
     height = "100%",
 }: BranchMapViewProps): JSX.Element {
+    const { i18n } = useTranslation();
     const { isLoaded } = useJsApiLoader({
         googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? "",
         ...(GOOGLE_MAPS_MAP_ID ? { mapIds: [GOOGLE_MAPS_MAP_ID] } : {}),
@@ -144,12 +147,13 @@ export function BranchMapView({
         if (map === null) return;
 
         const markers = branchesWithCoords.map((branch) => {
+            const name = branchDisplayName(branch, i18n.language);
             const marker = new google.maps.Marker({
                 position: { lat: branch.latitude, lng: branch.longitude },
                 map,
-                title: branch.branchName,
+                title: name,
                 label: {
-                    text: branch.branchName,
+                    text: name,
                     className: "branch-marker-label",
                     color: "#3b352c",
                     fontSize: "13px",
@@ -178,7 +182,8 @@ export function BranchMapView({
             }
             markersRef.current.clear();
         };
-    }, [map, branchesWithCoords]);
+        // i18n.language: the labels follow a language switch made while the picker is open.
+    }, [map, branchesWithCoords, i18n.language]);
 
     /**
      * Bounces the pin of the branch currently being described, and only that one — ONCE.

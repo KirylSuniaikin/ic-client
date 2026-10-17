@@ -1,4 +1,4 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
@@ -86,5 +86,42 @@ describe("BranchListView", () => {
         renderList({ locationError: "Allow location access and try again." });
 
         expect(screen.getByText(/allow location access/i)).toBeTruthy();
+    });
+
+    it("prints a branch's address under its name, and nothing for a branch without one", () => {
+        renderList({
+            branches: [
+                branch({ address: "Plzenska 8" }),
+                branch({ id: "b2", branchName: "Karlin", address: null }),
+            ],
+        });
+
+        expect(screen.getByText("Plzenska 8")).toBeTruthy();
+        const karlinRow = screen.getByTestId("branch-option-b2");
+        expect(karlinRow.textContent).toBe("Karlin");
+        expect(screen.queryByText("Address not specified")).toBeNull();
+    });
+
+    // The badge used to be glued onto the name ("Smichov · Nearest"), so the name alone matched
+    // nothing.
+    it("shows the nearest badge as its own label beside the name", () => {
+        renderList({ nearestBranchId: "b1" });
+
+        expect(screen.getByText("Nearest")).toBeTruthy();
+        expect(screen.getByText("Smichov")).toBeTruthy();
+    });
+
+    describe("in Arabic", () => {
+        afterEach(async () => {
+            await i18n.changeLanguage("en");
+        });
+
+        it("names each branch in Arabic", async () => {
+            await i18n.changeLanguage("ar");
+            renderList({ branches: [branch({ branchNameAr: "فرع سميخوف" })] });
+
+            expect(screen.getByText("فرع سميخوف")).toBeTruthy();
+            expect(screen.queryByText("Smichov")).toBeNull();
+        });
     });
 });

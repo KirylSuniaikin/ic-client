@@ -1,6 +1,7 @@
 import { Box, Button, CircularProgress, Drawer, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { IBranch } from "../../management/inventory/types";
+import { branchDisplayName } from "../utils/branchDisplayName";
 
 export interface BranchSwitchWarningDrawerProps {
     open: boolean;
@@ -21,8 +22,8 @@ export interface BranchSwitchWarningDrawerProps {
 export function BranchSwitchWarningDrawer({
     open, loading, targetBranch, unavailableNames, error, onConfirm, onCancel,
 }: BranchSwitchWarningDrawerProps): JSX.Element {
-    const { t } = useTranslation("branch");
-    const branchName = targetBranch?.branchName ?? "";
+    const { t, i18n } = useTranslation("branch");
+    const branchName = targetBranch === null ? "" : branchDisplayName(targetBranch, i18n.language);
 
     return (
         <Drawer

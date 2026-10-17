@@ -311,6 +311,7 @@ export function BranchPickerDrawer({
             <BranchDetailsSheet
                 branch={detailsBranch}
                 cartItems={cartItems}
+                distanceKm={detailsBranch === null ? null : distances?.[detailsBranch.id] ?? null}
                 onClose={() => setDetailsBranch(null)}
                 onConfirm={(branch) => { setDetailsBranch(null); onSelect(branch); }}
             />

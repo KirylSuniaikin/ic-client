@@ -1,8 +1,10 @@
-import { jest, describe, it, expect, beforeAll, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, act } from "@testing-library/react";
 import { readFileSync } from "fs";
 import { join } from "path";
+// The view names its pins through useTranslation, so the real i18n instance has to be initialised.
+import i18n from "../../../shared/i18n";
 import type { IBranch } from "../../management/inventory/types";
 
 import { BranchMapView } from "./BranchMapView";
@@ -50,6 +52,7 @@ jest.mock("@react-google-maps/api", () => {
 type FakePoint = { x: number; y: number };
 type FakeMarkerOptions = {
     title?: string;
+    label?: { text: string };
     map?: unknown;
     icon?: { url: string; scaledSize: { width: number; height: number }; anchor: FakePoint; labelOrigin: FakePoint };
 };
@@ -306,6 +309,27 @@ describe("BranchMapView", () => {
         }
     });
 
+
+    describe("in Arabic", () => {
+        afterEach(async () => {
+            await i18n.changeLanguage("en");
+        });
+
+        it("labels and titles a pin with the branch's Arabic name", async () => {
+            await i18n.changeLanguage("ar");
+
+            render(
+                <BranchMapView
+                    branches={[branch({ branchNameAr: "فرع سميخوف" })]}
+                    onSelectBranch={jest.fn<void, [IBranch]>()}
+                />
+            );
+
+            const marker = mockCreatedMarkers[mockCreatedMarkers.length - 1];
+            expect(marker.options.title).toBe("فرع سميخوف");
+            expect(marker.options.label?.text).toBe("فرع سميخوف");
+        });
+    });
 
     it("shows a loading state while the script has not loaded yet", () => {
         mockLoaderState.isLoaded = false;

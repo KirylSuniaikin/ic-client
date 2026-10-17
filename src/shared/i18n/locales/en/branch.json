@@ -28,6 +28,14 @@
         "closedNow": "Closed right now",
         "route": "Route",
         "orderHere": "Order here",
-        "noAddress": "Address not specified"
+        "noAddress": "Address not specified",
+        "openNow": "Open now",
+        "checkingHours": "Checking hours…",
+        "closedOpensToday": "Closed · opens today at {{time}}",
+        "closedOpensTomorrow": "Closed · opens tomorrow at {{time}}",
+        "closedOpensOn": "Closed · opens {{day}} at {{time}}",
+        "findUsTitle": "How to find us",
+        "photosLabel": "Photos of {{branchName}}",
+        "photoAlt": "{{branchName}}, photo {{n}}"
     }
 }

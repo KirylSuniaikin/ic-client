@@ -1,4 +1,4 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
@@ -69,5 +69,18 @@ describe("BranchSwitchWarningDrawer", () => {
         expect(screen.getByText(/Network error/)).toBeTruthy();
         expect(screen.queryByRole("button", { name: /switch branch/i })).toBeNull();
         expect(screen.getByRole("button", { name: /cancel/i })).toBeTruthy();
+    });
+
+    describe("in Arabic", () => {
+        afterEach(async () => {
+            await i18n.changeLanguage("en");
+        });
+
+        it("names the target branch in Arabic in the title", async () => {
+            await i18n.changeLanguage("ar");
+            renderDrawer({ targetBranch: { ...TARGET_BRANCH, branchNameAr: "فرع السيف" } });
+
+            expect(screen.getByText("التبديل إلى فرع السيف؟")).toBeTruthy();
+        });
     });
 });
