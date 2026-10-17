@@ -1,6 +1,6 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 // PizzaComboPopup renders its copy (drizzles heading, Add button) via useTranslation("menu") —
 // initialize the real i18n instance (side-effect import) so keys resolve to English, mirroring
@@ -8,6 +8,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import "../../../../../shared/i18n";
 
 import { PizzaComboPopup } from "./PizzaComboPopup";
+import { clearMatchMedia, stubMatchMedia } from "../../../../../shared/hooks/stubMatchMedia.testutil";
 import type {
     CartItem,
     ComboItem,
@@ -111,6 +112,8 @@ function makeComboEditItem(overrides: {
 }
 
 interface RenderOverrides {
+    comboGroup?: MenuItem[];
+    drinks?: Group[];
     toppings?: ToppingFixture[];
     extraIngredients?: ExtraIngrFixture[];
     selectedPizza?: CartItem | null;
@@ -128,9 +131,9 @@ function renderPopup(overrides: RenderOverrides = {}) {
         <PizzaComboPopup
             open
             onClose={onClose}
-            comboGroup={COMBO_GROUP}
+            comboGroup={overrides.comboGroup ?? COMBO_GROUP}
             pizzas={PIZZAS}
-            drinks={DRINKS}
+            drinks={overrides.drinks ?? DRINKS}
             sauces={SAUCES}
             onAddToCart={onAddToCart}
             selectedPizza={overrides.selectedPizza}
@@ -380,5 +383,69 @@ describe("PizzaComboPopup — pricing", () => {
 
         const added = onAddToCart.mock.calls[0][0];
         expect(added.amount).toBe(6);
+    });
+});
+
+describe("PizzaComboPopup — changing a combo item in the editor (phone)", () => {
+    it("swaps the drink in comboItems[1] after picking another drink in the editor", () => {
+        const fanta = makeMenuItem({ id: 5, name: "Fanta", category: "Beverages", size: "", price: 0.5, recipe_components: undefined });
+        const { onAddToCart } = renderPopup({ drinks: [{ name: "Beverages", items: [DRINK, fanta] }] });
+
+        // Pizza, drink, sauce: the drink card's Change button is the second one.
+        fireEvent.click(screen.getAllByRole("button", { name: "Change" })[1]);
+        // The editor renders outside the combo Modal, which ModalManager aria-hides in jsdom.
+        fireEvent.click(screen.getByText("Fanta"));
+        fireEvent.click(screen.getByRole("button", { name: "Add", hidden: true }));
+        clickAdd();
+
+        const added = onAddToCart.mock.calls[0][0];
+        expect(added.comboItems?.[1]).toEqual(expect.objectContaining({ id: 5, name: "Fanta", category: "Beverages" }));
+        expect(added.comboItems?.[0]?.name).toBe("Margherita");
+        expect(added.comboItems?.[2]?.name).toBe("Ranch");
+    });
+});
+
+describe("PizzaComboPopup — PC layout", () => {
+    const PHOTO_COMBO_GROUP: MenuItem[] = COMBO_GROUP.map(c => ({ ...c, photo: `combo-${c.size}.webp` }));
+
+    beforeEach(() => {
+        stubMatchMedia(true);
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("shows the size item's photo in the photo column, following the size toggle, and the title once", () => {
+        renderPopup({ comboGroup: PHOTO_COMBO_GROUP });
+
+        const photoColumn = within(screen.getByTestId("item-popup-dialog")).getByTestId("item-popup-photo");
+        const photo = within(photoColumn).getByAltText("Pizza Combo");
+        expect(photo.getAttribute("src")).toBe("combo-M.webp");
+
+        fireEvent.click(screen.getByRole("button", { name: "L" }));
+
+        expect(within(photoColumn).getByAltText("Pizza Combo").getAttribute("src")).toBe("combo-L.webp");
+        expect(screen.getAllByText("Pizza Combo")).toHaveLength(1);
+    });
+
+    it("builds the same cart item as the phone layout (note, drizzle, price)", () => {
+        const { onAddToCart } = renderPopup();
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
+
+        fireEvent.change(screen.getByLabelText("Add a note"), {
+            target: { value: "cut into 4 slices" },
+        });
+        fireEvent.click(screen.getByText("Garlic"));
+        clickAdd();
+
+        expect(onAddToCart).toHaveBeenCalledTimes(1);
+        const added = onAddToCart.mock.calls[0][0];
+        expect(added.amount).toBe(6.75);
+        expect(added.comboItems?.[0]?.note).toBe("cut into 4 slices");
+        expect(added.comboItems?.[0]?.description).toBe("+(Garlic Topping)");
+        expect(added.comboItems?.[0]?.customizations).toContainEqual(
+            expect.objectContaining({ action: "ADD", toppingId: 900, name: "Garlic" }),
+        );
     });
 });

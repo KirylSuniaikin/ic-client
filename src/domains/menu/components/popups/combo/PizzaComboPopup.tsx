@@ -1,17 +1,17 @@
 import {
-    Modal,
     Box,
     Typography,
     Button,
     ToggleButtonGroup,
-    ToggleButton, Fab,
+    ToggleButton,
 } from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
-import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
+import {useDesktopLayout} from "../../../../../shared/hooks/useDesktopLayout";
+import {ItemPopupShell} from "../ItemPopupShell";
 import {ExtraIngrScroll} from "../../ExtraIngrScroll";
 import {ToppingsScroll} from "../../ToppingsScroll";
 import type {MenuItem, CartItem, Group, RecipeComponent, ExtraIngr, Topping, Customization} from '../../../types';
@@ -103,6 +103,7 @@ export function PizzaComboPopup({
     // crashing the initializers below.
     const editItem = isEditMode && hasPizzaComboLines(requestedEditItem) ? requestedEditItem : null;
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
+    const isDesktop = useDesktopLayout();
     const [selectedSize, setSelectedSize] = useState<string>(() => {
         if (isEditMode && editItem) {
             return editItem.size.trim();
@@ -457,11 +458,29 @@ export function PizzaComboPopup({
     }
 
 
+    // Shared by the phone header (under the photo) and the PC options column (the photo has its own column there).
+    const comboTitle = (
+        <>
+            <Typography
+                variant="h6"
+                fontWeight="bold"
+                sx={{fontSize: "18px", mb: 0.5}}
+            >
+                {sizeItem ? localizeName(sizeItem) : ""}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+                {sizeItem ? localizeDescription(sizeItem) : ""}
+            </Typography>
+        </>
+    );
+
     return (
         <>
-            <Modal open={open} onClose={onClose}>
-                <Box
-                    sx={{
+            <ItemPopupShell
+                open={open}
+                onClose={onClose}
+                legacy={{
+                    paperSx: {
                         position: "absolute",
                         bottom: 0,
                         left: 0,
@@ -475,28 +494,14 @@ export function PizzaComboPopup({
                         overflow: "hidden",
                         display: "flex",
                         flexDirection: "column",
-                    }}
-                >
-                    <Fab
-                        size="small"
-                        onClick={onClose}
-                        sx={{
-                            position: "absolute",
-                            top: 16,
-                            right: 16,
-                            color: brandRed,
-                            backgroundColor: "#fff",
-                            zIndex: 9999
-                        }}
-                    >
-                        <CloseIcon/>
-                    </Fab>
-                    <Box sx={{
+                    },
+                    scrollSx: {
                         flex: 1,
                         overflowY: "auto",
                         p: 2,
                         "&::-webkit-scrollbar": {display: "none"},
-                    }}>
+                    },
+                    media: (
                         <Box sx={{textAlign: "center", mb: 2}}>
                             {sizeItem?.photo && (
                                 <Box
@@ -515,66 +520,16 @@ export function PizzaComboPopup({
                                     }}
                                 />
                             )}
-                            <Typography
-                                variant="h6"
-                                fontWeight="bold"
-                                sx={{fontSize: "18px", mb: 0.5}}
-                            >
-                                {sizeItem ? localizeName(sizeItem) : ""}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                {sizeItem ? localizeDescription(sizeItem) : ""}
-                            </Typography>
+                            {comboTitle}
                         </Box>
-
-                        <ItemCard
-                            item={pizza.item}
-                            dough={pizza.dough}
-                            crust={pizza.crust}
-                            onDoughChange={(val) => setPizza({...pizza, dough: val})}
-                            onCrustChange={(val) => setPizza({...pizza, crust: val})}
-                            onChange={() => {
-                                openEditor("pizza", pizzas
-                                        .map(p => p.items.find(i => i.size.trim() === selectedSize && i.available))
-                                        .filter((i): i is MenuItem => i !== undefined),
-                                    pizza.item
-                                );
-                            }
-                            }
-                            description={description}
-                            setDescription={setDescription}
-                            showDoughSelector={showDoughSelector}
-                            components={pizza.item?.recipe_components ?? []}
-                            removedIds={removedComponents.map(r => r.id)}
-                            onToggleComponent={handleToggleComponent}
-                            extrasSlot={
-                                <>
-                                    <ExtraIngrScroll
-                                        ingredients={ingrsForSize}
-                                        selected={selectedExtras}
-                                        onToggle={handleToggleExtra}
-                                    />
-                                    <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, mt: 1, px: 0.2}}>
-                                        {t("pizzaPopup.drizzles")}
-                                    </Typography>
-                                    <ToppingsScroll
-                                        toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
-                                        selectedToppings={selectedToppings}
-                                        onUpdateSelectedToppings={setSelectedToppings}
-                                    />
-                                </>
-                            }
-                        />
-                        <ItemCard
-                            item={drink.item}
-                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items).filter(i => i.available), drink.item)}
-                        />
-                        <ItemCard
-                            item={sauce.item}
-                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items).filter(i => i.available), sauce.item)}
-                        />
-                    </Box>
-
+                    ),
+                }}
+                desktop={{
+                    photo: sizeItem?.photo ? {src: sizeItem.photo, alt: localizeName(sizeItem)} : {alt: ""},
+                    bodySx: {px: 3, pb: 2},
+                    surface: "#fafafa",
+                }}
+                footer={
                     <Box
                         sx={{
                             borderTop: "1px solid #eee",
@@ -657,8 +612,56 @@ export function PizzaComboPopup({
                             {t("comboPopup.add", {price: finalComboPrice.toFixed(2)})}
                         </Button>
                     </Box>
-                </Box>
-            </Modal>
+                }
+            >
+                {isDesktop && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
+                <ItemCard
+                    item={pizza.item}
+                    dough={pizza.dough}
+                    crust={pizza.crust}
+                    onDoughChange={(val) => setPizza({...pizza, dough: val})}
+                    onCrustChange={(val) => setPizza({...pizza, crust: val})}
+                    onChange={() => {
+                        openEditor("pizza", pizzas
+                                .map(p => p.items.find(i => i.size.trim() === selectedSize && i.available))
+                                .filter((i): i is MenuItem => i !== undefined),
+                            pizza.item
+                        );
+                    }
+                    }
+                    description={description}
+                    setDescription={setDescription}
+                    showDoughSelector={showDoughSelector}
+                    components={pizza.item?.recipe_components ?? []}
+                    removedIds={removedComponents.map(r => r.id)}
+                    onToggleComponent={handleToggleComponent}
+                    extrasSlot={
+                        <>
+                            <ExtraIngrScroll
+                                ingredients={ingrsForSize}
+                                selected={selectedExtras}
+                                onToggle={handleToggleExtra}
+                            />
+                            <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, mt: 1, px: 0.2}}>
+                                {t("pizzaPopup.drizzles")}
+                            </Typography>
+                            <ToppingsScroll
+                                toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
+                                selectedToppings={selectedToppings}
+                                onUpdateSelectedToppings={setSelectedToppings}
+                            />
+                        </>
+                    }
+                />
+                <ItemCard
+                    item={drink.item}
+                    onChange={() => openEditor("drink", drinks.flatMap((d) => d.items).filter(i => i.available), drink.item)}
+                />
+                <ItemCard
+                    item={sauce.item}
+                    onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items).filter(i => i.available), sauce.item)}
+                />
+            </ItemPopupShell>
 
             {editorOpen && (
                 <ItemEditorPopup

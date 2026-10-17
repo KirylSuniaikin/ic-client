@@ -6,11 +6,30 @@ import {
     Button,
     IconButton,
 } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
+import {useDesktopLayout} from "../../../../../shared/hooks/useDesktopLayout";
+import {DESKTOP_DIALOG_MAX_HEIGHT, DESKTOP_DIALOG_RADIUS, DESKTOP_DIALOG_SHADOW} from "../ItemPopupShell";
 import type { MenuItem } from '../../../types';
 
 const brandRed = "#E44B4C";
+
+// Centred inside the fixed overlay, which (not a Modal) is what keeps the editor above the combo popup.
+const EDITOR_DESKTOP_SHEET_SX: SxProps<Theme> = {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "min(720px, 92vw)",
+    maxHeight: DESKTOP_DIALOG_MAX_HEIGHT,
+    p: 3,
+    bgcolor: "#fff",
+    borderRadius: DESKTOP_DIALOG_RADIUS,
+    boxShadow: DESKTOP_DIALOG_SHADOW,
+    display: "flex",
+    flexDirection: "column",
+};
 
 interface EditorSaveResult {
     item: MenuItem;
@@ -33,7 +52,9 @@ interface ItemEditorPopupProps {
 
 function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust, initialItem }: ItemEditorPopupProps): JSX.Element | null {
     const { t } = useTranslation("menu");
+    const { t: tAuth } = useTranslation("customerAuth");
     const {name: localizeName} = useLocalizedItem();
+    const isDesktop = useDesktopLayout();
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(initialItem || items[0]);
 
     function handleConfirm(): void {
@@ -64,7 +85,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
             onClick={onClose}
         >
             <Box
-                sx={{
+                sx={isDesktop ? EDITOR_DESKTOP_SHEET_SX : {
                     position: "absolute",
                     bottom: 0,
                     left: 0,
@@ -82,6 +103,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
             >
                 <IconButton
                     onClick={onClose}
+                    aria-label={isDesktop ? tAuth("login.close") : undefined}
                     sx={{
                         position: "absolute",
                         top: 8,
@@ -95,7 +117,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                 <Box
                     sx={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
+                        gridTemplateColumns: isDesktop ? "repeat(3, 1fr)" : "1fr 1fr",
                         gap: 1,
                         flex: 1,
                         overflowY: "auto",
@@ -125,8 +147,8 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                     sx={{
                                         width: "100%",
                                         height: "auto",
-                                        maxWidth: { xs: 320, sm: 800, md: 900, lg: 1000 },
-                                        maxHeight: { xs: 320, sm: 600, md: 400, lg: 480 },
+                                        maxWidth: isDesktop ? "100%" : { xs: 320, sm: 800, md: 900, lg: 1000 },
+                                        maxHeight: isDesktop ? 180 : { xs: 320, sm: 600, md: 400, lg: 480 },
                                         objectFit: "contain",
                                         display: "block",
                                         mx: "auto",

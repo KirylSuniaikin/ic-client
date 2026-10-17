@@ -1,5 +1,4 @@
 import {
-    Modal,
     Box,
     Typography,
     Button,
@@ -8,9 +7,9 @@ import React, {useState} from "react";
 import {useTranslation} from "react-i18next";
 import ItemEditorPopup from "./ItemEditorPopup";
 import {ItemCard} from "./ItemCard";
-import CloseIcon from "@mui/icons-material/Close";
-import { Fab } from "@mui/material";
 import {useLocalizedItem} from "../../../../../shared/hooks/useLocalizedItem";
+import {useDesktopLayout} from "../../../../../shared/hooks/useDesktopLayout";
+import {ItemPopupShell} from "../ItemPopupShell";
 import type { MenuItem, CartItem, Group, RecipeComponent } from '../../../types';
 import {
     buildRemovalTokens,
@@ -64,6 +63,7 @@ export function DetroitComboPopup({
                                   }: DetroitComboPopupProps): JSX.Element | null {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
+    const isDesktop = useDesktopLayout();
     const [brick, setBrick] = useState<ItemConfig>(() => {
         if (isEditMode === false) {
             const found = bricks
@@ -228,11 +228,29 @@ export function DetroitComboPopup({
         onClose?.();
     }
 
+    // Shared by the phone header (under the photo) and the PC options column (the photo has its own column there).
+    const comboTitle = (
+        <>
+            <Typography
+                variant="h6"
+                fontWeight="bold"
+                sx={{fontSize: "18px", mb: 0.5}}
+            >
+                {localizeName(comboGroup as MenuItem)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+                {localizeDescription(comboGroup as MenuItem)}
+            </Typography>
+        </>
+    );
+
     return (
         <>
-            <Modal open={open} onClose={onClose}>
-                <Box
-                    sx={{
+            <ItemPopupShell
+                open={open}
+                onClose={onClose}
+                legacy={{
+                    paperSx: {
                         position: "absolute",
                         bottom: 0,
                         left: 0,
@@ -246,28 +264,14 @@ export function DetroitComboPopup({
                         overflow: "hidden",
                         display: "flex",
                         flexDirection: "column",
-                    }}
-                >
-                    <Fab
-                        size="small"
-                        onClick={onClose}
-                        sx={{
-                            position: "absolute",
-                            top: 16,
-                            right: 16,
-                            color: brandRed,
-                            backgroundColor: "#fff",
-                            zIndex: 9999
-                        }}
-                    >
-                        <CloseIcon/>
-                    </Fab>
-                    <Box sx={{
+                    },
+                    scrollSx: {
                         flex: 1,
                         overflowY: "auto",
                         p: 2,
                         "&::-webkit-scrollbar": {display: "none"},
-                    }}>
+                    },
+                    media: (
                         <Box sx={{textAlign: "center", mb: 2}}>
                             {(comboGroup as MenuItem)?.photo && (
                                 <Box
@@ -286,39 +290,19 @@ export function DetroitComboPopup({
                                     }}
                                 />
                             )}
-                            <Typography
-                                variant="h6"
-                                fontWeight="bold"
-                                sx={{fontSize: "18px", mb: 0.5}}
-                            >
-                                {localizeName(comboGroup as MenuItem)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                {localizeDescription(comboGroup as MenuItem)}
-                            </Typography>
+                            {comboTitle}
                         </Box>
-
-                        <ItemCard
-                            item={brick.item}
-                            onChange={() => {
-                                openEditor("brick", bricks.flatMap((b) => b.items), brick.item
-                                );
-                            }}
-                            components={brick.item?.recipe_components ?? []}
-                            removedIds={removedComponents.map(r => r.id)}
-                            onToggleComponent={handleToggleComponent}
-                        />
-                        <ItemCard
-                            item={drink.item}
-                            onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
-                        />
-                        <ItemCard
-                            item={sauce.item}
-                            onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
-                        />
-                    </Box>
-
-                    {/* Footer: size selector + add button */}
+                    ),
+                }}
+                desktop={{
+                    // Same MenuItem reading of comboGroup as the header above: it is {} only for an empty combo.
+                    photo: (comboGroup as MenuItem)?.photo
+                        ? {src: (comboGroup as MenuItem).photo, alt: localizeName(comboGroup as MenuItem)}
+                        : {alt: ""},
+                    bodySx: {px: 3, pb: 2},
+                    surface: "#fafafa",
+                }}
+                footer={
                     <Box
                         sx={{
                             borderTop: "1px solid #eee",
@@ -347,8 +331,28 @@ export function DetroitComboPopup({
                             {t("comboPopup.add", {price: basePrice.toFixed(2)})}
                         </Button>
                     </Box>
-                </Box>
-            </Modal>
+                }
+            >
+                {isDesktop && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
+                <ItemCard
+                    item={brick.item}
+                    onChange={() => {
+                        openEditor("brick", bricks.flatMap((b) => b.items), brick.item
+                        );
+                    }}
+                    components={brick.item?.recipe_components ?? []}
+                    removedIds={removedComponents.map(r => r.id)}
+                    onToggleComponent={handleToggleComponent}
+                />
+                <ItemCard
+                    item={drink.item}
+                    onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
+                />
+                <ItemCard
+                    item={sauce.item}
+                    onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
+                />
+            </ItemPopupShell>
 
             {editorOpen && (
                 <ItemEditorPopup

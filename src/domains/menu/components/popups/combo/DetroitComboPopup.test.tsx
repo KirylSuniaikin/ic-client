@@ -1,10 +1,11 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import "../../../../../shared/i18n";
 
 import { DetroitComboPopup } from "./DetroitComboPopup";
+import { clearMatchMedia, stubMatchMedia } from "../../../../../shared/hooks/stubMatchMedia.testutil";
 import type { CartItem, ComboItem, Group, MenuItem } from "../../../types";
 
 function makeMenuItem(overrides: Partial<MenuItem> = {}): MenuItem {
@@ -72,6 +73,28 @@ describe("DetroitComboPopup — edit mode with missing combo items", () => {
             makeComboItem("Fanta", "Beverages"),
             makeComboItem("Garlic", "Sauces"),
         ]));
+        const text = document.body.textContent ?? "";
+        expect(text).toContain("Cheese Brick");
+        expect(text).toContain("Fanta");
+        expect(text).toContain("Garlic");
+        expect(text).not.toContain("Pepperoni Brick");
+    });
+});
+
+describe("DetroitComboPopup — PC layout", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("still pre-selects the edited brick, drink and sauce in the PC dialog", () => {
+        stubMatchMedia(true);
+        renderEdit(makeEditItem([
+            makeComboItem("Cheese Brick", "Brick Pizzas"),
+            makeComboItem("Fanta", "Beverages"),
+            makeComboItem("Garlic", "Sauces"),
+        ]));
+
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
         const text = document.body.textContent ?? "";
         expect(text).toContain("Cheese Brick");
         expect(text).toContain("Fanta");
