@@ -1,8 +1,7 @@
 import { logger } from "../../../shared/utils/logger";
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from "react";
-import { fetchBaseAppInfo } from "../../../shared/api/public";
+import { fetchBaseAppInfo, fetchPublicBranches } from "../../../shared/api/public";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
-import { fetchAllBranches } from "../../../shared/api/management";
 import { imageMap } from "../../../shared/utils/imageMap";
 import type { MenuItem, ExtraIngr, Topping, CartItem, Customization } from "../types";
 import {
@@ -15,6 +14,7 @@ import {
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
 import { resolveKioskBranchId, readKioskBranch } from "../../kiosk/utils/kioskBranch";
+import { readChosenBranch } from "../../branch/utils/customerBranch";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -32,6 +32,8 @@ export interface UseMenuDataResult {
     pendingUnavailableNames: string[];
     refreshMenu: () => Promise<void>;
     workingHours: WorkingHoursSchedule | null;
+    customerBranchGateOpen: boolean;
+    setCustomerBranchGateOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 interface UseMenuDataParams {
@@ -99,12 +101,31 @@ function normalizeComboItem(ci: Partial<CartItem>): {
 export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const { userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId } = params;
 
-    // Resolve which branch's availability to load: kiosk uses its selected branch,
-    // admin uses the branch it is ordering for, everyone else gets the public default.
-    // Mirrors the branch resolution in useCheckout's order creation.
+    // Resolve which branch's availability to load: kiosk uses its selected branch, admin uses
+    // the branch it is ordering for, edit mode inherits the order being edited's own branch
+    // (forcing the picker there would let someone edit a branch-A order against branch-B's
+    // catalogue), and every ordinary customer gets whatever they chose in the branch picker —
+    // falling back to DEFAULT_BRANCH_ID only as a last resort (task-spec.md §6.1).
     function resolveBranchId(): string {
         if (isKiosk) return resolveKioskBranchId();
         if (isAdmin && adminBranchId) return adminBranchId;
+        if (isEditMode) {
+            const rawOrder = localStorage.getItem("orderToEdit");
+            if (rawOrder) {
+                try {
+                    // JSON.parse returns unknown; shape validated by the `parsed?.branch_id` guard
+                    // below, mirroring the defensive parsing of orderToEdit's `items` field further
+                    // down in this same effect.
+                    const parsed = JSON.parse(rawOrder) as { branch_id?: string };
+                    if (parsed?.branch_id) return parsed.branch_id;
+                } catch (e) {
+                    logger.error("Error parsing orderToEdit for branch resolution:", e);
+                }
+            }
+        } else {
+            const chosenBranch = readChosenBranch();
+            if (chosenBranch) return chosenBranch.id;
+        }
         return DEFAULT_BRANCH_ID;
     }
 
@@ -121,6 +142,7 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
     const [branchSelector, setBranchSelector] = useState<boolean | null>(null);
     const [pendingInitialItems, setPendingInitialItems] = useState<CartItem[]>([]);
     const [pendingUnavailableNames, setPendingUnavailableNames] = useState<string[]>([]);
+    const [customerBranchGateOpen, setCustomerBranchGateOpen] = useState(false);
     // Guard against React 18 StrictMode invoking this effect twice in development,
     // which would inject the orderToEdit items into the cart more than once.
     const didInit = useRef(false);
@@ -139,11 +161,18 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
                 setSDoughAvailable(baseInfo.isSDoughAvailable);
                 setWorkingHours(baseInfo.workingHours ?? null);
 
-                const branches = await fetchAllBranches();
+                const branches = await fetchPublicBranches();
                 setAvailableBranches(branches);
 
                 if (isKiosk && !readKioskBranch()) {
                     setBranchSelector(true);
+                }
+
+                // Entry gate (task-spec.md §6.2): an ordinary customer (not kiosk, not admin,
+                // not editing an existing order) who has never chosen a branch must choose one
+                // before reaching the menu.
+                if (!isKiosk && !isAdmin && !isEditMode && !readChosenBranch()) {
+                    setCustomerBranchGateOpen(true);
                 }
 
                 let productsToAdd: MenuItem[] = [];
@@ -278,5 +307,6 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
         menuData, extraIngredients, toppings, isSDoughAvailable,
         loading, error, username, phone, availableBranches, branchSelector, setBranchSelector,
         pendingInitialItems, pendingUnavailableNames, refreshMenu, workingHours,
+        customerBranchGateOpen, setCustomerBranchGateOpen,
     };
 }

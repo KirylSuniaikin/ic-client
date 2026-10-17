@@ -3,7 +3,8 @@
         "openNow": "Open now",
         "opensIn": "Opens in {{hours}}h {{minutes}}m",
         "opensOnDay": "Opens on {{day}} at {{time}}",
-        "closesAt": "Closes at {{time}}"
+        "closesAt": "Closes at {{time}}",
+        "changeBranch": "{{branchName}} — tap to change branch"
     },
     "days": {
         "Sunday": "Sunday",

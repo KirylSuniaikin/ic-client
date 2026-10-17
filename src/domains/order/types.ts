@@ -20,12 +20,34 @@ export class BranchClosedError extends Error {
 
 export type BranchClosedResponse = { message: string };
 
+/**
+ * A status staff can SET from the board. Deliberately narrow: the delivery terminals are written
+ * by the courier app and the dispatcher, never by a kitchen tablet, so keeping them out of this
+ * union is what stops `updateOrderStatus` being called with one.
+ */
 export type OrderStatus =
     | 'Kitchen Phase'
     | 'Oven'
     | 'Ready'
     | 'Picked Up'
-    | 'Cancelled';
+    | 'Cancelled'
+    // Set when a manager accepts an incoming Jahez order. It lived here only as a cast at the
+    // one call site that sends it, which made the union claim something untrue about itself.
+    | 'Accepted';
+
+/**
+ * A status an order can ARRIVE with. Wider than {@link OrderStatus} because reading and writing
+ * are not the same set: since branch history became fulfilment-aware it returns delivery
+ * terminals too, and `Order.status` was typed as the write set — a type that denied values the
+ * server really sends.
+ */
+export type ObservedOrderStatus =
+    | OrderStatus
+    | 'Out for delivery'
+    | 'Delivered'
+    | 'Returned Undelivered'
+    | 'Pending Payment'
+    | 'Payment Failed';
 
 export type OrderType =
     | 'Dine In'
@@ -43,6 +65,18 @@ export type PaymentType = 'Cash' | 'Online' | 'Card';
 // the customer pays another way. Kept as the single source of the string ClientInfoPopup
 // also defaults to — a null payment_type would NPE the admin edit path server-side.
 export const DEFAULT_PAYMENT_METHOD = 'Card (Through card machine)';
+
+// The one cart option that means PAY NOW rather than "this is how I will pay at the counter".
+// Kept as the wire value 'Benefit' — byte-identical to what the backend, the mobile app, the
+// kitchen ticket and the admin dropdown already expect — while the customer-facing label says
+// "(Online)". Changing the value instead would split historic stats and break the admin edit
+// dropdown, for a wording change.
+export const PAY_ONLINE_METHOD = 'Benefit';
+
+// The wallet — a QR the customer scans, rather than a card typed on the gateway's page. Its own
+// tender because it is its own rail: blurring it into a card would merge three different things
+// (kiosk terminal, online card, wallet) into one line in the stats and the cash register.
+export const WALLET_METHOD = 'BenefitPay';
 
 export type WorkloadLevel =
     | 'IDLE'
@@ -86,6 +120,23 @@ export type OrderItem = {
     comboItemTO?: ComboItemTO[];
     photo?: string;
     customizations?: Customization[];
+    // Courier-capacity Phase 5: 1-based, present only on a split order's items — which of the
+    // order's delivery parts this item belongs to. Absent/undefined for every non-split order.
+    partIndex?: number;
+    // t6: present only on a split order, ordered by partIndex. A line cut across parts has several
+    // entries (partIndex is then absent); mirrors backend ActiveOrdersTO.ActiveOrderItemTO.PartShareTO.
+    partShares?: OrderItemPartShare[];
+};
+
+/** t6: mirrors backend ActiveOrdersTO.PartShareTO — the units of an item one delivery part carries. */
+export type OrderItemPartShare = { partIndex: number; quantity: number };
+
+/** Courier-capacity Phase 5: mirrors backend ActiveOrdersTO.KitchenPartTO. */
+export type KitchenPartStatus = {
+    partId: number;
+    partIndex: number;
+    handedOver: boolean;
+    courierName?: string | null;
 };
 
 export type Order = {
@@ -104,12 +155,34 @@ export type Order = {
     phone_number: string;
     order_created: string;
     order_created_formatted?: string;
-    status: OrderStatus;
+    status: ObservedOrderStatus;
     isPaid: boolean;
     branch_id: string;
     estimation?: number;
     estimationTime?: number;
     jahezOrderId?: string | null;
+    // Delivery only, and only on the live board's ActiveOrdersTO — history and the customer-side
+    // order shapes carry neither, hence optional. They exist so the staff card can tell "ready to
+    // hand over" from "still waiting for a rider" BEFORE anyone taps: `courier_assigned` mirrors
+    // exactly the condition the hand-over endpoint answers 409 to, while `courier_at_kitchen` is
+    // the stronger, advisory signal that the rider is physically at the pass.
+    //
+    // Both arrive LIVE on the branch's /delivery-alert topic — `courier_at_kitchen` as a
+    // COURIER_AT_KITCHEN frame, `courier_assigned` as a COURIER_ASSIGNED one — and useAdminOrders
+    // patches these same fields rather than holding a second copy of either fact.
+    //
+    // One asymmetry survives: a manager RELEASING an order sets `courier_assigned` back to false
+    // server-side, and that event is published to the courier's own topic, not to this branch
+    // channel. So the field is only ever pushed true, and comes back to false on a REST fetch or a
+    // reconnect resync.
+    courier_assigned?: boolean;
+    courier_at_kitchen?: boolean;
+    // Courier-capacity Phase 5: null/undefined for a non-delivery order, 1 for a normal delivery
+    // order, N for a genuinely split one. `courier_assigned` above is REDEFINED once this is > 1:
+    // it then means "every part has a courier", not just this order's single assignedCourier.
+    partsTotal?: number;
+    // Present only once partsTotal > 1 — one entry per delivery part, in part-index order.
+    parts?: KitchenPartStatus[];
 };
 
 export type BaseAppInfoResponse = {

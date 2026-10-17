@@ -117,6 +117,8 @@ const testBranch: IBranch = {
     branchNo: 1,
     branchName: "Main",
     locale: "en",
+    latitude: null,
+    longitude: null,
 };
 
 // OrderCard calls useNavigate() unconditionally — wrap every render in a router.

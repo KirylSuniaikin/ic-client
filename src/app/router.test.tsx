@@ -1,7 +1,8 @@
 import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./router";
 
 jest.mock("../pages/HomePage", () => ({
@@ -42,6 +43,28 @@ function renderAt(path: string) {
             <AppRouter />
         </MemoryRouter>
     );
+}
+
+function LocationProbe(): JSX.Element {
+    const location = useLocation();
+    return <div data-testid="location-probe" data-pathname={location.pathname} />;
+}
+
+// The privacy page is rendered for real rather than stubbed: what these routes promise is which
+// policy tab opens, and its SeoHead needs a HelmetProvider above it.
+function renderPrivacyAt(path: string) {
+    return render(
+        <HelmetProvider>
+            <MemoryRouter initialEntries={[path]}>
+                <AppRouter />
+                <LocationProbe />
+            </MemoryRouter>
+        </HelmetProvider>
+    );
+}
+
+function selectedTabName(): string | null {
+    return screen.getAllByRole("tab").find(tab => tab.getAttribute("aria-selected") === "true")?.textContent ?? null;
 }
 
 describe("AppRouter", () => {
@@ -96,6 +119,53 @@ describe("AppRouter", () => {
             renderAt("/menu/kiosk");
 
             expect(screen.getByText("stub-home-page")).toBeTruthy();
+        });
+    });
+
+    describe("/privacy route", () => {
+        it("opens the privacy page on the IC Pizza policy", () => {
+            renderPrivacyAt("/privacy");
+
+            expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
+            expect(selectedTabName()).toBe("IC Pizza (website, app, kiosk)");
+        });
+    });
+
+    describe("/privacy/delivery route", () => {
+        it("opens the privacy page directly on the Astra Courier policy", () => {
+            renderPrivacyAt("/privacy/delivery");
+
+            expect(screen.getByRole("heading", { level: 1, name: "Astra Courier Privacy Policy" })).toBeTruthy();
+            expect(selectedTabName()).toBe("Astra Courier (delivery)");
+        });
+
+        it("opens the deletion steps directly on /privacy/delivery/delete-data", () => {
+            const originalScrollIntoView = Element.prototype.scrollIntoView;
+            const scrolled: string[] = [];
+            Element.prototype.scrollIntoView = jest.fn(function (this: Element) {
+                scrolled.push(this.id);
+            }) as unknown as typeof Element.prototype.scrollIntoView;
+            try {
+                renderPrivacyAt("/privacy/delivery/delete-data");
+
+                expect(selectedTabName()).toBe("Astra Courier (delivery)");
+                expect(screen.getByRole("heading", { level: 2, name: "7. Delete your data" })).toBeTruthy();
+                expect(scrolled).toEqual(["delete-data"]);
+            } finally {
+                Element.prototype.scrollIntoView = originalScrollIntoView;
+            }
+        });
+
+        it("swaps policy and URL both ways when the tabs are clicked", () => {
+            renderPrivacyAt("/privacy");
+
+            fireEvent.click(screen.getByRole("tab", { name: "Astra Courier (delivery)" }));
+            expect(screen.getByTestId("location-probe").getAttribute("data-pathname")).toBe("/privacy/delivery");
+            expect(screen.getByRole("heading", { level: 1, name: "Astra Courier Privacy Policy" })).toBeTruthy();
+
+            fireEvent.click(screen.getByRole("tab", { name: "IC Pizza (website, app, kiosk)" }));
+            expect(screen.getByTestId("location-probe").getAttribute("data-pathname")).toBe("/privacy");
+            expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
         });
     });
 });

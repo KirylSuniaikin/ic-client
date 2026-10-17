@@ -5,8 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { BranchMultiSelectComponent } from "./BranchMultiSelectComponent";
 import type { IBranch } from "../../inventory/types";
 
-const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en" };
-const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en" };
+const branchA: IBranch = { id: "a", externalId: "ext-a", branchNo: 1, branchName: "Branch A", locale: "en", latitude: null, longitude: null };
+const branchB: IBranch = { id: "b", externalId: "ext-b", branchNo: 2, branchName: "Branch B", locale: "en", latitude: null, longitude: null };
 
 describe("BranchMultiSelectComponent", () => {
     describe("renderValue", () => {
@@ -19,7 +19,7 @@ describe("BranchMultiSelectComponent", () => {
         });
 
         it('shows "N branches" when a strict subset (more than one) of branches is selected', () => {
-            const branchC: IBranch = { id: "c", externalId: "ext-c", branchNo: 3, branchName: "Branch C", locale: "en" };
+            const branchC: IBranch = { id: "c", externalId: "ext-c", branchNo: 3, branchName: "Branch C", locale: "en", latitude: null, longitude: null };
             render(
                 <BranchMultiSelectComponent
                     branches={[branchA, branchB, branchC]}

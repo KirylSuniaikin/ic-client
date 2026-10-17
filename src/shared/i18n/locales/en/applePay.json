@@ -1,0 +1,15 @@
+{
+    "button": {
+        "label": "Pay with Apple Pay"
+    },
+    "pending": "We are confirming your payment. Please do not pay again.",
+    "errors": {
+        "generic": "Apple Pay payment could not be completed. You were not charged.",
+        "declined": "Your payment was declined. You were not charged.",
+        "sessionFailed": "Apple Pay could not be started. Please try again.",
+        "validationFailed": "Apple Pay could not verify the merchant. Please try again.",
+        "inProgress": "A previous Apple Pay payment is still being confirmed. Please wait.",
+        "review": "Your payment needs a manual check. Please contact the restaurant.",
+        "unresolved": "We could not confirm your payment yet. Please do not pay again. Check your orders in a few minutes or contact the restaurant."
+    }
+}

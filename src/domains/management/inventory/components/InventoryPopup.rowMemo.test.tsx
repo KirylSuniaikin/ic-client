@@ -34,6 +34,8 @@ const branch: IBranch = {
     branchNo: 1,
     branchName: "Main",
     locale: "en",
+    latitude: null,
+    longitude: null,
 };
 
 const author: IUser = { id: 1, userName: "admin" };

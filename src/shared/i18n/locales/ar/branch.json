@@ -1,0 +1,33 @@
+{
+    "picker": {
+        "title": "اختر فرعك",
+        "subtitle": "اختر الفرع الذي ستطلب منه. يمكنك تغييره لاحقاً.",
+        "useNearestBranch": "استخدام أقرب فرع",
+        "nearestBadge": "الأقرب",
+        "distanceKm": "{{km}} كم",
+        "locationUnsupported": "هذا المتصفح لا يدعم مشاركة الموقع.",
+        "locationDenied": "تعذّر تحديد موقعك. يرجى السماح بالوصول إلى الموقع والمحاولة مرة أخرى، أو اختر فرعاً من القائمة.",
+        "close": "إغلاق",
+        "showList": "عرض قائمة الفروع",
+        "hideList": "إخفاء القائمة"
+    },
+    "chip": {
+        "label": "{{branchName}} — اضغط لتغيير الفرع"
+    },
+    "switchWarning": {
+        "title": "التبديل إلى {{branchName}}؟",
+        "loading": "جارٍ التحقق من المتوفر هناك…",
+        "itemsLost": "هذه الأصناف غير متوفرة في {{branchName}} وسيتم إزالتها من سلتك:",
+        "noItemsLost": "جميع الأصناف في سلتك متوفرة في {{branchName}}.",
+        "confirm": "تبديل الفرع",
+        "cancel": "إلغاء",
+        "error": "حدث خطأ: {{message}}"
+    },
+    "details": {
+        "openUntil": "مفتوح حتى {{time}}",
+        "closedNow": "مغلق الآن",
+        "route": "الطريق",
+        "orderHere": "اطلب من هنا",
+        "noAddress": "العنوان غير محدد"
+    }
+}

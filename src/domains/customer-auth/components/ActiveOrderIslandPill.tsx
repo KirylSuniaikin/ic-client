@@ -1,62 +1,188 @@
 // Presentational Live-Activity-style card for the customer's active order
 // (task-spec.md §5, Phase 4b; redesigned to the iOS delivery Live-Activity layout).
 // TOP-LEFT = branch name, TOP-RIGHT = ETA; then the order number; then a status
-// progress track with a node per kitchen stage. Holds no state/logic — rendered by
-// HomePage via useActiveOrderIsland.
+// progress track with a node per stage. Holds no state/logic — rendered by
+// HomePage via useActiveOrderIsland, which owns both clocks.
 import React from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Box, Typography } from "@mui/material";
 import LocalPizzaRoundedIcon from "@mui/icons-material/LocalPizzaRounded";
+import DeliveryDiningRoundedIcon from "@mui/icons-material/DeliveryDiningRounded";
+import {
+    OUT_FOR_DELIVERY_STATUS,
+    isDeliveryOrder,
+    stageIndexIn,
+    stagesFor,
+} from "../../../shared/utils/orderStages";
+import type { RideProgress, RiderSlots, RiderState } from "../../../shared/utils/orderStages";
 
 const brandRed = "#E44B4C";
 const track = "rgba(0, 0, 0, 0.08)";
 
-// Ordered kitchen journey shown on the track. "Picked Up" is terminal — the card
-// hides once reached (useActiveOrderIsland.isVisible), so it is not a visible stage.
-const STAGES: ReadonlyArray<{ key: string; labelKey: string }> = [
-    { key: "Kitchen Phase", labelKey: "island.stage.preparing" },
-    { key: "Oven", labelKey: "island.stage.inOven" },
-    { key: "Ready", labelKey: "island.stage.ready" },
-];
-
-function stageIndex(status: string | null): number {
-    const idx = STAGES.findIndex((s) => s.key === status);
-    // Unknown/early statuses (e.g. "initial-creation") fall back to the first stage.
-    return idx < 0 ? 0 : idx;
-}
-
-function etaLabel(status: string | null, timeLeft: number, t: TFunction): string {
-    if (status === "Ready") return t("island.ready");
-    const mins = Math.ceil(timeLeft / 60);
-    if (mins <= 0) return t("island.anyMinute");
-    return t("island.minutes", { value: mins });
-}
+const SWEEP_KEYFRAMES = "islandRideSweep";
+const PULSE_KEYFRAMES = "islandRidePulse";
 
 type ActiveOrderIslandPillProps = {
     branchName: string;
     orderNumber: number;
     status: string | null;
+    /** "Delivery" or the pickup type — picks the ladder and the Ready copy. */
+    orderType: string;
     timeLeft: number;
+    /**
+     * Seconds to the estimated arrival, or null when the backend could not derive one. A delivery
+     * order counts down to this rather than to the kitchen; a pickup order ignores it.
+     */
+    arrivalTimeLeft: number | null;
+    /**
+     * The ride's live fill from useActiveOrderIsland, or null when it cannot be quantified
+     * (no courier yet, no coordinates). Null is rendered as motion without a number — never
+     * as 0%, which would claim the courier has not set off.
+     */
+    rideProgress: RideProgress | null;
+    /**
+     * One rider per part of a split delivery, or null/omitted when the order is not split.
+     * Null renders exactly as the pill always has.
+     */
+    riderSlots?: RiderSlots | null;
     onClick: () => void;
 };
+
+const RIDER_ICON_SX: Record<RiderState, Record<string, string | number>> = {
+    delivered: { color: brandRed },
+    // The ring is what reads as "current" against the plain delivered rider.
+    onRoad: { color: brandRed, borderRadius: "50%", boxShadow: `0 0 0 2px ${brandRed}`, padding: "1px" },
+    waiting: { color: "#8a8a8a", opacity: 0.4 },
+};
+
+/** Decorative: counts only, no accessible text (an a11y label would need a locked-namespace key). */
+function RiderRow({ riderSlots }: { riderSlots: RiderSlots }): React.JSX.Element {
+    return (
+        <Box
+            data-testid="island-rider-row"
+            aria-hidden="true"
+            sx={{ display: "flex", alignItems: "center", gap: 0.5, marginInlineStart: "auto", flexShrink: 0 }}
+        >
+            {riderSlots.slots.map((state, i) => (
+                <DeliveryDiningRoundedIcon
+                    // eslint-disable-next-line react/no-array-index-key -- slots have no identity beyond position
+                    key={i}
+                    data-testid={`island-rider-${i}`}
+                    data-state={state}
+                    sx={{ fontSize: 18, ...RIDER_ICON_SX[state] }}
+                />
+            ))}
+            {riderSlots.overflow > 0 && (
+                <Typography
+                    data-testid="island-rider-more"
+                    sx={{ color: "#8a8a8a", fontSize: 12, fontWeight: 700 }}
+                >
+                    {`+${riderSlots.overflow}`}
+                </Typography>
+            )}
+        </Box>
+    );
+}
+
+/**
+ * The caption above the big figure: what the figure is counting down to, or nothing.
+ *
+ * A delivery order says "delivered in" from the moment it is placed. It used to say "ready in"
+ * until the ride started — which was true of the kitchen and irrelevant to the customer, who is
+ * waiting for a door rather than for a counter. The two are twenty minutes apart on an average
+ * order, so the pill was counting down to zero while the food had not left the branch.
+ */
+function etaCaption(
+    delivery: boolean,
+    countsToTheDoor: boolean,
+    riding: boolean,
+    hideCaption: boolean,
+    t: TFunction,
+): string | null {
+    if (hideCaption) return null;
+    if (delivery && countsToTheDoor) return t("island.deliveredIn");
+    return riding ? t("island.arrivingIn") : t("island.readyIn");
+}
+
+/**
+ * The big figure in the top-right.
+ *
+ * During the ride it counts to the door, not to Ready — and once the estimate is passed it
+ * stops quoting a number at all, because a negative or zero countdown that keeps ticking is
+ * exactly the lie the bar is designed not to tell. With no estimate at all it names the state
+ * ("On the way") rather than a fabricated quantity.
+ */
+function etaLabel(
+    status: string | null,
+    delivery: boolean,
+    timeLeft: number,
+    arrivalTimeLeft: number | null,
+    rideProgress: RideProgress | null,
+    t: TFunction,
+): string {
+    if (status === OUT_FOR_DELIVERY_STATUS) {
+        if (rideProgress === null) return t("island.onTheWay");
+        if (rideProgress.overdue) return t("island.arrivingNow");
+        return rideProgress.minutesLeft <= 0
+            ? t("island.anyMinute")
+            : t("island.minutes", { value: rideProgress.minutesLeft });
+    }
+    // Before the ride, a delivery order counts to the door — the estimate the customer was quoted
+    // at checkout, which is the midpoint of the "arriving in 25-35 min" window they agreed to.
+    if (delivery && arrivalTimeLeft !== null) {
+        const arrivalMins = Math.ceil(arrivalTimeLeft / 60);
+        return arrivalMins <= 0 ? t("island.anyMinute") : t("island.minutes", { value: arrivalMins });
+    }
+    // A delivery order at Ready is waiting for a courier, not for the customer to walk in —
+    // the same distinction the push notification's Ready copy already draws. Only reachable now
+    // when there is no arrival estimate at all.
+    if (status === "Ready") return delivery ? t("island.waitingForCourier") : t("island.ready");
+
+    const mins = Math.ceil(timeLeft / 60);
+    if (mins <= 0) return t("island.anyMinute");
+    return t("island.minutes", { value: mins });
+}
 
 export function ActiveOrderIslandPill({
     branchName,
     orderNumber,
     status,
+    orderType,
     timeLeft,
+    arrivalTimeLeft,
+    rideProgress,
+    riderSlots,
     onClick,
 }: ActiveOrderIslandPillProps): React.JSX.Element {
     const { t } = useTranslation("customerAuth");
-    const idx = stageIndex(status);
-    const lastIdx = STAGES.length - 1;
-    const fillPct = (idx / lastIdx) * 100;
-    const isReady = status === "Ready";
+
+    const delivery = isDeliveryOrder(orderType);
+    const stages = stagesFor(orderType);
+    const idx = stageIndexIn(stages, status);
+    const lastIdx = stages.length - 1;
+    const riding = status === OUT_FOR_DELIVERY_STATUS;
+
+    // One track segment as a share of the whole track — the unit the ride's fill is measured in.
+    const segmentPct = 100 / lastIdx;
+    // Time-based fill only inside the ride's own segment: everything before it is a completed
+    // step and everything after it has not happened, so neither may move on a clock.
+    const rideFraction = riding ? (rideProgress?.fraction ?? 0) : 0;
+    const fillPct = ((idx + rideFraction) / lastIdx) * 100;
+
+    // Ready is the end of the line for a pickup order, so its layout collapses to the call to
+    // action. A delivery order's Ready is a waypoint, but its copy is just as long.
+    const hideBranchName = status === "Ready";
+    const showIndeterminateRide = riding && rideProgress === null;
+    // Only when there is an arrival to count to: without one the pill falls back to the kitchen
+    // countdown, and the caption has to follow the figure rather than the order type.
+    const countsToTheDoor = arrivalTimeLeft !== null && !riding;
+    const caption = etaCaption(delivery, countsToTheDoor, riding, hideBranchName, t);
 
     return (
         <Box
             data-testid="active-order-island-pill"
+            data-order-type={delivery ? "delivery" : "pickup"}
             role="button"
             onClick={onClick}
             sx={{
@@ -75,23 +201,31 @@ export function ActiveOrderIslandPill({
                 border: "1px solid rgba(0, 0, 0, 0.06)",
                 boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.14)",
                 cursor: "pointer",
+                [`@keyframes ${SWEEP_KEYFRAMES}`]: {
+                    "0%": { transform: "translateX(-100%)" },
+                    "100%": { transform: "translateX(100%)" },
+                },
+                [`@keyframes ${PULSE_KEYFRAMES}`]: {
+                    "0%, 100%": { boxShadow: "0px 0px 0px 0px rgba(228, 75, 76, 0.45)" },
+                    "50%": { boxShadow: "0px 0px 0px 7px rgba(228, 75, 76, 0)" },
+                },
             }}
         >
             {/* Header: branch name + ETA */}
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-                {!isReady && (
+                {!hideBranchName && (
                 <Typography noWrap sx={{ color: "#1A1A1A", fontSize: 16, fontWeight: 800, lineHeight: 1.3, minWidth: 0, pr: 1 }}>
                     {branchName}
                 </Typography>
                 )}
                 <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                    {!isReady && (
+                    {caption !== null && (
                         <Typography sx={{ color: "#8a8a8a", fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>
-                            {t("island.readyIn")}
+                            {caption}
                         </Typography>
                     )}
                     <Typography sx={{ color: brandRed, fontSize: 16, fontWeight: 800, lineHeight: 1.3 }}>
-                        {etaLabel(status, timeLeft, t)}
+                        {etaLabel(status, delivery, timeLeft, arrivalTimeLeft, rideProgress, t)}
                     </Typography>
                 </Box>
             </Box>
@@ -115,6 +249,7 @@ export function ActiveOrderIslandPill({
                 <Typography sx={{ color: "#1A1A1A", fontSize: 17, fontWeight: 800 }}>
                     {t("island.orderNumber", { number: orderNumber })}
                 </Typography>
+                {riderSlots && <RiderRow riderSlots={riderSlots} />}
             </Box>
 
             {/* Status progress track */}
@@ -132,8 +267,10 @@ export function ActiveOrderIslandPill({
                         transform: "translateY(-50%)",
                     }}
                 />
-                {/* filled line up to current stage */}
+                {/* filled line up to current stage (plus the ride's elapsed share of its segment) */}
                 <Box
+                    data-testid="island-track-fill"
+                    data-fill-pct={fillPct.toFixed(2)}
                     sx={{
                         position: "absolute",
                         top: "50%",
@@ -143,17 +280,41 @@ export function ActiveOrderIslandPill({
                         borderRadius: 2,
                         backgroundColor: brandRed,
                         transform: "translateY(-50%)",
-                        transition: "width 400ms ease",
+                        transition: "width 900ms linear",
                     }}
                 />
+                {/* No estimate to fill by: sweep the ride's segment instead, so the track still
+                    reads as moving without asserting how far along it is. */}
+                {showIndeterminateRide && (
+                    <Box
+                        data-testid="island-ride-indeterminate"
+                        sx={{
+                            position: "absolute",
+                            top: "50%",
+                            left: `${idx * segmentPct}%`,
+                            width: `${segmentPct}%`,
+                            height: 4,
+                            borderRadius: 2,
+                            transform: "translateY(-50%)",
+                            overflow: "hidden",
+                            "&::after": {
+                                content: '""',
+                                position: "absolute",
+                                inset: 0,
+                                background: `linear-gradient(90deg, transparent, ${brandRed}, transparent)`,
+                                animation: `${SWEEP_KEYFRAMES} 1.6s ease-in-out infinite`,
+                            },
+                        }}
+                    />
+                )}
                 {/* stage nodes */}
-                {STAGES.map((s, i) => (
+                {stages.map((s, i) => (
                     <Box
                         key={s.key}
                         sx={{
                             position: "absolute",
                             top: "50%",
-                            left: `${(i / lastIdx) * 100}%`,
+                            left: `${i * segmentPct}%`,
                             transform: "translate(-50%, -50%)",
                             width: 10,
                             height: 10,
@@ -163,8 +324,9 @@ export function ActiveOrderIslandPill({
                         }}
                     />
                 ))}
-                {/* moving marker at current stage */}
+                {/* moving marker at current position */}
                 <Box
+                    data-testid="island-track-marker"
                     sx={{
                         position: "absolute",
                         top: "50%",
@@ -178,20 +340,27 @@ export function ActiveOrderIslandPill({
                         alignItems: "center",
                         justifyContent: "center",
                         boxShadow: "0px 2px 6px rgba(228, 75, 76, 0.4)",
-                        transition: "left 400ms ease",
+                        transition: "left 900ms linear",
+                        // The bar is deliberately frozen once the estimate is passed; the pulse is
+                        // what keeps "running late" from reading as "stuck".
+                        ...((showIndeterminateRide || rideProgress?.overdue)
+                            ? { animation: `${PULSE_KEYFRAMES} 1.8s ease-out infinite` }
+                            : {}),
                     }}
                 >
-                    <LocalPizzaRoundedIcon sx={{ color: "#fff", fontSize: 13 }} />
+                    {riding
+                        ? <DeliveryDiningRoundedIcon data-testid="island-marker-courier" sx={{ color: "#fff", fontSize: 14 }} />
+                        : <LocalPizzaRoundedIcon sx={{ color: "#fff", fontSize: 13 }} />}
                 </Box>
             </Box>
 
             {/* end labels */}
             <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
                 <Typography sx={{ color: "#1A1A1A", fontSize: 12, fontWeight: 700 }}>
-                    {t(STAGES[0].labelKey)}
+                    {t(stages[0].labelKey)}
                 </Typography>
                 <Typography sx={{ color: idx >= lastIdx ? brandRed : "#8a8a8a", fontSize: 12, fontWeight: 700 }}>
-                    {t(STAGES[lastIdx].labelKey)}
+                    {t(stages[lastIdx].labelKey)}
                 </Typography>
             </Box>
         </Box>

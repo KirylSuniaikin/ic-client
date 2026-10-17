@@ -10,7 +10,12 @@ type Props = {
 
 const colorRed = "#E44B4C";
 
-function renderSelectedLabel(selected: IBranch[], totalBranchCount: number): string {
+/**
+ * Exported so anything that has to NAME the current selection says it in exactly these words.
+ * The delivery-availability card pins the scope its figures were fetched for, and a second
+ * hand-written "3 branches" there would be free to drift from the control the manager just used.
+ */
+export function renderSelectedLabel(selected: IBranch[], totalBranchCount: number): string {
     if (selected.length === 1) return selected[0].branchName;
     if (selected.length === totalBranchCount) return "All branches";
     return `${selected.length} branches`;

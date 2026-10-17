@@ -1,0 +1,13 @@
+ST1 is complete. Summary:
+
+**Files changed:**
+- `BranchTO.java` — added `Double latitude`, `Double longitude` (nullable, additive).
+- `BranchService.java` — `toBranchTO` now passes `branch.getLatitude()`/`branch.getLongitude()` (the single `new BranchTO(` call site).
+- `BranchControllerTest.java` (new) — standalone-MockMvc unit test (mocks `BranchService`/`EventService`, no Spring context/DB, per `backend/.claude/CLAUDE.md`'s "no `@SpringBootTest` unless repository layer and above") asserting `GET /api/branch/fetch_branches` serializes populated and `null` `latitude`/`longitude` correctly, without hardcoding branch counts.
+
+**Gate — `./mvnw clean verify`:**
+- Before (stated baseline): 493 surefire + 1223 failsafe, 0 failures, 2 skipped.
+- After: **495 surefire** (+2 new test methods), 0 failures, 0 errors, 0 skipped · **1223 failsafe**, 0 failures, 0 errors, **2 skipped** (unchanged — no new IT added, per design).
+- `BUILD SUCCESS`, no regressions.
+
+PHASE ST1 COMPLETE — unblocks: ST2 (no direct dependency, but ST1's contract is what every other sub-task consumes via `IBranch`), and downstream real coordinate data for ST3/ST4.
