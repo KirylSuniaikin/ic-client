@@ -33,6 +33,7 @@ import { basketSignature, toDeliveryBasket } from "../domains/delivery/basket";
 import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
 import { payForDelivery, reportKeetaFallbackChosen } from "../shared/api/delivery";
 import { logger } from "../shared/utils/logger";
+import { DesktopLayoutAllowedContext } from "../shared/hooks/useDesktopLayout";
 import { Snackbar } from "@mui/material";
 import type {
     CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod, KeetaFallbackEvent,
@@ -272,8 +273,9 @@ export default function HomePageModals({
         cart.setDetroitComboPopupOpen(true);
     }
 
+    // Admin and kiosk keep the phone-shaped popups and cart at every width: their screen sizes are unknown.
     return (
-        <>
+        <DesktopLayoutAllowedContext.Provider value={!isAdmin && !isKiosk}>
             {cart.pizzaPopupOpen && (
                 <PizzaPopup
                     open={cart.pizzaPopupOpen}
@@ -651,6 +653,6 @@ export default function HomePageModals({
                 onClose={() => checkout.setWalletSession(null)}
             />
 
-        </>
+        </DesktopLayoutAllowedContext.Provider>
     );
 }

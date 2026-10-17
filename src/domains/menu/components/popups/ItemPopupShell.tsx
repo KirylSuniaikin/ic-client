@@ -1,0 +1,208 @@
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { Box, Fab, Modal } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import { useDesktopLayout } from "../../../../shared/hooks/useDesktopLayout";
+import { BRAND_RED } from "../../../../shared/utils/theme";
+
+export interface ItemPopupLegacyLayout {
+    /** Today's sheet Box sx, MOVED verbatim from the popup (never edited) — keeps the phone,
+     *  admin and kiosk path byte-identical, md-keyed values included. */
+    paperSx: SxProps<Theme>;
+    /** Today's scroll container sx. Omit when the paper itself scrolls (CrossSell) or nothing
+     *  scrolls (Upsell): media/children/footer are then direct children of the paper. */
+    scrollSx?: SxProps<Theme>;
+    /** First child of the scroll container: the popup's current photo block, unchanged. */
+    media?: ReactNode;
+}
+
+export interface ItemPopupDesktopLayout {
+    /** Present → two columns (photo | options). Absent → one centred column. */
+    photo?: { src?: string; alt: string };
+    /** Single-column width cap in px. Default 560. Ignored for two columns. */
+    width?: number;
+    /** Merged into the options column's scroll area (padding for children that relied on the
+     *  legacy scroll Box's padding). */
+    bodySx?: SxProps<Theme>;
+    /** Options-column background. Default "#fff"; combos pass "#fafafa" (their card ground). */
+    surface?: string;
+}
+
+export interface ItemPopupShellProps {
+    open: boolean;
+    onClose: () => void;
+    legacy: ItemPopupLegacyLayout;
+    desktop?: ItemPopupDesktopLayout;
+    /** Modal root sx on both paths (UpsellPopup's backdrop blur, UpSellPopup.tsx:38-40). */
+    modalSx?: SxProps<Theme>;
+    /** The popup's own footer Box (Add button, pizza size toggle), passed unchanged. Legacy:
+     *  last child of the paper. PC: pinned under the options scroll area. */
+    footer?: ReactNode;
+    /** Round close button. Default true. CrossSell and Upsell pass false (they have none today). */
+    showClose?: boolean;
+    children: ReactNode;
+}
+
+/** One element of an `sx` array, derived from SxProps so no direct @mui/system import is needed. */
+type SxArrayEntry = Extract<SxProps<Theme>, ReadonlyArray<unknown>>[number];
+
+/** MUI's documented pattern for spreading an `SxProps` into an `sx` array; `undefined` adds nothing. */
+export function toArray(sx: SxProps<Theme> | undefined): ReadonlyArray<SxArrayEntry> {
+    if (sx === undefined) return [];
+    return Array.isArray(sx) ? sx : [sx];
+}
+
+// String, not a number: `sx` multiplies a numeric borderRadius by 4.
+export const DESKTOP_DIALOG_RADIUS = "24px";
+export const DESKTOP_DIALOG_SHADOW = "0 24px 60px rgba(15,23,42,0.22)";
+export const DESKTOP_DIALOG_MAX_HEIGHT = "min(680px, 90vh)";
+
+/** The warm track of SEGMENTED_GROUP_SX; the photo is multiplied onto it so the white corners
+ *  of the opaque WebP photos disappear. */
+const DESKTOP_PHOTO_BG = "#f4ede8";
+
+// Key order matches the Fab every popup rendered before the shell, so the legacy class is unchanged.
+const CLOSE_FAB_SX: SxProps<Theme> = {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    color: BRAND_RED,
+    backgroundColor: "#fff",
+    zIndex: 9999,
+};
+
+const SPLIT_PAPER_SX: SxProps<Theme> = {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "min(960px, 92vw)",
+    height: DESKTOP_DIALOG_MAX_HEIGHT,
+    bgcolor: "#fff",
+    borderRadius: DESKTOP_DIALOG_RADIUS,
+    boxShadow: DESKTOP_DIALOG_SHADOW,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "row",
+    outline: "none",
+};
+
+function singlePaperSx(width: number): SxProps<Theme> {
+    return {
+        position: "absolute",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: `min(${width}px, 92vw)`,
+        maxHeight: DESKTOP_DIALOG_MAX_HEIGHT,
+        bgcolor: "#fff",
+        borderRadius: DESKTOP_DIALOG_RADIUS,
+        boxShadow: DESKTOP_DIALOG_SHADOW,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        outline: "none",
+    };
+}
+
+const PHOTO_COLUMN_SX: SxProps<Theme> = {
+    flex: "0 0 45%",
+    minWidth: 0,
+    bgcolor: DESKTOP_PHOTO_BG,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    p: 4,
+};
+
+const PHOTO_SX: SxProps<Theme> = {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    mixBlendMode: "multiply",
+    display: "block",
+};
+
+function bodySx(split: boolean, showClose: boolean): SxArrayEntry {
+    return {
+        flex: split ? 1 : "1 1 auto",
+        minHeight: 0,
+        overflowY: "auto",
+        // Keeps the 40px close button clear of the title.
+        ...(showClose ? { pt: 5 } : {}),
+    };
+}
+
+/**
+ * The one Modal every item popup renders. Below md — and for admin and kiosk at any width — it
+ * reproduces each popup's original sheet exactly (`legacy`); on a customer PC it becomes a centred
+ * dialog with an optional photo column (`desktop`). Popup state lives above the shell, so the
+ * subtree swap when the viewport crosses 900px loses nothing.
+ */
+export function ItemPopupShell({
+    open,
+    onClose,
+    legacy,
+    desktop,
+    modalSx,
+    footer,
+    showClose = true,
+    children,
+}: ItemPopupShellProps): JSX.Element {
+    const { t } = useTranslation("customerAuth");
+    const isDesktop = useDesktopLayout();
+
+    // No z-index on the Modal on either path: everything stacked above a popup (ItemEditorPopup
+    // at 2000, later Modals at 1300) relies on MUI's default and on portal order.
+    if (!isDesktop) {
+        return (
+            <Modal open={open} onClose={onClose} sx={modalSx}>
+                <Box sx={legacy.paperSx}>
+                    {showClose && (
+                        <Fab size="small" onClick={onClose} aria-label={undefined} sx={CLOSE_FAB_SX}>
+                            <CloseIcon/>
+                        </Fab>
+                    )}
+                    {legacy.scrollSx
+                        ? <Box sx={legacy.scrollSx}>{legacy.media}{children}</Box>
+                        : <>{legacy.media}{children}</>}
+                    {footer}
+                </Box>
+            </Modal>
+        );
+    }
+
+    const photo = desktop?.photo;
+    const split = photo !== undefined;
+
+    return (
+        <Modal open={open} onClose={onClose} sx={modalSx}>
+            <Box data-testid="item-popup-dialog" sx={split ? SPLIT_PAPER_SX : singlePaperSx(desktop?.width ?? 560)}>
+                {showClose && (
+                    <Fab size="small" onClick={onClose} aria-label={t("login.close")} sx={CLOSE_FAB_SX}>
+                        <CloseIcon/>
+                    </Fab>
+                )}
+                {photo && (
+                    <Box data-testid="item-popup-photo" sx={PHOTO_COLUMN_SX}>
+                        {photo.src && <Box component="img" src={photo.src} alt={photo.alt} sx={PHOTO_SX}/>}
+                    </Box>
+                )}
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        flex: 1,
+                        minWidth: 0,
+                        minHeight: 0,
+                        bgcolor: desktop?.surface ?? "#fff",
+                    }}
+                >
+                    <Box sx={[bodySx(split, showClose), ...toArray(desktop?.bodySx)]}>{children}</Box>
+                    {footer}
+                </Box>
+            </Box>
+        </Modal>
+    );
+}
