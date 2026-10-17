@@ -99,6 +99,9 @@ export function BranchListView({
                                 gap: 1.5,
                                 p: 1.5,
                                 textAlign: "start",
+                                // A <button> does not inherit the page font; the Nearest badge is
+                                // plain text and would otherwise render in the browser's own.
+                                fontFamily: "inherit",
                                 borderRadius: "16px",
                                 bgcolor: "#fff",
                                 border: "1px solid",

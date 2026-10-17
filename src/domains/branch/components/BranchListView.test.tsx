@@ -5,6 +5,7 @@ import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { BranchListView } from "./BranchListView";
 import type { IBranch } from "../../management/inventory/types";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 
 function branch(overrides: Partial<IBranch> = {}): IBranch {
     return {
@@ -109,6 +110,14 @@ describe("BranchListView", () => {
 
         expect(screen.getByText("Nearest")).toBeTruthy();
         expect(screen.getByText("Smichov")).toBeTruthy();
+    });
+
+    // A <button> row does not inherit the page font, and the badge is the one piece of plain text
+    // in it: it rendered in the browser's own button font while the name beside it did not.
+    it("lets the row inherit the page font, so the Nearest badge matches the name", () => {
+        renderList({ nearestBranchId: "b1" });
+
+        expect(emotionRulesFor(screen.getByTestId("branch-option-b1"))).toContain("font-family:inherit");
     });
 
     describe("in Arabic", () => {
