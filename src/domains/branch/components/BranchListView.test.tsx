@@ -2,6 +2,11 @@ import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
+import { CacheProvider } from "@emotion/react";
+import createCache from "@emotion/cache";
+import { prefixer } from "stylis";
+import rtlPlugin from "stylis-plugin-rtl";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 import i18n from "../../../shared/i18n";
 import { BranchListView } from "./BranchListView";
 import type { IBranch } from "../../management/inventory/types";
@@ -123,6 +128,37 @@ describe("BranchListView", () => {
     describe("in Arabic", () => {
         afterEach(async () => {
             await i18n.changeLanguage("en");
+        });
+
+        // In an RTL row a Latin address used to lose its start ("…g 123, Road 45, …"). dir="auto"
+        // makes it truncate at its own end, and the alignment still follows the row: the RTL
+        // stylis plugin turns "left" into "right".
+        it("truncates a Latin address at its own end while keeping it on the row's start edge", async () => {
+            await i18n.changeLanguage("ar");
+            // The key starts with "css-" only so that emotionRulesFor, which reads css-* classes,
+            // can see the flipped rules.
+            const rtlCache = createCache({ key: "css-rtl", stylisPlugins: [prefixer, rtlPlugin] });
+            render(
+                <CacheProvider value={rtlCache}>
+                    <ThemeProvider theme={createTheme({ direction: "rtl" })}>
+                        <I18nextProvider i18n={i18n}>
+                            <BranchListView
+                                branches={[branch({ address: "Building 123, Road 45, Block 901, Riffa" })]}
+                                distances={null}
+                                nearestBranchId={null}
+                                onSelectBranch={jest.fn<void, [IBranch]>()}
+                                onUseNearestBranch={jest.fn<void, []>()}
+                                locating={false}
+                                locationError={null}
+                            />
+                        </I18nextProvider>
+                    </ThemeProvider>
+                </CacheProvider>
+            );
+
+            const address = screen.getByText("Building 123, Road 45, Block 901, Riffa");
+            expect(address.getAttribute("dir")).toBe("auto");
+            expect(emotionRulesFor(address)).toContain("text-align:right");
         });
 
         it("names each branch in Arabic", async () => {

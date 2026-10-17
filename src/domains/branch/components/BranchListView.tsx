@@ -133,7 +133,16 @@ export function BranchListView({
                                     {branchDisplayName(branch, i18n.language)}
                                 </Typography>
                                 {branch.address && (
-                                    <Typography variant="body2" noWrap sx={{ color: "#8a807a" }}>
+                                    // dir="auto": a Latin address in an Arabic row then truncates
+                                    // at its own end ("Building 123, Road…"), not at its start.
+                                    // "left" keeps it on the row's start edge either way: the RTL
+                                    // stylis plugin flips it to "right" in Arabic.
+                                    <Typography
+                                        variant="body2"
+                                        noWrap
+                                        dir="auto"
+                                        sx={{ color: "#8a807a", textAlign: "left" }}
+                                    >
                                         {branch.address}
                                     </Typography>
                                 )}
