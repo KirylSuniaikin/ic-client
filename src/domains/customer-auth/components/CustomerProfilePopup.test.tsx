@@ -27,6 +27,8 @@ import { connectSocket, socket } from "../../../shared/api/socket";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
 import { CustomerAuthUiProvider } from "../context/CustomerAuthUiProvider";
 import { CustomerProfilePopup } from "./CustomerProfilePopup";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import type { CustomerMeResponse, CustomerOrdersPageResponse, CustomerOrderDetail, SuggestedOrderResponse, SuggestedOrderItem } from "../types";
 
 const mockVerifyOtp = jest.mocked(verifyOtp);
@@ -626,6 +628,40 @@ describe("CustomerProfilePopup", () => {
             await screen.findByText("Jane");
             expect(screen.queryByRole("textbox", { name: "Full name" })).toBeNull();
             expect(screen.getByRole("button", { name: "Edit name" })).toBeTruthy();
+        });
+    });
+
+    describe("on PC", () => {
+        afterEach(() => {
+            clearMatchMedia();
+        });
+
+        it("is a side panel, and an opened order stacks over it and steps back on an outside click", async () => {
+            stubMatchMedia(true);
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            mockFetchOrderDetail.mockResolvedValueOnce(orderDetail());
+
+            const { onClose } = await renderOpenPopup();
+
+            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+            const panel = screen.getByRole("dialog");
+            const rules = emotionRulesFor(panel);
+            expect(rules).toContain("left:auto");
+            expect(rules).toContain("width:440px");
+
+            fireEvent.click(await screen.findByText("Order #88"));
+            expect(await screen.findByText("Detail Order")).toBeTruthy();
+            expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(2);
+
+            // The detail panel's backdrop is the later one, painted over the profile panel.
+            const backdrops = document.querySelectorAll(".MuiBackdrop-root");
+            fireEvent.click(backdrops[backdrops.length - 1]);
+
+            await waitFor(() => expect(screen.queryByText("Detail Order")).toBeNull());
+            expect(screen.getByText("Order history")).toBeTruthy();
+            expect(onClose).not.toHaveBeenCalled();
         });
     });
 });

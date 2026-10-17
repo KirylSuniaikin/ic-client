@@ -1,9 +1,14 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Button, CircularProgress, Drawer, IconButton, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import CloseIcon from "@mui/icons-material/Close";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRounded";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
 import type { IBranch } from "../../management/inventory/types";
 import type { CartItem } from "../../menu/types";
 import type { Coordinates } from "../types";
@@ -12,6 +17,7 @@ import { GOOGLE_MAPS_API_KEY } from "../utils/mapsConfig";
 import { BranchMapView } from "./BranchMapView";
 import { BRAND_RED, BranchListView } from "./BranchListView";
 import { BranchDetailsSheet } from "./BranchDetailsSheet";
+import { BranchDetailsContent } from "./BranchDetailsContent";
 
 /**
  * The branch closest to a point, or null when there is no point or no branch has coordinates.
@@ -68,6 +74,7 @@ export function BranchPickerDrawer({
     cartItems = [],
 }: BranchPickerDrawerProps): JSX.Element {
     const { t } = useTranslation("branch");
+    const isRtl = useTheme().direction === "rtl";
 
     const [origin, setOrigin] = useState<Coordinates | null>(null);
     const [locating, setLocating] = useState(false);
@@ -141,32 +148,34 @@ export function BranchPickerDrawer({
     // Both the map and the list go through it, so the two entry points cannot diverge.
     const [detailsBranch, setDetailsBranch] = useState<IBranch | null>(null);
 
-    return (
-        <Drawer
-            anchor="bottom"
-            open={open}
-            onClose={dismissable ? () => onClose?.() : undefined}
-            // The cart's "Pick up from" card opens this ON TOP of the still-open cart, a MUI Modal
-            // at theme.zIndex.modal (1300), while a Drawer defaults to zIndex.drawer (1200). MUI's
-            // ModalManager never raises a later modal, so without this the picker opens behind the
-            // cart and the tap looks like it did nothing. modal + 1 rather than the 1350 nested
-            // drawers use: BranchDetailsSheet already sits at 1350 inside this picker and must
-            // stay above it.
-            sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
-            PaperProps={{
-                sx: {
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    maxWidth: { sm: 500 },
-                    mx: { sm: "auto" },
-                    // The map fills the sheet rather than sitting in a 260px strip inside a
-                    // scrolling column, so the sheet itself is a fixed height and never scrolls.
-                    height: mapMode ? "85vh" : undefined,
-                    maxHeight: "90vh",
-                    overflow: "hidden",
-                },
-            }}
-        >
+    // PC only: the row "All branches" returns focus to. The phone list never reads it.
+    const [returnFocusId, setReturnFocusId] = useState<string | null>(null);
+
+    function back(): void {
+        if (detailsBranch !== null) setReturnFocusId(detailsBranch.id);
+        setDetailsBranch(null);
+    }
+
+    // On PC the details are a step inside this dialog, so Esc or a backdrop click on that step
+    // goes back to the list rather than closing the picker. On a phone this only ever runs with
+    // no details open: the details Drawer sits on top and takes Esc and backdrop clicks itself.
+    function handlePickerClose(): void {
+        if (detailsBranch !== null) {
+            back();
+            return;
+        }
+        if (dismissable) onClose?.();
+    }
+    const pickerOnClose = dismissable || detailsBranch !== null ? handlePickerClose : undefined;
+
+    function confirmBranch(branch: IBranch): void {
+        setDetailsBranch(null);
+        onSelect(branch);
+    }
+
+    // The phone form: exactly the tree this picker rendered before the PC dialog existed.
+    const sheetTree = (
+        <>
             {mapMode ? (
                 <Box sx={{ position: "relative", height: "100%", bgcolor: "#f4f1ea" }}>
                     <BranchMapView
@@ -313,8 +322,162 @@ export function BranchPickerDrawer({
                 cartItems={cartItems}
                 distanceKm={detailsBranch === null ? null : distances?.[detailsBranch.id] ?? null}
                 onClose={() => setDetailsBranch(null)}
-                onConfirm={(branch) => { setDetailsBranch(null); onSelect(branch); }}
+                onConfirm={confirmBranch}
             />
-        </Drawer>
+        </>
+    );
+
+    /**
+     * The PC form. The list is always visible (no toggle) and the details replace it in the same
+     * column with an "All branches" step back, instead of opening a second layer over the map.
+     */
+    function renderDialog(): JSX.Element {
+        return (
+            <>
+                <Box sx={{ display: "flex", height: mapMode ? "100%" : undefined, minHeight: 0 }}>
+                    <Box
+                        sx={{
+                            width: mapMode ? 400 : "100%",
+                            flexShrink: 0,
+                            display: "flex",
+                            flexDirection: "column",
+                            minHeight: 0,
+                            bgcolor: "#fffcf8",
+                            // Flips to the left edge in Arabic, where the list sits on the right.
+                            borderRight: mapMode ? "1px solid #f1eae4" : undefined,
+                        }}
+                    >
+                        {detailsBranch === null ? renderListPane() : renderDetailsPane(detailsBranch)}
+                    </Box>
+
+                    {mapMode && (
+                        <Box sx={{ flex: 1, minWidth: 0, position: "relative", bgcolor: "#f4f1ea" }}>
+                            <BranchMapView
+                                branches={branches}
+                                onSelectBranch={setDetailsBranch}
+                                activeBranchId={detailsBranch?.id ?? null}
+                                height="100%"
+                                layout="dialog"
+                            />
+                        </Box>
+                    )}
+                </Box>
+
+                {dismissable && onClose && (
+                    <IconButton
+                        aria-label={t("picker.close")}
+                        onClick={onClose}
+                        sx={{
+                            position: "absolute",
+                            top: 16,
+                            right: 16,
+                            zIndex: 1,
+                            bgcolor: "rgba(255,255,255,0.92)",
+                            boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                            "&:hover": { bgcolor: "#fff" },
+                        }}
+                    >
+                        <CloseRoundedIcon />
+                    </IconButton>
+                )}
+            </>
+        );
+    }
+
+    function renderListPane(): JSX.Element {
+        return (
+            <>
+                <Box sx={{ p: 3, pb: 2, pr: dismissable && !mapMode ? 7 : 3 }}>
+                    <Typography component="h2" variant="h6" sx={{ fontWeight: 800, color: "#3b352c" }}>
+                        {t("picker.title")}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#8a807a", mt: 0.5 }}>
+                        {t("picker.subtitle")}
+                    </Typography>
+                </Box>
+                <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 3, pb: 3 }}>
+                    {/* Keeps its own "Use nearest branch" button: there is no floating CTA on PC. */}
+                    <BranchListView
+                        branches={branches}
+                        distances={distances}
+                        nearestBranchId={nearestBranchId}
+                        onSelectBranch={setDetailsBranch}
+                        onUseNearestBranch={handleUseNearestBranch}
+                        locating={locating}
+                        locationError={locationError}
+                        focusBranchId={returnFocusId}
+                    />
+                </Box>
+            </>
+        );
+    }
+
+    function renderDetailsPane(branch: IBranch): JSX.Element {
+        return (
+            <>
+                <Box
+                    sx={{
+                        minHeight: 56,
+                        display: "flex",
+                        alignItems: "center",
+                        px: 1.5,
+                        borderBottom: "1px solid #f1eae4",
+                    }}
+                >
+                    <Button
+                        startIcon={isRtl ? <ArrowForwardIosRoundedIcon /> : <ArrowBackIosNewRoundedIcon />}
+                        onClick={back}
+                        sx={{ textTransform: "none", fontWeight: 700, color: "#3b352c", borderRadius: 999, px: 1.5 }}
+                    >
+                        {t("picker.allBranches")}
+                    </Button>
+                </Box>
+                <BranchDetailsContent
+                    key={branch.id}
+                    branch={branch}
+                    cartItems={cartItems}
+                    distanceKm={distances?.[branch.id] ?? null}
+                    layout="pane"
+                    autoFocusHeading
+                    onConfirm={confirmBranch}
+                />
+            </>
+        );
+    }
+
+    return (
+        <CustomerSheet
+            open={open}
+            onClose={pickerOnClose}
+            // The cart's "Pick up from" card opens this ON TOP of the still-open cart, a MUI Modal
+            // at theme.zIndex.modal (1300), while a Drawer defaults to zIndex.drawer (1200). MUI's
+            // ModalManager never raises a later modal, so without this the picker opens behind the
+            // cart and the tap looks like it did nothing. modal + 1 rather than the 1350 nested
+            // drawers use: BranchDetailsSheet already sits at 1350 inside this picker and must
+            // stay above it.
+            sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
+            PaperProps={{
+                sx: {
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    maxWidth: { sm: 500 },
+                    mx: { sm: "auto" },
+                    // The map fills the sheet rather than sitting in a 260px strip inside a
+                    // scrolling column, so the sheet itself is a fixed height and never scrolls.
+                    height: mapMode ? "85vh" : undefined,
+                    maxHeight: "90vh",
+                    overflow: "hidden",
+                },
+            }}
+            // PC: one dialog, the list column beside the map (or the list alone without a Maps key).
+            desktop={{
+                placement: "center",
+                width: mapMode ? 1080 : 480,
+                height: mapMode ? "min(720px, 90vh)" : undefined,
+                paperSx: mapMode ? { backgroundColor: "#fffcf8", overflow: "hidden" } : { backgroundColor: "#fffcf8" },
+            }}
+        >
+            {(presentation) => (presentation === "sheet" ? sheetTree : renderDialog())}
+        </CustomerSheet>
     );
 }

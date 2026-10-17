@@ -2,7 +2,7 @@
 // CustomerLoginPopup/ClientInfoPopup (brand-red bottom Drawer).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Avatar, Box, Button, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, TextField, Typography } from "@mui/material";
+import { Avatar, Box, Button, Chip, CircularProgress, Divider, IconButton, Stack, TextField, Typography } from "@mui/material";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
@@ -20,6 +20,16 @@ import { getStatusLabel } from "../utils/orderStatusLabel";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerMeResponse, CustomerOrderSummary, SuggestedOrderItem } from "../types";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
+
+// PC: a full-height panel docked like the cart.
+const PROFILE_DESKTOP = {
+    placement: "side",
+    width: 440,
+    paperSx: { background: ACCOUNT_SHEET_BACKGROUND },
+} satisfies CustomerSheetDesktop;
 
 const brandRed = "#E44B4C";
 const brandRedTint = "#FCE9E9";
@@ -225,10 +235,10 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
 
     return (
         <>
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open={open}
             onClose={onClose}
+            desktop={PROFILE_DESKTOP}
             PaperProps={{
                 sx: {
                     height: "100dvh",
@@ -239,7 +249,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                     borderTopLeftRadius: { xs: 20, sm: 28 },
                     borderTopRightRadius: { xs: 20, sm: 28 },
                     overflow: "hidden",
-                    background: "linear-gradient(170deg, #FFFBFA 0%, #FFF2F1 45%, #FBE3E3 100%)",
+                    background: ACCOUNT_SHEET_BACKGROUND,
                 },
             }}
         >
@@ -536,7 +546,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                     </Button>
                 </Box>
             </Box>
-        </Drawer>
+        </CustomerSheet>
         {/* Rendered as a sibling Drawer so the profile popup's own Drawer stays
             mounted/open underneath — closing the detail popup only clears
             selectedOrderId, it never touches `open`/`onClose` above. */}

@@ -1,9 +1,11 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import "../../../shared/i18n";
 import CardPaymentDrawer from "./CardPaymentDrawer";
 import type { CardCheckoutStep } from "../hooks/useCardCheckout";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 
 const READY_STEP: CardCheckoutStep = "ready";
 
@@ -110,5 +112,68 @@ describe("CardPaymentDrawer", () => {
         } finally {
             await act(async () => { await i18n.changeLanguage("en"); });
         }
+    });
+});
+
+describe("CardPaymentDrawer on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    /** A matchMedia whose answer can change between renders, as a resized window's does. */
+    function stubMutableMatchMedia(initial: boolean): { setWide: (wide: boolean) => void } {
+        let wide = initial;
+        Object.defineProperty(window, "matchMedia", {
+            writable: true,
+            configurable: true,
+            value: (query: string) => ({
+                get matches(): boolean {
+                    return wide;
+                },
+                media: query,
+                onchange: null,
+                addListener: (): void => {},
+                removeListener: (): void => {},
+                addEventListener: (): void => {},
+                removeEventListener: (): void => {},
+                dispatchEvent: (): boolean => false,
+            }),
+        });
+        return { setWide: (next: boolean): void => { wide = next; } };
+    }
+
+    it("is a dialog at the card sheet's 1350, named by its title, with no handle", () => {
+        stubMatchMedia(true);
+        renderDrawer();
+
+        const root = document.querySelector<HTMLElement>(".MuiDialog-root");
+        expect(root).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        expect(Number(window.getComputedStyle(root as HTMLElement).zIndex)).toBe(1350);
+        const dialog = screen.getByRole("dialog", { name: "Pay by card" });
+        expect(dialog.getAttribute("aria-labelledby")).toBe("card-payment-drawer-title");
+        expect(sheetHandleCount(root as HTMLElement)).toBe(0);
+    });
+
+    // The gateway's hosted fields attach to this node once; a resize mid-payment must not remount it.
+    it("keeps the hosted-field container mounted when the viewport crosses the breakpoint", () => {
+        const viewport = stubMutableMatchMedia(true);
+        const fieldContainerRef = jest.fn<void, [HTMLElement | null]>();
+        const props = {
+            open: true, step: READY_STEP, total: "5.000", fieldErrors: {}, error: null, fieldContainerRef,
+            onClose: jest.fn<void, []>(), onPay: jest.fn<void, []>(), onRetry: jest.fn<void, []>(),
+        };
+        const { rerender } = render(<CardPaymentDrawer {...props} />);
+
+        expect(fieldContainerRef).toHaveBeenCalledTimes(1);
+        const node = fieldContainerRef.mock.calls[0][0];
+        expect(node).toBeInstanceOf(HTMLElement);
+
+        viewport.setWide(false);
+        rerender(<CardPaymentDrawer {...props} total="5.500" />);
+
+        expect(fieldContainerRef).toHaveBeenCalledTimes(1);
+        expect(document.querySelector(".MuiDialog-root")).toBeTruthy();
+        expect(document.getElementById("card-number")?.closest("[dir='ltr']")).toBe(node);
     });
 });

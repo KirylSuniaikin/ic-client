@@ -11,11 +11,16 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import "../../../shared/i18n";
 
 import CartPopup from "./CartComponent";
+import { BranchPickerDrawer } from "../../branch/components/BranchPickerDrawer";
+import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchWarningDrawer";
 import type { CartItem } from "../../menu/types";
+import type { IBranch } from "../../management/inventory/types";
 import { WALLET_METHOD } from "../../order/types";
 import { DesktopLayoutAllowedContext } from "../../../shared/hooks/useDesktopLayout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+
+jest.mock("../../branch/components/BranchMapView");
 
 // The PC cart: a 440px panel docked to the side over the dimmed menu, same content as the phone.
 
@@ -132,5 +137,62 @@ describe("CartPopup — PC panel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
 
         expect(props.onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+    });
+});
+
+/**
+ * PC twins of CartComponent.test.tsx's "sheets opened from the cart": the cart's "Pick up from"
+ * card opens the picker, and a switch with a full cart opens the cart-loss warning, on top of the
+ * still-open cart panel. As dialogs they keep the phone sheets' modal + 1, so they still paint
+ * above the panel's Modal.
+ */
+describe("CartPopup — PC dialogs opened from the cart panel", () => {
+    const GRUNWALD: IBranch = {
+        id: "b-grunwald", externalId: "ext-grunwald", branchNo: 2, branchName: "Grunwald",
+        locale: "en", latitude: null, longitude: null,
+    };
+
+    function zIndexOf(root: Element | null | undefined): number {
+        expect(root).toBeTruthy();
+        return Number(window.getComputedStyle(root as HTMLElement).zIndex);
+    }
+
+    function cartModalRoot(): Element | null {
+        return screen.getByText("Cart").closest(".MuiModal-root");
+    }
+
+    it("paints the branch picker dialog above the cart panel", () => {
+        stubMatchMedia(true);
+        render(
+            <>
+                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
+                <BranchPickerDrawer open branches={[GRUNWALD]} onSelect={jest.fn()} dismissable onClose={jest.fn()} />
+            </>
+        );
+
+        const pickerZ = zIndexOf(document.querySelector(".MuiDialog-root"));
+        const cartZ = zIndexOf(cartModalRoot());
+
+        expect(Number.isNaN(pickerZ)).toBe(false);
+        expect(pickerZ > cartZ).toBe(true);
+    });
+
+    it("paints the cart-loss warning dialog above the cart panel", () => {
+        stubMatchMedia(true);
+        render(
+            <>
+                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
+                <BranchSwitchWarningDrawer
+                    open loading={false} targetBranch={GRUNWALD} unavailableNames={[]} error={null}
+                    onConfirm={jest.fn()} onCancel={jest.fn()}
+                />
+            </>
+        );
+
+        const warningZ = zIndexOf(document.querySelector(".MuiDialog-root"));
+        const cartZ = zIndexOf(cartModalRoot());
+
+        expect(Number.isNaN(warningZ)).toBe(false);
+        expect(warningZ > cartZ).toBe(true);
     });
 });

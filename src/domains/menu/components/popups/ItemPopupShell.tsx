@@ -5,6 +5,17 @@ import type { SxProps, Theme } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { useDesktopLayout } from "../../../../shared/hooks/useDesktopLayout";
 import { BRAND_RED } from "../../../../shared/utils/theme";
+import {
+    DESKTOP_DIALOG_MAX_HEIGHT,
+    DESKTOP_DIALOG_RADIUS,
+    DESKTOP_DIALOG_SHADOW,
+    centredModalPaperSx,
+    toArray,
+} from "../../../../shared/utils/desktopDialog";
+import type { SxArrayEntry } from "../../../../shared/utils/desktopDialog";
+
+// Re-exported so combo/ItemEditorPopup keeps importing them from here.
+export { DESKTOP_DIALOG_MAX_HEIGHT, DESKTOP_DIALOG_RADIUS, DESKTOP_DIALOG_SHADOW, toArray };
 
 export interface ItemPopupLegacyLayout {
     /** Today's sheet Box sx, MOVED verbatim from the popup (never edited) — keeps the phone,
@@ -44,20 +55,6 @@ export interface ItemPopupShellProps {
     children: ReactNode;
 }
 
-/** One element of an `sx` array, derived from SxProps so no direct @mui/system import is needed. */
-type SxArrayEntry = Extract<SxProps<Theme>, ReadonlyArray<unknown>>[number];
-
-/** MUI's documented pattern for spreading an `SxProps` into an `sx` array; `undefined` adds nothing. */
-export function toArray(sx: SxProps<Theme> | undefined): ReadonlyArray<SxArrayEntry> {
-    if (sx === undefined) return [];
-    return Array.isArray(sx) ? sx : [sx];
-}
-
-// String, not a number: `sx` multiplies a numeric borderRadius by 4.
-export const DESKTOP_DIALOG_RADIUS = "24px";
-export const DESKTOP_DIALOG_SHADOW = "0 24px 60px rgba(15,23,42,0.22)";
-export const DESKTOP_DIALOG_MAX_HEIGHT = "min(680px, 90vh)";
-
 /** The warm track of SEGMENTED_GROUP_SX; the photo is multiplied onto it so the white corners
  *  of the opaque WebP photos disappear. */
 const DESKTOP_PHOTO_BG = "#f4ede8";
@@ -87,24 +84,6 @@ const SPLIT_PAPER_SX: SxProps<Theme> = {
     flexDirection: "row",
     outline: "none",
 };
-
-function singlePaperSx(width: number): SxProps<Theme> {
-    return {
-        position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: `min(${width}px, 92vw)`,
-        maxHeight: DESKTOP_DIALOG_MAX_HEIGHT,
-        bgcolor: "#fff",
-        borderRadius: DESKTOP_DIALOG_RADIUS,
-        boxShadow: DESKTOP_DIALOG_SHADOW,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        outline: "none",
-    };
-}
 
 const PHOTO_COLUMN_SX: SxProps<Theme> = {
     flex: "0 0 45%",
@@ -178,7 +157,7 @@ export function ItemPopupShell({
 
     return (
         <Modal open={open} onClose={onClose} sx={modalSx}>
-            <Box data-testid="item-popup-dialog" sx={split ? SPLIT_PAPER_SX : singlePaperSx(desktop?.width ?? 560)}>
+            <Box data-testid="item-popup-dialog" sx={split ? SPLIT_PAPER_SX : centredModalPaperSx(desktop?.width ?? 560)}>
                 {showClose && (
                     <Fab size="small" onClick={onClose} aria-label={t("login.close")} sx={CLOSE_FAB_SX}>
                         <CloseIcon/>

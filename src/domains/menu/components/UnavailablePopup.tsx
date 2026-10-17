@@ -1,8 +1,16 @@
-import { Box, Typography, IconButton } from "@mui/material";
+import { Box, Typography, IconButton, Modal } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
+import { centredModalPaperSx, toArray } from "../../../shared/utils/desktopDialog";
+import type { SxArrayEntry } from "../../../shared/utils/desktopDialog";
+
+const UNAVAILABLE_DESKTOP_SX: ReadonlyArray<SxArrayEntry> = [
+    ...toArray(centredModalPaperSx(440)),
+    { alignItems: "center", p: 4, textAlign: "center" },
+];
 
 type Props = {
     unavailableItems: string[];
@@ -14,24 +22,12 @@ type Props = {
 
 export function UnavailablePopup({ unavailableItems, open, onClose, message, standalone }: Props) {
     const { t } = useTranslation("menu");
+    const isDesktop = useDesktopLayout();
     if (!open) return null;
 
-    return (
-        <Box
-            sx={{
-                position: standalone ? "fixed" : "absolute",
-                inset: 0,
-                zIndex: standalone ? 1300 : 10,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "rgba(255,255,255,0.96)",
-                backdropFilter: "blur(6px)",
-                px: 3,
-                textAlign: "center",
-            }}
-        >
+    // The same children on every path, so the phone and in-cart markup does not move.
+    const body = (
+        <>
             {/* Close button top-right */}
             <IconButton
                 onClick={onClose}
@@ -106,6 +102,35 @@ export function UnavailablePopup({ unavailableItems, open, onClose, message, sta
             <Typography sx={{ fontSize: 14, color: "#888", lineHeight: 1.6, whiteSpace: "pre-line" }}>
                 {t("unavailable.removedNotice")}
             </Typography>
+        </>
+    );
+
+    if (standalone && isDesktop) {
+        // PC: a centred card in a Modal, which brings the focus trap, Esc and backdrop close.
+        return (
+            <Modal open onClose={onClose}>
+                <Box sx={UNAVAILABLE_DESKTOP_SX}>{body}</Box>
+            </Modal>
+        );
+    }
+
+    return (
+        <Box
+            sx={{
+                position: standalone ? "fixed" : "absolute",
+                inset: 0,
+                zIndex: standalone ? 1300 : 10,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.96)",
+                backdropFilter: "blur(6px)",
+                px: 3,
+                textAlign: "center",
+            }}
+        >
+            {body}
         </Box>
     );
 }

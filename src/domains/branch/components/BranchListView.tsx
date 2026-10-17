@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, ButtonBase, CircularProgress, Stack, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -26,6 +27,9 @@ export interface BranchListViewProps {
     /** Map mode renders the nearest action as a floating CTA over the map; the list would
      *  otherwise show a second, identical button a few pixels away. */
     hideNearestButton?: boolean;
+    /** PC picker only: the row to focus when the list mounts, i.e. the branch whose details the
+     *  customer just stepped back from. The phone passes nothing. */
+    focusBranchId?: string | null;
 }
 
 /** Presentational, always mounted — the no-key fallback IS this component. */
@@ -38,10 +42,17 @@ export function BranchListView({
     locating,
     locationError,
     hideNearestButton = false,
+    focusBranchId = null,
 }: BranchListViewProps): JSX.Element {
     const { t, i18n } = useTranslation("branch");
     const theme = useTheme();
     const ChevronIcon = theme.direction === "rtl" ? ChevronLeftRoundedIcon : ChevronRightRoundedIcon;
+
+    // This list's own effect runs after its own rows exist, even inside the Dialog portal.
+    const returnFocusRef = useRef<HTMLButtonElement | null>(null);
+    useEffect(() => {
+        if (focusBranchId !== null) returnFocusRef.current?.focus();
+    }, [focusBranchId]);
 
     return (
         <Box>
@@ -75,6 +86,7 @@ export function BranchListView({
                     return (
                         <ButtonBase
                             key={branch.id}
+                            ref={branch.id === focusBranchId ? returnFocusRef : undefined}
                             // Addressable without matching on the branch name: that same name is
                             // also rendered by the chip behind the drawer and by the drawer's own
                             // heading, so a getByText query finds three nodes and throws.

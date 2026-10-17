@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, Button } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
 import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
 import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import { formatAddressLine } from '../types';
@@ -8,8 +8,9 @@ import type { CustomerAddress } from '../types';
 import type { CartItem } from '../../menu/types';
 import {
     BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SHEET_PAPER_SX, SUBTLE_BUTTON_SX,
-    SheetHandle,
+    SHEET_DESKTOP, SheetHandle,
 } from './sheetStyles';
+import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 
 /**
  * "One last check" (DELIVERY_SPEC.md §1.6) — the confirm sheet between Place order and payment.
@@ -50,7 +51,7 @@ export function OneLastCheckDrawer({
     const hasDiscount = Number(discount) > 0;
 
     return (
-        <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: SHEET_PAPER_SX }}>
+        <CustomerSheet open={open} onClose={onClose} desktop={SHEET_DESKTOP} PaperProps={{ sx: SHEET_PAPER_SX }}>
             <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
                 <SheetHandle />
 
@@ -129,6 +130,6 @@ export function OneLastCheckDrawer({
                     {t('delivery.editOrder')}
                 </Button>
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }

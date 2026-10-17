@@ -5,6 +5,8 @@ import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { BranchSwitchWarningDrawer } from "./BranchSwitchWarningDrawer";
 import type { IBranch } from "../../management/inventory/types";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 
 const TARGET_BRANCH: IBranch = {
     id: "b-2", externalId: "ext-2", branchNo: 2, branchName: "Seef", locale: "en",
@@ -69,6 +71,28 @@ describe("BranchSwitchWarningDrawer", () => {
         expect(screen.getByText(/Network error/)).toBeTruthy();
         expect(screen.queryByRole("button", { name: /switch branch/i })).toBeNull();
         expect(screen.getByRole("button", { name: /cancel/i })).toBeTruthy();
+    });
+
+    describe("on PC", () => {
+        afterEach(() => {
+            clearMatchMedia();
+        });
+
+        it("is a centred dialog above the cart, with no handle, whose buttons call through", () => {
+            stubMatchMedia(true);
+            const { onConfirm, onCancel } = renderDrawer({ unavailableNames: ["Pepperoni Pizza"] });
+
+            const root = document.querySelector<HTMLElement>(".MuiDialog-root");
+            expect(root).toBeTruthy();
+            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+            expect(Number(window.getComputedStyle(root as HTMLElement).zIndex)).toBe(1301);
+            expect(sheetHandleCount(root as HTMLElement)).toBe(0);
+
+            fireEvent.click(screen.getByRole("button", { name: /switch branch/i }));
+            expect(onConfirm).toHaveBeenCalledTimes(1);
+            fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+            expect(onCancel).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe("in Arabic", () => {

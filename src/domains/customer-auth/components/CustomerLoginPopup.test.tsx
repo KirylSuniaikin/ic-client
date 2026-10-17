@@ -14,6 +14,8 @@ import { requestOtp, verifyOtp, refreshCustomerToken, registerCustomerName } fro
 import { CustomerAuthApiError } from "../types";
 import { CustomerAuthProvider, __resetCustomerAuthStoreForTests } from "../context/CustomerAuthProvider";
 import { CustomerLoginPopup } from "./CustomerLoginPopup";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 
 const mockRequestOtp = jest.mocked(requestOtp);
 const mockVerifyOtp = jest.mocked(verifyOtp);
@@ -643,6 +645,33 @@ describe("CustomerLoginPopup", () => {
 
             expect(screen.getByText("Let's confirm your number")).toBeTruthy();
             expect(screen.queryByRole("button", { name: "Confirm & continue" })).toBeNull();
+        });
+    });
+
+    describe("on PC", () => {
+        afterEach(() => {
+            clearMatchMedia();
+        });
+
+        // A fixed height, so the phone → code → name steps do not make the dialog jump.
+        it("is a centred dialog of fixed height whose phone step still requests a code", async () => {
+            stubMatchMedia(true);
+            mockRequestOtp.mockResolvedValueOnce(undefined);
+            renderPopup();
+            await waitForAuthReady();
+
+            const paper = document.querySelector(".MuiDialog-paper");
+            expect(paper).toBeTruthy();
+            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+            const rules = emotionRulesFor(paper as Element);
+            expect(rules).toContain("height:min(640px, 88vh)");
+            expect(rules).toContain("width:min(440px, 92vw)");
+
+            fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "33607710" } });
+            fireEvent.click(screen.getByRole("button", { name: "Get code" }));
+
+            await waitFor(() => expect(mockRequestOtp).toHaveBeenCalledWith({ phone: "97333607710", language: "en" }));
+            expect(await screen.findByLabelText("Digit 1")).toBeTruthy();
         });
     });
 });

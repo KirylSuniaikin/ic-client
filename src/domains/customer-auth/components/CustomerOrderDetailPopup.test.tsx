@@ -50,6 +50,8 @@ import { CustomerAuthUiProvider, useCustomerAuthUi } from "../context/CustomerAu
 import * as courierTracking from "../../order-status/hooks/useCourierTracking";
 import * as trackingMap from "../../order-status/components/CourierTrackingMap";
 import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import type { CustomerOrderDetail, MenuLocalizationCatalog } from "../types";
 import type { OrderTrackingResponse } from "../../order-status/types";
 
@@ -1132,6 +1134,34 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
 
             expect(screen.queryByText("Ali is on the way")).toBeNull();
             expect(screen.getByText("Sara is on the way")).toBeTruthy();
+        });
+    });
+
+    describe("on PC", () => {
+        afterEach(() => {
+            clearMatchMedia();
+        });
+
+        it("is a side panel over a transparent backdrop whose close button calls onClose", async () => {
+            stubMatchMedia(true);
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
+            mockFetchOrderDetail.mockResolvedValueOnce(detail());
+
+            const { onClose } = await renderPopup();
+            await screen.findByText("Order ID #88");
+
+            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+            const rules = emotionRulesFor(screen.getByRole("dialog"));
+            expect(rules).toContain("left:auto");
+            expect(rules).toContain("width:440px");
+            const backdrop = document.querySelector(".MuiBackdrop-root");
+            expect(backdrop).toBeTruthy();
+            expect(emotionRulesFor(backdrop as Element)).toContain("background-color:transparent");
+
+            fireEvent.click(screen.getByLabelText("Close"));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+            await waitFor(() => expect(screen.queryByText("Order ID #88")).toBeNull());
         });
     });
 });

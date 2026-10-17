@@ -15,6 +15,9 @@ jest.mock("@react-google-maps/api", () => ({
 
 import i18n from "../../../shared/i18n";
 import { AddressPickerDrawer } from "./AddressPickerDrawer";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import type {
     CreateCustomerAddressRequest, CustomerAddress, UpdateCustomerAddressRequest,
 } from "../types";
@@ -351,5 +354,29 @@ describe("AddressPickerDrawer", () => {
         expect(onSave).toHaveBeenCalledWith(
             expect.objectContaining({ block: null, road: null, building: null, flat: null, note: null })
         );
+    });
+});
+
+describe("AddressPickerDrawer on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("is a centred 520px dialog with no handle whose save still sends the pin", async () => {
+        stubMatchMedia(true);
+        mockGeolocation((ok) => ok({ coords: { latitude: 26.2285, longitude: 50.586 } }));
+        const { onSave } = renderDrawer();
+
+        const paper = document.querySelector(".MuiDialog-paper");
+        expect(paper).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        expect(emotionRulesFor(paper as Element)).toContain("width:min(520px, 92vw)");
+        expect(sheetHandleCount(paper as Element)).toBe(0);
+
+        fireEvent.click(screen.getByRole("button", { name: /use my current location/i }));
+        await waitFor(() => expect(saveButton().disabled).toBe(false));
+        fireEvent.click(saveButton());
+
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ latitude: 26.2285, longitude: 50.586 }));
     });
 });

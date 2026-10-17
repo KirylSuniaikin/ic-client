@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, TextField, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, TextField, Button, CircularProgress } from '@mui/material';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import type {
@@ -9,8 +9,9 @@ import type {
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import {
     FIELD_SX, OUTLINED_BUTTON_SX, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
-    SHEET_PAPER_SX, SheetHandle, SheetNotice,
+    SHEET_DESKTOP, SHEET_PAPER_SX, SheetHandle, SheetNotice,
 } from './sheetStyles';
+import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 
 /**
  * Address entry + pin capture (DELIVERY_SPEC.md §1.4).
@@ -133,7 +134,7 @@ export function AddressPickerDrawer({
     }
 
     return (
-        <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: SHEET_PAPER_SX }}>
+        <CustomerSheet open={open} onClose={onClose} desktop={SHEET_DESKTOP} PaperProps={{ sx: SHEET_PAPER_SX }}>
             <Box sx={{ p: 3, pb: 4, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
                 <SheetHandle />
 
@@ -208,6 +209,6 @@ export function AddressPickerDrawer({
                         : isEditing ? t('delivery.saveChanges') : t('delivery.saveAddress')}
                 </Button>
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }

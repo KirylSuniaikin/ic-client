@@ -7,10 +7,25 @@ import sadManData from "../../../assets/animations/сrying-emoji-onclose.json";
 import {getTimeUntilNextOpening} from "../utils/getTimeUntilNextOpening";
 import {formatWeeklyHours} from "../utils/formatWeeklyHours";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
+import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
+import { centredModalPaperSx, toArray } from "../../../shared/utils/desktopDialog";
+import type { SxArrayEntry } from "../../../shared/utils/desktopDialog";
 
 // cast is needed because lottie-react expects AnimationConfigWithData['animationData']
 // but JSON modules are typed as `unknown` per global.d.ts
 const sadMan = sadManData as object;
+
+// PC: a centred card over the dimmed menu instead of a full-screen white page.
+const CLOSED_DESKTOP_SX: ReadonlyArray<SxArrayEntry> = [
+    ...toArray(centredModalPaperSx(440)),
+    {
+        background: "linear-gradient(180deg, #fff 0%, #FBFAF6 100%)",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 4,
+        textAlign: "center",
+    },
+];
 
 interface ClosedPopupProps {
     open: boolean;
@@ -20,6 +35,7 @@ interface ClosedPopupProps {
 
 export default function ClosedPopup({ open, onClose, workingHours }: ClosedPopupProps): JSX.Element {
     const { t } = useTranslation("schedule");
+    const isDesktop = useDesktopLayout();
     const [timeLeft, setTimeLeft] = useState("");
     const [nextOpeningMessage, setNextOpeningMessage] = useState<string | null>(null);
     // Derived from the branch's real schedule — these used to be hardcoded strings, so editing
@@ -42,7 +58,7 @@ export default function ClosedPopup({ open, onClose, workingHours }: ClosedPopup
     return (
         <Modal open={open} onClose={onClose}>
             <Box
-                sx={{
+                sx={isDesktop ? CLOSED_DESKTOP_SX : {
                     position: "absolute",
                     inset: 0,
                     background: "linear-gradient(180deg, #fff 0%, #FBFAF6 100%)",

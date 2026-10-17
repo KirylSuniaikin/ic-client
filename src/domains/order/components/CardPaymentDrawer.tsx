@@ -1,10 +1,13 @@
-import { Box, Button, CircularProgress, Drawer, IconButton, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { BRAND_RED } from "../../../shared/utils/theme";
 import { CARD_FIELD_IDS } from "../hooks/useCardCheckout";
 import type { CardCheckoutStep, CardFieldErrors } from "../hooks/useCardCheckout";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { SheetHandle } from "../../delivery/components/sheetStyles";
 
 interface CardPaymentDrawerProps {
     open: boolean;
@@ -21,6 +24,13 @@ interface CardPaymentDrawerProps {
 type FieldKey = keyof typeof CARD_FIELD_IDS;
 const FIELD_ORDER: readonly FieldKey[] = ["cardNumber", "expiryMonth", "expiryYear", "securityCode"];
 const TITLE_ID = "card-payment-drawer-title";
+
+// PC: a centred 480px dialog at the same 1350 as the phone sheet.
+const CARD_DESKTOP = {
+    placement: "center",
+    width: 480,
+    paperSx: { backgroundColor: "#fffcf8" },
+} satisfies CustomerSheetDesktop;
 
 const CTA_SX = {
     borderRadius: 999, py: 1.5, textTransform: "none", fontWeight: 700, color: "#fff",
@@ -49,11 +59,12 @@ export default function CardPaymentDrawer({
     const needsNewSession = step === "needsNewSession";
 
     return (
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open={open}
             onClose={onClose}
             sx={{ zIndex: 1350 }}
+            labelledBy={TITLE_ID}
+            desktop={CARD_DESKTOP}
             PaperProps={{
                 role: "dialog",
                 "aria-labelledby": TITLE_ID,
@@ -70,7 +81,7 @@ export default function CardPaymentDrawer({
             }}
         >
             <Box sx={{ p: 3, pb: 4 }}>
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
+                <SheetHandle />
 
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                     <Typography id={TITLE_ID} variant="h6" fontWeight="bold" sx={{ color: "#3b352c" }}>
@@ -144,6 +155,6 @@ export default function CardPaymentDrawer({
                     </Button>
                 )}
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }

@@ -3,8 +3,15 @@ import {useTranslation} from "react-i18next";
 import {Box, Modal, TextField, Button, MenuItem, Typography} from "@mui/material";
 import { useBranchResolution } from "../../branch/hooks/useBranchResolution";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
+import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
+import { centredModalPaperSx, toArray } from "../../../shared/utils/desktopDialog";
+import type { SxArrayEntry } from "../../../shared/utils/desktopDialog";
 
 const brandRed = "#E44B4C";
+
+// PC: a centred card instead of a full-width bottom sheet. Later entries win, so the paper
+// scrolls and the sticky footer keeps working.
+const CLIENT_INFO_DESKTOP_SX: ReadonlyArray<SxArrayEntry> = [...toArray(centredModalPaperSx(480)), { overflowY: "auto" }];
 
 interface Branch {
     id: string;
@@ -33,6 +40,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
     // chosen branch, not DEFAULT_BRANCH_ID, so a saved order lands where the customer actually
     // browsed. The in-popup branch field (IS_MULTI_BRANCH_ENABLED) still wins when set.
     const { chosenBranchId } = useBranchResolution();
+    const isDesktop = useDesktopLayout();
     const [selectedCountry, setSelectedCountry] = useState(countries[0].name);
     const [phoneDigits, setPhoneDigits] = useState(phoneNumber);
     const [phoneError, setPhoneError] = useState("");
@@ -86,7 +94,7 @@ function ClientInfoPopup({isPhonePopupOpen, onClose, onSave, phoneNumber, custom
     return (
         <Modal open={isPhonePopupOpen} onClose={onClose}>
             <Box
-                sx={{
+                sx={isDesktop ? CLIENT_INFO_DESKTOP_SX : {
                     position: "absolute",
                     bottom: 0,
                     left: 0,

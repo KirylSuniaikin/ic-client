@@ -9,7 +9,8 @@
         "locationDenied": "We couldn't get your location. Allow location access and try again, or pick a branch from the list.",
         "close": "Close",
         "showList": "Show branch list",
-        "hideList": "Hide list"
+        "hideList": "Hide list",
+        "allBranches": "All branches"
     },
     "chip": {
         "label": "{{branchName}} — tap to change branch"

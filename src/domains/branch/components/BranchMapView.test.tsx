@@ -91,6 +91,7 @@ const mockMapInstance = {
     setZoom: (): void => {},
     getZoom: (): number => 12,
     fitBounds: (): void => {},
+    panTo: (): void => {},
 };
 
 /** What the picker gets the second time it is opened. Deliberately a different object. */
@@ -309,6 +310,46 @@ describe("BranchMapView", () => {
         }
     });
 
+    // The PC picker shows the details beside the map, so the map brings that branch into view.
+    describe("in the PC dialog", () => {
+        const KARLIN = branch({ id: "b2", branchName: "Karlin", latitude: 50.09, longitude: 14.45 });
+
+        it("pans to the branch whose details open", () => {
+            const panTo = jest.spyOn(mockMapInstance, "panTo");
+            const { rerender } = render(
+                <BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} layout="dialog" />
+            );
+            expect(panTo).not.toHaveBeenCalled();
+
+            rerender(
+                <BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} layout="dialog" activeBranchId="b2" />
+            );
+
+            expect(panTo).toHaveBeenCalledWith({ lat: 50.09, lng: 14.45 });
+        });
+
+        it("never pans on the phone", () => {
+            const panTo = jest.spyOn(mockMapInstance, "panTo");
+            const { rerender } = render(<BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} />);
+
+            rerender(<BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} activeBranchId="b2" />);
+
+            expect(panTo).not.toHaveBeenCalled();
+        });
+
+        it("fits the branches with the dialog's padding, and the phone's without it", () => {
+            const fitBounds = jest.spyOn(mockMapInstance, "fitBounds");
+            const { unmount } = render(
+                <BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} layout="dialog" />
+            );
+            expect(fitBounds).toHaveBeenLastCalledWith(expect.anything(), { top: 80, right: 64, bottom: 64, left: 64 });
+            unmount();
+            mockMapMounts = 0;
+
+            render(<BranchMapView branches={[branch(), KARLIN]} onSelectBranch={jest.fn<void, [IBranch]>()} />);
+            expect(fitBounds).toHaveBeenLastCalledWith(expect.anything(), { top: 96, right: 48, bottom: 160, left: 48 });
+        });
+    });
 
     describe("in Arabic", () => {
         afterEach(async () => {

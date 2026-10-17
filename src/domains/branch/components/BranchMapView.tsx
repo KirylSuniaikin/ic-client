@@ -19,6 +19,10 @@ const FALLBACK_ZOOM = 12;
 /** Keeps the fitted bounds off the edges, and clear of the controls floating over the map. */
 const BOUNDS_PADDING = { top: 96, right: 48, bottom: 160, left: 48 };
 
+/** The PC picker's map column has no floating button to clear; only the close button sits in its
+ *  top inline-end corner. */
+const DESKTOP_BOUNDS_PADDING = { top: 80, right: 64, bottom: 64, left: 64 };
+
 /** Above this the view is a single branch zoomed to street level, which reads as an error. */
 const MAX_SINGLE_BRANCH_ZOOM = 15;
 
@@ -40,6 +44,9 @@ export interface BranchMapViewProps {
     activeBranchId?: string | null;
     /** Fills its container. The picker gives it the whole dialog. */
     height?: string | number;
+    /** "sheet" (default): the phone picker, controls float over the map. "dialog": the PC
+     *  picker's map column, which also pans to the branch whose details are open. */
+    layout?: "sheet" | "dialog";
 }
 
 /**
@@ -56,6 +63,7 @@ export function BranchMapView({
     onSelectBranch,
     activeBranchId = null,
     height = "100%",
+    layout = "sheet",
 }: BranchMapViewProps): JSX.Element {
     const { i18n } = useTranslation();
     const { isLoaded } = useJsApiLoader({
@@ -93,7 +101,7 @@ export function BranchMapView({
             for (const branch of branchesWithCoords) {
                 bounds.extend({ lat: branch.latitude, lng: branch.longitude });
             }
-            target.fitBounds(bounds, BOUNDS_PADDING);
+            target.fitBounds(bounds, layout === "dialog" ? DESKTOP_BOUNDS_PADDING : BOUNDS_PADDING);
 
             // A single branch collapses the bounds to a point and fitBounds zooms to maximum,
             // which looks like a bug rather than a location. Pull it back to a readable level.
@@ -104,7 +112,7 @@ export function BranchMapView({
                 }
             }
         },
-        [branchesWithCoords]
+        [branchesWithCoords, layout]
     );
 
     /**
@@ -202,6 +210,13 @@ export function BranchMapView({
         }
         if (activeBranchId === null) return;
 
+        // On PC the details open beside the map, so the map brings that branch into view (a
+        // "Use nearest branch" pick may be off screen). Phones keep today's behaviour and do not pan.
+        if (layout === "dialog" && map !== null) {
+            const active = branchesWithCoords.find((branch) => branch.id === activeBranchId);
+            if (active !== undefined) map.panTo({ lat: active.latitude, lng: active.longitude });
+        }
+
         // Stopping the loop is what makes it a single hop. The timer is cleared when the
         // selection changes or the view unmounts, so a fast re-tap cannot leave one pin
         // mid-bounce while another starts.
@@ -211,7 +226,7 @@ export function BranchMapView({
             }
         }, ONE_BOUNCE_MS);
         return () => window.clearTimeout(timer);
-    }, [activeBranchId, branchesWithCoords, map]);
+    }, [activeBranchId, branchesWithCoords, map, layout]);
 
     const handleLoad = useCallback((loaded: google.maps.Map) => setMap(loaded), []);
     const handleUnmount = useCallback(() => setMap(null), []);

@@ -1,9 +1,12 @@
-import { jest, describe, it, expect, beforeEach, beforeAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { DeliveryCheckoutDrawer } from "./DeliveryCheckoutDrawer";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import { createAddress, getDeliveryAvailability, listAddresses, updateAddress } from "../../../shared/api/delivery";
 import type { CustomerAddress, DeliveryPaymentMethod } from "../types";
 import type { CartItem } from "../../menu/types";
@@ -302,5 +305,28 @@ describe("DeliveryCheckoutDrawer", () => {
         await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
         // One row, not two: the returned address was already in the list.
         expect(await screen.findAllByText(/Block 338/)).toHaveLength(1);
+    });
+});
+
+describe("DeliveryCheckoutDrawer on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("is a centred 520px dialog with no handle, and Place order still leads to the confirm step", async () => {
+        stubMatchMedia(true);
+        const { onConfirm } = renderDrawer();
+        await screen.findByText(/20–30 min/);
+
+        const paper = document.querySelector(".MuiDialog-paper");
+        expect(paper).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        expect(emotionRulesFor(paper as Element)).toContain("width:min(520px, 92vw)");
+        expect(sheetHandleCount(paper as Element)).toBe(0);
+
+        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
+
+        await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
     });
 });

@@ -1,7 +1,17 @@
-import { Box, Button, CircularProgress, Drawer, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { IBranch } from "../../management/inventory/types";
 import { branchDisplayName } from "../utils/branchDisplayName";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { SheetHandle } from "../../delivery/components/sheetStyles";
+
+// PC: a centred 440px dialog at the same modal + 1 as the phone sheet, so it still clears the cart.
+const SWITCH_WARNING_DESKTOP = {
+    placement: "center",
+    width: 440,
+    paperSx: { backgroundColor: "#fff" },
+} satisfies CustomerSheetDesktop;
 
 export interface BranchSwitchWarningDrawerProps {
     open: boolean;
@@ -26,10 +36,10 @@ export function BranchSwitchWarningDrawer({
     const branchName = targetBranch === null ? "" : branchDisplayName(targetBranch, i18n.language);
 
     return (
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open={open}
             onClose={onCancel}
+            desktop={SWITCH_WARNING_DESKTOP}
             // A switch started from the cart's "Pick up from" card always has items, so this
             // warning opens over the still-open cart — a MUI Modal at theme.zIndex.modal (1300),
             // above a Drawer's default zIndex.drawer (1200). Without this the warning takes focus
@@ -45,7 +55,7 @@ export function BranchSwitchWarningDrawer({
             }}
         >
             <Box sx={{ p: 3, pb: 4 }}>
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
+                <SheetHandle />
 
                 <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
                     {t("switchWarning.title", { branchName })}
@@ -108,6 +118,6 @@ export function BranchSwitchWarningDrawer({
                     {t("switchWarning.cancel")}
                 </Button>
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
+import { useSheetPresentation } from '../../../shared/components/CustomerSheet';
+import type { CustomerSheetDesktop } from '../../../shared/components/CustomerSheet';
 
 /**
  * Shared chrome for the delivery bottom sheets (checkout, address entry, one-last-check).
@@ -25,6 +27,13 @@ export const SHEET_PAPER_SX: SxProps<Theme> = {
     backgroundColor: SHEET_BG,
     backgroundImage: 'none', // MUI paints an elevation overlay over bgcolor without this
 };
+
+/** The PC form of the three delivery steps: a centred 520px dialog on the same warm paper. */
+export const SHEET_DESKTOP = {
+    placement: 'center',
+    width: 520,
+    paperSx: { backgroundColor: SHEET_BG },
+} satisfies CustomerSheetDesktop;
 
 /** Groups a step's fields on their own surface, replacing 1px divider rules. */
 export const SECTION_CARD_SX: SxProps<Theme> = {
@@ -123,7 +132,9 @@ export const SECTION_LABEL_SX: SxProps<Theme> = {
 };
 
 /** The grab affordance every sheet in the app carries. */
-export function SheetHandle(): JSX.Element {
+export function SheetHandle(): JSX.Element | null {
+    // A grab handle on a PC dialog or panel promises a drag that does not exist.
+    if (useSheetPresentation() !== 'sheet') return null;
     return <Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2, mx: 'auto', mb: 2 }} />;
 }
 

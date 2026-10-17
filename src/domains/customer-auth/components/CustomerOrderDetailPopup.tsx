@@ -2,7 +2,7 @@
 // Follows the same brand-red Drawer/loading/error conventions as CustomerProfilePopup.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, Typography } from "@mui/material";
+import { Box, Chip, CircularProgress, Divider, IconButton, Stack, Typography } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
@@ -22,6 +22,18 @@ import { DeliveryPartsProgress } from "../../order-status/components/DeliveryPar
 import { CustomerAuthApiError } from "../types";
 import type { CustomerOrderDetail, CustomerOrderDetailComboItem, CustomerOrderDetailItem } from "../types";
 import { statusStyle } from "./CustomerProfilePopup";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
+
+// PC: a panel stacked on the profile panel. The transparent backdrop keeps the profile visible
+// while an outside click or Esc still steps back one level.
+const ORDER_DETAIL_DESKTOP = {
+    placement: "side",
+    width: 440,
+    transparentBackdrop: true,
+    paperSx: { background: ACCOUNT_SHEET_BACKGROUND },
+} satisfies CustomerSheetDesktop;
 
 const brandRed = "#E44B4C";
 const brandRedTint = "#FCE9E9";
@@ -224,10 +236,10 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
     const hasNotes = Boolean(detail?.notes && detail.notes.trim().length > 0);
 
     return (
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open={open}
             onClose={onClose}
+            desktop={ORDER_DETAIL_DESKTOP}
             PaperProps={{
                 sx: {
                     height: "100dvh",
@@ -238,7 +250,7 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                     borderTopLeftRadius: { xs: 20, sm: 28 },
                     borderTopRightRadius: { xs: 20, sm: 28 },
                     overflow: "hidden",
-                    background: "linear-gradient(170deg, #FFFBFA 0%, #FFF2F1 45%, #FBE3E3 100%)",
+                    background: ACCOUNT_SHEET_BACKGROUND,
                 },
             }}
         >
@@ -422,7 +434,7 @@ export function CustomerOrderDetailPopup({ open, onClose, orderId }: Props): Rea
                     )}
                 </Box>
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }
 

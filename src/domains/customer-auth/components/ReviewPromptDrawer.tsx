@@ -1,7 +1,10 @@
 import React, { useEffect } from "react";
-import { Box, Button, Drawer, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { ReviewPrompt, ReviewPromptOutcome } from "../types";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { SheetHandle } from "../../delivery/components/sheetStyles";
 
 // Post-order Google review ask. Follows the house bottom-drawer convention
 // (MUI `Drawer anchor="bottom"`, rounded top corners 16, grey drag-handle pill,
@@ -20,6 +23,13 @@ import type { ReviewPrompt, ReviewPromptOutcome } from "../types";
 // buried: we can never verify that a customer actually left a review (Google
 // gives no callback), so an honest opt-out is what keeps the ask from becoming
 // nagging.
+
+// PC: a centred 420px dialog.
+const REVIEW_DESKTOP = {
+    placement: "center",
+    width: 420,
+    paperSx: { backgroundColor: "#fff" },
+} satisfies CustomerSheetDesktop;
 
 type Props = {
     prompt: ReviewPrompt | null;
@@ -49,10 +59,10 @@ export function ReviewPromptDrawer({ prompt, onShown, onAnswer }: Props): React.
     };
 
     return (
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open
             onClose={() => onAnswer("DISMISSED")}
+            desktop={REVIEW_DESKTOP}
             PaperProps={{
                 sx: {
                     borderTopLeftRadius: 16,
@@ -63,7 +73,7 @@ export function ReviewPromptDrawer({ prompt, onShown, onAnswer }: Props): React.
             }}
         >
             <Box sx={{ p: 3, pb: 4 }}>
-                <Box sx={{ width: 40, height: 4, bgcolor: "grey.300", borderRadius: 2, mx: "auto", mb: 2 }} />
+                <SheetHandle />
 
                 <Typography sx={{ fontSize: 40, textAlign: "center", lineHeight: 1 }}>🍕</Typography>
 
@@ -108,7 +118,7 @@ export function ReviewPromptDrawer({ prompt, onShown, onAnswer }: Props): React.
                     {t("reviewPrompt.never")}
                 </Button>
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }
 

@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 
@@ -10,6 +10,8 @@ import ClientInfoPopup from "./ClientInfoPopup";
 import { DEFAULT_BRANCH_ID } from "../../../shared/api/client";
 import { writeChosenBranch, clearChosenBranch } from "../../branch/utils/customerBranch";
 import type { IBranch } from "../../management/inventory/types";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 
 const CHOSEN_BRANCH: IBranch = {
     id: "branch-chosen",
@@ -109,5 +111,41 @@ describe("ClientInfoPopup", () => {
         fillAndSave();
 
         expect(onSave).toHaveBeenCalledWith("97312345678", "Sara", DEFAULT_BRANCH_ID);
+    });
+});
+
+describe("ClientInfoPopup on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    /** The popup's paper: title Typography → its padded Box → the paper Box. */
+    function paper(): Element {
+        const element = screen.getByText("Enter your phone number to complete your order").parentElement?.parentElement;
+        if (element == null) throw new Error("no paper above the title");
+        return element;
+    }
+
+    it("is a centred card, not a full-width bottom sheet", () => {
+        stubMatchMedia(true);
+        render(
+            <ClientInfoPopup isPhonePopupOpen onClose={jest.fn()} onSave={jest.fn()} phoneNumber="" customerName="" branches={[]} orderType="Pick Up" />
+        );
+
+        const rules = emotionRulesFor(paper());
+        expect(rules).toContain("width:min(480px, 92vw)");
+        expect(rules).toContain("translate(-50%, -50%)");
+        expect(rules).toContain("overflow-y:auto");
+        expect(rules).not.toContain("bottom:0");
+    });
+
+    it("stays the bottom sheet on the phone", () => {
+        render(
+            <ClientInfoPopup isPhonePopupOpen onClose={jest.fn()} onSave={jest.fn()} phoneNumber="" customerName="" branches={[]} orderType="Pick Up" />
+        );
+
+        const rules = emotionRulesFor(paper());
+        expect(rules).toContain("bottom:0");
+        expect(rules).not.toContain("translate(-50%, -50%)");
     });
 });

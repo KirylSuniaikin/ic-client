@@ -1,9 +1,12 @@
-import { jest, describe, it, expect } from "@jest/globals";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../shared/i18n";
 import { OneLastCheckDrawer } from "./OneLastCheckDrawer";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import type { CustomerAddress } from "../types";
 import type { CartItem } from "../../menu/types";
 
@@ -129,5 +132,25 @@ describe("OneLastCheckDrawer", () => {
         renderSheet({ paymentLabel: "Benefit" });
 
         expect(screen.getByText("Benefit")).toBeTruthy();
+    });
+});
+
+describe("OneLastCheckDrawer on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("is a centred 520px dialog with no handle whose Looks good still confirms", () => {
+        stubMatchMedia(true);
+        const { onConfirm } = renderSheet();
+
+        const paper = document.querySelector(".MuiDialog-paper");
+        expect(paper).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        expect(emotionRulesFor(paper as Element)).toContain("width:min(520px, 92vw)");
+        expect(sheetHandleCount(paper as Element)).toBe(0);
+
+        fireEvent.click(screen.getByRole("button", { name: /looks good/i }));
+        expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 });

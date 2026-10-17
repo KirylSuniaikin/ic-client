@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Box, Typography, Button, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Typography, Button, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { AddressCard } from './AddressCard';
@@ -8,8 +8,9 @@ import { AddressPickerDrawer } from './AddressPickerDrawer';
 import { OneLastCheckDrawer } from './OneLastCheckDrawer';
 import {
     BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SEGMENTED_BUTTON_SX,
-    SEGMENTED_GROUP_SX, SHEET_PAPER_SX, SheetHandle, SheetNotice,
+    SEGMENTED_GROUP_SX, SHEET_DESKTOP, SHEET_PAPER_SX, SheetHandle, SheetNotice,
 } from './sheetStyles';
+import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
 import { useDeliveryAvailability } from '../hooks/useDeliveryAvailability';
 import { toDeliveryBasket } from '../basket';
@@ -190,10 +191,10 @@ export function DeliveryCheckoutDrawer({
                 sheet is up, so the customer sees one screen advance rather than sheets piling on
                 top of each other. The component stays mounted throughout, so the address and
                 payment method they already picked are still here when Edit order brings it back. */}
-            <Drawer
-                anchor="bottom"
+            <CustomerSheet
                 open={open && !pickerOpen && confirming === null}
                 onClose={onClose}
+                desktop={SHEET_DESKTOP}
                 PaperProps={{ sx: SHEET_PAPER_SX }}
             >
                 <Box sx={{ p: 3, pb: 4, overflowY: 'auto' }}>
@@ -284,7 +285,7 @@ export function DeliveryCheckoutDrawer({
                         {checking ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('delivery.placeOrder')}
                     </Button>
                 </Box>
-            </Drawer>
+            </CustomerSheet>
 
             {/* Keyed on what is being edited: the drawer seeds its fields once, on mount, so the
                 key is what makes the pencil show this address rather than the last one. */}

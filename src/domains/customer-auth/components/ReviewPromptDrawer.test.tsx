@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, beforeEach, beforeAll, afterAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, beforeAll, afterAll, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
@@ -19,6 +19,10 @@ import { CustomerAuthUiProvider, useCustomerAuthUi } from "../context/CustomerAu
 import { CustomerAuthModals } from "./CustomerAuthModals";
 import { ReviewPromptDrawer } from "./ReviewPromptDrawer";
 import type { ReviewPrompt } from "../types";
+import type { ReviewPromptOutcome } from "../types";
+import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockFetchReviewPrompt = jest.mocked(fetchReviewPrompt);
@@ -184,5 +188,30 @@ describe("ReviewPromptDrawer mounted in CustomerAuthModals", () => {
 
         await waitFor(() => expect(mockRefreshCustomerToken).toHaveBeenCalled());
         expect(mockFetchReviewPrompt).not.toHaveBeenCalled();
+    });
+});
+
+describe("ReviewPromptDrawer on PC", () => {
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("is a centred 420px dialog whose three answers report as on the phone", () => {
+        stubMatchMedia(true);
+        const onAnswer = jest.fn<void, [Exclude<ReviewPromptOutcome, "SHOWN">]>();
+        render(<ReviewPromptDrawer prompt={PROMPT} onShown={jest.fn()} onAnswer={onAnswer} />);
+
+        const paper = document.querySelector(".MuiDialog-paper");
+        expect(paper).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+        expect(emotionRulesFor(paper as Element)).toContain("width:min(420px, 92vw)");
+        expect(sheetHandleCount(paper as Element)).toBe(0);
+
+        fireEvent.click(screen.getByRole("button", { name: "Yes, leave a review" }));
+        fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+        fireEvent.click(screen.getByRole("button", { name: "Don't ask me again" }));
+
+        expect(onAnswer.mock.calls.map(([outcome]) => outcome)).toEqual(["OPENED", "DISMISSED", "OPTED_OUT"]);
+        expect(mockWindowOpen).toHaveBeenCalledWith(PROMPT.reviewUrl, "_blank", "noopener,noreferrer");
     });
 });

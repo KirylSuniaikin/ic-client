@@ -2,7 +2,7 @@
 // ClientInfoPopup/PickUpReminderPopup.
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Button, CircularProgress, Drawer, IconButton, InputAdornment, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import SmartphoneRoundedIcon from "@mui/icons-material/SmartphoneRounded";
 import SmsRoundedIcon from "@mui/icons-material/SmsRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
@@ -14,6 +14,17 @@ import { CustomerAuthApiError } from "../types";
 import { countries, localizedCountryName } from "../../../shared/utils/countries";
 import { resolveCustomerLanguage } from "../../../shared/utils/customerLanguage";
 import { usePreciseCountdown } from "../../../shared/hooks/usePreciseCountdown";
+import { CustomerSheet } from "../../../shared/components/CustomerSheet";
+import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
+import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
+
+// PC: a centred dialog with a fixed height, so the phone → code → name steps do not make it jump.
+const LOGIN_DESKTOP = {
+    placement: "center",
+    width: 440,
+    height: "min(640px, 88vh)",
+    paperSx: { background: ACCOUNT_SHEET_BACKGROUND },
+} satisfies CustomerSheetDesktop;
 
 const brandRed = "#E44B4C";
 const brandRedTint = "#FCE9E9";
@@ -357,10 +368,10 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
     }
 
     return (
-        <Drawer
-            anchor="bottom"
+        <CustomerSheet
             open={open}
             onClose={onClose}
+            desktop={LOGIN_DESKTOP}
             PaperProps={{
                 sx: {
                     height: "100dvh",
@@ -371,7 +382,7 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                     borderTopLeftRadius: { xs: 20, sm: 28 },
                     borderTopRightRadius: { xs: 20, sm: 28 },
                     overflow: "hidden",
-                    background: "linear-gradient(170deg, #FFFBFA 0%, #FFF2F1 45%, #FBE3E3 100%)",
+                    background: ACCOUNT_SHEET_BACKGROUND,
                 },
             }}
         >
@@ -655,7 +666,7 @@ export function CustomerLoginPopup({ open, onClose, prefillPhone, prefillName, c
                     </Box>
                 )}
             </Box>
-        </Drawer>
+        </CustomerSheet>
     );
 }
 
