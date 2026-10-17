@@ -69,6 +69,14 @@ describe("CartPopup — Pay by card button", () => {
         expect(screen.getByRole("button", { name: "Pay by card" }).hasAttribute("disabled")).toBe(true);
     });
 
+    // Delivery is paid in DeliveryCheckoutDrawer; this button would create an address-less order.
+    it("hides the button for a Delivery order even when available", () => {
+        renderCart({ orderType: "Delivery", cardPayment: { available: true, busy: false, start: jest.fn() } });
+
+        expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
+    });
+
     it("hides the button for kiosk even when available", () => {
         renderCart({ isKiosk: true, cardPayment: { available: true, busy: false, start: jest.fn() } });
 

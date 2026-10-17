@@ -409,11 +409,13 @@ function CartPopup({
                     </Typography>
                 </Box>
 
-                {applePay?.available && !isAdmin && !isKiosk && (
+                {/* Pickup only: these create a pickup order with no address. Delivery is paid in
+                    DeliveryCheckoutDrawer, and the backend now refuses a Delivery order here. */}
+                {applePay?.available && !isAdmin && !isKiosk && orderType !== "Delivery" && (
                     <ApplePayButton onClick={applePay.start} disabled={applePay.busy} />
                 )}
 
-                {cardPayment?.available && !isAdmin && !isKiosk && (
+                {cardPayment?.available && !isAdmin && !isKiosk && orderType !== "Delivery" && (
                     <CardPaymentButton onClick={cardPayment.start} disabled={cardPayment.busy} />
                 )}
 

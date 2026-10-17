@@ -77,6 +77,14 @@ describe("CartPopup — Apple Pay button", () => {
         expect(onCheckout).toHaveBeenCalledWith([ITEM], null, null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null, false);
     });
 
+    // Delivery is paid in DeliveryCheckoutDrawer; this button would create an address-less order.
+    it("hides the button for a Delivery order even when available", () => {
+        renderCart({ orderType: "Delivery", applePay: { available: true, busy: false, start: jest.fn() } });
+
+        expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
+    });
+
     it("hides the button for kiosk even when available", () => {
         renderCart({ isKiosk: true, applePay: { available: true, busy: false, start: jest.fn() } });
 
