@@ -40,9 +40,9 @@ export const BRANCH_SHOWCASE: Readonly<Record<number, BranchShowcase>> = {
     1: {
         photos: [
             { src: "/branchImages/1/01-storefront.webp" },
-            { src: "/branchImages/1/02-counter.webp" },
+            { src: "/branchImages/1/02-oven.webp" },
             { src: "/branchImages/1/03-kitchen.webp" },
-            { src: "/branchImages/1/04-pizza.webp" },
+            { src: "/branchImages/1/04-counter.webp" },
             { src: "/branchImages/1/05-team.webp" },
         ],
     },
