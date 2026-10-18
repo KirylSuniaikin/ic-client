@@ -13,9 +13,19 @@ import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchW
 import type { CartItem } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 
 // The stacking test below mounts the real picker; its map half must never load the Google script.
 jest.mock("../../branch/components/BranchMapView");
+
+// Read through a getter so each describe can open or close delivery for its own tests.
+let mockDeliveryComingSoon = false;
+jest.mock("../../delivery/constants", () => ({
+    KEETA_DEEP_LINK: "https://keeta.example/fallback",
+    get DELIVERY_COMING_SOON() {
+        return mockDeliveryComingSoon;
+    },
+}));
 
 function makeCartItem(): CartItem {
     return {
@@ -115,6 +125,44 @@ describe("CartPopup — payment toggle", () => {
     });
 });
 
+describe("CartPopup — delivery coming soon", () => {
+    beforeEach(() => {
+        mockDeliveryComingSoon = true;
+    });
+    afterEach(() => {
+        mockDeliveryComingSoon = false;
+    });
+
+    it("greys Delivery out under a Coming soon label", () => {
+        const onDeliveryTypeChange = jest.fn<void, [string]>();
+        renderCart({ onDeliveryTypeChange });
+
+        const delivery = screen.getByRole("button", { name: /delivery/i });
+        expect(delivery.hasAttribute("disabled")).toBe(true);
+        expect(delivery.textContent).toBe("DeliveryComing soon");
+        fireEvent.click(delivery);
+        expect(onDeliveryTypeChange).not.toHaveBeenCalled();
+    });
+
+    it("blinks the label, except for customers who turned motion off", () => {
+        renderCart();
+
+        const label = screen.getByText("Coming soon");
+        const rules = emotionRulesFor(label);
+        expect(rules).toContain("animation:deliveryComingSoonBlink 1.4s ease-in-out infinite");
+        expect(rules).toMatch(/@media \(prefers-reduced-motion:reduce\) \{[^}]*\banimation:none/);
+    });
+
+    it("keeps Pickup selectable", () => {
+        const onDeliveryTypeChange = jest.fn<void, [string]>();
+        renderCart({ orderType: "Delivery", onDeliveryTypeChange });
+
+        fireEvent.click(screen.getByRole("button", { name: /pickup/i }));
+
+        expect(onDeliveryTypeChange).toHaveBeenCalledWith("Pick Up");
+    });
+});
+
 describe("CartPopup — delivery-type toggle", () => {
     // Delivery is selectable: HomePageModals' onDeliveryTypeChange runs the availability gate and
     // falls back to Keeta, so the cart must not pre-empt that decision by disabling the option.
@@ -133,8 +181,8 @@ describe("CartPopup — delivery-type toggle", () => {
         expect(onDeliveryTypeChange).toHaveBeenCalledWith("Delivery");
     });
 
-    /** The retired sub-label. `cart.comingSoon` was removed with the option's disabled state. */
-    it("no longer promises delivery is coming soon", () => {
+    /** Once delivery opens, the Coming soon label goes with the disabled state. */
+    it("does not promise delivery is coming soon once it is open", () => {
         renderCart();
 
         expect(screen.queryByText(/coming soon/i)).toBeNull();

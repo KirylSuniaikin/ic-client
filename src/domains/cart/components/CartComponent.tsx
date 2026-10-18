@@ -20,9 +20,23 @@ import { APPLE_PAY_CHOICE, CARD_CHOICE, usePaymentChoice } from "../hooks/usePay
 import type { PaymentChoice } from "../hooks/usePaymentChoice";
 import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
 import { BRAND_RED } from "../../../shared/utils/theme";
+import { DELIVERY_COMING_SOON } from "../../delivery/constants";
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
+
+// Blinks so a customer notices delivery is on its way rather than reading a grey button as broken.
+const comingSoonSx = {
+    fontSize: 11,
+    fontWeight: 700,
+    color: brandRed,
+    animation: "deliveryComingSoonBlink 1.4s ease-in-out infinite",
+    "@keyframes deliveryComingSoonBlink": {
+        "0%, 100%": { opacity: 1 },
+        "50%": { opacity: 0.3 },
+    },
+    "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+};
 
 // Canonical payment values sent to the backend; the visible labels are translated in the toggle.
 //
@@ -403,8 +417,17 @@ function CartPopup({
                                     <ToggleButton value="Pick Up" sx={toggleBtnSx}>
                                         {t("pickup")}
                                     </ToggleButton>
-                                    <ToggleButton value="Delivery" sx={toggleBtnSx}>
-                                        {t("delivery")}
+                                    <ToggleButton value="Delivery" disabled={DELIVERY_COMING_SOON} sx={toggleBtnSx}>
+                                        {DELIVERY_COMING_SOON ? (
+                                            <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+                                                <span>{t("delivery")}</span>
+                                                <Typography component="span" sx={comingSoonSx}>
+                                                    {t("comingSoon")}
+                                                </Typography>
+                                            </Box>
+                                        ) : (
+                                            t("delivery")
+                                        )}
                                     </ToggleButton>
                                 </ToggleButtonGroup>
                             </Box>
