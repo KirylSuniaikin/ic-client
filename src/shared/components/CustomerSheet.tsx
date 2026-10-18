@@ -52,7 +52,7 @@ const TRANSPARENT_BACKDROP_SLOT_PROPS: ModalProps["slotProps"] = {
  * Below md, and wherever DesktopLayoutAllowedContext says no (admin, kiosk), it renders the very
  * Drawer the popup rendered before, with the same props, so the phone markup and CSS do not move.
  * On a customer PC it renders a centred MUI Dialog (`placement: "center"`) or a full-height panel
- * docked like the cart (`placement: "side"`), keeping the phone's z-index.
+ * docked to the inline end (`placement: "side"`), keeping the phone's z-index.
  */
 export function CustomerSheet({
     open,

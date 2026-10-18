@@ -52,7 +52,7 @@ export function desktopDialogPaperSx(width: number, height?: string): SxProps<Th
     };
 }
 
-/** A full-height panel docked to the inline end, the cart's PC shape (CartComponent CART_ROOT_DESKTOP_SX).
+/** A full-height panel docked to the inline end (the customer profile and order detail on PC).
  *  `left: "auto"` after `inset: 0` docks it right; the RTL stylis plugin flips it to the left in Arabic. */
 export function sidePanelSx(width: number): SxProps<Theme> {
     return {

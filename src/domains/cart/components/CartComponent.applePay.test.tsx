@@ -5,6 +5,9 @@ import "../../../shared/i18n";
 import CartPopup from "./CartComponent";
 import type { CartItem } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
+import {
+    PAYMENT_ROW_NAME, choosePayment, listedPaymentMethods, openPaymentSheet, paymentRow, paymentRowName,
+} from "./paymentSelector.testutil";
 
 const ITEM: CartItem = {
     id: 1, name: "Water", size: "M", category: "Beverages", isThinDough: false, isGarlicCrust: false,
@@ -47,17 +50,19 @@ beforeEach(() => {
 });
 
 describe("CartPopup — Apple Pay in the payment list", () => {
+    // The Apple Pay button is checked before the sheet opens: an open sheet hides the cart behind
+    // it from role queries, which would make its absence trivially true.
     it("offers no Apple Pay row and no Apple Pay button when the applePay prop is absent", () => {
         renderCart();
 
-        expect(screen.queryByRole("button", { name: "Apple Pay" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
     });
 
     it("offers no Apple Pay row when it is not available", () => {
         renderCart({ applePay: { available: false, busy: false, start: jest.fn() } });
 
-        expect(screen.queryByRole("button", { name: "Apple Pay" })).toBeNull();
+        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
     });
 
     // One list, one button: Apple Pay is a row like the others, and its button only replaces
@@ -65,16 +70,17 @@ describe("CartPopup — Apple Pay in the payment list", () => {
     it("lists Apple Pay as a method without replacing Checkout until it is selected", () => {
         renderCart({ applePay: AVAILABLE });
 
-        expect(screen.getByRole("button", { name: "Apple Pay" }).getAttribute("aria-pressed")).toBe("false");
         expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        openPaymentSheet();
+        expect(screen.getByRole("radio", { name: "Apple Pay" }).getAttribute("aria-checked")).toBe("false");
     });
 
-    it("swaps Checkout for Apple's button when selected, and starts the session without touching checkout", () => {
+    it("swaps Checkout for Apple's button when selected, and starts the session without touching checkout", async () => {
         const start = jest.fn<void, []>();
         const { onCheckout } = renderCart({ applePay: { available: true, busy: false, start } });
 
-        fireEvent.click(screen.getByRole("button", { name: "Apple Pay" }));
+        await choosePayment("Apple Pay");
         expect(screen.queryByRole("button", { name: "Checkout" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: "Pay with Apple Pay" }));
 
@@ -82,10 +88,10 @@ describe("CartPopup — Apple Pay in the payment list", () => {
         expect(onCheckout).not.toHaveBeenCalled();
     });
 
-    it("disables Apple's button while busy", () => {
+    it("disables Apple's button while busy", async () => {
         renderCart({ applePay: { available: true, busy: true, start: jest.fn() } });
 
-        fireEvent.click(screen.getByRole("button", { name: "Apple Pay" }));
+        await choosePayment("Apple Pay");
 
         expect(screen.getByRole("button", { name: "Pay with Apple Pay" }).hasAttribute("disabled")).toBe(true);
     });
@@ -95,14 +101,16 @@ describe("CartPopup — Apple Pay in the payment list", () => {
 
         renderCart({ applePay: AVAILABLE });
 
-        expect(screen.getByRole("button", { name: "Apple Pay" }).getAttribute("aria-pressed")).toBe("true");
+        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("Apple Pay"));
         expect(screen.getByRole("button", { name: "Pay with Apple Pay" })).toBeTruthy();
+        openPaymentSheet();
+        expect(screen.getByRole("radio", { name: "Apple Pay" }).getAttribute("aria-checked")).toBe("true");
     });
 
-    it("remembers Apple Pay once the customer pays with it", () => {
+    it("remembers Apple Pay once the customer pays with it", async () => {
         renderCart({ applePay: AVAILABLE });
 
-        fireEvent.click(screen.getByRole("button", { name: "Apple Pay" }));
+        await choosePayment("Apple Pay");
         fireEvent.click(screen.getByRole("button", { name: "Pay with Apple Pay" }));
 
         expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe("applePay");
@@ -128,14 +136,14 @@ describe("CartPopup — Apple Pay in the payment list", () => {
     it("hides Apple Pay for kiosk even when available", () => {
         renderCart({ isKiosk: true, applePay: AVAILABLE });
 
-        expect(screen.queryByRole("button", { name: "Apple Pay" })).toBeNull();
+        expect(screen.queryByRole("button", { name: PAYMENT_ROW_NAME })).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
     });
 
     it("hides Apple Pay for admin even when available", () => {
         renderCart({ isAdmin: true, applePay: AVAILABLE });
 
-        expect(screen.queryByRole("button", { name: "Apple Pay" })).toBeNull();
+        expect(screen.queryByRole("button", { name: PAYMENT_ROW_NAME })).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
     });
 });

@@ -31,6 +31,10 @@ export interface ItemPopupLegacyLayout {
 export interface ItemPopupDesktopLayout {
     /** Present → two columns (photo | options). Absent → one centred column. */
     photo?: { src?: string; alt: string };
+    /** Two columns with this in the photo's place, on the same warm ground: the cart's items.
+     *  It scrolls on its own, so a long list never pushes the options' footer away. Ignored
+     *  when `photo` is given. */
+    aside?: ReactNode;
     /** Single-column width cap in px. Default 560. Ignored for two columns. */
     width?: number;
     /** Merged into the options column's scroll area (padding for children that relied on the
@@ -85,14 +89,27 @@ const SPLIT_PAPER_SX: SxProps<Theme> = {
     outline: "none",
 };
 
-const PHOTO_COLUMN_SX: SxProps<Theme> = {
+// The column beside the options, whether it holds a photo or a list.
+const WARM_COLUMN_SX = {
     flex: "0 0 45%",
     minWidth: 0,
     bgcolor: DESKTOP_PHOTO_BG,
+} satisfies SxProps<Theme>;
+
+const PHOTO_COLUMN_SX: SxProps<Theme> = {
+    ...WARM_COLUMN_SX,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     p: 4,
+};
+
+// A list rather than one image: top-aligned and scrolling instead of centred.
+const ASIDE_COLUMN_SX: SxProps<Theme> = {
+    ...WARM_COLUMN_SX,
+    minHeight: 0,
+    overflowY: "auto",
+    p: 3,
 };
 
 const PHOTO_SX: SxProps<Theme> = {
@@ -114,10 +131,10 @@ function bodySx(split: boolean, showClose: boolean): SxArrayEntry {
 }
 
 /**
- * The one Modal every item popup renders. Below md — and for admin and kiosk at any width — it
- * reproduces each popup's original sheet exactly (`legacy`); on a customer PC it becomes a centred
- * dialog with an optional photo column (`desktop`). Popup state lives above the shell, so the
- * subtree swap when the viewport crosses 900px loses nothing.
+ * The one Modal every item popup, and the cart, renders. Below md — and for admin and kiosk at any
+ * width — it reproduces each popup's original sheet exactly (`legacy`); on a customer PC it becomes
+ * a centred dialog with an optional photo or aside column (`desktop`). Popup state lives above the
+ * shell, so the subtree swap when the viewport crosses 900px loses nothing.
  */
 export function ItemPopupShell({
     open,
@@ -153,7 +170,8 @@ export function ItemPopupShell({
     }
 
     const photo = desktop?.photo;
-    const split = photo !== undefined;
+    const aside = photo === undefined ? desktop?.aside : undefined;
+    const split = photo !== undefined || aside !== undefined;
 
     return (
         <Modal open={open} onClose={onClose} sx={modalSx}>
@@ -168,6 +186,7 @@ export function ItemPopupShell({
                         {photo.src && <Box component="img" src={photo.src} alt={photo.alt} sx={PHOTO_SX}/>}
                     </Box>
                 )}
+                {aside !== undefined && <Box data-testid="item-popup-aside" sx={ASIDE_COLUMN_SX}>{aside}</Box>}
                 <Box
                     sx={{
                         display: "flex",

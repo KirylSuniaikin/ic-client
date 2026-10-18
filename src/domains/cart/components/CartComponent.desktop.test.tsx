@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import React, { useState } from "react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import { prefixer } from "stylis";
@@ -19,10 +19,14 @@ import { WALLET_METHOD } from "../../order/types";
 import { DesktopLayoutAllowedContext } from "../../../shared/hooks/useDesktopLayout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+import { cartModalRoot, focusedElement, layerOf, paymentRow, paymentRowName, sheetRoot } from "./paymentSelector.testutil";
+import { backdropOf, phoneCartRoot, scrollContainerOf } from "./cartLayout.testutil";
 
 jest.mock("../../branch/components/BranchMapView");
 
-// The PC cart: a 440px panel docked to the side over the dimmed menu, same content as the phone.
+// The PC cart (owner, 18 Oct 2026): the pizza popup's centred two-column dialog — items on the
+// warm left, choices in the white column beside them, total and pay button pinned under those.
+// Same content and same order arguments as the phone.
 
 const ITEM: CartItem = {
     id: 1, name: "Water", size: "M", category: "Beverages", isThinDough: false, isGarlicCrust: false,
@@ -57,13 +61,6 @@ function cartProps(overrides: Partial<CartProps> = {}): CartProps {
     };
 }
 
-/** The cart's positioned root Box: title Typography → header Box → root Box. */
-function cartRoot(): HTMLElement {
-    const root = screen.getByText("Cart").parentElement?.parentElement;
-    if (root == null) throw new Error("no cart root above the title");
-    return root;
-}
-
 beforeEach(() => {
     window.localStorage.clear();
 });
@@ -72,44 +69,145 @@ afterEach(() => {
     clearMatchMedia();
 });
 
-describe("CartPopup — PC panel", () => {
-    it("docks as a full-height 440px panel on PC", () => {
+describe("CartPopup — PC dialog", () => {
+    it("is the pizza popup's two-column dialog on PC", () => {
         stubMatchMedia(true);
         render(<CartPopup {...cartProps()} />);
 
-        const rules = emotionRulesFor(cartRoot());
-        expect(rules).toContain("position:absolute");
-        expect(rules).toContain("inset:0");
-        expect(rules).toContain("left:auto");
-        expect(rules).toContain("width:440px");
-        expect(rules).toContain("box-shadow:0 2px 12px rgba(0,0,0,0.08)");
+        const rules = emotionRulesFor(screen.getByTestId("item-popup-dialog"));
+        expect(rules).toContain("width:min(960px, 92vw)");
+        expect(rules).toContain("height:min(680px, 90vh)");
+        expect(rules).toContain("border-radius:24px");
+        const asideRules = emotionRulesFor(screen.getByTestId("item-popup-aside"));
+        expect(asideRules).toContain("flex:0 0 45%");
+        expect(asideRules).toContain("background-color:#f4ede8");
     });
 
-    it("stays the full-screen cart on the phone", () => {
+    it("lists the items on the warm side and keeps every choice in the column beside it", () => {
+        stubMatchMedia(true);
         render(<CartPopup {...cartProps()} />);
 
-        const rules = emotionRulesFor(cartRoot());
-        expect(rules).toContain("inset:0");
-        expect(rules).not.toContain("left:auto");
-        expect(rules).not.toContain("width:440px");
+        const aside = screen.getByTestId("item-popup-aside");
+        expect(within(aside).getByText("Cart")).toBeTruthy();
+        expect(within(aside).getByText("Water")).toBeTruthy();
+        // Its own scroll, so a long order never pushes the pay button away.
+        expect(scrollContainerOf(screen.getByText("Water"))).toBe(aside);
+
+        const dialog = screen.getByTestId("item-popup-dialog");
+        [screen.getByText("Delivery type"), paymentRow(), screen.getByRole("button", { name: "Checkout" })].forEach((control) => {
+            expect(dialog.contains(control)).toBe(true);
+            expect(aside.contains(control)).toBe(false);
+        });
     });
 
-    // HomePageModals provides false for admin and kiosk, which keep the full-screen cart.
-    it("stays full-screen where the surface does not allow the PC layout", () => {
+    it("pins the total and the pay button under the scrolling choices", () => {
         stubMatchMedia(true);
-        render(
-            <DesktopLayoutAllowedContext.Provider value={false}>
-                <CartPopup {...cartProps()} />
-            </DesktopLayoutAllowedContext.Provider>
+        render(<CartPopup {...cartProps()} />);
+
+        const choices = scrollContainerOf(paymentRow());
+        expect(choices).not.toBeNull();
+        expect(choices).not.toBe(screen.getByTestId("item-popup-aside"));
+        const pinned = [screen.getByText("Total(VAT incl.)"), screen.getByRole("button", { name: "Checkout" })];
+        pinned.forEach((element) => {
+            expect(choices?.contains(element)).toBe(false);
+            expect(scrollContainerOf(element)).toBeNull();
+            expect((choices as Node).compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+    });
+
+    it("replaces the phone's back-arrow header with the round close button", () => {
+        stubMatchMedia(true);
+        const props = cartProps();
+        render(<CartPopup {...props} />);
+
+        expect(screen.queryByTestId("ArrowBackIosNewIcon")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+        expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes on Escape", () => {
+        stubMatchMedia(true);
+        const props = cartProps();
+        render(<CartPopup {...props} />);
+
+        fireEvent.keyDown(screen.getByTestId("item-popup-dialog"), { key: "Escape" });
+
+        expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes on a click outside the dialog", () => {
+        stubMatchMedia(true);
+        const props = cartProps();
+        render(<CartPopup {...props} />);
+
+        fireEvent.click(backdropOf(screen.getByTestId("item-popup-dialog")));
+
+        expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // HomePageModals mounts the cart only while it is open, so this harness does the same.
+    function CartOpener(): JSX.Element {
+        const [open, setOpen] = useState(false);
+        return (
+            <>
+                <button type="button" onClick={() => setOpen(true)}>Open cart</button>
+                {open && <CartPopup {...cartProps({ onClose: () => setOpen(false) })} />}
+            </>
         );
+    }
 
-        const rules = emotionRulesFor(cartRoot());
-        expect(rules).not.toContain("width:440px");
-        expect(rules).not.toContain("left:auto");
+    it("holds focus inside the dialog and hands it back to the opener on close", () => {
+        stubMatchMedia(true);
+        render(<CartOpener />);
+        const opener = screen.getByRole("button", { name: "Open cart" });
+        act(() => opener.focus());
+
+        fireEvent.click(opener);
+        const dialog = screen.getByTestId("item-popup-dialog");
+        expect(dialog.contains(focusedElement())).toBe(true);
+
+        act(() => opener.focus());
+        expect(dialog.contains(focusedElement())).toBe(true);
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+        expect(focusedElement()).toBe(opener);
     });
 
-    // The plugin flips `left: auto` to `right: auto`, so the Arabic panel docks on the left.
-    it("docks on the other side in Arabic", () => {
+    it("shows the unavailable-items notice as a card over the dialog that closes on its own", () => {
+        stubMatchMedia(true);
+        const onCloseUnavailablePopup = jest.fn<void, []>();
+        const props = cartProps({
+            unavailablePopupOpen: true, unavailableItems: ["Cola"], unavailableMessage: "Some items ran out",
+            onCloseUnavailablePopup,
+        });
+        render(<CartPopup {...props} />);
+
+        // Its own Modal rather than the overlay inside the cart's: the dialog's round close button
+        // would sit on top of the overlay's own.
+        const message = screen.getByText("Some items ran out");
+        expect(screen.getByTestId("item-popup-dialog").contains(message)).toBe(false);
+        expect(cartModalRoot()?.contains(message)).toBe(false);
+
+        fireEvent.keyDown(message, { key: "Escape" });
+        expect(onCloseUnavailablePopup).toHaveBeenCalledTimes(1);
+        expect(props.onClose).not.toHaveBeenCalled();
+    });
+
+    it("keeps the same sections and places the order with the same arguments as on the phone", () => {
+        stubMatchMedia(true);
+        const props = cartProps();
+        render(<CartPopup {...props} />);
+
+        expect(screen.getByText("Delivery type")).toBeTruthy();
+        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("BenefitPay"));
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        expect(props.onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+    });
+
+    it("puts the close button on the left in Arabic", () => {
         stubMatchMedia(true);
         // The app's RTL plugin chain (app/providers.tsx). The key starts with "css-" only so that
         // emotionRulesFor, which reads css-* classes, can see the flipped rules.
@@ -122,46 +220,68 @@ describe("CartPopup — PC panel", () => {
             </CacheProvider>
         );
 
-        const rules = emotionRulesFor(cartRoot());
-        expect(rules).toContain("right:auto");
-        expect(rules).not.toContain("left:auto");
+        const rules = emotionRulesFor(screen.getByRole("button", { name: "Close" }));
+        expect(rules).toContain("left:16px");
+        expect(rules).not.toContain("right:16px");
+    });
+});
+
+describe("CartPopup — the phone cart is unchanged", () => {
+    function expectFullScreenCart(): void {
+        expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+        expect(screen.queryByTestId("item-popup-aside")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+        expect(screen.getByTestId("ArrowBackIosNewIcon")).toBeTruthy();
+
+        const rules = emotionRulesFor(phoneCartRoot());
+        expect(rules).toContain("position:absolute");
+        expect(rules).toContain("inset:0");
+        expect(rules).toContain("background-color:#FAFAFA");
+        expect(rules).not.toContain("width:");
+    }
+
+    it("stays the full-screen cart on the phone", () => {
+        render(<CartPopup {...cartProps()} />);
+
+        expectFullScreenCart();
     });
 
-    it("keeps the same sections and places the order with the same arguments as on the phone", () => {
+    // HomePageModals provides false for admin and kiosk, which keep the full-screen cart.
+    it.each([
+        ["admin", { isAdmin: true }],
+        ["kiosk", { isKiosk: true }],
+        ["a customer on a surface that does not allow it", {}],
+    ])("stays full-screen on a wide screen for %s", (_label, overrides) => {
         stubMatchMedia(true);
-        const props = cartProps();
-        render(<CartPopup {...props} />);
+        render(
+            <DesktopLayoutAllowedContext.Provider value={false}>
+                <CartPopup {...cartProps(overrides)} />
+            </DesktopLayoutAllowedContext.Provider>
+        );
 
-        expect(screen.getByText("Delivery type")).toBeTruthy();
-        expect(screen.getByText("Payment method")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+        expectFullScreenCart();
+    });
 
-        expect(props.onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+    it("keeps the unavailable-items notice inside the phone cart", () => {
+        render(<CartPopup {...cartProps({ unavailablePopupOpen: true, unavailableItems: ["Cola"] })} />);
+
+        expect(phoneCartRoot().contains(screen.getByText("Cola"))).toBe(true);
     });
 });
 
 /**
  * PC twins of CartComponent.test.tsx's "sheets opened from the cart": the cart's "Pick up from"
  * card opens the picker, and a switch with a full cart opens the cart-loss warning, on top of the
- * still-open cart panel. As dialogs they keep the phone sheets' modal + 1, so they still paint
- * above the panel's Modal.
+ * still-open cart dialog. As dialogs they keep the phone sheets' modal + 1, so they still paint
+ * above the cart's Modal.
  */
-describe("CartPopup — PC dialogs opened from the cart panel", () => {
+describe("CartPopup — PC dialogs opened from the cart dialog", () => {
     const GRUNWALD: IBranch = {
         id: "b-grunwald", externalId: "ext-grunwald", branchNo: 2, branchName: "Grunwald",
         locale: "en", latitude: null, longitude: null,
     };
 
-    function zIndexOf(root: Element | null | undefined): number {
-        expect(root).toBeTruthy();
-        return Number(window.getComputedStyle(root as HTMLElement).zIndex);
-    }
-
-    function cartModalRoot(): Element | null {
-        return screen.getByText("Cart").closest(".MuiModal-root");
-    }
-
-    it("paints the branch picker dialog above the cart panel", () => {
+    it("paints the branch picker dialog above the cart dialog", () => {
         stubMatchMedia(true);
         render(
             <>
@@ -170,14 +290,14 @@ describe("CartPopup — PC dialogs opened from the cart panel", () => {
             </>
         );
 
-        const pickerZ = zIndexOf(document.querySelector(".MuiDialog-root"));
-        const cartZ = zIndexOf(cartModalRoot());
+        const pickerZ = layerOf(sheetRoot("dialog"));
+        const cartZ = layerOf(cartModalRoot());
 
         expect(Number.isNaN(pickerZ)).toBe(false);
         expect(pickerZ > cartZ).toBe(true);
     });
 
-    it("paints the cart-loss warning dialog above the cart panel", () => {
+    it("paints the cart-loss warning dialog above the cart dialog", () => {
         stubMatchMedia(true);
         render(
             <>
@@ -189,8 +309,8 @@ describe("CartPopup — PC dialogs opened from the cart panel", () => {
             </>
         );
 
-        const warningZ = zIndexOf(document.querySelector(".MuiDialog-root"));
-        const cartZ = zIndexOf(cartModalRoot());
+        const warningZ = layerOf(sheetRoot("dialog"));
+        const cartZ = layerOf(cartModalRoot());
 
         expect(Number.isNaN(warningZ)).toBe(false);
         expect(warningZ > cartZ).toBe(true);

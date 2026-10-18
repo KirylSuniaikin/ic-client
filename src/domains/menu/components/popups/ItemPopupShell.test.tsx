@@ -118,6 +118,13 @@ describe("ItemPopupShell — legacy path (phone, admin, kiosk)", () => {
         expect(screen.queryByTestId("item-popup-photo")).toBeNull();
         expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
     });
+
+    it("never renders the PC aside", () => {
+        renderShell({ desktop: { aside: <p>Cart items</p> } });
+
+        expect(screen.queryByText("Cart items")).toBeNull();
+        expect(screen.queryByTestId("item-popup-aside")).toBeNull();
+    });
 });
 
 describe("ItemPopupShell — PC path", () => {
@@ -162,6 +169,34 @@ describe("ItemPopupShell — PC path", () => {
         fireEvent.keyDown(screen.getByTestId("item-popup-dialog"), { key: "Escape" });
 
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // The cart's PC form: its items where an item popup has its photo.
+    it("puts the aside in the warm 45% column of the two-column dialog, scrolling on its own", () => {
+        stubMatchMedia(true);
+        renderShell({ desktop: { aside: <p>Cart items</p> } });
+
+        const dialog = screen.getByTestId("item-popup-dialog");
+        const aside = within(dialog).getByTestId("item-popup-aside");
+        expect(within(aside).getByText("Cart items")).toBeTruthy();
+        expect(aside.contains(screen.getByText("Options"))).toBe(false);
+        expect(aside.contains(screen.getByTestId("footer"))).toBe(false);
+        expect(screen.queryByTestId("item-popup-photo")).toBeNull();
+
+        expect(emotionRulesFor(dialog)).toContain("width:min(960px, 92vw)");
+        const rules = emotionRulesFor(aside);
+        expect(rules).toContain("flex:0 0 45%");
+        expect(rules).toContain("background-color:#f4ede8");
+        expect(rules).toContain("overflow-y:auto");
+    });
+
+    it("shows the photo, not the aside, when both are given", () => {
+        stubMatchMedia(true);
+        renderShell({ desktop: { photo: { src: "pc.png", alt: "Margherita" }, aside: <p>Cart items</p> } });
+
+        expect(screen.getByTestId("item-popup-photo")).toBeTruthy();
+        expect(screen.queryByTestId("item-popup-aside")).toBeNull();
+        expect(screen.queryByText("Cart items")).toBeNull();
     });
 
     it("renders one centred column at the requested width when there is no photo", () => {
