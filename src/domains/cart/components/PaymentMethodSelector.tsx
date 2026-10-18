@@ -1,13 +1,13 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { KeyboardEvent, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
+import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import RadioButtonCheckedRoundedIcon from "@mui/icons-material/RadioButtonCheckedRounded";
 import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
@@ -107,6 +107,26 @@ const OPTION_SX = {
     "& + &": { borderTop: "1px solid #eee" },
 } satisfies SxProps<Theme>;
 
+// A locked method's label and mark, greyed like any disabled control. Set on the content rather
+// than the option, so every option keeps OPTION_SX's one class and its "& + &" separator.
+const LOCKED_CONTENT_SX = {
+    flex: 1,
+    minWidth: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: 1.25,
+    color: "text.disabled",
+} satisfies SxProps<Theme>;
+
+const LOCKED_NOTE_SX = {
+    display: "block",
+    mt: 0.25,
+    fontSize: "12px",
+    fontWeight: 500,
+    lineHeight: 1.3,
+    color: "#666",
+} satisfies SxProps<Theme>;
+
 // The cart is a MUI Modal at theme.zIndex.modal (1300) and a Drawer defaults to zIndex.drawer
 // (1200); MUI never raises a later modal, so without this the sheet would open behind the cart.
 // modal + 1, the same layer as the branch picker that the cart also opens.
@@ -160,15 +180,20 @@ function PaymentMark({ choice }: { choice: PaymentChoice }): JSX.Element | null 
 
 interface PaymentOptionListProps {
     choices: readonly PaymentChoice[];
+    locked: readonly PaymentChoice[];
     selected: PaymentChoice | null;
     labelledBy: string;
     onPick: (choice: PaymentChoice) => void;
 }
 
-function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOptionListProps): JSX.Element {
+function PaymentOptionList({ choices, locked, selected, labelledBy, onPick }: PaymentOptionListProps): JSX.Element {
     const { t } = useTranslation("cart");
     const isRtl = useTheme().direction === "rtl";
-    const tabStop = selected !== null && choices.includes(selected) ? selected : choices[0];
+    // The locked method last tapped: it answers with why it cannot be picked, and the sheet stays.
+    const [explained, setExplained] = useState<PaymentChoice | null>(null);
+    const noteId = useId();
+    const pickable = choices.filter((choice) => !locked.includes(choice));
+    const tabStop = selected !== null && pickable.includes(selected) ? selected : (pickable[0] ?? choices[0]);
 
     // Arrow keys move focus and leave the choice alone; Space or Enter picks. The ARIA radio
     // pattern also checks on arrow, but a pick here closes the sheet, so every arrow press would
@@ -189,6 +214,40 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
         <Box role="radiogroup" aria-labelledby={labelledBy} onKeyDown={moveFocus}>
             {choices.map((choice) => {
                 const checked = choice === selected;
+                const label = t(PAYMENT_OPTIONS[choice].labelKey);
+                if (locked.includes(choice)) {
+                    const explaining = explained === choice;
+                    return (
+                        // Still a focusable radio, so it is found and its note can be asked for by
+                        // keyboard too; aria-disabled says it cannot be chosen. Named by its label
+                        // alone, with the note as its description once shown.
+                        <Button
+                            key={choice}
+                            role="radio"
+                            aria-checked={false}
+                            aria-disabled
+                            aria-label={label}
+                            aria-describedby={explaining ? noteId : undefined}
+                            tabIndex={choice === tabStop ? 0 : -1}
+                            disableRipple
+                            onClick={() => setExplained(choice)}
+                            sx={OPTION_SX}
+                        >
+                            <LockRoundedIcon aria-hidden sx={{ fontSize: 22, flexShrink: 0, color: "#bbb" }} />
+                            <Box component="span" sx={LOCKED_CONTENT_SX}>
+                                <PaymentMark choice={choice} />
+                                <Box component="span" sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box component="span" sx={{ display: "block", ...SINGLE_LINE_SX }}>{label}</Box>
+                                    {explaining && (
+                                        <Box component="span" id={noteId} role="status" sx={LOCKED_NOTE_SX}>
+                                            {t("paymentChoice:signInRequired")}
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Box>
+                        </Button>
+                    );
+                }
                 const RadioMark = checked ? RadioButtonCheckedRoundedIcon : RadioButtonUncheckedRoundedIcon;
                 return (
                     <Button
@@ -196,7 +255,8 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
                         role="radio"
                         aria-checked={checked}
                         // One tab stop for the whole group, on the chosen method (the first one
-                        // while nothing is chosen), which is also where focus lands on opening.
+                        // that can be picked while nothing is chosen), which is also where focus
+                        // lands on opening.
                         tabIndex={choice === tabStop ? 0 : -1}
                         autoFocus={choice === tabStop}
                         disableRipple
@@ -206,7 +266,7 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
                         <RadioMark aria-hidden sx={{ fontSize: 22, flexShrink: 0, color: checked ? BRAND_RED : "#bbb" }} />
                         <PaymentMark choice={choice} />
                         <Box component="span" sx={{ flex: 1, minWidth: 0, ...SINGLE_LINE_SX }}>
-                            {t(PAYMENT_OPTIONS[choice].labelKey)}
+                            {label}
                         </Box>
                     </Button>
                 );
@@ -216,8 +276,10 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
 }
 
 export interface PaymentMethodSelectorProps {
-    /** What this customer can pay with, in display order (usePaymentChoice's `choices`). */
+    /** Every method to list, in display order, locked ones included (usePaymentChoice's `choices`). */
     choices: readonly PaymentChoice[];
+    /** Listed with a lock, and answering a tap with "sign in first" instead of being picked. */
+    locked: readonly PaymentChoice[];
     /** Null until the customer picks one: the row then invites them to look at the methods. */
     selected: PaymentChoice | null;
     onSelect: (choice: PaymentChoice) => void;
@@ -238,12 +300,12 @@ export interface PaymentMethodSelectorProps {
  * like "Pick up from" over the branch card: an in-row "Pay with" read "الدفع عبر الدفع عند الاستلام"
  * ("pay via pay on collection") in Arabic with the counter tender chosen.
  *
- * Until the customer picks a method the row carries the owner's invitation (18 Oct 2026) instead,
- * in the brand red: nothing is preselected any more, and the new methods are the news. Its copy
- * is in the web-only paymentChoice namespace, because mobile byte-compares the cart's.
+ * Nothing is preselected (owner, 18 Oct 2026), so until the customer picks a method the row asks
+ * them to choose; the cart's bubble above carries the news of the new methods. Its copy is in the
+ * web-only paymentChoice namespace, because mobile byte-compares the cart's.
  */
 export function PaymentMethodSelector({
-    choices, selected, onSelect, open, onOpenChange,
+    choices, locked, selected, onSelect, open, onOpenChange,
 }: PaymentMethodSelectorProps): JSX.Element {
     const { t } = useTranslation("cart");
     // The RTL emotion cache mirrors the row's layout but not an icon's glyph, so the chevron has
@@ -251,21 +313,13 @@ export function PaymentMethodSelector({
     const isRtl = useTheme().direction === "rtl";
     const titleId = useId();
 
-    const rowLabel = selected === null ? t("paymentChoice:newMethodsInvite") : t(PAYMENT_OPTIONS[selected].labelKey);
+    const rowLabel = selected === null ? t("paymentChoice:choosePlaceholder") : t(PAYMENT_OPTIONS[selected].labelKey);
     const rowContent = (
         <Box component="span" sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.75 }}>
-            {selected === null ? (
-                <AccountBalanceWalletOutlinedIcon aria-hidden sx={{ fontSize: PAYMENT_LOGO_HEIGHT, flexShrink: 0, color: BRAND_RED }} />
-            ) : (
-                <PaymentMark choice={selected} />
-            )}
+            {selected !== null && <PaymentMark choice={selected} />}
             <Typography
                 component="span"
-                // The invitation wraps rather than ellipsising: cut short on a phone it would
-                // stop before saying anything.
-                sx={selected === null
-                    ? { fontSize: "14px", fontWeight: 700, color: BRAND_RED, lineHeight: 1.3 }
-                    : { fontSize: "14px", fontWeight: 700, color: "#000", ...SINGLE_LINE_SX }}
+                sx={{ fontSize: "14px", fontWeight: 700, color: selected === null ? "#666" : "#000", ...SINGLE_LINE_SX }}
             >
                 {rowLabel}
             </Typography>
@@ -319,7 +373,7 @@ export function PaymentMethodSelector({
                     <Typography id={titleId} variant="h6" sx={{ fontWeight: 700, textAlign: "center", mb: 1 }}>
                         {t("paymentTitle")}
                     </Typography>
-                    <PaymentOptionList choices={choices} selected={selected} labelledBy={titleId} onPick={pick} />
+                    <PaymentOptionList choices={choices} locked={locked} selected={selected} labelledBy={titleId} onPick={pick} />
                 </Box>
             </CustomerSheet>
         </>

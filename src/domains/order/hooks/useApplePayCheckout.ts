@@ -60,6 +60,12 @@ interface UseApplePayCheckoutParams {
 
 export interface UseApplePayCheckoutResult {
     available: boolean;
+    /**
+     * A guest is shown Apple Pay locked rather than not at all (owner, 18 Oct 2026), but only on
+     * a device that can pay with it: elsewhere signing in would not bring it either. False while
+     * the session is still restoring, so a signed-in customer never sees it flash locked.
+     */
+    signInRequired: boolean;
     busy: boolean;
     start: () => void;
     reminderOpen: boolean;
@@ -95,7 +101,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen,
     } = params;
 
-    const { token } = useCustomerAuth();
+    const { token, isAuthLoading } = useCustomerAuth();
     // The order is filed at the pickup branch the customer chose, as useCheckout does; the
     // DEFAULT_BRANCH_ID fallback lives in the resolver.
     const { chosenBranchId } = useBranchResolution();
@@ -138,6 +144,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         !isAdmin && !isKiosk && token !== null && cartItems.length > 0 &&
         prefetch !== null && prefetch.eligible && !prefetch.banned && !!prefetch.profile.name &&
         capable;
+    const signInRequired = !isAdmin && !isKiosk && !isAuthLoading && token === null && capable;
 
     function release(): void {
         busyRef.current = false;
@@ -332,7 +339,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
     }
 
     return {
-        available, busy, start,
+        available, signInRequired, busy, start,
         reminderOpen, continueFromReminder, dismissReminder,
         error, clearError: () => setError(null), notice,
     };

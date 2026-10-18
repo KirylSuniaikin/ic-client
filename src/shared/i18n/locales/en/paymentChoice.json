@@ -1,3 +1,5 @@
 {
-    "newMethodsInvite": "Hey, we added new payment methods — check them out!"
+    "newMethodsInvite": "Hey, we added new payment methods — check them out!",
+    "choosePlaceholder": "Choose how to pay",
+    "signInRequired": "Only available for logged-in customers"
 }

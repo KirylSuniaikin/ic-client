@@ -77,6 +77,12 @@ interface UseCardCheckoutParams {
 
 export interface UseCardCheckoutResult {
     available: boolean;
+    /**
+     * A guest is shown card locked rather than not at all (owner, 18 Oct 2026), so they learn it
+     * exists and that an account is what it takes. False while the session is still restoring,
+     * so a signed-in customer never sees it flash locked.
+     */
+    signInRequired: boolean;
     busy: boolean;
     start: () => void;
     drawerOpen: boolean;
@@ -124,7 +130,7 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
         setUnavailableItems, setUnavailableMessage, setUnavailablePopupOpen,
     } = params;
 
-    const { token } = useCustomerAuth();
+    const { token, isAuthLoading } = useCustomerAuth();
     // The order is filed at the pickup branch the customer chose, as useCheckout does; the
     // DEFAULT_BRANCH_ID fallback lives in the resolver.
     const { chosenBranchId } = useBranchResolution();
@@ -208,6 +214,7 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
     const available =
         !isAdmin && !isKiosk && token !== null && cartItems.length > 0 &&
         prefetch !== null && prefetch.eligible && !prefetch.banned && !!prefetch.profile.name;
+    const signInRequired = !isAdmin && !isKiosk && !isAuthLoading && token === null;
 
     function release(): void {
         busyRef.current = false;
@@ -519,7 +526,7 @@ export function useCardCheckout(params: UseCardCheckoutParams): UseCardCheckoutR
     }
 
     return {
-        available, busy, start,
+        available, signInRequired, busy, start,
         drawerOpen, closeDrawer, step, fieldErrors,
         error, clearError: () => setError(null), notice,
         submit, retryWithNewSession,

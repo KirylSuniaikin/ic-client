@@ -41,7 +41,7 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
     return { onCheckout };
 }
 
-const AVAILABLE = { available: true, busy: false, start: jest.fn<void, []>() };
+const AVAILABLE = { available: true, signInRequired: false, busy: false, start: jest.fn<void, []>() };
 
 beforeEach(() => {
     window.localStorage.clear();
@@ -55,7 +55,7 @@ describe("CartPopup — card in the payment list", () => {
     });
 
     it("offers no Card row when it is not available", () => {
-        renderCart({ cardPayment: { available: false, busy: false, start: jest.fn() } });
+        renderCart({ cardPayment: { available: false, signInRequired: false, busy: false, start: jest.fn() } });
 
         expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
@@ -71,7 +71,7 @@ describe("CartPopup — card in the payment list", () => {
 
     it("makes Checkout open the card drawer when Card is selected, without touching checkout", async () => {
         const start = jest.fn<void, []>();
-        const { onCheckout } = renderCart({ cardPayment: { available: true, busy: false, start } });
+        const { onCheckout } = renderCart({ cardPayment: { available: true, signInRequired: false, busy: false, start } });
 
         await choosePayment("Card");
         fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
@@ -90,7 +90,7 @@ describe("CartPopup — card in the payment list", () => {
     });
 
     it("disables Checkout while a card payment is busy", async () => {
-        renderCart({ cardPayment: { available: true, busy: true, start: jest.fn() } });
+        renderCart({ cardPayment: { available: true, signInRequired: false, busy: true, start: jest.fn() } });
 
         await choosePayment("Card");
 

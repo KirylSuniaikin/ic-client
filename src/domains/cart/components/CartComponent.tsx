@@ -18,6 +18,7 @@ import type { UseApplePayCheckoutResult } from "../../order/hooks/useApplePayChe
 import type { UseCardCheckoutResult } from "../../order/hooks/useCardCheckout";
 import { APPLE_PAY_CHOICE, CARD_CHOICE, usePaymentChoice } from "../hooks/usePaymentChoice";
 import { PaymentMethodSelector } from "./PaymentMethodSelector";
+import { PaymentInviteArrow, PaymentInviteBubble } from "./PaymentInvite";
 import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
 import { DELIVERY_COMING_SOON } from "../../delivery/constants";
 
@@ -81,8 +82,8 @@ interface CartPopupProps {
     pickupBranch?: IBranch | null;
     onChangeBranch?: () => void;
     // Absent (or not `available`) renders the cart exactly as before.
-    applePay?: Pick<UseApplePayCheckoutResult, "available" | "busy" | "start">;
-    cardPayment?: Pick<UseCardCheckoutResult, "available" | "busy" | "start">;
+    applePay?: Pick<UseApplePayCheckoutResult, "available" | "signInRequired" | "busy" | "start">;
+    cardPayment?: Pick<UseCardCheckoutResult, "available" | "signInRequired" | "busy" | "start">;
 }
 
 function CartPopup({
@@ -174,8 +175,12 @@ function CartPopup({
         onPaymentChange,
         applePayAvailable: applePay?.available === true,
         cardAvailable: cardPayment?.available === true,
+        applePaySignInRequired: applePay?.signInRequired === true,
+        cardSignInRequired: cardPayment?.signInRequired === true,
     });
     const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+    // The owner's bubble and arrow (option A, 18 Oct 2026) point at the row until a method is picked.
+    const showPaymentInvite = showPaymentChoice && payment.selected === null;
 
     const checkoutButton = (onClick: () => void, disabled = false): JSX.Element => (
         <Box
@@ -252,104 +257,111 @@ function CartPopup({
     // always Pickup + Card, and there's nothing for a walk-up customer to choose.
     const choiceSection = !isAdmin && !isKiosk && (
         <Box sx={{ flexShrink: 0, px: 3, pt: 1.5, pb: 0.5 }}>
-            {!isKiosk && (
-                <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                        {t("deliveryTitle")}
-                    </Typography>
-                    <ToggleButtonGroup
-                        exclusive
-                        value={orderType}
-                        onChange={(_e, val) => val && onDeliveryTypeChange(val)}
-                        sx={toggleGroupSx}
-                        fullWidth
-                    >
-                        <ToggleButton value="Pick Up" sx={toggleBtnSx}>
-                            {t("pickup")}
-                        </ToggleButton>
-                        <ToggleButton value="Delivery" disabled={DELIVERY_COMING_SOON} sx={toggleBtnSx}>
-                            {DELIVERY_COMING_SOON ? (
-                                <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-                                    <span>{t("delivery")}</span>
-                                    <Typography component="span" sx={comingSoonSx}>
-                                        {t("comingSoon")}
-                                    </Typography>
-                                </Box>
-                            ) : (
-                                t("delivery")
-                            )}
-                        </ToggleButton>
-                    </ToggleButtonGroup>
-                </Box>
-            )}
+            {showPaymentInvite && <PaymentInviteBubble />}
+            {/* Positioned, so the arrow can span from under the bubble to the payment row, the
+                last thing in here, whatever sits between them. */}
+            <Box sx={{ position: "relative" }}>
+                {!isKiosk && (
+                    <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                            {t("deliveryTitle")}
+                        </Typography>
+                        <ToggleButtonGroup
+                            exclusive
+                            value={orderType}
+                            onChange={(_e, val) => val && onDeliveryTypeChange(val)}
+                            sx={toggleGroupSx}
+                            fullWidth
+                        >
+                            <ToggleButton value="Pick Up" sx={toggleBtnSx}>
+                                {t("pickup")}
+                            </ToggleButton>
+                            <ToggleButton value="Delivery" disabled={DELIVERY_COMING_SOON} sx={toggleBtnSx}>
+                                {DELIVERY_COMING_SOON ? (
+                                    <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+                                        <span>{t("delivery")}</span>
+                                        <Typography component="span" sx={comingSoonSx}>
+                                            {t("comingSoon")}
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    t("delivery")
+                                )}
+                            </ToggleButton>
+                        </ToggleButtonGroup>
+                    </Box>
+                )}
 
-            {/* Where this pickup will be collected, at the moment the customer is
-                deciding — the menu header that names the branch has scrolled away by
-                now. Label above, control below, on the same gray track as the two
-                toggle groups around it, so the section reads as one family rather than
-                a bare text row wedged between two controls. */}
-            {showPickupBranch && (
-                <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                        {t("pickupFrom")}
-                    </Typography>
-                    <Button
-                        fullWidth
-                        onClick={onChangeBranch}
-                        aria-label={`${t("pickupFrom")} ${pickupBranchName}`}
-                        sx={{
-                            backgroundColor: brandGray,
-                            borderRadius: 3,
-                            minHeight: 48,
-                            px: 2,
-                            py: 1,
-                            gap: 1,
-                            justifyContent: "space-between",
-                            textAlign: "start",
-                            textTransform: "none",
-                            color: "#000",
-                            // Without this MUI tints the hover with the primary red,
-                            // which the toggles beside it never do.
-                            "&:hover": { backgroundColor: brandGray },
-                        }}
-                    >
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000", ...singleLineSx }}>
-                                {pickupBranchName}
-                            </Typography>
-                            {pickupBranchAddress !== "" && (
-                                <Typography data-testid="cart-pickup-branch-address" sx={{ fontSize: "12px", color: "#666", ...singleLineSx }}>
-                                    {pickupBranchAddress}
+                {/* Where this pickup will be collected, at the moment the customer is
+                    deciding — the menu header that names the branch has scrolled away by
+                    now. Label above, control below, on the same gray track as the two
+                    toggle groups around it, so the section reads as one family rather than
+                    a bare text row wedged between two controls. */}
+                {showPickupBranch && (
+                    <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                            {t("pickupFrom")}
+                        </Typography>
+                        <Button
+                            fullWidth
+                            onClick={onChangeBranch}
+                            aria-label={`${t("pickupFrom")} ${pickupBranchName}`}
+                            sx={{
+                                backgroundColor: brandGray,
+                                borderRadius: 3,
+                                minHeight: 48,
+                                px: 2,
+                                py: 1,
+                                gap: 1,
+                                justifyContent: "space-between",
+                                textAlign: "start",
+                                textTransform: "none",
+                                color: "#000",
+                                // Without this MUI tints the hover with the primary red,
+                                // which the toggles beside it never do.
+                                "&:hover": { backgroundColor: brandGray },
+                            }}
+                        >
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000", ...singleLineSx }}>
+                                    {pickupBranchName}
                                 </Typography>
+                                {pickupBranchAddress !== "" && (
+                                    <Typography data-testid="cart-pickup-branch-address" sx={{ fontSize: "12px", color: "#666", ...singleLineSx }}>
+                                        {pickupBranchAddress}
+                                    </Typography>
+                                )}
+                            </Box>
+                            {isRtl ? (
+                                <ChevronLeftRoundedIcon data-testid="cart-pickup-branch-chevron-left" sx={{ color: "#666", flexShrink: 0 }} />
+                            ) : (
+                                <ChevronRightRoundedIcon data-testid="cart-pickup-branch-chevron-right" sx={{ color: "#666", flexShrink: 0 }} />
                             )}
-                        </Box>
-                        {isRtl ? (
-                            <ChevronLeftRoundedIcon data-testid="cart-pickup-branch-chevron-left" sx={{ color: "#666", flexShrink: 0 }} />
-                        ) : (
-                            <ChevronRightRoundedIcon data-testid="cart-pickup-branch-chevron-right" sx={{ color: "#666", flexShrink: 0 }} />
-                        )}
-                    </Button>
-                </Box>
-            )}
+                        </Button>
+                    </Box>
+                )}
 
-            {/* Delivery is paid online in DeliveryCheckoutDrawer, which asks for the
-                method itself — leaving this selector visible would let a customer pick
-                Cash here and then be charged by card, so it is hidden rather than
-                disabled. Mirrors mobile's CartComponent. */}
-            {orderType !== "Delivery" && (
-                <>
-                    <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                        {t("paymentTitle")}
-                    </Typography>
-                    <PaymentMethodSelector
-                        choices={payment.choices}
-                        selected={payment.selected}
-                        onSelect={payment.select}
-                        open={paymentSheetOpen}
-                        onOpenChange={setPaymentSheetOpen}
-                    />
-                </>
-            )}
+                {/* Delivery is paid online in DeliveryCheckoutDrawer, which asks for the
+                    method itself — leaving this selector visible would let a customer pick
+                    Cash here and then be charged by card, so it is hidden rather than
+                    disabled. Mirrors mobile's CartComponent. */}
+                {orderType !== "Delivery" && (
+                    <>
+                        <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
+                            {t("paymentTitle")}
+                        </Typography>
+                        <PaymentMethodSelector
+                            choices={payment.choices}
+                            locked={payment.locked}
+                            selected={payment.selected}
+                            onSelect={payment.select}
+                            open={paymentSheetOpen}
+                            onOpenChange={setPaymentSheetOpen}
+                        />
+                    </>
+                )}
+                {showPaymentInvite && <PaymentInviteArrow />}
+            </Box>
         </Box>
     );
 

@@ -41,7 +41,7 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
     return { onCheckout };
 }
 
-const AVAILABLE = { available: true, busy: false, start: jest.fn<void, []>() };
+const AVAILABLE = { available: true, signInRequired: false, busy: false, start: jest.fn<void, []>() };
 
 beforeEach(() => {
     window.localStorage.clear();
@@ -58,7 +58,7 @@ describe("CartPopup — Apple Pay in the payment list", () => {
     });
 
     it("offers no Apple Pay row when it is not available", () => {
-        renderCart({ applePay: { available: false, busy: false, start: jest.fn() } });
+        renderCart({ applePay: { available: false, signInRequired: false, busy: false, start: jest.fn() } });
 
         expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
@@ -76,7 +76,7 @@ describe("CartPopup — Apple Pay in the payment list", () => {
 
     it("swaps Checkout for Apple's button when selected, and starts the session without touching checkout", async () => {
         const start = jest.fn<void, []>();
-        const { onCheckout } = renderCart({ applePay: { available: true, busy: false, start } });
+        const { onCheckout } = renderCart({ applePay: { available: true, signInRequired: false, busy: false, start } });
 
         await choosePayment("Apple Pay");
         expect(screen.queryByRole("button", { name: "Checkout" })).toBeNull();
@@ -87,7 +87,7 @@ describe("CartPopup — Apple Pay in the payment list", () => {
     });
 
     it("disables Apple's button while busy", async () => {
-        renderCart({ applePay: { available: true, busy: true, start: jest.fn() } });
+        renderCart({ applePay: { available: true, signInRequired: false, busy: true, start: jest.fn() } });
 
         await choosePayment("Apple Pay");
 

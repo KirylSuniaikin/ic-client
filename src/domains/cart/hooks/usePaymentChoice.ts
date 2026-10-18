@@ -26,14 +26,30 @@ function isTenderChoice(value: PaymentChoice): value is TenderChoice {
     return value === DEFAULT_PAYMENT_METHOD || value === PAY_ONLINE_METHOD || value === WALLET_METHOD;
 }
 
+/** How a method appears: pickable, listed but locked until the customer signs in, or not at all. */
+type ChoiceAccess = "offered" | "locked" | "hidden";
+
+function accessFor(available: boolean, signInRequired: boolean): ChoiceAccess {
+    if (available) return "offered";
+    return signInRequired ? "locked" : "hidden";
+}
+
 interface UsePaymentChoiceParams {
     onPaymentChange: (value: string) => void;
     applePayAvailable: boolean;
     cardAvailable: boolean;
+    applePaySignInRequired: boolean;
+    cardSignInRequired: boolean;
 }
 
 export interface UsePaymentChoiceResult {
+    /** Every method to list, in display order, locked ones included. */
     choices: PaymentChoice[];
+    /**
+     * Listed but not pickable: Apple Pay and card for a guest (owner, 18 Oct 2026), shown so a
+     * guest learns they exist and that an account is what they take.
+     */
+    locked: PaymentChoice[];
     /** Null until the customer picks a method in this cart. */
     selected: PaymentChoice | null;
     select: (choice: PaymentChoice) => void;
@@ -46,25 +62,26 @@ export interface UsePaymentChoiceResult {
  * pick lives exactly as long as that opening.
  */
 export function usePaymentChoice({
-    onPaymentChange, applePayAvailable, cardAvailable,
+    onPaymentChange, applePayAvailable, cardAvailable, applePaySignInRequired, cardSignInRequired,
 }: UsePaymentChoiceParams): UsePaymentChoiceResult {
     const [picked, setPicked] = useState<PaymentChoice | null>(null);
 
-    const isOffered = (choice: PaymentChoice): boolean =>
-        choice === APPLE_PAY_CHOICE ? applePayAvailable
-            : choice === CARD_CHOICE ? cardAvailable
-                : true;
+    const accessOf = (choice: PaymentChoice): ChoiceAccess =>
+        choice === APPLE_PAY_CHOICE ? accessFor(applePayAvailable, applePaySignInRequired)
+            : choice === CARD_CHOICE ? accessFor(cardAvailable, cardSignInRequired)
+                : "offered";
 
-    const choices = DISPLAY_ORDER.filter(isOffered);
+    const choices = DISPLAY_ORDER.filter((choice) => accessOf(choice) !== "hidden");
+    const locked = choices.filter((choice) => accessOf(choice) === "locked");
 
     // A picked method that stops being available (sign-out, eligibility refused) is no longer
     // selected, so the pay button cannot start a flow this customer can no longer use.
-    const selected = picked !== null && isOffered(picked) ? picked : null;
+    const selected = picked !== null && accessOf(picked) === "offered" ? picked : null;
 
     function select(choice: PaymentChoice): void {
         setPicked(choice);
         if (isTenderChoice(choice)) onPaymentChange(choice);
     }
 
-    return { choices, selected, select };
+    return { choices, locked, selected, select };
 }

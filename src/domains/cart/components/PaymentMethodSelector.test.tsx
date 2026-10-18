@@ -25,8 +25,10 @@ import {
 const ALL_CHOICES: PaymentChoice[] = [CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD, WALLET_METHOD, DEFAULT_PAYMENT_METHOD];
 const ALL_NAMES = ["Card", "Apple Pay", "Benefit", "BenefitPay", "At counter"];
 
-const INVITE_EN = "Hey, we added new payment methods — check them out!";
-const INVITE_AR = "مرحباً! أضفنا طرق دفع جديدة، اكتشفها الآن";
+const CHOOSE_EN = "Choose how to pay";
+const CHOOSE_AR = "اختر طريقة الدفع";
+const SIGN_IN_NOTE_EN = "Only available for logged-in customers";
+const SIGN_IN_NOTE_AR = "متاح فقط للعملاء بعد تسجيل الدخول";
 
 type SelectorProps = React.ComponentProps<typeof PaymentMethodSelector>;
 type HarnessProps = Omit<SelectorProps, "open" | "onOpenChange">;
@@ -39,7 +41,7 @@ function SelectorHarness(props: HarnessProps): JSX.Element {
 
 function renderSelector(overrides: Partial<HarnessProps> = {}, theme = createTheme()) {
     const onSelect = jest.fn<void, [PaymentChoice]>();
-    const props: HarnessProps = { choices: ALL_CHOICES, selected: PAY_ONLINE_METHOD, onSelect, ...overrides };
+    const props: HarnessProps = { choices: ALL_CHOICES, locked: [], selected: PAY_ONLINE_METHOD, onSelect, ...overrides };
     const view = render(
         <ThemeProvider theme={theme}>
             <SelectorHarness {...props} />
@@ -329,38 +331,29 @@ describe("PaymentMethodSelector — a single method", () => {
     });
 });
 
-// Owner, 18 Oct 2026: nothing is preselected, and until the customer picks, the row invites them
-// to look at the new methods.
+// Owner, 18 Oct 2026: nothing is preselected, and until the customer picks, the row asks them to
+// choose (the cart's bubble above it carries the news of the new methods).
 describe("PaymentMethodSelector — nothing chosen yet", () => {
-    it("carries the invitation in the brand red, named under the section title", () => {
+    it("asks the customer to choose, in grey, named under the section title", () => {
         renderSelector({ selected: null });
 
         const row = paymentRow();
-        expect(row.getAttribute("aria-label")).toBe(paymentRowName(INVITE_EN));
-        expect(row.textContent).toBe(INVITE_EN);
-        expect(emotionRulesFor(screen.getByText(INVITE_EN))).toContain("color:#E44B4C");
-        // A wallet glyph, not a method's mark, so no method looks chosen.
+        expect(row.getAttribute("aria-label")).toBe(paymentRowName(CHOOSE_EN));
+        expect(row.textContent).toBe(CHOOSE_EN);
+        expect(emotionRulesFor(screen.getByText(CHOOSE_EN))).toContain("color:#666");
+        // No mark at all, so no method looks chosen.
         expect(paymentMarkOf(row)).toBeNull();
-        expect(screen.getByTestId("AccountBalanceWalletOutlinedIcon")).toBeTruthy();
+        expect(screen.queryByTestId("AccountBalanceWalletOutlinedIcon")).toBeNull();
     });
 
-    // Cut off with an ellipsis on a phone, the invitation would stop before saying anything.
-    it("lets the invitation wrap instead of cutting it short", () => {
-        renderSelector({ selected: null });
-
-        const rules = emotionRulesFor(screen.getByText(INVITE_EN));
-        expect(rules).not.toContain("white-space:nowrap");
-        expect(rules).not.toContain("text-overflow:ellipsis");
-    });
-
-    it("invites in Arabic for an Arabic customer", async () => {
+    it("asks in Arabic for an Arabic customer", async () => {
         await i18n.changeLanguage("ar");
         try {
             const { unmount } = renderSelector({ selected: null });
 
             const row = paymentRowArabic();
-            expect(row.textContent).toBe(INVITE_AR);
-            expect(row.getAttribute("aria-label")).toBe(`طريقة الدفع ${INVITE_AR}`);
+            expect(row.textContent).toBe(CHOOSE_AR);
+            expect(row.getAttribute("aria-label")).toBe(`طريقة الدفع ${CHOOSE_AR}`);
             unmount();
         } finally {
             await i18n.changeLanguage("en");
@@ -406,12 +399,12 @@ describe("PaymentMethodSelector — opened by its owner", () => {
         const onOpenChange = jest.fn<void, [boolean]>();
         const onSelect = jest.fn<void, [PaymentChoice]>();
         render(
-            <PaymentMethodSelector choices={ALL_CHOICES} selected={null} onSelect={onSelect} open onOpenChange={onOpenChange} />
+            <PaymentMethodSelector choices={ALL_CHOICES} locked={[]} selected={null} onSelect={onSelect} open onOpenChange={onOpenChange} />
         );
 
         expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
         // The open sheet hides the row from the accessibility tree, hence `hidden`.
-        const row = screen.getByRole("button", { name: paymentRowName(INVITE_EN), hidden: true });
+        const row = screen.getByRole("button", { name: paymentRowName(CHOOSE_EN), hidden: true });
         expect(row.getAttribute("aria-expanded")).toBe("true");
 
         fireEvent.click(radio("BenefitPay"));
@@ -421,3 +414,81 @@ describe("PaymentMethodSelector — opened by its owner", () => {
     });
 });
 
+// Owner, 18 Oct 2026: a guest sees Apple Pay and card too, locked, and a tap says why.
+describe("PaymentMethodSelector — methods locked until sign-in", () => {
+    const LOCKED: PaymentChoice[] = [CARD_CHOICE, APPLE_PAY_CHOICE];
+
+    function renderLocked(overrides: Partial<HarnessProps> = {}) {
+        const view = renderSelector({ locked: LOCKED, selected: null, ...overrides });
+        fireEvent.click(paymentRow());
+        return view;
+    }
+
+    it("lists them in their place, with a lock, as radios that cannot be chosen", () => {
+        renderLocked();
+
+        expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label") ?? r.textContent)).toEqual(ALL_NAMES);
+        for (const name of ["Card", "Apple Pay"]) {
+            expect(radio(name).getAttribute("aria-disabled")).toBe("true");
+            expect(radio(name).getAttribute("aria-checked")).toBe("false");
+        }
+        expect(radio("Benefit").getAttribute("aria-disabled")).toBeNull();
+        expect(screen.getAllByTestId("LockRoundedIcon")).toHaveLength(2);
+        expect(screen.queryByText(SIGN_IN_NOTE_EN)).toBeNull();
+    });
+
+    it("answers a tap with the sign-in note, keeping the sheet open and picking nothing", () => {
+        const { onSelect } = renderLocked();
+
+        fireEvent.click(radio("Card"));
+
+        const note = screen.getByText(SIGN_IN_NOTE_EN);
+        expect(radio("Card").getAttribute("aria-describedby")).toBe(note.id);
+        expect(note.getAttribute("role")).toBe("status");
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
+    });
+
+    it("explains one method at a time", () => {
+        renderLocked();
+
+        fireEvent.click(radio("Card"));
+        fireEvent.click(radio("Apple Pay"));
+
+        expect(screen.getAllByText(SIGN_IN_NOTE_EN)).toHaveLength(1);
+        expect(radio("Apple Pay").getAttribute("aria-describedby")).not.toBeNull();
+        expect(radio("Card").getAttribute("aria-describedby")).toBeNull();
+    });
+
+    it("still picks the methods that are open to everyone", async () => {
+        const { onSelect } = renderLocked();
+
+        fireEvent.click(radio("BenefitPay"));
+
+        expect(onSelect).toHaveBeenCalledWith(WALLET_METHOD);
+        await waitForPaymentSheetToClose();
+    });
+
+    // Focus lands on something the customer can actually choose, not on a lock.
+    it("puts the tab stop on the first method that can be picked", () => {
+        renderLocked();
+
+        expect(focusedElement()).toBe(radio("Benefit"));
+        expect(screen.getAllByRole("radio").map((r) => r.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1", "-1"]);
+    });
+
+    it("explains in Arabic for an Arabic customer", async () => {
+        await i18n.changeLanguage("ar");
+        try {
+            const { unmount } = renderSelector({ locked: LOCKED, selected: null });
+            fireEvent.click(paymentRowArabic());
+
+            fireEvent.click(screen.getAllByRole("radio")[0]);
+
+            expect(screen.getByText(SIGN_IN_NOTE_AR)).toBeTruthy();
+            unmount();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
+    });
+});

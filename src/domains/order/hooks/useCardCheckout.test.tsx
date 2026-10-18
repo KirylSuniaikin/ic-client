@@ -248,6 +248,43 @@ describe("useCardCheckout — button visibility", () => {
     });
 });
 
+// Owner, 18 Oct 2026: a guest's cart lists card locked, so the hook says when signing in is the way.
+describe("useCardCheckout — sign-in required", () => {
+    it("asks a guest to sign in, once the session check has found none", async () => {
+        mockRefreshToken.mockRejectedValue(new Error("no session"));
+        const { result } = await renderReady();
+
+        await waitFor(() => expect(result.current.signInRequired).toBe(true));
+        expect(result.current.available).toBe(false);
+    });
+
+    // Otherwise a signed-in customer would see card flash locked on every visit.
+    it("does not ask while the session is still being restored", async () => {
+        mockRefreshToken.mockReturnValue(new Promise(() => {}));
+        const { result } = await renderReady();
+
+        expect(result.current.signInRequired).toBe(false);
+    });
+
+    it("does not ask a signed-in customer, even one card is closed to", async () => {
+        mockEligibility.mockResolvedValue({ enabled: false });
+        const { result } = await renderReady();
+
+        await waitFor(() => expect(mockEligibility).toHaveBeenCalled());
+        expect(result.current.signInRequired).toBe(false);
+    });
+
+    it("never asks on admin or the kiosk", async () => {
+        mockRefreshToken.mockRejectedValue(new Error("no session"));
+        const { result: admin } = await renderReady({ isAdmin: true });
+        const { result: kiosk } = await renderReady({ isKiosk: true });
+
+        await waitFor(() => expect(mockRefreshToken).toHaveBeenCalledTimes(2));
+        expect(admin.current.signInRequired).toBe(false);
+        expect(kiosk.current.signInRequired).toBe(false);
+    });
+});
+
 describe("useCardCheckout — happy path", () => {
     it("creates the order, session, loads the script, configures, pays and completes", async () => {
         const rendered = await renderAvailable();
