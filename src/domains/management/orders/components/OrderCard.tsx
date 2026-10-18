@@ -27,11 +27,27 @@ import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderL
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
+// Talabat's orange (#FF5A00) at about 30% over white: recognisable without shouting on the board.
+const colorTalabat = '#FFCEB3';
+
+// OrderMapper sends this in place of a phone when the order has no customer. On a Talabat order
+// that means the rider photo has not been linked yet, so there is no number to show.
+const NO_CUSTOMER_PHONE = "Failed to fetch number";
+
+/** The Talabat import writes the type in lower case ("talabat"); a hand-typed order says "Talabat". */
+function isTalabatOrder(order: Order): boolean {
+    return String(order.order_type).toLowerCase() === "talabat";
+}
+
+function hasLinkedPhone(order: Order): boolean {
+    return Boolean(order.phone_number) && order.phone_number !== NO_CUSTOMER_PHONE;
+}
+
 /** Extracted from an inline four-deep ternary that was already at its readability limit. */
 function cardBackgroundColor(order: Order): string {
     if (order.order_type === "Jahez") return "#fff5f5";
     if (order.order_type === "Keeta") return '#CDBA2E';
-    if (order.order_type === "Talabat") return '#fbaa66';
+    if (isTalabatOrder(order)) return colorTalabat;
     return "#fff";
 }
 
@@ -383,7 +399,10 @@ function OrderCard({
                                 alignItems: "center",
                                 justifyContent: "center",
                                 mr: 0.8,
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                // White under the red icon so it still reads on a coloured
+                                // (Keeta, Talabat) card.
+                                backgroundColor: "white"
                             }}
                             onClick={() => BluetoothPrinterService.printOrder(order)}
                         >
@@ -406,8 +425,10 @@ function OrderCard({
                                 borderRadius: "50%",
                                 p: 0.5,
                                 ml: 0.5,
+                                backgroundColor: "white",
+                                // The old 8% red tint, made opaque so a coloured card can't show through.
                                 "&:hover": {
-                                    backgroundColor: "rgba(228, 75, 76, 0.08)"
+                                    backgroundColor: "#FDF1F1"
                                 }
                             }}
                             onClick={() => onDeleteClick(order)}
@@ -434,7 +455,7 @@ function OrderCard({
                             <strong>Date:</strong> {order.order_created_formatted}
                         </Typography>
                     )}
-                    {order.order_type !== "Jahez" && order.order_type !== "Talabat" && (
+                    {order.order_type !== "Jahez" && (!isTalabatOrder(order) || hasLinkedPhone(order)) && (
                         <Typography variant="body2">
                             <strong>Customer Info:</strong> {order.customer_name || "Rabotyaga"} ({order.phone_number})
                         </Typography>
@@ -713,7 +734,7 @@ function OrderCard({
                             )}
                         </>
                     )}
-                    {order.order_type !== "Jahez" && order.order_type !== "Keeta" && order.order_type !== "Talabat" && (
+                    {order.order_type !== "Jahez" && order.order_type !== "Keeta" && !isTalabatOrder(order) && (
 
                         <Button
                             variant="outlined"

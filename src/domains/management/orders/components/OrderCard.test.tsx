@@ -93,7 +93,7 @@ describe("OrderCard — background colours", () => {
     it.each([
         ["Jahez", "rgb(255, 245, 245)"],
         ["Keeta", "rgb(205, 186, 46)"],
-        ["Talabat", "rgb(251, 170, 102)"],
+        ["Talabat", "rgb(255, 206, 179)"],
     ] as const)("keeps the %s colour", (orderType, expected) => {
         // Regression guard for cardBackgroundColor(), which replaced an inline four-deep ternary.
         const card = renderCard(makeOrder({ order_type: orderType }));
@@ -105,6 +105,57 @@ describe("OrderCard — background colours", () => {
         renderCard(makeOrder({ status: "Kitchen Phase" }));
 
         expect(screen.getByText("OVEN")).toBeTruthy();
+    });
+});
+
+/**
+ * The Talabat import writes the type in lower case ("talabat"), and its orders have no customer
+ * until the rider photo links one, which OrderMapper reports as "Failed to fetch number".
+ */
+describe("OrderCard — Talabat orders", () => {
+    // The import's spelling is not in the OrderType union, which only knows the hand-typed one.
+    const imported = { order_type: "talabat" as Order["order_type"], external_id: "90311" };
+
+    function renderHistoryCard(order: Order): void {
+        render(
+            <MemoryRouter>
+                <OrderCard order={order} onDeleteClick={jest.fn()} isHistory />
+            </MemoryRouter>
+        );
+    }
+
+    it("colours an imported order with the Talabat tint", () => {
+        expect(backgroundOf(renderCard(makeOrder(imported)))).toBe("rgb(255, 206, 179)");
+    });
+
+    it("shows the customer and number once the order is linked", () => {
+        renderHistoryCard(makeOrder({ ...imported, customer_name: "Ahmed", phone_number: "97333123456" }));
+
+        expect(screen.getByText("Customer Info:")).toBeTruthy();
+        expect(screen.getByText(/Ahmed \(97333123456\)/)).toBeTruthy();
+    });
+
+    it("shows no customer line while the order is not linked", () => {
+        renderHistoryCard(makeOrder({
+            ...imported,
+            customer_name: "Unknown customer",
+            phone_number: "Failed to fetch number",
+        }));
+
+        expect(screen.queryByText("Customer Info:")).toBeNull();
+        expect(screen.queryByText(/Failed to fetch number/)).toBeNull();
+    });
+
+    it("still says when another order has no customer", () => {
+        renderHistoryCard(makeOrder({ customer_name: "Unknown customer", phone_number: "Failed to fetch number" }));
+
+        expect(screen.getByText(/Failed to fetch number/)).toBeTruthy();
+    });
+
+    it("offers no EDIT on an imported order, like other aggregator orders", () => {
+        renderHistoryCard(makeOrder(imported));
+
+        expect(screen.queryByRole("button", { name: "EDIT" })).toBeNull();
     });
 });
 
