@@ -11,7 +11,9 @@
         "cardNumber": "رقم البطاقة",
         "expiryMonth": "شهر الانتهاء",
         "expiryYear": "سنة الانتهاء",
-        "securityCode": "رمز الأمان"
+        "securityCode": "رمز الأمان",
+        "expiry": "تاريخ الانتهاء",
+        "cvv": "CVV"
     },
     "actions": {
         "pay": "ادفع الآن",

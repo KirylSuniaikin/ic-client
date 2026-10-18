@@ -1,11 +1,12 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import "../../../shared/i18n";
 import CardPaymentDrawer from "./CardPaymentDrawer";
 import type { CardCheckoutStep } from "../hooks/useCardCheckout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 
 const READY_STEP: CardCheckoutStep = "ready";
 
@@ -37,6 +38,41 @@ describe("CardPaymentDrawer", () => {
             expect(input.hasAttribute("readonly")).toBe(true);
             expect(input.getAttribute("title")).toBe(label);
         }
+    });
+
+    // Owner, 19 Oct 2026: the number on its own line, then the expiry date and CVV side by side.
+    it("lays out the number alone, then one expiry box and the CVV beside it", () => {
+        renderDrawer();
+
+        const expiry = screen.getByRole("group", { name: "Expiry date" });
+        expect(within(expiry).getByLabelText("Expiry month")).toBeTruthy();
+        expect(within(expiry).getByLabelText("Expiry year")).toBeTruthy();
+        expect(within(expiry).queryByLabelText("Card number")).toBeNull();
+        expect(within(expiry).queryByLabelText("Security code")).toBeNull();
+        // The CVV is named in full for a screen reader, and labelled "CVV" on screen.
+        expect(screen.getByText("CVV")).toBeTruthy();
+        const order = ["Card number", "Expiry month", "Expiry year", "Security code"]
+            .map((label) => screen.getByLabelText(label));
+        order.slice(1).forEach((input, i) => {
+            expect(order[i].compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+    });
+
+    it("hints the expected digits in each field", () => {
+        renderDrawer();
+
+        expect(screen.getByLabelText("Card number").getAttribute("placeholder")).toBe("1234 1234 1234 1234");
+        expect(screen.getByLabelText("Expiry month").getAttribute("placeholder")).toBe("MM");
+        expect(screen.getByLabelText("Expiry year").getAttribute("placeholder")).toBe("YY");
+        expect(screen.getByLabelText("Security code").getAttribute("placeholder")).toBe("123");
+    });
+
+    it("outlines the whole expiry box when either half is in error", () => {
+        renderDrawer({ fieldErrors: { expiryYear: true } });
+
+        expect(emotionRulesFor(screen.getByRole("group", { name: "Expiry date" }))).toContain("border-color:#E44B4C");
+        expect(screen.getByLabelText("Expiry year").getAttribute("aria-invalid")).toBe("true");
+        expect(screen.getByLabelText("Expiry month").hasAttribute("aria-invalid")).toBe(false);
     });
 
     it("associates the title with the dialog via aria-labelledby", () => {

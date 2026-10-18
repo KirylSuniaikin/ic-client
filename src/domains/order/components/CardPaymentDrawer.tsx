@@ -1,4 +1,5 @@
 import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -22,8 +23,17 @@ interface CardPaymentDrawerProps {
 }
 
 type FieldKey = keyof typeof CARD_FIELD_IDS;
-const FIELD_ORDER: readonly FieldKey[] = ["cardNumber", "expiryMonth", "expiryYear", "securityCode"];
 const TITLE_ID = "card-payment-drawer-title";
+const EXPIRY_LABEL_ID = "card-payment-expiry-label";
+
+// Shown inside the gateway's hosted fields when it carries the attribute over; the same in every
+// language, as the digits on a card are.
+const PLACEHOLDERS: Readonly<Record<FieldKey, string>> = {
+    cardNumber: "1234 1234 1234 1234",
+    expiryMonth: "MM",
+    expiryYear: "YY",
+    securityCode: "123",
+};
 
 // PC: a centred 480px dialog at the same 1350 as the phone sheet.
 const CARD_DESKTOP = {
@@ -39,6 +49,9 @@ const CTA_SX = {
 } as const;
 
 const FIELD_BOX_SX = {
+    display: "flex",
+    alignItems: "center",
+    minHeight: 48,
     border: "1px solid #f1eae4",
     borderRadius: 3,
     px: 1.5,
@@ -47,6 +60,35 @@ const FIELD_BOX_SX = {
     boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
     "& input": { width: "100%", border: 0, outline: 0, background: "transparent", fontSize: "1rem" },
 } as const;
+
+const FIELD_LABEL_SX = { color: "#8a807a", display: "block", mb: 0.5 } as const;
+
+// Month and year are two hosted fields (the gateway has no single expiry field), drawn as one
+// "MM / YY" box: each sized for its two digits, the slash between them ours.
+const EXPIRY_PART_SX = { width: 32, flexShrink: 0 } as const;
+
+function fieldBoxSx(invalid: boolean | undefined): SxProps<Theme> {
+    return { ...FIELD_BOX_SX, ...(invalid ? { borderColor: BRAND_RED } : {}) };
+}
+
+/**
+ * One of the gateway's hosted fields: our input is only where it mounts. No `name`, because the
+ * value is owned by the gateway's field, never by our form. Each keeps its own accessible name
+ * ("Expiry month", "Security code"), since the visible labels cover two fields or abbreviate.
+ */
+function HostedInput({ field, invalid }: { field: FieldKey; invalid: boolean | undefined }): React.JSX.Element {
+    const { t } = useTranslation("cardPayment");
+    return (
+        <input
+            id={CARD_FIELD_IDS[field]}
+            title={t(`fields.${field}`)}
+            aria-label={t(`fields.${field}`)}
+            aria-invalid={invalid ? true : undefined}
+            placeholder={PLACEHOLDERS[field]}
+            readOnly
+        />
+    );
+}
 
 // Follows the bottom-sheet pattern of CashInputDrawer (the repo's canonical Drawer) with the
 // brand-red CTA from DESIGN.md; the shared sheetStyles.tsx tokens do not exist in this checkout.
@@ -104,25 +146,47 @@ export default function CardPaymentDrawer({
                     </Box>
                 )}
 
-                {/* Kept mounted (only hidden) while a new session is needed, so a retry can re-attach. */}
+                {/* Kept mounted (only hidden) while a new session is needed, so a retry can re-attach.
+                    The usual card layout (owner, 19 Oct 2026): the number on its own line, then
+                    the expiry date and CVV side by side. */}
                 <Box ref={fieldContainerRef} dir="ltr" sx={{ display: needsNewSession ? "none" : "block" }}>
-                    {FIELD_ORDER.map(key => (
-                        <Box key={key} sx={{ mb: 1.5 }}>
-                            <Typography component="label" htmlFor={CARD_FIELD_IDS[key]} variant="body2" sx={{ color: "#8a807a", display: "block", mb: 0.5 }}>
-                                {t(`fields.${key}`)}
+                    <Box sx={{ mb: 1.5 }}>
+                        <Typography component="label" htmlFor={CARD_FIELD_IDS.cardNumber} variant="body2" sx={FIELD_LABEL_SX}>
+                            {t("fields.cardNumber")}
+                        </Typography>
+                        <Box sx={fieldBoxSx(fieldErrors.cardNumber)}>
+                            <HostedInput field="cardNumber" invalid={fieldErrors.cardNumber} />
+                        </Box>
+                    </Box>
+
+                    <Box sx={{ display: "flex", gap: 1.5, mb: 1.5 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography id={EXPIRY_LABEL_ID} variant="body2" sx={FIELD_LABEL_SX}>
+                                {t("fields.expiry")}
                             </Typography>
-                            <Box sx={{ ...FIELD_BOX_SX, ...(fieldErrors[key] ? { borderColor: BRAND_RED } : {}) }}>
-                                {/* No `name`: the value is owned by the gateway's hosted field, never by our form. */}
-                                <input
-                                    id={CARD_FIELD_IDS[key]}
-                                    title={t(`fields.${key}`)}
-                                    aria-label={t(`fields.${key}`)}
-                                    aria-invalid={fieldErrors[key] ? true : undefined}
-                                    readOnly
-                                />
+                            <Box
+                                role="group"
+                                aria-labelledby={EXPIRY_LABEL_ID}
+                                sx={fieldBoxSx(fieldErrors.expiryMonth || fieldErrors.expiryYear)}
+                            >
+                                <Box sx={EXPIRY_PART_SX}>
+                                    <HostedInput field="expiryMonth" invalid={fieldErrors.expiryMonth} />
+                                </Box>
+                                <Typography aria-hidden component="span" sx={{ color: "#8a807a", px: 0.75 }}>/</Typography>
+                                <Box sx={EXPIRY_PART_SX}>
+                                    <HostedInput field="expiryYear" invalid={fieldErrors.expiryYear} />
+                                </Box>
                             </Box>
                         </Box>
-                    ))}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography component="label" htmlFor={CARD_FIELD_IDS.securityCode} variant="body2" sx={FIELD_LABEL_SX}>
+                                {t("fields.cvv")}
+                            </Typography>
+                            <Box sx={fieldBoxSx(fieldErrors.securityCode)}>
+                                <HostedInput field="securityCode" invalid={fieldErrors.securityCode} />
+                            </Box>
+                        </Box>
+                    </Box>
                 </Box>
 
                 {error && (

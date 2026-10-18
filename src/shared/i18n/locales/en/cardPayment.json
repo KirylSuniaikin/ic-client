@@ -11,7 +11,9 @@
         "cardNumber": "Card number",
         "expiryMonth": "Expiry month",
         "expiryYear": "Expiry year",
-        "securityCode": "Security code"
+        "securityCode": "Security code",
+        "expiry": "Expiry date",
+        "cvv": "CVV"
     },
     "actions": {
         "pay": "Pay now",
