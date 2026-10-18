@@ -306,6 +306,7 @@ describe("useMenuData — customer branch entry gate", () => {
     });
 
     it("does not open the gate when a branch is already stored", async () => {
+        mockFetchPublicBranches.mockResolvedValue([...BRANCHES, CHOSEN_BRANCH]);
         writeChosenBranch(CHOSEN_BRANCH);
 
         const { result } = renderHook(() => useMenuData(makeParams()));
@@ -315,6 +316,31 @@ describe("useMenuData — customer branch entry gate", () => {
         });
 
         expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+
+    it("forgets a stored branch that is no longer offered and asks again", async () => {
+        // BRANCHES does not include CHOSEN_BRANCH: it was switched off after the customer chose it.
+        writeChosenBranch(CHOSEN_BRANCH);
+
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.customerBranchGateOpen).toBe(true);
+        });
+        expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).toBeNull();
+    });
+
+    it("keeps a stored branch when the branch list comes back empty", async () => {
+        mockFetchPublicBranches.mockResolvedValue([]);
+        writeChosenBranch(CHOSEN_BRANCH);
+
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+        expect(result.current.customerBranchGateOpen).toBe(false);
+        expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).not.toBeNull();
     });
 
     it("does not open the gate for kiosk mode", async () => {

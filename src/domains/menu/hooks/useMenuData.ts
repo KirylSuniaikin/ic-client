@@ -14,7 +14,7 @@ import {
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
 import { resolveKioskBranchId, readKioskBranch } from "../../kiosk/utils/kioskBranch";
-import { readChosenBranch } from "../../branch/utils/customerBranch";
+import { clearChosenBranch, readChosenBranch } from "../../branch/utils/customerBranch";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -163,6 +163,14 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
 
                 const branches = await fetchPublicBranches();
                 setAvailableBranches(branches);
+
+                // A branch can be switched off after a customer chose it (the Saar test branch,
+                // 18 Oct 2026). Forget it, so the entry gate below asks them to choose again
+                // instead of sending their next order to a shop nobody runs.
+                const storedBranch = readChosenBranch();
+                if (storedBranch !== null && branches.length > 0 && !branches.some((b) => b.id === storedBranch.id)) {
+                    clearChosenBranch();
+                }
 
                 if (isKiosk && !readKioskBranch()) {
                     setBranchSelector(true);
