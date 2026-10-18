@@ -18,6 +18,9 @@ import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskChec
 import { BaguettePizzaPopup } from "../domains/menu/components/popups/BaguettePizzaPopup";
 import CrossSellPopup from "../domains/order/components/CrossSellPopup";
 import CartPopup from "../domains/cart/components/CartComponent";
+import { CheckoutPaymentPage } from "../domains/cart/components/CheckoutPaymentPage";
+import type { Fulfilment } from "../domains/cart/components/PaymentPage";
+import { branchDisplayName } from "../domains/branch/utils/branchDisplayName";
 import ClosedPopup from "../domains/schedule/components/ClosedPopup";
 import ClientInfoPopup from "../domains/order/components/ClientInfoPopup";
 import AdminOrderDetailsPopUp from "../domains/management/orders/components/AdminOrderDetailsPopUp";
@@ -35,6 +38,7 @@ import { payForDelivery, reportKeetaFallbackChosen } from "../shared/api/deliver
 import { logger } from "../shared/utils/logger";
 import { DesktopLayoutAllowedContext } from "../shared/hooks/useDesktopLayout";
 import { Snackbar } from "@mui/material";
+import { formatAddressLine } from "../domains/delivery/types";
 import type {
     CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod, KeetaFallbackEvent,
 } from "../domains/delivery/types";
@@ -90,7 +94,7 @@ export default function HomePageModals({
     pizzas, brickPizzas, beverages, sauces, isAdmin, isKiosk, adminBranchId, workingHours,
     customerBranchGateOpen, onCustomerBranchSelect, branchSwitch, keetaOpen, setKeetaOpen,
 }: HomePageModalsProps): JSX.Element {
-    const { t } = useTranslation("checkout");
+    const { t, i18n } = useTranslation("checkout");
 
     // Local const so the null-check below narrows inside PickUpReminderPopup's onClick
     // (narrowing a property access would not survive into the callback).
@@ -119,6 +123,13 @@ export default function HomePageModals({
     // closing on the first press. Neither of those is this screen's to keep, which is why the
     // guard belongs here rather than being left to them.
     const deliverySubmittingRef = useRef(false);
+    // The same press, as state, so the payment page's button shows it is working.
+    const [deliveryPaying, setDeliveryPaying] = useState(false);
+    // A delivery order's confirmed address, once the address step hands over to the payment page
+    // (owner, 19 Oct 2026: delivery pays on the same page as pickup). Null while the address step
+    // is still on screen.
+    const [deliveryPayment, setDeliveryPayment] =
+        useState<{ address: CustomerAddress; availability: DeliveryAvailability } | null>(null);
 
     const deliveryBasket = useMemo(() => toDeliveryBasket(cart.cartItems), [cart.cartItems]);
     const basketKey = basketSignature(deliveryBasket);
@@ -167,6 +178,7 @@ export default function HomePageModals({
         if (pending === null) return;
         if (deliverySubmittingRef.current) return;
         deliverySubmittingRef.current = true;
+        setDeliveryPaying(true);
         try {
             const result = await payForDelivery({
                 method,
@@ -181,6 +193,7 @@ export default function HomePageModals({
             });
 
             checkout.setPendingDeliveryOrder(null);
+            setDeliveryPayment(null);
             cart.setCartItems([]);
             checkout.setOrderType("Pick Up");
 
@@ -204,7 +217,13 @@ export default function HomePageModals({
             setDeliveryNotice(error instanceof Error ? error.message : String(error));
         } finally {
             deliverySubmittingRef.current = false;
+            setDeliveryPaying(false);
         }
+    }
+
+    function closeDeliveryCheckout(): void {
+        setDeliveryPayment(null);
+        checkout.setPendingDeliveryOrder(null);
     }
 
     async function handleDeliveryTypeChange(value: string): Promise<void> {
@@ -271,6 +290,21 @@ export default function HomePageModals({
         cart.setEditMode(true);
         cart.setPopupGroup(menuData.filter(m => m.name === item.name && m.category === "Combo Deals"));
         cart.setDetroitComboPopupOpen(true);
+    }
+
+    const pickupFulfilment: Fulfilment = {
+        title: t("cart:pickupFrom"),
+        name: pickupBranch ? branchDisplayName(pickupBranch, i18n.language) : "",
+        detail: pickupBranch?.address?.trim() ?? "",
+    };
+
+    function deliveryFulfilment(address: CustomerAddress): Fulfilment {
+        const line = formatAddressLine(address);
+        return {
+            title: t("delivery.deliverTo"),
+            name: address.label ?? t("delivery.unlabelledAddress"),
+            detail: line === "" ? t("delivery.pinOnlyAddress") : line,
+        };
     }
 
     // Admin and kiosk keep the phone-shaped popups and cart at every width: their screen sizes are unknown.
@@ -448,7 +482,6 @@ export default function HomePageModals({
                     unavailableMessage={checkout.unavailableMessage}
                     onCloseUnavailablePopup={() => { checkout.setUnavailablePopupOpen(false); checkout.setUnavailableMessage(null); }}
                     paymentMethod={checkout.paymentMethod}
-                    onPaymentChange={checkout.setPaymentMethod}
                     orderType={checkout.orderType}
                     onDeliveryTypeChange={handleDeliveryTypeChange}
                     isKiosk={isKiosk}
@@ -456,24 +489,56 @@ export default function HomePageModals({
                     // The picker opens ON TOP of the still-open cart rather than replacing it, so
                     // closing or confirming it lands the customer back in the cart, not the menu.
                     onChangeBranch={branchSwitch.openPicker}
-                    applePay={applePay}
-                    cardPayment={cardPayment}
+                />
+            )}
+
+            {/* After the cart (and a guest's sign-in): every method, and one Pay. */}
+            {checkout.paymentPageOpen && (
+                <CheckoutPaymentPage
+                    open
+                    onBack={() => {
+                        checkout.setPaymentPageOpen(false);
+                        cart.setCartOpen(true);
+                    }}
+                    items={cart.cartItems}
+                    menuData={menuData}
+                    total={cart.totalPrice}
+                    fulfilment={pickupFulfilment}
+                    busy={checkout.checkoutLoading}
+                    payment={{ kind: "pickup", applePay, cardPayment, onPayWithTender: checkout.payWithTender }}
                 />
             )}
 
             <DeliveryCheckoutDrawer
-                open={checkout.pendingDeliveryOrder !== null}
+                open={checkout.pendingDeliveryOrder !== null && deliveryPayment === null}
                 items={cart.cartItems}
-                onClose={() => checkout.setPendingDeliveryOrder(null)}
-                onConfirm={(address, availability, method) => {
-                    void handleDeliveryConfirm(address, availability, method);
-                }}
+                onClose={closeDeliveryCheckout}
+                onConfirm={(address, availability) => setDeliveryPayment({ address, availability })}
                 onUnavailable={(availability) => {
                     keetaContextRef.current = { stage: "ADDRESS", reason: availability.reason };
-                    checkout.setPendingDeliveryOrder(null);
+                    closeDeliveryCheckout();
                     setKeetaOpen(true);
                 }}
             />
+
+            {/* Delivery's payment page, after the address: what EazyPay's hosted page takes. */}
+            {checkout.pendingDeliveryOrder !== null && deliveryPayment !== null && (
+                <CheckoutPaymentPage
+                    open
+                    onBack={() => setDeliveryPayment(null)}
+                    items={cart.cartItems}
+                    menuData={menuData}
+                    total={cart.totalPrice}
+                    fulfilment={deliveryFulfilment(deliveryPayment.address)}
+                    busy={deliveryPaying}
+                    payment={{
+                        kind: "delivery",
+                        onPayDelivery: (method) => {
+                            void handleDeliveryConfirm(deliveryPayment.address, deliveryPayment.availability, method);
+                        },
+                    }}
+                />
+            )}
 
             <Snackbar
                 open={deliveryNotice !== null}
@@ -497,7 +562,7 @@ export default function HomePageModals({
                     branches={availableBranches.map(b => ({ ...b, id: String(b.id) }))}
                     onClose={() => checkout.setPhonePopupOpen(false)}
                     onSave={(tel: string, customerName: string, branchId: string) => {
-                        checkout.handleCheckout(cart.cartItems, tel, customerName, checkout.orderType, checkout.paymentMethod, "", branchId, true);
+                        checkout.continueWithDetails(tel, customerName, branchId);
                     }}
                     phoneNumber={checkout.customerPrefill?.phone ?? phone.toString()}
                     customerName={checkout.customerPrefill?.name ?? username}

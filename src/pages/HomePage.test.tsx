@@ -8,7 +8,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { DEFAULT_PAYMENT_METHOD } from "../domains/order/types";
-import { PAYMENT_ROW_NAME, choosePayment } from "../domains/cart/components/paymentSelector.testutil";
 
 // HomePage (via HeroSection/CustomerIconButton) uses useTranslation -- initialize the real
 // i18n instance (side-effect import) so keys resolve to English, mirroring HeroSection.test.tsx.
@@ -491,7 +490,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         status: "Kitchen Phase", isPaid: false, branch_id: "test-branch-id",
     };
 
-    // Benefit (the method these customers pick in the cart) ends in a full-page
+    // Benefit (the method these customers pick on the payment page) ends in a full-page
     // `window.location.assign` to the gateway, which jsdom does not implement -- swapped for a spy for this block only, mirroring
     // HomePageModals.test.tsx, and restored so the rest of the file keeps the real location.
     const mockLocationAssign = jest.fn<void, [string]>();
@@ -521,25 +520,23 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         mockFetchCustomerMe.mockResolvedValue(profile);
     }
 
-    /**
-     * Opens the cart, chooses `payWith` (the kiosk cart offers no choice: pass null), lets the first
-     * Checkout press open the cross-sell sheet, picks, and presses Next.
-     */
-    async function checkoutThroughCrossSell(picks: string[], payWith: string | null = "Benefit"): Promise<void> {
+    /** Opens the cart, lets the first Checkout press open the cross-sell sheet, picks, and presses Next. */
+    async function checkoutThroughCrossSell(picks: string[]): Promise<void> {
         await waitForAuthReady();
         await waitForCartSeeded();
         fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        // Nothing is preselected, so until a method is chosen Checkout only opens the list.
-        if (payWith !== null) {
-            await screen.findByRole("button", { name: PAYMENT_ROW_NAME });
-            await choosePayment(payWith);
-        }
         fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
         await screen.findByText("Customers also buy");
         // The menu behind the sheet shows the same photos, but the open sheet hides it from the
         // accessibility tree, so a role query finds only the sheet's own card.
         picks.forEach(pick => fireEvent.click(screen.getByRole("img", { name: pick })));
         fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+
+    /** On the payment page (owner, 19 Oct 2026): chooses `method` and presses its Pay button. */
+    async function payOnPaymentPage(method: string, payButton: RegExp | string = /^Pay \d/): Promise<void> {
+        fireEvent.click(await screen.findByRole("radio", { name: method }));
+        fireEvent.click(screen.getByRole("button", { name: payButton }));
     }
 
     async function waitForGatewayOrder(): Promise<CreateOrderRequest> {
@@ -555,7 +552,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         seedKioskBranchSelected();
         renderHomePage(["/menu?mode=kiosk"]);
 
-        await checkoutThroughCrossSell(["Coca Cola Zero"], null);
+        await checkoutThroughCrossSell(["Coca Cola Zero"]);
         await screen.findByText("Enter your phone number");
         fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
         fireEvent.change(screen.getByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
@@ -572,6 +569,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         renderHomePage(["/menu"]);
 
         await checkoutThroughCrossSell(["Coca Cola Zero"]);
+        await payOnPaymentPage("Benefit");
 
         const order = await waitForGatewayOrder();
         expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);
@@ -583,6 +581,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         renderHomePage(["/menu"], ["3"]);
 
         await checkoutThroughCrossSell(["Coca Cola Zero"]);
+        await payOnPaymentPage("Benefit");
 
         // The cart merges the pick into the existing line, so the stale cart sent x1 while the
         // screen showed x2.
@@ -596,6 +595,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         renderHomePage(["/menu"]);
 
         await checkoutThroughCrossSell(["BBQ Chicken Ranch Detroit Brick"]);
+        await payOnPaymentPage("Benefit");
 
         // The combo offer would hold the brick back while checkout carried on without it.
         expect(screen.queryByText(/Sauce \+ Drink just for/)).toBeNull();
@@ -608,6 +608,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         renderHomePage(["/menu"]);
 
         await checkoutThroughCrossSell([]);
+        await payOnPaymentPage("Benefit");
 
         const order = await waitForGatewayOrder();
         expect(orderLines(order)).toEqual(["Cola x1"]);
@@ -615,49 +616,48 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         expect(mockBpgCheckout).toHaveBeenCalledTimes(1);
     });
 
-    // The cross-sell resumes checkout from useCheckout's own paymentMethod, which still starts on
-    // Benefit; the cart shows nothing preselected, so the customer's pick must have reached it.
-    it("named logged-in customer: the method picked in the cart, not useCheckout's default, reaches the order", async () => {
+    // useCheckout's own paymentMethod still starts on Benefit; the payment page preselects
+    // nothing, so the customer's pick there must be what reaches the order.
+    it("named logged-in customer: the method picked on the payment page, not useCheckout's default, reaches the order", async () => {
         signInAs(NAMED_CUSTOMER);
         renderHomePage(["/menu"]);
 
-        await checkoutThroughCrossSell([], "At counter");
+        await checkoutThroughCrossSell([]);
+        await payOnPaymentPage("At counter", "Place order");
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         expect(mockCreateOrder.mock.calls[0][0].payment_type).toBe(DEFAULT_PAYMENT_METHOD);
         expect(mockBpgCheckout).not.toHaveBeenCalled();
     });
 
-    it("guest: the method picked in the cart survives ClientInfoPopup and the phone code", async () => {
+    // Owner, 19 Oct 2026: a guest signs in with the phone code straight after the cart (no
+    // name-and-phone form), and only then chooses how to pay.
+    it("guest: signs in with the phone code, then pays on the payment page", async () => {
         mockVerifyOtp.mockResolvedValue({ accessToken: "tok-verified", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(NAMED_CUSTOMER);
         renderHomePage(["/menu"]);
 
-        await checkoutThroughCrossSell([], "At counter");
-        fireEvent.change(await screen.findByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
-        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
-        fireEvent.click(screen.getByRole("button", { name: "Checkout (Take Out)" }));
-        await waitFor(() => expect(mockGetAllBannedCstmrs).toHaveBeenCalled());
+        await checkoutThroughCrossSell([]);
+        expect(screen.queryByRole("textbox", { name: "Phone number" })).toBeNull();
+        expect(screen.queryByRole("radiogroup", { name: "Payment method" })).toBeNull();
         fireEvent.click(screen.getByText("test-verify-otp"));
+        await payOnPaymentPage("At counter", "Place order");
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         expect(mockCreateOrder.mock.calls[0][0].payment_type).toBe(DEFAULT_PAYMENT_METHOD);
         expect(mockBpgCheckout).not.toHaveBeenCalled();
     });
 
-    it("guest: the order placed after ClientInfoPopup and the phone code carries the pick", async () => {
+    it("guest: the order placed after the phone code and the payment page carries the pick", async () => {
         mockVerifyOtp.mockResolvedValue({ accessToken: "tok-verified", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValue(NAMED_CUSTOMER);
         renderHomePage(["/menu"]);
 
         await checkoutThroughCrossSell(["Coca Cola Zero"]);
-        fireEvent.change(await screen.findByRole("textbox", { name: "Phone number" }), { target: { value: "12345678" } });
-        fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Layla" } });
-        fireEvent.click(screen.getByRole("button", { name: "Checkout (Take Out)" }));
-        // The guest's order is held until the phone is verified, so nothing has gone out yet.
-        await waitFor(() => expect(mockGetAllBannedCstmrs).toHaveBeenCalled());
+        // Nothing goes out before the phone is verified.
         expect(mockBpgCheckout).not.toHaveBeenCalled();
         fireEvent.click(screen.getByText("test-verify-otp"));
+        await payOnPaymentPage("Benefit");
 
         const order = await waitForGatewayOrder();
         expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);

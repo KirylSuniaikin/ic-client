@@ -131,9 +131,12 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     });
     checkoutRef.current = checkout;
 
+    // Card and Apple Pay are chosen on the payment page after the cart, so their eligibility is
+    // fetched while either is open: a guest signs in with the cart already closed.
+    const checkoutOpen = cart.cartOpen || checkout.paymentPageOpen;
     const applePay = useApplePayCheckout({
         isAdmin, isKiosk,
-        cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
+        cartOpen: checkoutOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
         setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
         setPaymentMethod: checkout.setPaymentMethod, setOrderType: checkout.setOrderType,
         refreshMenu: menu.refreshMenu,
@@ -144,7 +147,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
 
     const cardPayment = useCardCheckout({
         isAdmin, isKiosk,
-        cartOpen: cart.cartOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
+        cartOpen: checkoutOpen, cartItems: cart.cartItems, orderType: checkout.orderType,
         setCartItems: cart.setCartItems, setCartOpen: cart.setCartOpen,
         setPaymentMethod: checkout.setPaymentMethod, setOrderType: checkout.setOrderType,
         refreshMenu: menu.refreshMenu,
@@ -199,6 +202,12 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     useEffect(() => {
         if (cart.cartItems.length === 0) cart.setCartOpen(false);
     }, [cart.cartItems]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The payment page belongs to a cart being paid for: it goes once the cart is emptied (the
+    // order went through) or opened again (Back, an item gone unavailable, a dismissed reminder).
+    useEffect(() => {
+        if (cart.cartItems.length === 0 || cart.cartOpen) checkout.setPaymentPageOpen(false);
+    }, [cart.cartItems.length, cart.cartOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Grouping is computed above the loader gate (not after it, where it is consumed) because the
     // preloader needs the photo URLs while the loader is still up. Both helpers are pure.
@@ -305,6 +314,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         cart.detroitComboPopupOpen,
         cart.baguettePizzaPopupOpen,
         cart.cartOpen,
+        checkout.paymentPageOpen,
         cart.closedPopup,
         cart.upsellPopupOpen,
         checkout.phonePopupOpen,

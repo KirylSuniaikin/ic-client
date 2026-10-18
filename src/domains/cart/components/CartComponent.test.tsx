@@ -12,9 +12,8 @@ import { BranchPickerDrawer } from "../../branch/components/BranchPickerDrawer";
 import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchWarningDrawer";
 import type { CartItem } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
-import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
+import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD } from "../../order/types";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { PAYMENT_ROW_NAME, choosePayment, paymentRow, waitForPaymentSheetToClose } from "./paymentSelector.testutil";
 
 // The stacking test below mounts the real picker; its map half must never load the Google script.
 jest.mock("../../branch/components/BranchMapView");
@@ -66,7 +65,6 @@ function cartProps(overrides: Partial<React.ComponentProps<typeof CartPopup>> = 
         handleDiscountChange: jest.fn(),
         menuData: [],
         paymentMethod: DEFAULT_PAYMENT_METHOD,
-        onPaymentChange: jest.fn<void, [string]>(),
         orderType: "Pick Up",
         onDeliveryTypeChange: jest.fn<void, [string]>(),
         isKiosk: false,
@@ -80,68 +78,34 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
     return props;
 }
 
-describe("CartPopup — payment selector", () => {
-    // Nothing is preselected (owner, 18 Oct 2026), not even the method the cart was handed.
-    it("renders the payment options with none preselected (customer)", () => {
+// Owner, 19 Oct 2026: the cart asks only pickup or delivery and the branch; the methods are on the
+// payment page that follows it (PaymentPage.test.tsx).
+describe("CartPopup — no payment choice in the cart", () => {
+    it("shows a customer no payment methods, only Checkout", () => {
         renderCart({ paymentMethod: PAY_ONLINE_METHOD });
 
-        fireEvent.click(paymentRow());
-        expect(screen.getByRole("radio", { name: "Benefit" })).toBeTruthy();
-        expect(screen.getByRole("radio", { name: "BenefitPay" })).toBeTruthy();
-        expect(screen.getByRole("radio", { name: "Benefit" }).getAttribute("aria-checked")).toBe("false");
+        expect(screen.queryByText("Payment method")).toBeNull();
+        expect(screen.queryByRole("radio")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        expect(screen.queryByTestId("payment-invite-bubble")).toBeNull();
+        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
     });
 
-    // Back for now (17 Oct 2026): a pickup customer may pay on collection again, sent as the same
-    // counter tender the kiosk uses, which useCheckout routes to the plain createOrder flow.
-    it("offers paying at the counter, sent as the counter tender", async () => {
-        const onPaymentChange = jest.fn<void, [string]>();
-        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
-
-        await choosePayment("At counter");
-
-        expect(onPaymentChange).toHaveBeenCalledWith(DEFAULT_PAYMENT_METHOD);
-    });
-
-    it("calls onPaymentChange with the canonical value when a method is selected", async () => {
-        const onPaymentChange = jest.fn<void, [string]>();
-        renderCart({ onPaymentChange, paymentMethod: WALLET_METHOD });
-
-        await choosePayment("Benefit");
-
-        expect(onPaymentChange).toHaveBeenCalledWith(PAY_ONLINE_METHOD);
-    });
-
-    it("offers the wallet as its own method, distinct from the hosted card page", async () => {
-        const onPaymentChange = jest.fn<void, [string]>();
-        renderCart({ onPaymentChange });
-
-        await choosePayment("BenefitPay");
-
-        expect(onPaymentChange).toHaveBeenCalledWith(WALLET_METHOD);
-    });
-
-    // The row's title is the cart's section label, like "Pick up from"; an in-row "Pay with"
-    // (الدفع عبر) once read "pay via pay on collection" with the counter tender chosen.
-    it("titles the row in Arabic and names only the method in it", async () => {
+    it("shows an Arabic customer no payment section either", async () => {
         await i18n.changeLanguage("ar");
         try {
             renderCart({ paymentMethod: DEFAULT_PAYMENT_METHOD });
-            fireEvent.click(screen.getByRole("button", { name: /^طريقة الدفع / }));
-            fireEvent.click(screen.getByRole("radio", { name: "الدفع عند الاستلام" }));
-            await waitForPaymentSheetToClose();
 
-            expect(screen.getByText("طريقة الدفع")).toBeTruthy();
-            expect(screen.getByRole("button", { name: "طريقة الدفع الدفع عند الاستلام" })).toBeTruthy();
-            expect(screen.queryByText(/الدفع عبر/)).toBeNull();
+            expect(screen.queryByText("طريقة الدفع")).toBeNull();
+            expect(screen.queryByRole("radio")).toBeNull();
         } finally {
             await i18n.changeLanguage("en");
         }
     });
 
-    it("hides the payment selector for admin", () => {
+    it("shows no payment section for admin", () => {
         renderCart({ isAdmin: true });
 
-        expect(screen.queryByRole("button", { name: PAYMENT_ROW_NAME })).toBeNull();
         expect(screen.queryByText("Payment method")).toBeNull();
     });
 });
@@ -218,21 +182,17 @@ describe("CartPopup — delivery-type toggle", () => {
         expect(onDeliveryTypeChange).toHaveBeenCalledWith("Delivery");
     });
 
-    // Delivery is paid online in DeliveryCheckoutDrawer, which asks for the method itself.
-    // A visible group here would let a customer pick Cash and then be charged by card.
-    it("hides the payment-method selector when Delivery is selected", () => {
+    it("shows no payment section when Delivery is selected either", () => {
         renderCart({ orderType: "Delivery" });
 
         expect(screen.getByRole("button", { name: /delivery/i })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: PAYMENT_ROW_NAME })).toBeNull();
         expect(screen.queryByText("Payment method")).toBeNull();
     });
 
-    it("hides both the delivery-type toggle and the payment-method selector on kiosk (always Pickup + Card)", () => {
+    it("hides the delivery-type toggle on kiosk (always Pickup), with no payment section", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
-        expect(screen.queryByRole("button", { name: PAYMENT_ROW_NAME })).toBeNull();
         expect(screen.queryByText(/payment method/i)).toBeNull();
     });
 
@@ -253,27 +213,24 @@ describe("CartPopup — delivery-type toggle", () => {
 });
 
 describe("CartPopup — checkout", () => {
-    // The cart supplies the real delivery type + payment method and infoCollected=false so the
-    // checkout hook still gates guests/logged-in-without-name into ClientInfoPopup.
-    it("passes order type, payment method and infoCollected=false to onCheckout", async () => {
+    // infoCollected=false: the checkout hook takes a customer on to sign-in and the payment page,
+    // where the method is chosen, so the tender sent here is only the one the cart was handed.
+    it("passes the order type and infoCollected=false to onCheckout", () => {
         const onCheckout = jest.fn();
         renderCart({ onCheckout, paymentMethod: PAY_ONLINE_METHOD });
 
-        await choosePayment("BenefitPay");
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
-        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", PAY_ONLINE_METHOD, "", null, false);
     });
 
-    // Whatever tender the cart is handed (the retired "Cash", say), only the customer's own pick
-    // is ever sent.
-    it("never sends the tender it was handed before the customer picks", () => {
+    it("checks a Delivery order out the same way", () => {
         const onCheckout = jest.fn();
-        renderCart({ onCheckout, paymentMethod: "Cash" });
+        renderCart({ onCheckout, orderType: "Delivery", paymentMethod: PAY_ONLINE_METHOD });
 
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
-        expect(onCheckout).not.toHaveBeenCalled();
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Delivery", PAY_ONLINE_METHOD, "", null, false);
     });
 
     it("keeps sending the kiosk its own tender — kiosk never chooses", () => {
@@ -315,19 +272,16 @@ describe("CartPopup — pick-up branch card", () => {
         expect(onChangeBranch).toHaveBeenCalledTimes(1);
     });
 
-    // The order the owner chose: delivery type, then the pickup branch, then how to pay, each
-    // titled above its control.
-    it("sits between the delivery-type toggle and the payment method", () => {
+    // The order the owner chose: delivery type, then the pickup branch, then the total.
+    it("sits between the delivery-type toggle and the total", () => {
         renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
 
         const deliveryTitle = screen.getByText("Delivery type");
         const pickupTitle = screen.getByText("Pick up from");
-        const paymentTitle = screen.getByText("Payment method");
-        const payment = paymentRow();
+        const total = screen.getByText("Total(VAT incl.)");
 
         expect(deliveryTitle.compareDocumentPosition(pickupTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(pickupTitle.compareDocumentPosition(paymentTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(paymentTitle.compareDocumentPosition(payment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(pickupTitle.compareDocumentPosition(total) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("shows the branch address on its own line under the name", () => {

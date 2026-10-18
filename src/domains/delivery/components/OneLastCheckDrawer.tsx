@@ -23,8 +23,11 @@ export interface OneLastCheckDrawerProps {
     open: boolean;
     address: CustomerAddress | null;
     items: CartItem[];
-    /** Rendered as-is. Delivery is online-only (§1.1), so this is whatever the provider will charge. */
-    paymentLabel: string;
+    /**
+     * Rendered as-is. Delivery is online-only (§1.1), so this is whatever the provider will charge.
+     * Absent when the method is chosen after this sheet, on the payment page (owner, 19 Oct 2026).
+     */
+    paymentLabel?: string;
     onEdit: () => void;
     onConfirm: () => void;
     onClose: () => void;
@@ -109,21 +112,23 @@ export function OneLastCheckDrawer({
                     </Box>
                 </Box>
 
-                <Box sx={{ ...SECTION_CARD_SX, display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                    <CreditCardRoundedIcon sx={{ fontSize: 20, color: BRAND_RED, flexShrink: 0 }} />
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#3b352c' }}>
-                            {t('delivery.payingWith')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#8a807a' }}>{paymentLabel}</Typography>
+                {paymentLabel !== undefined && (
+                    <Box sx={{ ...SECTION_CARD_SX, display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                        <CreditCardRoundedIcon sx={{ fontSize: 20, color: BRAND_RED, flexShrink: 0 }} />
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#3b352c' }}>
+                                {t('delivery.payingWith')}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#8a807a' }}>{paymentLabel}</Typography>
+                        </Box>
                     </Box>
-                </Box>
+                )}
 
                 <Button
                     variant="contained"
                     onClick={onConfirm}
                     disabled={address === null}
-                    sx={{ ...PRIMARY_BUTTON_SX, mb: 1 }}
+                    sx={{ ...PRIMARY_BUTTON_SX, mb: 1, ...(paymentLabel === undefined ? { mt: 1.5 } : {}) }}
                 >
                     {t('delivery.looksGood')}
                 </Button>

@@ -78,6 +78,16 @@ export interface UseCheckoutResult {
     /** CrossSellPopup's "Next": resumes checkout once the picks it just added are in the cart. */
     continueAfterCrossSell: () => void;
     executeOrderCreation: (orderData: CreateOrderRequest, originalCartItems: CartItem[]) => Promise<void>;
+    /**
+     * The payment page (owner, 19 Oct 2026): after the cart and, for a guest, the phone sign-in,
+     * every method is listed here. Pickup only; delivery pays on its own page after the address.
+     */
+    paymentPageOpen: boolean;
+    setPaymentPageOpen: Dispatch<SetStateAction<boolean>>;
+    /** The payment page's Pay for the methods that travel as the order's payment_type. */
+    payWithTender: (tender: string) => void;
+    /** ClientInfoPopup's Save for a signed-in customer with no name on file. */
+    continueWithDetails: (tel: string, customerName: string, branchId: string) => void;
     /** Non-null only while a BenefitPay wallet payment is on screen. */
     walletSession: BenefitPaySession | null;
     setWalletSession: Dispatch<SetStateAction<BenefitPaySession | null>>;
@@ -138,11 +148,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const [errorSnackBarOpen, setErrorSnackBarOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('Error occurred placing an order');
     const [showOrderConfirmed, setShowOrderConfirmed] = useState(false);
-    // Mandatory-account checkout gate: a guest order build is held here while the OTP
-    // sheet verifies their phone. A ref, not state -- the
-    // resolution effect below must never read a stale closure of the pending order/items.
+    // Mandatory-account checkout gate: a guest signs in (phone, then the WhatsApp code) before
+    // the payment page. What they were checking out is held here meanwhile. A ref, not state --
+    // the resolution effect below must never read a stale closure of the pending items.
     const [awaitingVerification, setAwaitingVerification] = useState(false);
-    const verificationRef = useRef<{ order: CreateOrderRequest; items: CartItem[] } | null>(null);
+    const verificationRef = useRef<{ items: CartItem[]; deliveryMethod: string | null } | null>(null);
+    const [paymentPageOpen, setPaymentPageOpen] = useState(false);
+    // Who the payment page's order is for, settled before it opens: the signed-in profile's phone
+    // and name, or what ClientInfoPopup collected for an account with no name on file.
+    const [payer, setPayer] =
+        useState<{ tel: string; name: string; branchId: string; deliveryMethod: string | null } | null>(null);
     // Guards against misreading the render before isLoginOpen flips true (in the same
     // commit a successful login opens and closes the sheet) as a dismissal -- see the
     // resolution effect below.
@@ -337,41 +352,77 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
-    // Rebuilds the order against the phone the customer actually verified -- the login
-    // sheet lets them go back and change the number on the code step, so the typed and
-    // verified phones can diverge; POST /api/create_order links the order to a CRM row
-    // purely by string-matching tel, so submitting anything but the verified phone would
-    // silently misfile the order.
-    async function completeVerifiedCheckout(): Promise<void> {
-        const pending = verificationRef.current;
-        verificationRef.current = null;
-        if (!pending) return;
+    // Owner, 19 Oct 2026: the cart asks only pickup or delivery (and the branch). A guest then
+    // signs in with their phone and the WhatsApp code; everyone lands on the payment page, where
+    // every method is listed. A signed-in customer goes straight there.
+    async function continueToPayment(items: CartItem[], deliveryMethod: string | null): Promise<void> {
+        if (token === null) {
+            verificationRef.current = { items, deliveryMethod };
+            setCartOpen(false);
+            setAwaitingVerification(true);
+            openLogin(undefined, undefined, true);
+            return;
+        }
         const me = await fetchProfileForCheckout();
-        const verified: CreateOrderRequest = {
-            ...pending.order,
-            tel: me?.phone ?? pending.order.tel,
-            customer_name: pending.order.customer_name || me?.name || null,
-        };
-        if (verified.tel !== pending.order.tel) {
+        // No name on file -- a legacy account, or the customer closed the sign-in before the name
+        // step. Ask via ClientInfoPopup rather than send a nameless order to the kitchen.
+        if (!me?.name) {
+            openClientInfoPopup();
+            return;
+        }
+        await openPaymentFor(items, me.phone, me.name, chosenBranchId, deliveryMethod);
+    }
+
+    async function openPaymentFor(
+        items: CartItem[], tel: string, customerName: string, branchId: string, deliveryMethod: string | null,
+    ): Promise<void> {
+        // Delivery chooses its address next and pays on the page after it, so its order is built
+        // now and held (§1.7), exactly as before.
+        if (deliveryMethod === "Delivery") {
+            await handleCheckout(items, tel, customerName, "Delivery", null, "", branchId, true);
+            return;
+        }
+        try {
             const blacklist = await getAllBannedCstmrs();
-            if (isCustomerBanned(blacklist, verified.tel ?? "")) {
+            if (isCustomerBanned(blacklist, tel)) {
                 setBlacklistSnackBarOpen(true);
                 return;
             }
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : String(error));
+            setErrorSnackBarOpen(true);
+            logger.error("Error checking the blacklist before payment:", error);
+            return;
         }
-        await finalizeOrder(verified, pending.items);
+        setPayer({ tel, name: customerName, branchId, deliveryMethod });
+        setCartOpen(false);
+        setPhonePopupOpen(false);
+        setPaymentPageOpen(true);
+    }
+
+    function payWithTender(tender: string): void {
+        if (payer === null) return;
+        void handleCheckout(cartItems, payer.tel, payer.name, payer.deliveryMethod, tender, "", payer.branchId, true);
+    }
+
+    function continueWithDetails(tel: string, customerName: string, branchId: string): void {
+        void openPaymentFor(cartItems, tel, customerName, branchId, orderType);
     }
 
     // Routed through a ref so the resolution effect below can call the latest closure
-    // without listing completeVerifiedCheckout in its dependency array (its identity
-    // changes every render) -- mirrors the loadProfileRef/loadOrdersRef pattern in
-    // CustomerProfilePopup.tsx, keeping the effect free of an eslint-disable.
-    const completeVerifiedCheckoutRef = useRef(completeVerifiedCheckout);
-    completeVerifiedCheckoutRef.current = completeVerifiedCheckout;
+    // without listing continueToPayment in its dependency array (its identity changes every
+    // render) -- mirrors the loadProfileRef/loadOrdersRef pattern in CustomerProfilePopup.tsx,
+    // keeping the effect free of an eslint-disable.
+    const resumeAfterSignInRef = useRef((): void => {});
+    resumeAfterSignInRef.current = (): void => {
+        const pending = verificationRef.current;
+        verificationRef.current = null;
+        if (pending) void continueToPayment(pending.items, pending.deliveryMethod);
+    };
 
     useEffect(() => {
         if (!awaitingVerification) { seenLoginOpenRef.current = false; return; }
-        if (token !== null) { setAwaitingVerification(false); void completeVerifiedCheckoutRef.current(); return; }
+        if (token !== null) { setAwaitingVerification(false); resumeAfterSignInRef.current(); return; }
         if (isLoginOpen) { seenLoginOpenRef.current = true; return; }
         if (seenLoginOpenRef.current) {
             setAwaitingVerification(false);
@@ -408,34 +459,16 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             onKioskCheckout?.(items);
             return;
         }
-        // infoCollected is the "identity has been gathered" gate. The cart supplies a real
-        // payment method up-front, so it can no longer double as the sentinel — the first
-        // checkout click arrives with infoCollected=false and routes to the admin popup,
-        // the logged-in re-entry, or ClientInfoPopup for guests.
+        // infoCollected is the "identity has been gathered" gate. The cart's Checkout arrives
+        // with it false and routes to the admin popup, or for a customer to sign-in and the
+        // payment page; the payment page's Pay comes back with it true and places the order.
         if (!infoCollected) {
             if (isAdmin) {
                 setCartOpen(false);
                 setAdminOrderDetailsPopUpOpen(true);
                 return;
             }
-            if (token) {
-                const me = await fetchProfileForCheckout();
-                // A logged-in customer whose name we know needs nothing else from the popup:
-                // the phone and name come from the profile, and the delivery type / payment
-                // method are the choices they made in the cart. Re-enter with infoCollected so
-                // the order runs through the same blacklist / known-customer path as any other
-                // checkout instead of a parallel one.
-                if (me?.name) {
-                    await handleCheckout(items, me.phone, me.name, deliveryMethod, paymentMethod, "", chosenBranchId, true);
-                    return;
-                }
-                // No name on file — a legacy account, or the customer closed the popup before
-                // the name step. Ask via ClientInfoPopup rather than send a nameless order to
-                // the kitchen.
-                openClientInfoPopup();
-                return;
-            }
-            openClientInfoPopup();
+            await continueToPayment(items, deliveryMethod);
             return;
         }
         if (isAdmin && isEditMode) {
@@ -521,14 +554,13 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                     setBlacklistSnackBarOpen(true);
                     return;
                 }
-                // Mandatory account: a guest must verify this phone via OTP before the
-                // order is created. Hold the order/items in a ref
-                // (not state) so the resolution effect above can never read a stale closure.
+                // Mandatory account: no order without a verified phone. Signed in on the way
+                // to the payment page, so this only catches a session that ended since; the
+                // customer signs in again and comes back to the payment page.
                 if (token === null) {
-                    verificationRef.current = { order, items: submittedItems };
                     setPhonePopupOpen(false);
-                    setAwaitingVerification(true);
-                    openLogin(order.tel ?? "", order.customer_name ?? undefined, true);
+                    setPaymentPageOpen(false);
+                    await continueToPayment(submittedItems, order.type);
                     return;
                 }
                 await finalizeOrder(order, submittedItems);
@@ -586,6 +618,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         showOrderConfirmed, setShowOrderConfirmed,
         generalCrossSellItems, finalCrossSellItems,
         handleCheckout, continueAfterCrossSell, executeOrderCreation,
+        paymentPageOpen, setPaymentPageOpen, payWithTender, continueWithDetails,
         walletSession, setWalletSession,
         resetCrossSellShown,
     };

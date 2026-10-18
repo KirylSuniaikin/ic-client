@@ -282,54 +282,6 @@ describe("useApplePayCheckout — button visibility", () => {
     });
 });
 
-// Owner, 18 Oct 2026: a guest's cart lists Apple Pay locked, on a device that can pay with it.
-describe("useApplePayCheckout — sign-in required", () => {
-    it("asks a guest on an Apple Pay device to sign in", async () => {
-        mockRefreshToken.mockRejectedValue(new Error("no session"));
-        const { result } = await renderReady();
-
-        await waitFor(() => expect(result.current.signInRequired).toBe(true));
-        expect(result.current.available).toBe(false);
-    });
-
-    // Signing in would not bring Apple Pay to a device without it, so it is not offered there.
-    it.each([
-        ["there is no ApplePaySession", () => { delete window.ApplePaySession; }],
-        ["canMakePayments() is false", () => { FakeApplePaySession.canPay = false; }],
-    ])("does not ask a guest when %s", async (_label, arrange) => {
-        arrange();
-        mockRefreshToken.mockRejectedValue(new Error("no session"));
-        const { result } = await renderReady();
-
-        // Settles the session check, so a later flip to true would have happened by now.
-        await act(async () => { await Promise.resolve(); });
-        expect(result.current.signInRequired).toBe(false);
-    });
-
-    it("does not ask while the session is still being restored", async () => {
-        mockRefreshToken.mockReturnValue(new Promise(() => {}));
-        const { result } = await renderReady();
-
-        expect(result.current.signInRequired).toBe(false);
-    });
-
-    it("does not ask a signed-in customer", async () => {
-        const { result } = await renderAvailable();
-
-        expect(result.current.signInRequired).toBe(false);
-    });
-
-    it("never asks on admin or the kiosk", async () => {
-        mockRefreshToken.mockRejectedValue(new Error("no session"));
-        const { result: admin } = await renderReady({ isAdmin: true });
-        const { result: kiosk } = await renderReady({ isKiosk: true });
-
-        await act(async () => { await Promise.resolve(); });
-        expect(admin.current.signInRequired).toBe(false);
-        expect(kiosk.current.signInRequired).toBe(false);
-    });
-});
-
 describe("useApplePayCheckout — token change", () => {
     it("hides the button and ignores the previous customer's prefetch until the new token's prefetch lands", async () => {
         mockMe.mockResolvedValue({ ...PROFILE, amountOfOrders: 0 });

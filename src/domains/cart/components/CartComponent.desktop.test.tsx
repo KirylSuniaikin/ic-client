@@ -20,9 +20,8 @@ import { DesktopLayoutAllowedContext } from "../../../shared/hooks/useDesktopLay
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import {
-    cartModalRoot, choosePayment, focusedElement, layerOf, paymentRow, paymentRowName, sheetRoot,
-} from "./paymentSelector.testutil";
-import { backdropOf, phoneCartRoot, scrollContainerOf } from "./cartLayout.testutil";
+    backdropOf, cartModalRoot, focusedElement, layerOf, phoneCartRoot, scrollContainerOf, sheetRoot,
+} from "./cartLayout.testutil";
 
 jest.mock("../../branch/components/BranchMapView");
 
@@ -55,7 +54,6 @@ function cartProps(overrides: Partial<CartProps> = {}): CartProps {
         handleDiscountChange: jest.fn(),
         menuData: [],
         paymentMethod: WALLET_METHOD,
-        onPaymentChange: jest.fn<void, [string]>(),
         orderType: "Pick Up",
         onDeliveryTypeChange: jest.fn<void, [string]>(),
         isKiosk: false,
@@ -96,7 +94,7 @@ describe("CartPopup — PC dialog", () => {
         expect(scrollContainerOf(screen.getByText("Water"))).toBe(aside);
 
         const dialog = screen.getByTestId("item-popup-dialog");
-        [screen.getByText("Delivery type"), paymentRow(), screen.getByRole("button", { name: "Checkout" })].forEach((control) => {
+        [screen.getByText("Delivery type"), screen.getByRole("button", { name: "Checkout" })].forEach((control) => {
             expect(dialog.contains(control)).toBe(true);
             expect(aside.contains(control)).toBe(false);
         });
@@ -106,7 +104,7 @@ describe("CartPopup — PC dialog", () => {
         stubMatchMedia(true);
         render(<CartPopup {...cartProps()} />);
 
-        const choices = scrollContainerOf(paymentRow());
+        const choices = scrollContainerOf(screen.getByText("Delivery type"));
         expect(choices).not.toBeNull();
         expect(choices).not.toBe(screen.getByTestId("item-popup-aside"));
         const pinned = [screen.getByText("Total(VAT incl.)"), screen.getByRole("button", { name: "Checkout" })];
@@ -197,14 +195,12 @@ describe("CartPopup — PC dialog", () => {
         expect(props.onClose).not.toHaveBeenCalled();
     });
 
-    it("keeps the same sections and places the order with the same arguments as on the phone", async () => {
+    it("keeps the same sections and places the order with the same arguments as on the phone", () => {
         stubMatchMedia(true);
         const props = cartProps();
         render(<CartPopup {...props} />);
 
         expect(screen.getByText("Delivery type")).toBeTruthy();
-        await choosePayment("BenefitPay");
-        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("BenefitPay"));
         fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
 
         expect(props.onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);

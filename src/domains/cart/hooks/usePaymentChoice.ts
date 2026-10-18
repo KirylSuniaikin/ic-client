@@ -4,7 +4,7 @@ import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../
 /**
  * Apple Pay and card are not payment_type values: each runs its own checkout (useApplePayCheckout,
  * useCardCheckout) and never goes through the order's payment string. So only the counter and the
- * two BENEFIT choices travel through `paymentMethod`; these two live in this hook alone.
+ * two BENEFIT choices travel as a tender; these two live in this hook alone.
  */
 export const APPLE_PAY_CHOICE = "applePay";
 export const CARD_CHOICE = "card";
@@ -22,66 +22,50 @@ const DISPLAY_ORDER: readonly PaymentChoice[] = [
     CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD, WALLET_METHOD, DEFAULT_PAYMENT_METHOD,
 ];
 
-function isTenderChoice(value: PaymentChoice): value is TenderChoice {
+// What a delivery order can be paid with: the three methods EazyPay's hosted page takes. That page
+// runs card and Apple Pay itself, so they are offered whatever our own card and Apple Pay checkouts
+// would allow.
+const DELIVERY_CHOICES: ReadonlySet<PaymentChoice> = new Set([CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD]);
+
+export function isTenderChoice(value: PaymentChoice): value is TenderChoice {
     return value === DEFAULT_PAYMENT_METHOD || value === PAY_ONLINE_METHOD || value === WALLET_METHOD;
 }
 
-/** How a method appears: pickable, listed but locked until the customer signs in, or not at all. */
-type ChoiceAccess = "offered" | "locked" | "hidden";
-
-function accessFor(available: boolean, signInRequired: boolean): ChoiceAccess {
-    if (available) return "offered";
-    return signInRequired ? "locked" : "hidden";
-}
-
 interface UsePaymentChoiceParams {
-    onPaymentChange: (value: string) => void;
     applePayAvailable: boolean;
     cardAvailable: boolean;
-    applePaySignInRequired: boolean;
-    cardSignInRequired: boolean;
+    forDelivery: boolean;
 }
 
 export interface UsePaymentChoiceResult {
-    /** Every method to list, in display order, locked ones included. */
     choices: PaymentChoice[];
-    /**
-     * Listed but not pickable: Apple Pay and card for a guest (owner, 18 Oct 2026), shown so a
-     * guest learns they exist and that an account is what they take.
-     */
-    locked: PaymentChoice[];
-    /** Null until the customer picks a method in this cart. */
+    /** Null until the customer picks a method on this opening of the payment page. */
     selected: PaymentChoice | null;
     select: (choice: PaymentChoice) => void;
 }
 
 /**
- * Nothing is chosen for the customer (owner, 18 Oct 2026): every cart opens with no method
+ * Nothing is chosen for the customer (owner, 18 Oct 2026): the payment page opens with no method
  * selected, neither a default nor the method used last time, so customers meet the new methods
- * instead of paying the way they always have. The cart is mounted only while it is open, so the
+ * instead of paying the way they always have. The page is mounted only while it is open, so the
  * pick lives exactly as long as that opening.
  */
 export function usePaymentChoice({
-    onPaymentChange, applePayAvailable, cardAvailable, applePaySignInRequired, cardSignInRequired,
+    applePayAvailable, cardAvailable, forDelivery,
 }: UsePaymentChoiceParams): UsePaymentChoiceResult {
     const [picked, setPicked] = useState<PaymentChoice | null>(null);
 
-    const accessOf = (choice: PaymentChoice): ChoiceAccess =>
-        choice === APPLE_PAY_CHOICE ? accessFor(applePayAvailable, applePaySignInRequired)
-            : choice === CARD_CHOICE ? accessFor(cardAvailable, cardSignInRequired)
-                : "offered";
+    const isOffered = (choice: PaymentChoice): boolean =>
+        forDelivery ? DELIVERY_CHOICES.has(choice)
+            : choice === APPLE_PAY_CHOICE ? applePayAvailable
+                : choice === CARD_CHOICE ? cardAvailable
+                    : true;
 
-    const choices = DISPLAY_ORDER.filter((choice) => accessOf(choice) !== "hidden");
-    const locked = choices.filter((choice) => accessOf(choice) === "locked");
+    const choices = DISPLAY_ORDER.filter(isOffered);
 
     // A picked method that stops being available (sign-out, eligibility refused) is no longer
     // selected, so the pay button cannot start a flow this customer can no longer use.
-    const selected = picked !== null && accessOf(picked) === "offered" ? picked : null;
+    const selected = picked !== null && isOffered(picked) ? picked : null;
 
-    function select(choice: PaymentChoice): void {
-        setPicked(choice);
-        if (isTenderChoice(choice)) onPaymentChange(choice);
-    }
-
-    return { choices, locked, selected, select };
+    return { choices, selected, select: setPicked };
 }

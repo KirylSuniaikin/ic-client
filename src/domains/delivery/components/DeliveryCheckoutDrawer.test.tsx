@@ -8,7 +8,7 @@ import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatch
 import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import { createAddress, getDeliveryAvailability, listAddresses, updateAddress } from "../../../shared/api/delivery";
-import type { CustomerAddress, DeliveryPaymentMethod } from "../types";
+import type { CustomerAddress } from "../types";
 import type { CartItem } from "../../menu/types";
 
 jest.mock("../../../shared/api/delivery");
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 function renderDrawer() {
-    const onConfirm = jest.fn<void, [CustomerAddress, typeof AVAILABLE, DeliveryPaymentMethod]>();
+    const onConfirm = jest.fn<void, [CustomerAddress, typeof AVAILABLE]>();
     const onUnavailable = jest.fn<void, [typeof AVAILABLE]>();
     const onClose = jest.fn<void, []>();
     render(
@@ -65,13 +65,13 @@ describe("DeliveryCheckoutDrawer", () => {
         await waitFor(() => expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET));
     });
 
-    it("sends the basket with the Place order pin check so the server can refuse an order too big for the couriers", async () => {
+    it("sends the basket with the Continue pin check so the server can refuse an order too big for the couriers", async () => {
         const { onUnavailable } = renderDrawer();
         await screen.findByText(/20–30 min/);
         mockGate.mockClear();
         mockGate.mockResolvedValue({ ...AVAILABLE, available: false, reason: "INSUFFICIENT_COURIERS" });
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
         await waitFor(() => expect(onUnavailable).toHaveBeenCalledTimes(1));
         expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET);
@@ -97,14 +97,14 @@ describe("DeliveryCheckoutDrawer", () => {
      * §1.2 step 2 — the gate runs again immediately before payment, because state moves. Passing
      * it opens the §1.6 confirm sheet; the charge happens only after the customer accepts there.
      */
-    it("re-checks availability on Place order and opens the confirm sheet instead of charging", async () => {
+    it("re-checks availability on Continue and opens the confirm sheet instead of charging", async () => {
         const { onConfirm } = renderDrawer();
         // Wait for the ETA fetch to settle: while it is in flight the button renders a spinner
         // and has no accessible name.
         await screen.findByText(/20–30 min/);
         mockGate.mockClear();
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
         expect(await screen.findByRole("button", { name: /looks good/i })).toBeTruthy();
         expect(mockGate).toHaveBeenCalledWith({ latitude: 26.2285, longitude: 50.586 }, BASKET);
@@ -116,56 +116,31 @@ describe("DeliveryCheckoutDrawer", () => {
         const { onConfirm } = renderDrawer();
         await screen.findByText(/20–30 min/);
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
         fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
 
         await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
-        expect(onConfirm).toHaveBeenCalledWith(
-            expect.objectContaining({ id: "a1" }), expect.objectContaining(AVAILABLE), "CARD"
-        );
+        expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }), expect.objectContaining(AVAILABLE));
     });
 
-    /**
-     * §1.5 block 4. `payment_type` carries the EazyPay method onto the order, so it is real data
-     * even while the provider is stubbed — and the only assertion that existed used the default,
-     * which a component that ignored the toggle entirely would still satisfy.
-     */
-    it("carries a non-default payment method all the way to the caller", async () => {
-        const { onConfirm } = renderDrawer();
-        await screen.findByText(/20–30 min/);
-
-        fireEvent.click(screen.getByRole("button", { name: /benefit/i }));
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
-        fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
-
-        await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
-        expect(onConfirm.mock.calls[0][2]).toBe("BENEFIT");
-    });
-
-    /**
-     * The §1.6 sheet names the method, so a wrong choice is catchable before the charge.
-     *
-     * Read out of the "Paying with" block specifically: "Apple Pay" is also the label of the
-     * toggle button on the screen behind, so a document-wide query would pass with the confirm
-     * sheet hard-coded to Card.
-     */
-    it("names the chosen method on the confirm sheet", async () => {
+    // Owner, 19 Oct 2026: delivery chooses how to pay on the payment page after this screen.
+    it("asks for no payment method, here or on the confirm sheet", async () => {
         renderDrawer();
         await screen.findByText(/20–30 min/);
 
-        fireEvent.click(screen.getByRole("button", { name: /apple pay/i }));
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        expect(screen.queryByText("Pay with")).toBeNull();
+        expect(screen.queryByRole("button", { name: /apple pay/i })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
         await screen.findByRole("button", { name: /looks good/i });
 
-        const payingWith = screen.getByText("Paying with").nextElementSibling;
-        expect(payingWith?.textContent).toBe("Apple Pay");
+        expect(screen.queryByText("Paying with")).toBeNull();
     });
 
     it("returns to the checkout screen without charging when the customer backs out of the sheet", async () => {
         const { onConfirm } = renderDrawer();
         await screen.findByText(/20–30 min/);
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
         fireEvent.click(await screen.findByRole("button", { name: /edit order/i }));
 
         await waitFor(() => expect(screen.queryByRole("button", { name: /looks good/i })).toBeNull());
@@ -177,18 +152,15 @@ describe("DeliveryCheckoutDrawer", () => {
     it("stands down while the confirm sheet is up and returns with its state on Edit order", async () => {
         renderDrawer();
         await screen.findByText(/20–30 min/);
-        fireEvent.click(screen.getByRole("button", { name: /apple pay/i }));
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
         await screen.findByRole("button", { name: /looks good/i });
 
-        expect(screen.queryByRole("button", { name: /place order/i })).toBeNull();
+        expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
 
         fireEvent.click(screen.getByRole("button", { name: /edit order/i }));
 
-        expect(await screen.findByRole("button", { name: /place order/i })).toBeTruthy();
-        // The method survives the round trip — it lives in this component, not in the sheet.
-        expect(screen.getByRole("button", { name: /apple pay/i }).getAttribute("aria-pressed")).toBe("true");
+        expect(await screen.findByRole("button", { name: /continue/i })).toBeTruthy();
     });
 
     it("routes to the Keeta fallback instead of confirming when the final gate refuses", async () => {
@@ -197,7 +169,7 @@ describe("DeliveryCheckoutDrawer", () => {
         mockGate.mockResolvedValue({ available: false, reason: "NO_COURIER", branchId: "b1",
             etaMinutesMin: null, etaMinutesMax: null });
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
         await waitFor(() => expect(onUnavailable).toHaveBeenCalledTimes(1));
         expect(onConfirm).not.toHaveBeenCalled();
@@ -208,7 +180,7 @@ describe("DeliveryCheckoutDrawer", () => {
         renderDrawer();
 
         await waitFor(() => {
-            const button = screen.getByRole("button", { name: /place order/i }) as HTMLButtonElement;
+            const button = screen.getByRole("button", { name: /continue/i }) as HTMLButtonElement;
             expect(button.disabled).toBe(true);
         });
     });
@@ -314,7 +286,7 @@ describe("DeliveryCheckoutDrawer on PC", () => {
         clearMatchMedia();
     });
 
-    it("is a centred 520px dialog with no handle, and Place order still leads to the confirm step", async () => {
+    it("is a centred 520px dialog with no handle, and Continue still leads to the confirm step", async () => {
         stubMatchMedia(true);
         const { onConfirm } = renderDrawer();
         await screen.findByText(/20–30 min/);
@@ -325,7 +297,7 @@ describe("DeliveryCheckoutDrawer on PC", () => {
         expect(emotionRulesFor(paper as Element)).toContain("width:min(520px, 92vw)");
         expect(sheetHandleCount(paper as Element)).toBe(0);
 
-        fireEvent.click(screen.getByRole("button", { name: /place order/i }));
+        fireEvent.click(screen.getByRole("button", { name: /continue/i }));
         fireEvent.click(await screen.findByRole("button", { name: /looks good/i }));
 
         await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));

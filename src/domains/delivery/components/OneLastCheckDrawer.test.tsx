@@ -58,6 +58,21 @@ describe("OneLastCheckDrawer", () => {
         expect(onEdit).toHaveBeenCalledTimes(1);
     });
 
+    it("names the method it was given", () => {
+        renderSheet();
+
+        expect(screen.getByText("Paying with")).toBeTruthy();
+        expect(screen.getByText("Card")).toBeTruthy();
+    });
+
+    // Owner, 19 Oct 2026: the delivery checkout picks its method on the payment page after this sheet.
+    it("leaves the method out when none is chosen yet", () => {
+        renderSheet({ paymentLabel: undefined });
+
+        expect(screen.queryByText("Paying with")).toBeNull();
+        expect(screen.getByRole("button", { name: /looks good/i })).toBeTruthy();
+    });
+
     /** Confirming with no address would send an unroutable order to a paid checkout. */
     it("cannot be confirmed without an address", () => {
         renderSheet({ address: null });

@@ -38,6 +38,13 @@ jest.mock("../domains/delivery/components/DeliveryCheckoutDrawer", () => ({
         return <div>DeliveryCheckoutDrawer</div>;
     },
 }));
+const mockPaymentPage = jest.fn();
+jest.mock("../domains/cart/components/CheckoutPaymentPage", () => ({
+    CheckoutPaymentPage: (props: unknown) => {
+        mockPaymentPage(props);
+        return <div>CheckoutPaymentPage</div>;
+    },
+}));
 const mockKeetaCard = jest.fn();
 jest.mock("../domains/delivery/components/KeetaFallbackCard", () => ({
     KeetaFallbackCard: (props: unknown) => {
@@ -223,14 +230,40 @@ function renderModals(
     return render(modalsElement(cartOverrides, checkoutOverrides, modalsOverrides));
 }
 
-function capturedOnConfirm(): (
-    address: CustomerAddress, availability: DeliveryAvailability, method: DeliveryPaymentMethod
-) => void {
+/** The address step's "Looks good": hands the confirmed address over to the payment page. */
+function confirmAddress(): void {
     const calls = mockDeliveryDrawer.mock.calls;
     const props = calls[calls.length - 1][0] as {
-        onConfirm: (a: CustomerAddress, av: DeliveryAvailability, m: DeliveryPaymentMethod) => void;
+        onConfirm: (a: CustomerAddress, av: DeliveryAvailability) => void;
     };
-    return props.onConfirm;
+    act(() => props.onConfirm(ADDRESS, AVAILABLE));
+}
+
+type PaymentPageProbe = {
+    open: boolean;
+    onBack: () => void;
+    fulfilment: { title: string; name: string; detail: string };
+    payment: { kind: "delivery"; onPayDelivery: (m: DeliveryPaymentMethod) => void }
+        | { kind: "pickup"; onPayWithTender: (tender: string) => void; applePay?: unknown; cardPayment?: unknown };
+};
+
+function lastPaymentPage(): PaymentPageProbe {
+    const calls = mockPaymentPage.mock.calls;
+    if (calls.length === 0) throw new Error("the payment page never rendered");
+    return calls[calls.length - 1][0] as PaymentPageProbe;
+}
+
+/** The delivery payment page's Pay. */
+function deliveryPayOnPage(): (method: DeliveryPaymentMethod) => void {
+    const page = lastPaymentPage();
+    if (page.payment.kind !== "delivery") throw new Error("not the delivery payment page");
+    return page.payment.onPayDelivery;
+}
+
+/** Owner, 19 Oct 2026: the address step, then the payment page, where the method is chosen. */
+async function payDelivery(method: DeliveryPaymentMethod): Promise<void> {
+    confirmAddress();
+    await act(async () => { deliveryPayOnPage()(method); });
 }
 
 describe("HomePageModals — delivery checkout hand-off", () => {
@@ -262,6 +295,33 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         expect(mockDeliveryDrawer).toHaveBeenCalledWith(expect.objectContaining({ open: false }));
     });
 
+    // Owner, 19 Oct 2026: delivery chooses how to pay on the same payment page as pickup.
+    it("hands the confirmed address to the payment page, putting the address step away", () => {
+        mockPaymentPage.mockClear();
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+        expect(mockPaymentPage).not.toHaveBeenCalled();
+
+        confirmAddress();
+
+        const page = lastPaymentPage();
+        expect(page.payment.kind).toBe("delivery");
+        expect(page.fulfilment).toEqual(expect.objectContaining({ title: "Deliver to" }));
+        expect(mockDeliveryDrawer).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }));
+        expect(mockPay).not.toHaveBeenCalled();
+    });
+
+    it("goes back from the payment page to the address step", () => {
+        mockPaymentPage.mockClear();
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+        confirmAddress();
+        const renders = mockPaymentPage.mock.calls.length;
+
+        act(() => lastPaymentPage().onBack());
+
+        expect(mockPaymentPage.mock.calls.length).toBe(renders);
+        expect(mockDeliveryDrawer).toHaveBeenLastCalledWith(expect.objectContaining({ open: true }));
+    });
+
     /**
      * §1.4.5: the order is filed against the branch the gate resolved for that pin. Using the
      * default branch would send it to the wrong kitchen — which fails silently, so it is asserted.
@@ -272,7 +332,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         renderModals({ setCartItems },
             { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setPendingDeliveryOrder });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "BENEFIT"); });
+        await payDelivery("BENEFIT");
 
         await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(1));
         expect(mockPay).toHaveBeenCalledWith(
@@ -308,10 +368,11 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockPay.mockReturnValue(new Promise(() => undefined));
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        const confirm = capturedOnConfirm();
+        confirmAddress();
+        const pay = deliveryPayOnPage();
         await act(async () => {
-            confirm(ADDRESS, AVAILABLE, "CARD");
-            confirm(ADDRESS, AVAILABLE, "CARD");
+            pay("CARD");
+            pay("CARD");
         });
 
         expect(mockPay).toHaveBeenCalledTimes(1);
@@ -322,9 +383,9 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockPay.mockRejectedValueOnce(new Error("Card declined"));
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
         await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(1));
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(2));
     });
@@ -334,7 +395,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
     it("seeds the homepage island once the delivery order is paid for", async () => {
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         await waitFor(() => expect(mockRefreshActiveOrder).toHaveBeenCalledTimes(1));
     });
@@ -343,7 +404,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockPay.mockRejectedValue(new Error("Card declined"));
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(1));
         expect(mockRefreshActiveOrder).not.toHaveBeenCalled();
@@ -357,7 +418,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         });
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         expect(await screenFindText(/test mode/i)).toBeTruthy();
     });
@@ -378,7 +439,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
             orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setShowOrderConfirmed,
         });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         await waitFor(() =>
             expect(mockLocationAssign).toHaveBeenCalledWith("https://pay.example/session/abc"));
@@ -393,7 +454,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
             orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setShowOrderConfirmed,
         });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         await waitFor(() => expect(setShowOrderConfirmed).toHaveBeenCalledWith(true));
         expect(mockLocationAssign).not.toHaveBeenCalled();
@@ -404,7 +465,7 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         mockPay.mockRejectedValue(new Error("Card declined"));
         renderModals({ setCartItems }, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
 
         expect(await screenFindText(/Card declined/)).toBeTruthy();
         expect(setCartItems).not.toHaveBeenCalled();
@@ -720,8 +781,8 @@ describe("HomePageModals — a retried delivery payment", () => {
         });
         renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
 
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
-        await act(async () => { capturedOnConfirm()(ADDRESS, AVAILABLE, "CARD"); });
+        await payDelivery("CARD");
+        await payDelivery("CARD");
 
         await waitFor(() => expect(mockPay).toHaveBeenCalledTimes(2));
         const keys = mockPay.mock.calls.map(
@@ -990,5 +1051,50 @@ describe("HomePageModals — PC item popups are customer-only", () => {
 
         expect(screen.getByRole("button", { name: /^Add ·/ })).toBeTruthy();
         expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+    });
+});
+
+// Owner, 19 Oct 2026: after the cart (and a guest's sign-in), a pickup order is paid on the
+// payment page, which useCheckout opens.
+describe("HomePageModals — the pickup payment page", () => {
+    beforeEach(() => {
+        mockPaymentPage.mockClear();
+    });
+
+    it("stays shut until useCheckout opens it", () => {
+        renderModals({}, { paymentPageOpen: false });
+
+        expect(mockPaymentPage).not.toHaveBeenCalled();
+    });
+
+    it("pays the order's tenders through useCheckout and hands over the card and Apple Pay checkouts", () => {
+        const payWithTender = jest.fn<void, [string]>();
+        const applePay = { available: true, busy: false, start: jest.fn() };
+        // The whole hook result: HomePageModals also mounts the card drawer from it.
+        const cardPayment = {
+            available: true, busy: false, start: jest.fn(), drawerOpen: false, closeDrawer: jest.fn(),
+            step: "idle", fieldErrors: {}, error: null, clearError: jest.fn(), notice: null,
+            submit: jest.fn(), retryWithNewSession: jest.fn(), fieldContainerRef: jest.fn(),
+        };
+        renderModals({}, { paymentPageOpen: true, payWithTender }, { applePay, cardPayment });
+
+        const page = lastPaymentPage();
+        if (page.payment.kind !== "pickup") throw new Error("not the pickup payment page");
+        expect(page.payment.applePay).toBe(applePay);
+        expect(page.payment.cardPayment).toBe(cardPayment);
+        expect(page.fulfilment).toEqual(expect.objectContaining({ title: "Pick up from" }));
+        page.payment.onPayWithTender("BenefitPay");
+        expect(payWithTender).toHaveBeenCalledWith("BenefitPay");
+    });
+
+    it("goes back to the cart", () => {
+        const setCartOpen = jest.fn();
+        const setPaymentPageOpen = jest.fn();
+        renderModals({ setCartOpen, cartOpen: false }, { paymentPageOpen: true, setPaymentPageOpen });
+
+        act(() => lastPaymentPage().onBack());
+
+        expect(setPaymentPageOpen).toHaveBeenCalledWith(false);
+        expect(setCartOpen).toHaveBeenCalledWith(true);
     });
 });

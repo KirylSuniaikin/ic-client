@@ -156,6 +156,19 @@ function makeParams(overrides: {
     };
 }
 
+type CheckoutApi = ReturnType<typeof useCheckout>;
+
+/**
+ * The payment page's Pay (owner, 19 Oct 2026: the cart leads to sign-in, then a page with every
+ * method). Waits for the page to open, then pays with `tender` as its button does.
+ */
+async function payOnPage(checkout: () => CheckoutApi, tender: string): Promise<void> {
+    await waitFor(() => expect(checkout().paymentPageOpen).toBe(true));
+    await act(async () => {
+        checkout().payWithTender(tender);
+    });
+}
+
 describe("useCheckout — initial state", () => {
     it("checkoutLoading is false initially", async () => {
         const { result } = renderHook(() => useCheckout(makeParams()), { wrapper });
@@ -218,22 +231,22 @@ describe("useCheckout — handleCheckout cross-sell gate (non-admin)", () => {
         expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
-    it("skips the cross-sell gate on the second checkout call and opens ClientInfoPopup directly (logged out)", async () => {
+    it("skips the cross-sell gate on the second checkout call and asks a guest to sign in", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
 
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
-        expect(result.current.isCrossSellOpen).toBe(true);
+        expect(result.current.checkout.isCrossSellOpen).toBe(true);
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        expect(result.current.phonePopupOpen).toBe(true);
+        expect(result.current.ui.isLoginOpen).toBe(true);
     });
 });
 
@@ -242,20 +255,27 @@ describe("useCheckout — handleCheckout payment gate (non-admin, guest)", () =>
         jest.clearAllMocks();
     });
 
-    it("opens ClientInfoPopup directly when paymentMethod is null and not logged in (after cross-sell seen)", async () => {
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+    // Owner, 19 Oct 2026: a guest goes from the cart straight to the phone sign-in (phone, then
+    // the WhatsApp code); ClientInfoPopup's name-and-phone form is no longer on their way.
+    it("asks a guest to sign in with their phone, in checkout mode with nothing prefilled", async () => {
+        const params = makeParams({ isAdmin: false });
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        expect(result.current.phonePopupOpen).toBe(true);
-        expect(result.current.customerPrefill).toBeNull();
+        expect(result.current.ui.isLoginOpen).toBe(true);
+        expect(result.current.ui.loginCheckoutMode).toBe(true);
+        expect(result.current.ui.loginPrefillPhone).toBeFalsy();
+        expect(result.current.checkout.phonePopupOpen).toBe(false);
+        expect(result.current.checkout.paymentPageOpen).toBe(false);
+        expect(params.setCartOpen).toHaveBeenCalledWith(false);
         expect(mockFetchCustomerMe).not.toHaveBeenCalled();
     });
 
@@ -279,29 +299,53 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         jest.clearAllMocks();
     });
 
-    it("skips ClientInfoPopup and places the order straight from the cart when the profile has a name", async () => {
+    it("skips ClientInfoPopup and opens the payment page, placing no order yet, when the profile has a name", async () => {
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
         mockGetAllBannedCstmrs.mockResolvedValue([]);
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        const params = makeParams({ isAdmin: false });
 
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
         await waitForAuthReady();
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
-        expect(result.current.phonePopupOpen).toBe(false);
+        await waitFor(() => expect(result.current.checkout.paymentPageOpen).toBe(true));
+        expect(params.setCartOpen).toHaveBeenCalledWith(false);
+        expect(result.current.checkout.phonePopupOpen).toBe(false);
+        expect(result.current.ui.isLoginOpen).toBe(false);
+        expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
-    it("sends the profile's phone/name and the cart's payment method (no note) on a skipped-popup order", async () => {
+    it("keeps a blacklisted customer off the payment page", async () => {
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([{ id: 1, telephoneNo: MOCK_CUSTOMER_ME.phone }]);
+
+        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
+        });
+
+        await waitFor(() => expect(result.current.blacklistSnackBarOpen).toBe(true));
+        expect(result.current.paymentPageOpen).toBe(false);
+    });
+
+    it("sends the profile's phone/name and the payment page's method (no note)", async () => {
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
@@ -311,14 +355,15 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // The cart supplies the delivery type ("Pick Up") and payment method; the logged-in
-        // re-entry forwards those choices rather than re-collecting them in ClientInfoPopup.
+        // The cart supplies the delivery type ("Pick Up"); the method is the one chosen on the
+        // payment page, never re-collected in ClientInfoPopup.
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
         });
+        await payOnPage(() => result.current, DEFAULT_PAYMENT_METHOD);
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
         expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
@@ -361,6 +406,7 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null);
         });
+        await payOnPage(() => result.current, DEFAULT_PAYMENT_METHOD);
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
         expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
@@ -471,6 +517,7 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", null, null, DEFAULT_PAYMENT_METHOD, "", null);
         });
+        await payOnPage(() => result.current, DEFAULT_PAYMENT_METHOD);
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
         expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ type: "Pick Up" }));
@@ -514,7 +561,7 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         expect(result.current.customerPrefill).toBeNull();
     });
 
-    it("places the order directly with no OTP gate when already logged in and paymentMethod is provided", async () => {
+    it("never asks a signed-in customer to sign in again, and orders from the payment page", async () => {
         mockRefreshCustomerToken.mockReset();
         mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
         mockGetAllBannedCstmrs.mockResolvedValue([]);
@@ -531,8 +578,10 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         await act(async () => {
             await result.current.checkout.handleCheckout(ITEMS, "12345678", "Sara", null, "Cash", "", "branch-1");
         });
+        await payOnPage(() => result.current.checkout, "Cash");
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ payment_type: "Cash", customer_name: "Sara" }));
         expect(result.current.ui.isLoginOpen).toBe(false);
     });
 });
@@ -694,26 +743,26 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
         jest.clearAllMocks();
     });
 
-    async function primeToGate(result: { current: ReturnType<typeof useCheckoutWithUi> }): Promise<void> {
+    // From the cart, as its Checkout does: the first call is the cross-sell gate's.
+    async function checkoutAsGuest(result: { current: ReturnType<typeof useCheckoutWithUi> }): Promise<void> {
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
+            await result.current.checkout.handleCheckout(ITEMS, "", null, null, "Cash", "", null);
         });
         await act(async () => {
-            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
+            await result.current.checkout.handleCheckout(ITEMS, "", null, null, "Cash", "", null);
         });
     }
 
-    it("does not call createOrder and opens the login sheet in checkout mode, prefilled with the typed phone", async () => {
+    it("does not call createOrder and opens the sign-in in checkout mode", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        await primeToGate(result);
+        await checkoutAsGuest(result);
 
         expect(mockCreateOrder).not.toHaveBeenCalled();
         expect(result.current.ui.isLoginOpen).toBe(true);
-        expect(result.current.ui.loginPrefillPhone).toBe("12345678");
         expect(result.current.ui.loginCheckoutMode).toBe(true);
         expect(result.current.checkout.phonePopupOpen).toBe(false);
     });
@@ -725,7 +774,7 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
         const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
         await waitForAuthReady();
 
-        await primeToGate(result);
+        await checkoutAsGuest(result);
         expect(result.current.ui.isLoginOpen).toBe(true);
 
         act(() => {
@@ -733,47 +782,75 @@ describe("useCheckout — mandatory account verification gate (guest checkout)",
         });
 
         await waitFor(() => expect(params.setCartOpen).toHaveBeenCalledWith(true));
+        expect(result.current.checkout.paymentPageOpen).toBe(false);
         expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
-    it("submits the order with the verified phone, not the typed phone, when they differ", async () => {
+    it("opens the payment page once the code is verified, and files the order under the verified profile", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
         mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
-        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "99998888", name: "Verified Name" });
+        mockFetchCustomerMe.mockResolvedValue({ ...MOCK_CUSTOMER_ME, phone: "99998888", name: "Verified Name" });
         mockCreateOrder.mockResolvedValue(MOCK_ORDER);
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        await primeToGate(result);
-        expect(result.current.ui.isLoginOpen).toBe(true);
-
+        await checkoutAsGuest(result);
         await act(async () => {
             await result.current.auth.login("99998888", "0000");
         });
 
+        await waitFor(() => expect(result.current.checkout.paymentPageOpen).toBe(true));
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        await payOnPage(() => result.current.checkout, DEFAULT_PAYMENT_METHOD);
+
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
-        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ tel: "99998888" }));
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            tel: "99998888", customer_name: "Verified Name", payment_type: DEFAULT_PAYMENT_METHOD,
+        }));
     });
 
-    it("submits the order with the typed phone when verification confirms the same number", async () => {
+    // The rare account with no name: asked for it before the payment page, not sent nameless.
+    it("asks a newly signed-in customer with no name on file for it via ClientInfoPopup", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
         mockVerifyOtp.mockResolvedValueOnce({ accessToken: "tok-verified", isNewAccount: false });
-        mockFetchCustomerMe.mockResolvedValueOnce({ ...MOCK_CUSTOMER_ME, phone: "12345678", name: "Same Name" });
-        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+        mockFetchCustomerMe.mockResolvedValue({ ...MOCK_CUSTOMER_ME, name: null });
 
         const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        await primeToGate(result);
-
+        await checkoutAsGuest(result);
         await act(async () => {
             await result.current.auth.login("12345678", "0000");
         });
 
-        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
-        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ tel: "12345678" }));
-        expect(mockGetAllBannedCstmrs).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(result.current.checkout.phonePopupOpen).toBe(true));
+        expect(result.current.checkout.paymentPageOpen).toBe(false);
+
+        await act(async () => {
+            result.current.checkout.continueWithDetails("12345678", "Named Now", "branch-1");
+        });
+
+        await waitFor(() => expect(result.current.checkout.paymentPageOpen).toBe(true));
+        expect(result.current.checkout.phonePopupOpen).toBe(false);
+    });
+
+    // A session that ended between the payment page and Pay: no order without a verified phone.
+    it("asks for the sign-in again when the session is gone by the time the order is placed", async () => {
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
+        });
+        await act(async () => {
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, "Cash", "", "branch-1", true);
+        });
+
+        expect(result.current.ui.isLoginOpen).toBe(true);
+        expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 });
 
@@ -1085,13 +1162,14 @@ describe("useCheckout — new customer parks the order behind the pick-up remind
         const { result } = renderHook(() => useCheckoutWithUi(params), { wrapper });
         await waitForAuthReady();
 
-        // First call is swallowed by the cross-sell gate; the second one checks out.
+        // First call is swallowed by the cross-sell gate; the second one opens the payment page.
         await act(async () => {
             await result.current.checkout.handleCheckout(ITEMS, "12345678", "Newcomer", null, "Cash", "", "branch-1");
         });
         await act(async () => {
             await result.current.checkout.handleCheckout(ITEMS, "12345678", "Newcomer", null, "Cash", "", "branch-1");
         });
+        await payOnPage(() => result.current.checkout, "Cash");
 
         return { result, params };
     }
@@ -1110,7 +1188,7 @@ describe("useCheckout — new customer parks the order behind the pick-up remind
 
         await waitFor(() => expect(result.current.checkout.pickUpReminder).toBe(true));
         expect(mockCreateOrder).not.toHaveBeenCalled();
-        expect(result.current.checkout.pendingOrder).toMatchObject({ tel: "12345678", customer_name: "Newcomer" });
+        expect(result.current.checkout.pendingOrder).toMatchObject({ tel: MOCK_CUSTOMER_ME.phone, customer_name: "Newcomer" });
         expect(result.current.checkout.pendingCartItems).toEqual(ITEMS);
     });
 
@@ -1272,35 +1350,35 @@ describe("useCheckout — resetCrossSellShown re-arms the cross-sell gate", () =
     it("opens the cross-sell popup again on the next checkout call after resetCrossSellShown, even though it already fired once", async () => {
         mockGetAllBannedCstmrs.mockResolvedValue([]);
 
-        const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        const { result } = renderHook(() => useCheckoutWithUi(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
         // First call trips the gate.
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
-        expect(result.current.isCrossSellOpen).toBe(true);
+        expect(result.current.checkout.isCrossSellOpen).toBe(true);
 
-        // Second call passes through it (gate already tripped) and lands on ClientInfoPopup.
+        // Second call passes through it (gate already tripped) and lands on the sign-in.
         act(() => {
-            result.current.setIsCrossSellOpen(false);
+            result.current.checkout.setIsCrossSellOpen(false);
         });
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
-        expect(result.current.isCrossSellOpen).toBe(false);
-        expect(result.current.phonePopupOpen).toBe(true);
+        expect(result.current.checkout.isCrossSellOpen).toBe(false);
+        expect(result.current.ui.isLoginOpen).toBe(true);
 
         // Reset (as resetKioskSession does at session end) re-arms the gate for the next customer.
         act(() => {
-            result.current.resetCrossSellShown();
+            result.current.checkout.resetCrossSellShown();
         });
 
         await act(async () => {
-            await result.current.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
+            await result.current.checkout.handleCheckout(ITEMS, "12345678", null, null, null, "", null);
         });
 
-        expect(result.current.isCrossSellOpen).toBe(true);
+        expect(result.current.checkout.isCrossSellOpen).toBe(true);
     });
 });
 
@@ -1449,13 +1527,15 @@ describe("useCheckout — the delivery seam sits ahead of the pick-up reminder",
         const { result } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
         await waitForAuthReady();
 
-        // First call is swallowed by the cross-sell gate; the second one checks out.
+        // First call is swallowed by the cross-sell gate; the second one checks out: a delivery
+        // order goes on to its address, a pickup order to the payment page.
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", "Newcomer", deliveryMethod, "Cash", "", "branch-1");
         });
         await act(async () => {
             await result.current.handleCheckout(ITEMS, "12345678", "Newcomer", deliveryMethod, "Cash", "", "branch-1");
         });
+        if (deliveryMethod !== "Delivery") await payOnPage(() => result.current, "Cash");
         return result;
     }
 

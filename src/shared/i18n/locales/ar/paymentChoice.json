@@ -1,5 +1,8 @@
 {
     "newMethodsInvite": "مرحباً! أضفنا طرق دفع جديدة، اكتشفها الآن",
     "choosePlaceholder": "اختر طريقة الدفع",
-    "signInRequired": "متاح فقط للعملاء بعد تسجيل الدخول"
+    "title": "الدفع",
+    "back": "رجوع",
+    "payAmount": "ادفع {{amount}} د.ب",
+    "continue": "متابعة"
 }

@@ -1,46 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Typography, Button, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { AddressCard } from './AddressCard';
 import { AddressPickerDrawer } from './AddressPickerDrawer';
 import { OneLastCheckDrawer } from './OneLastCheckDrawer';
 import {
-    BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX, SEGMENTED_BUTTON_SX,
-    SEGMENTED_GROUP_SX, SHEET_DESKTOP, SHEET_PAPER_SX, SheetCloseButton, SheetHandle, SheetNotice,
+    BRAND_RED, PRIMARY_BUTTON_SX, SECTION_CARD_SX, SECTION_LABEL_SX,
+    SHEET_DESKTOP, SHEET_PAPER_SX, SheetCloseButton, SheetHandle, SheetNotice,
 } from './sheetStyles';
 import { CustomerSheet } from '../../../shared/components/CustomerSheet';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
 import { useDeliveryAvailability } from '../hooks/useDeliveryAvailability';
 import { toDeliveryBasket } from '../basket';
 import type {
-    CreateCustomerAddressRequest, CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod,
-    UpdateCustomerAddressRequest,
+    CreateCustomerAddressRequest, CustomerAddress, DeliveryAvailability, UpdateCustomerAddressRequest,
 } from '../types';
 import type { CartItem } from '../../menu/types';
-
-/** What EazyPay's hosted page exposes (§1.5 block 4). */
-const PAYMENT_METHODS: ReadonlyArray<{ value: DeliveryPaymentMethod; labelKey: string }> = [
-    { value: 'CARD', labelKey: 'delivery.payCard' },
-    { value: 'APPLE_PAY', labelKey: 'delivery.payApplePay' },
-    { value: 'BENEFIT', labelKey: 'delivery.payBenefit' },
-];
 
 /**
  * The delivery checkout screen (DELIVERY_SPEC.md §1.5).
  *
- * Blocks, top to bottom: address selection → ETA → Place order. There is deliberately **no tip
+ * Blocks, top to bottom: address selection → ETA → Continue. There is deliberately **no tip
  * block** (R7) and **no delivery-fee line** (§1.1) — the cost is baked into item prices.
  *
  * ── "Pay with" (§1.5 block 4) ────────────────────────────────────────────────────────────────
- * Card, Apple Pay and Benefit — what EazyPay's hosted page exposes. The chosen method is sent to
- * the server and stored on the order, so it is real data even while the provider is stubbed.
- *
- * ⚠️ Payment itself is a **stand-in** until EazyPay is integrated: the server settles nothing and
- * marks the order paid. It reports `stub: true`, and this screen says so rather than letting a
- * test order look like a real charge. The §1.7 ordering is already correct — settle, then
- * create — so wiring the real provider changes how the answer is reached, not this flow.
+ * Moved to the payment page that follows this screen (owner, 19 Oct 2026: delivery goes through
+ * the same payment page as pickup), which offers what EazyPay's hosted page takes: card, Apple Pay
+ * and Benefit.
  */
 export interface DeliveryCheckoutDrawerProps {
     open: boolean;
@@ -48,15 +36,11 @@ export interface DeliveryCheckoutDrawerProps {
     /** Listed read-only on the §1.6 confirm sheet, so a wrong cart is caught before the charge. */
     items: CartItem[];
     /**
-     * Handed the confirmed address and the chosen method once the gate has passed. The caller
-     * runs payment — this screen does not create the order itself.
+     * Handed the confirmed address once the gate has passed. The caller takes the customer on to
+     * the payment page — this screen does not create the order itself.
      */
-    onConfirm: (
-        address: CustomerAddress,
-        availability: DeliveryAvailability,
-        method: DeliveryPaymentMethod
-    ) => void;
-    /** Shown when the gate refuses on Place order — the caller renders the Keeta card. */
+    onConfirm: (address: CustomerAddress, availability: DeliveryAvailability) => void;
+    /** Shown when the gate refuses on Continue — the caller renders the Keeta card. */
     onUnavailable: (availability: DeliveryAvailability) => void;
 }
 
@@ -72,7 +56,6 @@ export function DeliveryCheckoutDrawer({
     const { availability, checking, check } = useDeliveryAvailability();
 
     const [selected, setSelected] = useState<CustomerAddress | null>(null);
-    const [method, setMethod] = useState<DeliveryPaymentMethod>('CARD');
     const [pickerOpen, setPickerOpen] = useState(false);
     /** Non-null while the picker is being used as the pencil rather than as "add a new address". */
     const [editing, setEditing] = useState<CustomerAddress | null>(null);
@@ -93,10 +76,10 @@ export function DeliveryCheckoutDrawer({
      * Fetches the ETA for the chosen pin. This uses the same endpoint as the §1.2 gate because
      * the ETA is derived from exactly the data the gate already computes (workload + Haversine),
      * so a separate endpoint would duplicate it. The two *gating* moments are still cart and
-     * Place order; this call is for the number on screen.
+     * Continue; this call is for the number on screen.
      */
     // The basket rides on every pin check so the server can also refuse an order too big for the
-    // couriers on shift; the gate on Place order is the strict one.
+    // couriers on shift; the gate on Continue is the strict one.
     const basket = useMemo(() => toDeliveryBasket(items), [items]);
 
     const refreshEta = useCallback(
@@ -189,8 +172,8 @@ export function DeliveryCheckoutDrawer({
         <>
             {/* Steps, not a stack: this slides away while the address picker or the §1.6 confirm
                 sheet is up, so the customer sees one screen advance rather than sheets piling on
-                top of each other. The component stays mounted throughout, so the address and
-                payment method they already picked are still here when Edit order brings it back. */}
+                top of each other. The component stays mounted throughout, so the address they
+                already picked is still here when Edit order brings it back. */}
             <CustomerSheet
                 open={open && !pickerOpen && confirming === null}
                 onClose={onClose}
@@ -258,32 +241,14 @@ export function DeliveryCheckoutDrawer({
                         </Box>
                     </Box>
 
-                    {/* §1.5 block 4. Rendered from a constant rather than fetched: EazyPay's
-                        hosted page exposes exactly these three, confirmed with the provider. */}
-                    <Box sx={{ mb: 3 }}>
-                        <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>{t('delivery.payWith')}</Typography>
-                        <ToggleButtonGroup
-                            exclusive
-                            fullWidth
-                            value={method}
-                            onChange={(_e, value) => { if (value !== null) setMethod(value); }}
-                            sx={SEGMENTED_GROUP_SX}
-                        >
-                            {PAYMENT_METHODS.map((option) => (
-                                <ToggleButton key={option.value} value={option.value} sx={SEGMENTED_BUTTON_SX}>
-                                    {t(option.labelKey)}
-                                </ToggleButton>
-                            ))}
-                        </ToggleButtonGroup>
-                    </Box>
-
                     <Button
                         variant="contained"
                         onClick={() => { void handlePlaceOrder(); }}
                         disabled={selected === null || checking}
                         sx={PRIMARY_BUTTON_SX}
                     >
-                        {checking ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('delivery.placeOrder')}
+                        {/* Not "Place order" any more: the order is placed on the payment page that follows. */}
+                        {checking ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('paymentChoice:continue')}
                     </Button>
                 </Box>
             </CustomerSheet>
@@ -308,15 +273,12 @@ export function DeliveryCheckoutDrawer({
                 open={confirming !== null}
                 address={confirming?.address ?? null}
                 items={items}
-                paymentLabel={t(
-                    PAYMENT_METHODS.find((option) => option.value === method)?.labelKey ?? 'delivery.payCard'
-                )}
                 onEdit={() => setConfirming(null)}
                 onClose={() => setConfirming(null)}
                 onConfirm={() => {
                     if (confirming === null) return;
                     setConfirming(null);
-                    onConfirm(confirming.address, confirming.availability, method);
+                    onConfirm(confirming.address, confirming.availability);
                 }}
             />
         </>
