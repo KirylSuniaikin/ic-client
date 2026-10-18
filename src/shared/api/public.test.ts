@@ -506,6 +506,17 @@ describe("fetchPublicBranches", () => {
         expect(init.method).toBe("GET");
     });
 
+    // The backend leaves switched-off branches (the Saar test branch) out unless asked; the
+    // storefront must never ask.
+    it("does not ask for inactive branches", async () => {
+        mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(branches), { status: 200 }));
+
+        await fetchPublicBranches();
+
+        const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("includeInactive");
+    });
+
     it("returns the parsed array of branches, including nullable coordinates", async () => {
         mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(branches), { status: 200 }));
 

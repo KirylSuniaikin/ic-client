@@ -129,9 +129,11 @@ export async function getReports(
 // mobile-network window as fetchBaseAppInfo (public.ts). Idempotent GET, safe to retry.
 const FETCH_BRANCHES_RETRY_DELAYS_MS = [500, 1500];
 
+// includeInactive: staff still hire into, configure and report on a switched-off branch (the Saar
+// test branch), which the storefront's own call to this endpoint no longer receives.
 export async function fetchAllBranches(): Promise<IBranch[]> {
     const res = await authFetch(
-        BASE_URL + '/branch/fetch_branches',
+        BASE_URL + '/branch/fetch_branches?includeInactive=true',
         { headers: { Accept: "application/json" } },
         { retryDelaysMs: FETCH_BRANCHES_RETRY_DELAYS_MS }
     );

@@ -176,6 +176,20 @@ describe("fetchAllBranches", () => {
         expect(url).toContain("fetch_branches");
     });
 
+    it("asks for inactive branches too, which the storefront's list leaves out", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            })
+        );
+
+        await fetchAllBranches();
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toMatch(/\/branch\/fetch_branches\?includeInactive=true$/);
+    });
+
     it("returns an array of branches on 200", async () => {
         const branches = [{ id: "b1", name: "Main" }];
         mockAuthFetch.mockResolvedValueOnce(
