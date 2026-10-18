@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Typography, IconButton, Button, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
@@ -171,12 +171,11 @@ function CartPopup({
     // keep the original buttons and the tender they were handed.
     const showPaymentChoice = !isAdmin && !isKiosk && orderType !== "Delivery";
     const payment = usePaymentChoice({
-        enabled: showPaymentChoice,
-        paymentMethod,
         onPaymentChange,
         applePayAvailable: applePay?.available === true,
         cardAvailable: cardPayment?.available === true,
     });
+    const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
     const checkoutButton = (onClick: () => void, disabled = false): JSX.Element => (
         <Box
@@ -215,18 +214,19 @@ function CartPopup({
     // One button pays with whatever is selected. Apple Pay's must be Apple's own button, and the
     // session has to open inside this very tap, so it calls start() directly.
     function renderPayButton(): JSX.Element {
-        if (payment.selected === APPLE_PAY_CHOICE && applePay) {
-            return (
-                <ApplePayButton
-                    onClick={() => { payment.remember(); applePay.start(); }}
-                    disabled={applePay.busy}
-                />
-            );
+        const selected = payment.selected;
+        // Nothing is preselected, so a tap before choosing opens the list rather than ordering
+        // with a method the customer never picked, or looking broken as a disabled button would.
+        if (selected === null) {
+            return checkoutButton(() => setPaymentSheetOpen(true));
         }
-        if (payment.selected === CARD_CHOICE && cardPayment) {
-            return checkoutButton(() => { payment.remember(); cardPayment.start(); }, cardPayment.busy);
+        if (selected === APPLE_PAY_CHOICE && applePay) {
+            return <ApplePayButton onClick={() => applePay.start()} disabled={applePay.busy} />;
         }
-        return checkoutButton(() => { payment.remember(); checkoutWith(payment.selected); });
+        if (selected === CARD_CHOICE && cardPayment) {
+            return checkoutButton(() => cardPayment.start(), cardPayment.busy);
+        }
+        return checkoutButton(() => checkoutWith(selected));
     }
 
     const itemCards = items.map((item, idx) => (
@@ -345,6 +345,8 @@ function CartPopup({
                         choices={payment.choices}
                         selected={payment.selected}
                         onSelect={payment.select}
+                        open={paymentSheetOpen}
+                        onOpenChange={setPaymentSheetOpen}
                     />
                 </>
             )}

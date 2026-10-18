@@ -1,9 +1,10 @@
-import { useId, useState } from "react";
+import { useId } from "react";
 import type { KeyboardEvent, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
@@ -159,7 +160,7 @@ function PaymentMark({ choice }: { choice: PaymentChoice }): JSX.Element | null 
 
 interface PaymentOptionListProps {
     choices: readonly PaymentChoice[];
-    selected: PaymentChoice;
+    selected: PaymentChoice | null;
     labelledBy: string;
     onPick: (choice: PaymentChoice) => void;
 }
@@ -167,7 +168,7 @@ interface PaymentOptionListProps {
 function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOptionListProps): JSX.Element {
     const { t } = useTranslation("cart");
     const isRtl = useTheme().direction === "rtl";
-    const tabStop = choices.includes(selected) ? selected : choices[0];
+    const tabStop = selected !== null && choices.includes(selected) ? selected : choices[0];
 
     // Arrow keys move focus and leave the choice alone; Space or Enter picks. The ARIA radio
     // pattern also checks on arrow, but a pick here closes the sheet, so every arrow press would
@@ -194,8 +195,8 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
                         key={choice}
                         role="radio"
                         aria-checked={checked}
-                        // One tab stop for the whole group, on the chosen method, which is also
-                        // where focus lands when the sheet opens.
+                        // One tab stop for the whole group, on the chosen method (the first one
+                        // while nothing is chosen), which is also where focus lands on opening.
                         tabIndex={choice === tabStop ? 0 : -1}
                         autoFocus={choice === tabStop}
                         disableRipple
@@ -217,8 +218,15 @@ function PaymentOptionList({ choices, selected, labelledBy, onPick }: PaymentOpt
 export interface PaymentMethodSelectorProps {
     /** What this customer can pay with, in display order (usePaymentChoice's `choices`). */
     choices: readonly PaymentChoice[];
-    selected: PaymentChoice;
+    /** Null until the customer picks one: the row then invites them to look at the methods. */
+    selected: PaymentChoice | null;
     onSelect: (choice: PaymentChoice) => void;
+    /**
+     * Whether the list is open. Owned by the cart, because its pay button also opens the list
+     * when nothing is chosen yet.
+     */
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -228,37 +236,52 @@ export interface PaymentMethodSelectorProps {
  *
  * The row names only the method. Its "Payment method" label is the cart's section title above it,
  * like "Pick up from" over the branch card: an in-row "Pay with" read "الدفع عبر الدفع عند الاستلام"
- * ("pay via pay on collection") in Arabic with the counter tender chosen, and no new copy may be
- * added while mobile's locale files must stay byte-identical.
+ * ("pay via pay on collection") in Arabic with the counter tender chosen.
+ *
+ * Until the customer picks a method the row carries the owner's invitation (18 Oct 2026) instead,
+ * in the brand red: nothing is preselected any more, and the new methods are the news. Its copy
+ * is in the web-only paymentChoice namespace, because mobile byte-compares the cart's.
  */
-export function PaymentMethodSelector({ choices, selected, onSelect }: PaymentMethodSelectorProps): JSX.Element {
+export function PaymentMethodSelector({
+    choices, selected, onSelect, open, onOpenChange,
+}: PaymentMethodSelectorProps): JSX.Element {
     const { t } = useTranslation("cart");
     // The RTL emotion cache mirrors the row's layout but not an icon's glyph, so the chevron has
     // to be chosen by direction to keep pointing "onward".
     const isRtl = useTheme().direction === "rtl";
     const titleId = useId();
-    const [open, setOpen] = useState(false);
 
-    const selectedLabel = t(PAYMENT_OPTIONS[selected].labelKey);
+    const rowLabel = selected === null ? t("paymentChoice:newMethodsInvite") : t(PAYMENT_OPTIONS[selected].labelKey);
     const rowContent = (
         <Box component="span" sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.75 }}>
-            <PaymentMark choice={selected} />
-            <Typography component="span" sx={{ fontSize: "14px", fontWeight: 700, color: "#000", ...SINGLE_LINE_SX }}>
-                {selectedLabel}
+            {selected === null ? (
+                <AccountBalanceWalletOutlinedIcon aria-hidden sx={{ fontSize: PAYMENT_LOGO_HEIGHT, flexShrink: 0, color: BRAND_RED }} />
+            ) : (
+                <PaymentMark choice={selected} />
+            )}
+            <Typography
+                component="span"
+                // The invitation wraps rather than ellipsising: cut short on a phone it would
+                // stop before saying anything.
+                sx={selected === null
+                    ? { fontSize: "14px", fontWeight: 700, color: BRAND_RED, lineHeight: 1.3 }
+                    : { fontSize: "14px", fontWeight: 700, color: "#000", ...SINGLE_LINE_SX }}
+            >
+                {rowLabel}
             </Typography>
         </Box>
     );
 
     // A chevron and a sheet with nothing else in it would promise a choice that does not exist.
-    if (choices.length < 2) {
+    // While nothing is chosen, though, the sheet is where even a sole method gets chosen.
+    if (choices.length < 2 && selected !== null) {
         return <Box data-testid="cart-payment-static-row" sx={SELECTOR_ROW_SX}>{rowContent}</Box>;
     }
 
-    const close = (): void => setOpen(false);
+    const close = (): void => onOpenChange(false);
 
     function pick(choice: PaymentChoice): void {
-        // Re-picking the current method changes nothing, exactly as tapping the selected chip did:
-        // select() would otherwise mark the cart as touched for no choice at all.
+        // Re-picking the current method changes nothing, exactly as tapping the selected chip did.
         if (choice !== selected) onSelect(choice);
         close();
     }
@@ -266,12 +289,12 @@ export function PaymentMethodSelector({ choices, selected, onSelect }: PaymentMe
     return (
         <>
             <Button
-                onClick={() => setOpen(true)}
+                onClick={() => onOpenChange(true)}
                 aria-haspopup="dialog"
                 aria-expanded={open}
                 // Section title then value, as the "Pick up from" card is named; it also keeps the
                 // row from ever sharing a name with Apple's "Pay with Apple Pay" button below.
-                aria-label={`${t("paymentTitle")} ${selectedLabel}`}
+                aria-label={`${t("paymentTitle")} ${rowLabel}`}
                 sx={SELECTOR_ROW_SX}
             >
                 {rowContent}

@@ -14,7 +14,7 @@ import type { CartItem } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { PAYMENT_ROW_NAME, choosePayment, paymentRow, paymentRowName } from "./paymentSelector.testutil";
+import { PAYMENT_ROW_NAME, choosePayment, paymentRow, waitForPaymentSheetToClose } from "./paymentSelector.testutil";
 
 // The stacking test below mounts the real picker; its map half must never load the Google script.
 jest.mock("../../branch/components/BranchMapView");
@@ -81,14 +81,14 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
 }
 
 describe("CartPopup — payment selector", () => {
-    it("renders the payment options and preselects the passed method (customer)", () => {
+    // Nothing is preselected (owner, 18 Oct 2026), not even the method the cart was handed.
+    it("renders the payment options with none preselected (customer)", () => {
         renderCart({ paymentMethod: PAY_ONLINE_METHOD });
 
-        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("Benefit"));
         fireEvent.click(paymentRow());
         expect(screen.getByRole("radio", { name: "Benefit" })).toBeTruthy();
         expect(screen.getByRole("radio", { name: "BenefitPay" })).toBeTruthy();
-        expect(screen.getByRole("radio", { name: "Benefit" }).getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByRole("radio", { name: "Benefit" }).getAttribute("aria-checked")).toBe("false");
     });
 
     // Back for now (17 Oct 2026): a pickup customer may pay on collection again, sent as the same
@@ -126,6 +126,9 @@ describe("CartPopup — payment selector", () => {
         await i18n.changeLanguage("ar");
         try {
             renderCart({ paymentMethod: DEFAULT_PAYMENT_METHOD });
+            fireEvent.click(screen.getByRole("button", { name: /^طريقة الدفع / }));
+            fireEvent.click(screen.getByRole("radio", { name: "الدفع عند الاستلام" }));
+            await waitForPaymentSheetToClose();
 
             expect(screen.getByText("طريقة الدفع")).toBeTruthy();
             expect(screen.getByRole("button", { name: "طريقة الدفع الدفع عند الاستلام" })).toBeTruthy();
@@ -252,25 +255,25 @@ describe("CartPopup — delivery-type toggle", () => {
 describe("CartPopup — checkout", () => {
     // The cart supplies the real delivery type + payment method and infoCollected=false so the
     // checkout hook still gates guests/logged-in-without-name into ClientInfoPopup.
-    it("passes order type, payment method and infoCollected=false to onCheckout", () => {
+    it("passes order type, payment method and infoCollected=false to onCheckout", async () => {
         const onCheckout = jest.fn();
-        renderCart({ onCheckout, paymentMethod: WALLET_METHOD });
+        renderCart({ onCheckout, paymentMethod: PAY_ONLINE_METHOD });
 
+        await choosePayment("BenefitPay");
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
         expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
     });
 
-    // The highlighted row and the sent value must agree, so a tender the list does not offer (the
-    // retired "Cash" option, say) falls back to BENEFIT for both.
-    it("sends BENEFIT, the highlighted method, when handed a tender the list does not offer", () => {
+    // Whatever tender the cart is handed (the retired "Cash", say), only the customer's own pick
+    // is ever sent.
+    it("never sends the tender it was handed before the customer picks", () => {
         const onCheckout = jest.fn();
         renderCart({ onCheckout, paymentMethod: "Cash" });
 
-        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("Benefit"));
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
-        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", PAY_ONLINE_METHOD, "", null, false);
+        expect(onCheckout).not.toHaveBeenCalled();
     });
 
     it("keeps sending the kiosk its own tender — kiosk never chooses", () => {
@@ -280,48 +283,6 @@ describe("CartPopup — checkout", () => {
         fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
 
         expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", DEFAULT_PAYMENT_METHOD, "", null, false);
-    });
-});
-
-describe("CartPopup — remembered payment method", () => {
-    beforeEach(() => {
-        window.localStorage.clear();
-    });
-
-    it("restores the BENEFIT method the customer paid with last time", () => {
-        window.localStorage.setItem("ic.preferredPaymentMethod", WALLET_METHOD);
-        const onPaymentChange = jest.fn<void, [string]>();
-
-        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
-
-        expect(onPaymentChange).toHaveBeenCalledWith(WALLET_METHOD);
-    });
-
-    it("remembers the method only when the customer actually checks out", () => {
-        renderCart({ paymentMethod: WALLET_METHOD });
-        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBeNull();
-
-        fireEvent.click(screen.getByRole("button", { name: /checkout/i }));
-
-        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe(WALLET_METHOD);
-    });
-
-    it("ignores a stored value that is not a method", () => {
-        window.localStorage.setItem("ic.preferredPaymentMethod", "Cash");
-        const onPaymentChange = jest.fn<void, [string]>();
-
-        renderCart({ onPaymentChange, paymentMethod: PAY_ONLINE_METHOD });
-
-        expect(onPaymentChange).not.toHaveBeenCalled();
-    });
-
-    it("restores nothing for delivery, which picks its method elsewhere", () => {
-        window.localStorage.setItem("ic.preferredPaymentMethod", WALLET_METHOD);
-        const onPaymentChange = jest.fn<void, [string]>();
-
-        renderCart({ onPaymentChange, orderType: "Delivery", paymentMethod: PAY_ONLINE_METHOD });
-
-        expect(onPaymentChange).not.toHaveBeenCalled();
     });
 });
 

@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
-import { logger } from "../../../shared/utils/logger";
 
 /**
  * Apple Pay and card are not payment_type values: each runs its own checkout (useApplePayCheckout,
@@ -14,40 +13,20 @@ type TenderChoice = typeof DEFAULT_PAYMENT_METHOD | typeof PAY_ONLINE_METHOD | t
 type CheckoutChoice = typeof APPLE_PAY_CHOICE | typeof CARD_CHOICE;
 export type PaymentChoice = TenderChoice | CheckoutChoice;
 
-const STORAGE_KEY = "ic.preferredPaymentMethod";
+// Most used first, by how our Talabat customers paid (export of 11–17 Oct 2026, 257 delivered
+// orders): Credit Card 50.6%, Cash 25.3%, not stated 12.1%, Debit Card 10.1%, Talabat Credit
+// 1.9%. Card leads; Apple Pay and BenefitPay never appear there, so Apple Pay — card-funded —
+// sits beside card, and Benefit stands in for "Debit Card" because Bahraini debit cards run on
+// BENEFIT. At counter is last on the owner's instruction (18 Oct 2026), although cash ranks second.
+const DISPLAY_ORDER: readonly PaymentChoice[] = [
+    CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD, WALLET_METHOD, DEFAULT_PAYMENT_METHOD,
+];
 
-function isTenderChoice(value: string | null): value is TenderChoice {
+function isTenderChoice(value: PaymentChoice): value is TenderChoice {
     return value === DEFAULT_PAYMENT_METHOD || value === PAY_ONLINE_METHOD || value === WALLET_METHOD;
 }
 
-function isCheckoutChoice(value: string | null): value is CheckoutChoice {
-    return value === APPLE_PAY_CHOICE || value === CARD_CHOICE;
-}
-
-// A remembered method is a convenience: private mode, blocked storage or a stale value must all
-// simply mean "no preference".
-function readPreference(): PaymentChoice | null {
-    try {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        return isTenderChoice(stored) || isCheckoutChoice(stored) ? stored : null;
-    } catch (failure: unknown) {
-        logger.debug("Payment preference unreadable:", failure);
-        return null;
-    }
-}
-
-function writePreference(choice: PaymentChoice): void {
-    try {
-        window.localStorage.setItem(STORAGE_KEY, choice);
-    } catch (failure: unknown) {
-        logger.debug("Payment preference not saved:", failure);
-    }
-}
-
 interface UsePaymentChoiceParams {
-    /** Whether the cart shows the choice at all (customer pickup). Nothing is restored otherwise. */
-    enabled: boolean;
-    paymentMethod: string;
     onPaymentChange: (value: string) => void;
     applePayAvailable: boolean;
     cardAvailable: boolean;
@@ -55,58 +34,37 @@ interface UsePaymentChoiceParams {
 
 export interface UsePaymentChoiceResult {
     choices: PaymentChoice[];
-    selected: PaymentChoice;
+    /** Null until the customer picks a method in this cart. */
+    selected: PaymentChoice | null;
     select: (choice: PaymentChoice) => void;
-    /** Called when the customer actually pays, so the next cart opens on the method they used. */
-    remember: () => void;
 }
 
+/**
+ * Nothing is chosen for the customer (owner, 18 Oct 2026): every cart opens with no method
+ * selected, neither a default nor the method used last time, so customers meet the new methods
+ * instead of paying the way they always have. The cart is mounted only while it is open, so the
+ * pick lives exactly as long as that opening.
+ */
 export function usePaymentChoice({
-    enabled, paymentMethod, onPaymentChange, applePayAvailable, cardAvailable,
+    onPaymentChange, applePayAvailable, cardAvailable,
 }: UsePaymentChoiceParams): UsePaymentChoiceResult {
-    const [preference] = useState<PaymentChoice | null>(readPreference);
-    const [checkoutChoice, setCheckoutChoice] = useState<CheckoutChoice | null>(null);
-    // Once the customer has picked something in this cart, a late-arriving method (Apple Pay
-    // turns available only after its eligibility prefetch) must not steal the selection.
-    const touchedRef = useRef(false);
+    const [picked, setPicked] = useState<PaymentChoice | null>(null);
 
-    const isAvailable = (choice: CheckoutChoice): boolean =>
-        choice === APPLE_PAY_CHOICE ? applePayAvailable : cardAvailable;
+    const isOffered = (choice: PaymentChoice): boolean =>
+        choice === APPLE_PAY_CHOICE ? applePayAvailable
+            : choice === CARD_CHOICE ? cardAvailable
+                : true;
 
-    useEffect(() => {
-        if (!enabled || touchedRef.current || !isTenderChoice(preference)) return;
-        if (preference !== paymentMethod) onPaymentChange(preference);
-        // Restores once per cart opening; later paymentMethod changes are the customer's own.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled]);
+    const choices = DISPLAY_ORDER.filter(isOffered);
 
-    useEffect(() => {
-        if (!enabled || touchedRef.current || !isCheckoutChoice(preference)) return;
-        if (checkoutChoice === null && isAvailable(preference)) setCheckoutChoice(preference);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, applePayAvailable, cardAvailable]);
-
-    const choices: PaymentChoice[] = [DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD];
-    if (applePayAvailable) choices.push(APPLE_PAY_CHOICE);
-    if (cardAvailable) choices.push(CARD_CHOICE);
-
-    // A method that stops being available (sign-out, eligibility refused) falls back to the
-    // tender. A tender the list does not offer falls back to BENEFIT, so what is highlighted is
-    // always what is sent.
-    const selected: PaymentChoice =
-        checkoutChoice !== null && isAvailable(checkoutChoice) ? checkoutChoice
-            : isTenderChoice(paymentMethod) ? paymentMethod
-                : PAY_ONLINE_METHOD;
+    // A picked method that stops being available (sign-out, eligibility refused) is no longer
+    // selected, so the pay button cannot start a flow this customer can no longer use.
+    const selected = picked !== null && isOffered(picked) ? picked : null;
 
     function select(choice: PaymentChoice): void {
-        touchedRef.current = true;
-        if (isCheckoutChoice(choice)) {
-            setCheckoutChoice(choice);
-            return;
-        }
-        setCheckoutChoice(null);
-        onPaymentChange(choice);
+        setPicked(choice);
+        if (isTenderChoice(choice)) onPaymentChange(choice);
     }
 
-    return { choices, selected, select, remember: () => writePreference(selected) };
+    return { choices, selected, select };
 }

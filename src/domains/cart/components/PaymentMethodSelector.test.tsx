@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
-import React from "react";
+import React, { useState } from "react";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -21,17 +21,28 @@ import {
 // Option A (owner, 18 Oct 2026): one row naming the chosen method, opening every method as a radio
 // list. Its "Payment method" title is the cart's, so this suite sees only the row.
 
-const ALL_CHOICES: PaymentChoice[] = [DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD, APPLE_PAY_CHOICE, CARD_CHOICE];
-const ALL_NAMES = ["At counter", "Benefit", "BenefitPay", "Apple Pay", "Card"];
+// usePaymentChoice's display order; the selector lists whatever order it is handed.
+const ALL_CHOICES: PaymentChoice[] = [CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD, WALLET_METHOD, DEFAULT_PAYMENT_METHOD];
+const ALL_NAMES = ["Card", "Apple Pay", "Benefit", "BenefitPay", "At counter"];
+
+const INVITE_EN = "Hey, we added new payment methods — check them out!";
+const INVITE_AR = "مرحباً! أضفنا طرق دفع جديدة، اكتشفها الآن";
 
 type SelectorProps = React.ComponentProps<typeof PaymentMethodSelector>;
+type HarnessProps = Omit<SelectorProps, "open" | "onOpenChange">;
 
-function renderSelector(overrides: Partial<SelectorProps> = {}, theme = createTheme()) {
+/** Holds the sheet's open state the way the cart does. */
+function SelectorHarness(props: HarnessProps): JSX.Element {
+    const [open, setOpen] = useState(false);
+    return <PaymentMethodSelector {...props} open={open} onOpenChange={setOpen} />;
+}
+
+function renderSelector(overrides: Partial<HarnessProps> = {}, theme = createTheme()) {
     const onSelect = jest.fn<void, [PaymentChoice]>();
-    const props: SelectorProps = { choices: ALL_CHOICES, selected: PAY_ONLINE_METHOD, onSelect, ...overrides };
+    const props: HarnessProps = { choices: ALL_CHOICES, selected: PAY_ONLINE_METHOD, onSelect, ...overrides };
     const view = render(
         <ThemeProvider theme={theme}>
-            <PaymentMethodSelector {...props} />
+            <SelectorHarness {...props} />
         </ThemeProvider>
     );
     return { ...view, onSelect };
@@ -157,7 +168,7 @@ describe("PaymentMethodSelector — the sheet", () => {
         const radios = screen.getAllByRole("radio");
         expect(radios.map((r) => r.textContent)).toEqual(ALL_NAMES);
         radios.forEach((r) => expect(group.contains(r)).toBe(true));
-        expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false", "true", "false", "false"]);
+        expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false", "false", "true", "false"]);
         expect(row.getAttribute("aria-expanded")).toBe("true");
     });
 
@@ -258,7 +269,7 @@ describe("PaymentMethodSelector — keyboard", () => {
         fireEvent.click(paymentRow());
 
         expect(focusedElement()).toBe(radio("BenefitPay"));
-        expect(screen.getAllByRole("radio").map((r) => r.getAttribute("tabindex"))).toEqual(["-1", "-1", "0", "-1", "-1"]);
+        expect(screen.getAllByRole("radio").map((r) => r.getAttribute("tabindex"))).toEqual(["-1", "-1", "-1", "0", "-1"]);
     });
 
     it("moves focus with the arrow keys, wrapping, without choosing", () => {
@@ -266,16 +277,15 @@ describe("PaymentMethodSelector — keyboard", () => {
         fireEvent.click(paymentRow());
 
         fireEvent.keyDown(focusedElement(), { key: "ArrowDown" });
-        expect(focusedElement()).toBe(radio("Apple Pay"));
-        fireEvent.keyDown(focusedElement(), { key: "ArrowDown" });
-        fireEvent.keyDown(focusedElement(), { key: "ArrowDown" });
         expect(focusedElement()).toBe(radio("At counter"));
+        fireEvent.keyDown(focusedElement(), { key: "ArrowDown" });
+        expect(focusedElement()).toBe(radio("Card"));
         fireEvent.keyDown(focusedElement(), { key: "ArrowUp" });
-        expect(focusedElement()).toBe(radio("Card"));
-        fireEvent.keyDown(focusedElement(), { key: "Home" });
         expect(focusedElement()).toBe(radio("At counter"));
-        fireEvent.keyDown(focusedElement(), { key: "End" });
+        fireEvent.keyDown(focusedElement(), { key: "Home" });
         expect(focusedElement()).toBe(radio("Card"));
+        fireEvent.keyDown(focusedElement(), { key: "End" });
+        expect(focusedElement()).toBe(radio("At counter"));
 
         expect(onSelect).not.toHaveBeenCalled();
         expect(radio("BenefitPay").getAttribute("aria-checked")).toBe("true");
@@ -318,3 +328,96 @@ describe("PaymentMethodSelector — a single method", () => {
         expect(screen.queryByRole("radiogroup", { hidden: true })).toBeNull();
     });
 });
+
+// Owner, 18 Oct 2026: nothing is preselected, and until the customer picks, the row invites them
+// to look at the new methods.
+describe("PaymentMethodSelector — nothing chosen yet", () => {
+    it("carries the invitation in the brand red, named under the section title", () => {
+        renderSelector({ selected: null });
+
+        const row = paymentRow();
+        expect(row.getAttribute("aria-label")).toBe(paymentRowName(INVITE_EN));
+        expect(row.textContent).toBe(INVITE_EN);
+        expect(emotionRulesFor(screen.getByText(INVITE_EN))).toContain("color:#E44B4C");
+        // A wallet glyph, not a method's mark, so no method looks chosen.
+        expect(paymentMarkOf(row)).toBeNull();
+        expect(screen.getByTestId("AccountBalanceWalletOutlinedIcon")).toBeTruthy();
+    });
+
+    // Cut off with an ellipsis on a phone, the invitation would stop before saying anything.
+    it("lets the invitation wrap instead of cutting it short", () => {
+        renderSelector({ selected: null });
+
+        const rules = emotionRulesFor(screen.getByText(INVITE_EN));
+        expect(rules).not.toContain("white-space:nowrap");
+        expect(rules).not.toContain("text-overflow:ellipsis");
+    });
+
+    it("invites in Arabic for an Arabic customer", async () => {
+        await i18n.changeLanguage("ar");
+        try {
+            const { unmount } = renderSelector({ selected: null });
+
+            const row = paymentRowArabic();
+            expect(row.textContent).toBe(INVITE_AR);
+            expect(row.getAttribute("aria-label")).toBe(`طريقة الدفع ${INVITE_AR}`);
+            unmount();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
+    });
+
+    it("lists every method with none checked, and lands on the first", () => {
+        renderSelector({ selected: null });
+        fireEvent.click(paymentRow());
+
+        const radios = screen.getAllByRole("radio");
+        expect(radios.map((r) => r.textContent)).toEqual(ALL_NAMES);
+        expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false", "false", "false", "false"]);
+        expect(radios.map((r) => r.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1"]);
+        expect(focusedElement()).toBe(radio("Card"));
+    });
+
+    it("reports whichever method is picked, the first one included", async () => {
+        const { onSelect } = renderSelector({ selected: null });
+        fireEvent.click(paymentRow());
+
+        fireEvent.click(radio("Card"));
+
+        expect(onSelect).toHaveBeenCalledWith(CARD_CHOICE);
+        await waitForPaymentSheetToClose();
+    });
+
+    // The static row has no sheet, and the sheet is the only way to choose.
+    it("still opens the sheet for a sole method", () => {
+        const { onSelect } = renderSelector({ choices: [PAY_ONLINE_METHOD], selected: null });
+
+        expect(screen.queryByTestId("cart-payment-static-row")).toBeNull();
+        fireEvent.click(paymentRow());
+        fireEvent.click(radio("Benefit"));
+
+        expect(onSelect).toHaveBeenCalledWith(PAY_ONLINE_METHOD);
+    });
+});
+
+describe("PaymentMethodSelector — opened by its owner", () => {
+    // The cart's pay button opens the list when nothing is chosen, so the open state is the cart's.
+    it("shows the list whenever it is told to, and asks to close it", () => {
+        const onOpenChange = jest.fn<void, [boolean]>();
+        const onSelect = jest.fn<void, [PaymentChoice]>();
+        render(
+            <PaymentMethodSelector choices={ALL_CHOICES} selected={null} onSelect={onSelect} open onOpenChange={onOpenChange} />
+        );
+
+        expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
+        // The open sheet hides the row from the accessibility tree, hence `hidden`.
+        const row = screen.getByRole("button", { name: paymentRowName(INVITE_EN), hidden: true });
+        expect(row.getAttribute("aria-expanded")).toBe("true");
+
+        fireEvent.click(radio("BenefitPay"));
+
+        expect(onSelect).toHaveBeenCalledWith(WALLET_METHOD);
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+});
+

@@ -5,9 +5,7 @@ import "../../../shared/i18n";
 import CartPopup from "./CartComponent";
 import type { CartItem } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD } from "../../order/types";
-import {
-    PAYMENT_ROW_NAME, choosePayment, listedPaymentMethods, openPaymentSheet, paymentRow, paymentRowName,
-} from "./paymentSelector.testutil";
+import { PAYMENT_ROW_NAME, choosePayment, listedPaymentMethods, openPaymentSheet } from "./paymentSelector.testutil";
 
 const ITEM: CartItem = {
     id: 1, name: "Water", size: "M", category: "Beverages", isThinDough: false, isGarlicCrust: false,
@@ -56,13 +54,13 @@ describe("CartPopup — Apple Pay in the payment list", () => {
         renderCart();
 
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
+        expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
 
     it("offers no Apple Pay row when it is not available", () => {
         renderCart({ applePay: { available: false, busy: false, start: jest.fn() } });
 
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
+        expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
 
     // One list, one button: Apple Pay is a row like the others, and its button only replaces
@@ -96,33 +94,16 @@ describe("CartPopup — Apple Pay in the payment list", () => {
         expect(screen.getByRole("button", { name: "Pay with Apple Pay" }).hasAttribute("disabled")).toBe(true);
     });
 
-    it("opens on Apple Pay for a customer who paid with it last time", () => {
+    // Nothing is preselected any more (owner, 18 Oct 2026), not even the method used last time.
+    it("does not open on Apple Pay for a customer who paid with it last time", () => {
         window.localStorage.setItem("ic.preferredPaymentMethod", "applePay");
 
         renderCart({ applePay: AVAILABLE });
-
-        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("Apple Pay"));
-        expect(screen.getByRole("button", { name: "Pay with Apple Pay" })).toBeTruthy();
-        openPaymentSheet();
-        expect(screen.getByRole("radio", { name: "Apple Pay" }).getAttribute("aria-checked")).toBe("true");
-    });
-
-    it("remembers Apple Pay once the customer pays with it", async () => {
-        renderCart({ applePay: AVAILABLE });
-
-        await choosePayment("Apple Pay");
-        fireEvent.click(screen.getByRole("button", { name: "Pay with Apple Pay" }));
-
-        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe("applePay");
-    });
-
-    it("falls back to Checkout when a remembered Apple Pay is not available on this device", () => {
-        window.localStorage.setItem("ic.preferredPaymentMethod", "applePay");
-
-        renderCart({ applePay: { available: false, busy: false, start: jest.fn() } });
 
         expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        openPaymentSheet();
+        expect(screen.getByRole("radio", { name: "Apple Pay" }).getAttribute("aria-checked")).toBe("false");
     });
 
     // Delivery is paid in DeliveryCheckoutDrawer; this button would create an address-less order.

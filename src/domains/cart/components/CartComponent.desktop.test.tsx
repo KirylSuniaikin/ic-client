@@ -19,7 +19,9 @@ import { WALLET_METHOD } from "../../order/types";
 import { DesktopLayoutAllowedContext } from "../../../shared/hooks/useDesktopLayout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { cartModalRoot, focusedElement, layerOf, paymentRow, paymentRowName, sheetRoot } from "./paymentSelector.testutil";
+import {
+    cartModalRoot, choosePayment, focusedElement, layerOf, paymentRow, paymentRowName, sheetRoot,
+} from "./paymentSelector.testutil";
 import { backdropOf, phoneCartRoot, scrollContainerOf } from "./cartLayout.testutil";
 
 jest.mock("../../branch/components/BranchMapView");
@@ -195,12 +197,13 @@ describe("CartPopup — PC dialog", () => {
         expect(props.onClose).not.toHaveBeenCalled();
     });
 
-    it("keeps the same sections and places the order with the same arguments as on the phone", () => {
+    it("keeps the same sections and places the order with the same arguments as on the phone", async () => {
         stubMatchMedia(true);
         const props = cartProps();
         render(<CartPopup {...props} />);
 
         expect(screen.getByText("Delivery type")).toBeTruthy();
+        await choosePayment("BenefitPay");
         expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("BenefitPay"));
         fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
 

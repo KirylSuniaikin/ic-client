@@ -51,21 +51,22 @@ describe("CartPopup — card in the payment list", () => {
     it("offers no Card row when the cardPayment prop is absent", () => {
         renderCart();
 
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
+        expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
 
     it("offers no Card row when it is not available", () => {
         renderCart({ cardPayment: { available: false, busy: false, start: jest.fn() } });
 
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
+        expect(listedPaymentMethods()).toEqual(["Benefit", "BenefitPay", "At counter"]);
     });
 
-    it("lists Card after the BENEFIT methods instead of a separate button", () => {
+    // Card first: the most used way to pay among our Talabat customers (see usePaymentChoice).
+    it("lists Card first instead of a separate button", () => {
         renderCart({ cardPayment: AVAILABLE });
 
         // Before the sheet opens: an open sheet hides the cart's own buttons from role queries.
         expect(screen.queryByRole("button", { name: "Pay by card" })).toBeNull();
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay", "Card"]);
+        expect(listedPaymentMethods()).toEqual(["Card", "Benefit", "BenefitPay", "At counter"]);
     });
 
     it("makes Checkout open the card drawer when Card is selected, without touching checkout", async () => {
@@ -77,7 +78,6 @@ describe("CartPopup — card in the payment list", () => {
 
         expect(start).toHaveBeenCalledTimes(1);
         expect(onCheckout).not.toHaveBeenCalled();
-        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBe("card");
     });
 
     it("never sends Card as the order's payment_type", async () => {

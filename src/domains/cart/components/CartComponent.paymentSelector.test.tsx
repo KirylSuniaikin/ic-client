@@ -3,7 +3,7 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 // CartPopup renders its copy via useTranslation; initialize the real i18n instance.
-import "../../../shared/i18n";
+import i18n from "../../../shared/i18n";
 
 import CartPopup from "./CartComponent";
 import type { CartItem } from "../../menu/types";
@@ -11,7 +11,7 @@ import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import {
     PAYMENT_ROW_NAME, cartModalRoot, choosePayment, hasSheetRoot, layerOf, listedPaymentMethods, paymentRow,
-    paymentRowName, sheetRoot,
+    paymentRowName, sheetRoot, waitForPaymentSheetToClose,
 } from "./paymentSelector.testutil";
 
 // The payment methods as one row that opens a sheet listing them all (option A, which
@@ -27,8 +27,8 @@ const ITEMS: CartItem[] = [ITEM];
 
 type CartProps = React.ComponentProps<typeof CartPopup>;
 
-function renderCart(overrides: Partial<CartProps> = {}): CartProps {
-    const props: CartProps = {
+function cartProps(overrides: Partial<CartProps> = {}): CartProps {
+    return {
         open: true,
         onClose: jest.fn<void, []>(),
         items: ITEMS,
@@ -49,8 +49,12 @@ function renderCart(overrides: Partial<CartProps> = {}): CartProps {
         isKiosk: false,
         ...overrides,
     };
-    render(<CartPopup {...props} />);
-    return props;
+}
+
+function renderCart(overrides: Partial<CartProps> = {}): CartProps & { rerender: (next: Partial<CartProps>) => void } {
+    const props = cartProps(overrides);
+    const view = render(<CartPopup {...props} />);
+    return { ...props, rerender: (next) => view.rerender(<CartPopup {...props} {...next} />) };
 }
 
 /** Built per test: CRA's resetMocks would clear a module-level mock's implementation. */
@@ -58,7 +62,12 @@ function available(start = jest.fn<void, []>()) {
     return { available: true, busy: false, start };
 }
 
-const ALL_METHODS = ["At counter", "Benefit", "BenefitPay", "Apple Pay", "Card"];
+// Talabat's most used first, and the counter last (owner, 18 Oct 2026); see usePaymentChoice.
+const ALL_METHODS = ["Card", "Apple Pay", "Benefit", "BenefitPay", "At counter"];
+const GUEST_METHODS = ["Benefit", "BenefitPay", "At counter"];
+
+const INVITE_EN = "Hey, we added new payment methods — check them out!";
+const INVITE_AR = "مرحباً! أضفنا طرق دفع جديدة، اكتشفها الآن";
 
 beforeEach(() => {
     window.localStorage.clear();
@@ -69,7 +78,7 @@ afterEach(() => {
 });
 
 describe("CartPopup — payment row on the phone", () => {
-    it("shows one row naming the selected method instead of a control per method", () => {
+    it("shows one row instead of a control per method", () => {
         renderCart({ applePay: available(), cardPayment: available() });
 
         expect(paymentRow()).toBeTruthy();
@@ -77,25 +86,23 @@ describe("CartPopup — payment row on the phone", () => {
         expect(screen.queryByRole("radio")).toBeNull();
     });
 
-    it("lists every available method in its sheet, in order", () => {
+    it("lists a signed-in customer's methods by Talabat popularity, the counter last", () => {
         renderCart({ applePay: available(), cardPayment: available() });
 
         expect(listedPaymentMethods()).toEqual(ALL_METHODS);
     });
 
-    it("lists only the counter and the two BENEFIT methods when nothing else is available", () => {
+    // Apple Pay and card need an account, so a guest gets the BENEFIT pair and the counter.
+    it("lists a guest's methods in the same order: Benefit, BenefitPay, then the counter", () => {
         renderCart();
 
-        expect(listedPaymentMethods()).toEqual(["At counter", "Benefit", "BenefitPay"]);
+        expect(listedPaymentMethods()).toEqual(GUEST_METHODS);
     });
 
-    it("opens on the method it was handed, checked in the sheet", () => {
-        renderCart({ paymentMethod: WALLET_METHOD });
+    it("keeps the order when only one of Apple Pay and card is available", () => {
+        renderCart({ cardPayment: available() });
 
-        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("BenefitPay"));
-        fireEvent.click(paymentRow());
-        expect(screen.getByRole("radio", { name: "BenefitPay" }).getAttribute("aria-checked")).toBe("true");
-        expect(screen.getByRole("radio", { name: "Benefit" }).getAttribute("aria-checked")).toBe("false");
+        expect(listedPaymentMethods()).toEqual(["Card", ...GUEST_METHODS]);
     });
 
     it("hands the cart the method the customer picks", async () => {
@@ -124,13 +131,11 @@ describe("CartPopup — payment row on the phone", () => {
 });
 
 describe("CartPopup — Apple Pay picked from the sheet", () => {
-    it("swaps Checkout for Apple's button and opens the session inside the same tap, after remembering it", async () => {
+    it("swaps Checkout for Apple's button and opens the session inside the same tap", async () => {
         let dispatching = false;
         let startedDuringTap = false;
-        let rememberedAtStart: string | null = null;
         const start = jest.fn<void, []>(() => {
             startedDuringTap = dispatching;
-            rememberedAtStart = window.localStorage.getItem("ic.preferredPaymentMethod");
         });
         const { onCheckout } = renderCart({ applePay: available(start) });
 
@@ -145,7 +150,6 @@ describe("CartPopup — Apple Pay picked from the sheet", () => {
         expect(start).toHaveBeenCalledTimes(1);
         // Safari opens a payment sheet only from inside the user's gesture, never after an await.
         expect(startedDuringTap).toBe(true);
-        expect(rememberedAtStart).toBe("applePay");
         expect(onCheckout).not.toHaveBeenCalled();
     });
 
@@ -157,6 +161,162 @@ describe("CartPopup — Apple Pay picked from the sheet", () => {
 
         expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+    });
+});
+
+// Owner, 18 Oct 2026: no method is chosen for the customer, neither the old default nor the one
+// they used last time, and the row invites them to look at the new methods instead.
+describe("CartPopup — nothing preselected", () => {
+    it.each([
+        ["a guest", {}],
+        ["a signed-in customer", { applePay: available(), cardPayment: available() }],
+    ])("opens with no method chosen for %s, inviting them to look", (_label, overrides) => {
+        renderCart({ ...overrides, paymentMethod: WALLET_METHOD });
+
+        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName(INVITE_EN));
+        expect(paymentRow().textContent).toBe(INVITE_EN);
+        fireEvent.click(paymentRow());
+        screen.getAllByRole("radio").forEach((radio) => expect(radio.getAttribute("aria-checked")).toBe("false"));
+    });
+
+    it("ignores the method remembered from an earlier visit, and pushes nothing to the order", () => {
+        window.localStorage.setItem("ic.preferredPaymentMethod", WALLET_METHOD);
+        const { onPaymentChange } = renderCart({ applePay: available(), cardPayment: available() });
+
+        expect(paymentRow().textContent).toBe(INVITE_EN);
+        expect(onPaymentChange).not.toHaveBeenCalled();
+        fireEvent.click(paymentRow());
+        expect(screen.getByRole("radio", { name: "BenefitPay" }).getAttribute("aria-checked")).toBe("false");
+    });
+
+    it("ignores a remembered Apple Pay too, keeping the red Checkout", () => {
+        window.localStorage.setItem("ic.preferredPaymentMethod", "applePay");
+        renderCart({ applePay: available(), cardPayment: available() });
+
+        expect(paymentRow().textContent).toBe(INVITE_EN);
+        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+    });
+
+    it("records nothing for next time when the customer pays", async () => {
+        renderCart();
+
+        await choosePayment("BenefitPay");
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        expect(window.localStorage.getItem("ic.preferredPaymentMethod")).toBeNull();
+    });
+
+    it("invites an Arabic customer in Arabic", async () => {
+        await i18n.changeLanguage("ar");
+        try {
+            const { unmount } = render(<CartPopup {...cartProps()} />);
+
+            expect(screen.getByRole("button", { name: `طريقة الدفع ${INVITE_AR}` }).textContent).toBe(INVITE_AR);
+            // Unmounted first, so switching the language back cannot re-render it outside act().
+            unmount();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
+    });
+
+    it("names the picked method once the customer chooses", async () => {
+        renderCart({ applePay: available(), cardPayment: available() });
+
+        await choosePayment("At counter");
+
+        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("At counter"));
+        expect(screen.queryByText(INVITE_EN)).toBeNull();
+    });
+
+    // Sign-out or a refused eligibility check takes Apple Pay away after it was picked.
+    it("goes back to nothing chosen when a picked Apple Pay stops being available", async () => {
+        const { rerender } = renderCart({ applePay: available() });
+        await choosePayment("Apple Pay");
+        expect(screen.getByRole("button", { name: "Pay with Apple Pay" })).toBeTruthy();
+
+        rerender({ applePay: { available: false, busy: false, start: jest.fn<void, []>() } });
+
+        expect(paymentRow().textContent).toBe(INVITE_EN);
+        expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
+    });
+});
+
+describe("CartPopup — pay button before a method is chosen", () => {
+    it.each([
+        ["on the phone", false],
+        ["on PC", true],
+    ])("opens the payment list and places no order %s", (_label, desktop) => {
+        if (desktop) stubMatchMedia(true);
+        const applePayStart = jest.fn<void, []>();
+        const cardStart = jest.fn<void, []>();
+        const { onCheckout, onPaymentChange } = renderCart({
+            paymentMethod: PAY_ONLINE_METHOD, applePay: available(applePayStart), cardPayment: available(cardStart),
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
+        screen.getAllByRole("radio").forEach((radio) => expect(radio.getAttribute("aria-checked")).toBe("false"));
+        expect(onCheckout).not.toHaveBeenCalled();
+        expect(onPaymentChange).not.toHaveBeenCalled();
+        expect(applePayStart).not.toHaveBeenCalled();
+        expect(cardStart).not.toHaveBeenCalled();
+    });
+
+    it("waits for a second tap after a method is picked from the list it opened", async () => {
+        const { onCheckout } = renderCart();
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        fireEvent.click(screen.getByRole("radio", { name: "BenefitPay" }));
+        await waitForPaymentSheetToClose();
+
+        expect(onCheckout).not.toHaveBeenCalled();
+        expect(paymentRow().getAttribute("aria-label")).toBe(paymentRowName("BenefitPay"));
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
+    });
+});
+
+describe("CartPopup — the flow each picked method starts", () => {
+    it.each([
+        ["Benefit", PAY_ONLINE_METHOD],
+        ["BenefitPay", WALLET_METHOD],
+        ["At counter", DEFAULT_PAYMENT_METHOD],
+    ])("%s places the order with its tender", async (method, tender) => {
+        const { onCheckout, onPaymentChange } = renderCart({ applePay: available(), cardPayment: available() });
+
+        await choosePayment(method);
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        // Pushed to useCheckout too, which the cross-sell resume and the guest detours read.
+        expect(onPaymentChange).toHaveBeenCalledWith(tender);
+        expect(onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", tender, "", null, false);
+    });
+
+    it("Card opens the card drawer and places no order itself", async () => {
+        const cardStart = jest.fn<void, []>();
+        const { onCheckout, onPaymentChange } = renderCart({ applePay: available(), cardPayment: available(cardStart) });
+
+        await choosePayment("Card");
+        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+
+        expect(cardStart).toHaveBeenCalledTimes(1);
+        expect(onCheckout).not.toHaveBeenCalled();
+        expect(onPaymentChange).not.toHaveBeenCalled();
+    });
+
+    it("Apple Pay opens Apple's session and places no order itself", async () => {
+        const applePayStart = jest.fn<void, []>();
+        const { onCheckout, onPaymentChange } = renderCart({ applePay: available(applePayStart), cardPayment: available() });
+
+        await choosePayment("Apple Pay");
+        fireEvent.click(screen.getByRole("button", { name: "Pay with Apple Pay" }));
+
+        expect(applePayStart).toHaveBeenCalledTimes(1);
+        expect(onCheckout).not.toHaveBeenCalled();
+        expect(onPaymentChange).not.toHaveBeenCalled();
     });
 });
 
