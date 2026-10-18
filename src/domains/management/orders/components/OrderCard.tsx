@@ -27,8 +27,8 @@ import { buildTicketLines, resolveKitchenNote } from '../../../menu/utils/orderL
 
 const colorRed = '#E44B4C';
 const colorBeige = '#FCF4DD';
-// Talabat's orange (#FF5A00) at about 30% over white: recognisable without shouting on the board.
-const colorTalabat = '#FFCEB3';
+// Owner's pick for Talabat cards (18 Oct 2026); dark text and the white icon circles read on it.
+const colorTalabat = '#fbad8e';
 
 // OrderMapper sends this in place of a phone when the order has no customer. On a Talabat order
 // that means the rider photo has not been linked yet, so there is no number to show.

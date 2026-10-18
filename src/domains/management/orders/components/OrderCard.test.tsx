@@ -93,7 +93,7 @@ describe("OrderCard — background colours", () => {
     it.each([
         ["Jahez", "rgb(255, 245, 245)"],
         ["Keeta", "rgb(205, 186, 46)"],
-        ["Talabat", "rgb(255, 206, 179)"],
+        ["Talabat", "rgb(251, 173, 142)"],
     ] as const)("keeps the %s colour", (orderType, expected) => {
         // Regression guard for cardBackgroundColor(), which replaced an inline four-deep ternary.
         const card = renderCard(makeOrder({ order_type: orderType }));
@@ -124,8 +124,8 @@ describe("OrderCard — Talabat orders", () => {
         );
     }
 
-    it("colours an imported order with the Talabat tint", () => {
-        expect(backgroundOf(renderCard(makeOrder(imported)))).toBe("rgb(255, 206, 179)");
+    it("colours an imported order with the Talabat colour", () => {
+        expect(backgroundOf(renderCard(makeOrder(imported)))).toBe("rgb(251, 173, 142)");
     });
 
     it("shows the customer and number once the order is linked", () => {
