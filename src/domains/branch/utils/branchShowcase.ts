@@ -3,7 +3,7 @@ import type { IBranch } from "../../management/inventory/types";
 /**
  * Per-branch photos and the "How to find us" note for the branch details sheet.
  *
- * Shipped empty on purpose: no stock or placeholder photos. A branch without an entry shows the
+ * No stock or placeholder photos: a branch without an entry shows the
  * finished no-photo layout (the storefront roundel).
  *
  * To add a branch:
@@ -35,7 +35,18 @@ export interface BranchShowcase {
 }
 
 /** Keyed by branchNo (branches.branch_number). */
-export const BRANCH_SHOWCASE: Readonly<Record<number, BranchShowcase>> = {};
+export const BRANCH_SHOWCASE: Readonly<Record<number, BranchShowcase>> = {
+    // Al-Hidd
+    1: {
+        photos: [
+            { src: "/branchImages/1/01-storefront.webp" },
+            { src: "/branchImages/1/02-counter.webp" },
+            { src: "/branchImages/1/03-kitchen.webp" },
+            { src: "/branchImages/1/04-pizza.webp" },
+            { src: "/branchImages/1/05-team.webp" },
+        ],
+    },
+};
 
 /** The entry, already in the reader's language. */
 export interface BranchShowcaseView {
