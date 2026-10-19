@@ -8,6 +8,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { DEFAULT_PAYMENT_METHOD } from "../domains/order/types";
+import { installPointerEvent, removePointerEvent, tap } from "../shared/hooks/tapGesture.testutil";
 
 // HomePage (via HeroSection/CustomerIconButton) uses useTranslation -- initialize the real
 // i18n instance (side-effect import) so keys resolve to English, mirroring HeroSection.test.tsx.
@@ -925,5 +926,40 @@ describe("HomePage -- branch chip and cart-loss switch warning", () => {
         await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
         expect(screen.queryByText(/Switch to/)).toBeNull();
         expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(fetchCallsBefore);
+    });
+});
+
+// The pill floats over the scrolling menu at the bottom of the screen, where a thumb starts a
+// scroll — so the touch that stops one must not open the cart. Real timers are enough here: the
+// scroll and the tap below are milliseconds apart, well inside the guard's 150 ms window.
+describe("HomePage -- cart pill under a scrolling menu", () => {
+    beforeAll(() => {
+        installPointerEvent();
+    });
+
+    afterAll(() => {
+        removePointerEvent();
+    });
+
+    it("does not open the cart for the touch that stops the menu scrolling", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        fireEvent.scroll(window);
+        tap(screen.getByTestId("ShoppingCartIcon"));
+
+        // An open cart hides the pill, so the pill still being there is the cart staying shut.
+        expect(screen.getByTestId("ShoppingCartIcon")).toBeTruthy();
+    });
+
+    it("opens the cart on a plain tap", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        tap(screen.getByTestId("ShoppingCartIcon"));
+
+        await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
     });
 });

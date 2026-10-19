@@ -20,6 +20,7 @@ import { FaqSection, FAQ_SECTION_VISIBLE } from "../shared/components/FaqSection
 import HomePageModals from "./HomePageModals";
 import HeroSection from "./HeroSection";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
+import { useTapGuard } from "../shared/hooks/useTapGuard";
 import { useImagePreloader } from "../shared/hooks/useImagePreloader";
 import { groupItemsByCategory, groupAvailableItemsByName, collectPreloadUrls } from "../shared/utils/menuUtils";
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
@@ -187,6 +188,9 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // scrolls. Once they scroll past the hero into the menu (menuTop reaches the viewport top),
     // hide it so the menu gets the full screen; it reappears when scrolled back up.
     const heroScrolledAway = useScrolledAboveViewport(menuTopRef);
+
+    // The cart pill floats over the scrolling menu, right where a thumb starts a scroll.
+    const guardTap = useTapGuard();
 
     useEffect(() => {
         if (menu.pendingInitialItems.length > 0) cart.handleAddToCart(menu.pendingInitialItems, true);
@@ -401,7 +405,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                 setKeetaOpen={setKeetaOpen}
             />
             {cart.cartItems.length > 0 && noPopupOpen && (
-                <Box onClick={handleOpenCart} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>
+                <Box onClick={guardTap(handleOpenCart)} sx={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "70vw", maxWidth: 400, zIndex: 9999, px: 3, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 999, backdropFilter: "blur(8px)", backgroundColor: "rgba(255, 255, 255, 0.7)", boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.8)" } }}>
                     {cart.totalPrice !== "0.00" && <Box sx={{ flexGrow: 1, textAlign: "center" }}><TextButton sx={{ fontWeight: 600, color: "#000", fontSize: "1.1rem" }}>{cart.totalPrice} {tr("common:currency")}</TextButton></Box>}
                     <Badge badgeContent={cart.cartItems.length} color="error" sx={{ "& .MuiBadge-badge": { fontSize: "12px", height: "22px", minWidth: "22px", backgroundColor: brandRed, color: "white", top: 2, right: 2 } }}>
                         <ShoppingCartIcon sx={{ color: brandRed, fontSize: 32 }} />

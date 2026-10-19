@@ -14,6 +14,7 @@ import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {TextTitle, TextSecondary, TextTitleWithoutVariant} from "../../../shared/components/typography";
 import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
+import { useTapGuard } from "../../../shared/hooks/useTapGuard";
 import { pickDefaultItem } from "../../../shared/utils/menuUtils";
 import type { Group, CartItem, MenuItem } from '../types';
 
@@ -52,6 +53,7 @@ function MenuItemCardHorizontal({
                                 }: MenuItemCardHorizontalProps): JSX.Element | null {
     const { t } = useTranslation("menu");
     const { name: localizeName } = useLocalizedItem();
+    const guardTap = useTapGuard();
     const defaultItem = pickDefaultItem(group);
     const { name, price, photo, is_best_seller } = defaultItem;
     // Display-only: Arabic when active (falls back to English when name_ar is null).
@@ -108,7 +110,7 @@ function MenuItemCardHorizontal({
 
     return (
         <Card
-            onClick={handleClick}
+            onClick={guardTap(handleClick)}
             sx={{
                 borderRadius: 3,
                 border: selected ? `2px solid ${highlightColor}` : "2px solid transparent",
