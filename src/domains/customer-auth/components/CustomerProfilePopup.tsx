@@ -2,7 +2,7 @@
 // CustomerLoginPopup/ClientInfoPopup (brand-red bottom Drawer).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Avatar, Box, Button, Chip, CircularProgress, Divider, IconButton, Stack, TextField, Typography } from "@mui/material";
+import { Avatar, Box, Button, Chip, CircularProgress, Divider, Fab, IconButton, Stack, TextField, Typography } from "@mui/material";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
@@ -13,6 +13,7 @@ import AddShoppingCartRoundedIcon from "@mui/icons-material/AddShoppingCartRound
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import CloseIcon from "@mui/icons-material/Close";
 import { fetchCustomerMe, fetchMyOrders, fetchSuggestedItems, updateCustomerName } from "../../../shared/api/customerAuth";
 import { useCustomerAuth } from "../context/CustomerAuthProvider";
 import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
@@ -23,13 +24,23 @@ import { CustomerOrderDetailPopup } from "./CustomerOrderDetailPopup";
 import { CustomerSheet } from "../../../shared/components/CustomerSheet";
 import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
 import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
+import { DESKTOP_DIALOG_MAX_HEIGHT } from "../../../shared/utils/desktopDialog";
+import { ASIDE_COLUMN_SX, CLOSE_FAB_SX } from "../../menu/components/popups/ItemPopupShell";
 
-// PC: a full-height panel docked like the cart.
+// PC (owner, 19 Oct 2026: "profile popup is not adapted to pc"): the PC cart's centred two-column
+// dialog, same size, corners, grounds and round close button, instead of a full-height panel docked
+// at the side. The account and its quick order sit on the cart's warm column, the order history on
+// white beside it.
 const PROFILE_DESKTOP = {
-    placement: "side",
-    width: 440,
-    paperSx: { background: ACCOUNT_SHEET_BACKGROUND },
+    placement: "center",
+    width: 960,
+    height: DESKTOP_DIALOG_MAX_HEIGHT,
+    paperSx: { flexDirection: "row", overflow: "hidden", bgcolor: "#fff" },
 } satisfies CustomerSheetDesktop;
+
+// A fixed id rather than useId: a new useId call would renumber the ids MUI gives the name field,
+// and the phone markup must not move.
+const PROFILE_TITLE_ID = "customer-profile-title";
 
 const brandRed = "#E44B4C";
 const brandRedTint = "#FCE9E9";
@@ -233,12 +244,364 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
 
     const initial = (profile?.name ?? "").trim().charAt(0).toUpperCase();
 
+    // The blocks below are laid out twice: down one column on the phone, across two on PC.
+    const errorBanner = error && (
+        <Box
+            sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.75,
+                bgcolor: brandRedTint,
+                borderRadius: 2.5,
+                px: 1.5,
+                py: 1,
+                mb: 2,
+            }}
+        >
+            <ErrorOutlineRoundedIcon sx={{ fontSize: 18, color: brandRed }} />
+            <Typography sx={{ color: brandRed, fontSize: 13.5, fontWeight: 500 }}>
+                {error}
+            </Typography>
+        </Box>
+    );
+
+    const accountCard = isLoading && !profile ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+            <CircularProgress size={28} sx={{ color: brandRed }} />
+        </Box>
+    ) : (
+        profile && (
+            <Stack
+                direction="row"
+                spacing={1.75}
+                alignItems="center"
+                sx={{ mb: 3, bgcolor: "#fff", borderRadius: 4, p: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}
+            >
+                <Avatar sx={{ bgcolor: brandRed, width: 56, height: 56, fontWeight: 700, fontSize: 24 }}>
+                    {initial}
+                </Avatar>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                    {isEditingName ? (
+                        <>
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                <TextField
+                                    variant="standard"
+                                    autoFocus
+                                    disabled={isSavingName}
+                                    error={Boolean(nameError)}
+                                    value={draftName}
+                                    onChange={(e) => setDraftName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            void handleSaveName();
+                                        } else if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            handleCancelEditName();
+                                        }
+                                    }}
+                                    inputProps={{ maxLength: 255, "aria-label": t("login.nameLabel") }}
+                                    placeholder={t("login.namePlaceholder")}
+                                    sx={{ flex: 1, "& .MuiInput-input": { fontWeight: 700, fontSize: 18 } }}
+                                />
+                                <IconButton
+                                    aria-label={t("profile.saveName")}
+                                    size="small"
+                                    disabled={isSavingName}
+                                    onClick={() => void handleSaveName()}
+                                    sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
+                                >
+                                    {isSavingName ? (
+                                        <CircularProgress size={16} sx={{ color: brandRed }} />
+                                    ) : (
+                                        <CheckRoundedIcon sx={{ fontSize: 16 }} />
+                                    )}
+                                </IconButton>
+                                <IconButton
+                                    aria-label={t("profile.cancelEdit")}
+                                    size="small"
+                                    disabled={isSavingName}
+                                    onClick={handleCancelEditName}
+                                    sx={{ color: "#6b6b6b", flexShrink: 0, p: 0.25 }}
+                                >
+                                    <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                            </Stack>
+                            {nameError && (
+                                <Typography sx={{ color: brandRed, fontSize: 12, mt: 0.25 }}>
+                                    {nameError}
+                                </Typography>
+                            )}
+                        </>
+                    ) : (
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }} noWrap>
+                                {profile.name ?? t("profile.guest")}
+                            </Typography>
+                            <IconButton
+                                aria-label={t("profile.editName")}
+                                size="small"
+                                onClick={handleStartEditName}
+                                sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
+                            >
+                                <EditRoundedIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        </Stack>
+                    )}
+                    <Typography sx={{ color: "#6b6b6b", fontSize: 14, mt: 0.25 }} noWrap>
+                        {profile.phone}
+                    </Typography>
+                    {typeof profile.amountOfOrders === "number" && profile.amountOfOrders > 0 && (
+                        <Typography sx={{ color: brandRed, fontSize: 12.5, fontWeight: 600, mt: 0.5 }}>
+                            {profile.amountOfOrders} {t(profile.amountOfOrders === 1 ? "profile.orderSingular" : "profile.orderPlural")}
+                        </Typography>
+                    )}
+                </Box>
+            </Stack>
+        )
+    );
+
+    const quickOrder = availableSuggestedItems.length > 0 && (
+        <Box sx={{ mb: 3, bgcolor: "#fff", borderRadius: 4, p: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
+            <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {t("profile.quickOrder.title")}
+            </Typography>
+            {suggestedFallback && (
+                <Typography sx={{ mb: 1.5, fontSize: 12.5, color: "#9a9a9a" }}>
+                    {t("profile.quickOrder.fallbackHint")}
+                </Typography>
+            )}
+            <Stack spacing={1.25} sx={{ mb: 1.5 }}>
+                {availableSuggestedItems.map((item) => {
+                    const displayName = i18n.language.startsWith("ar") ? (item.nameAr ?? item.name) : item.name;
+                    return (
+                        <Stack key={item.menuItemId} direction="row" spacing={1.5} alignItems="center">
+                            {item.photo && (
+                                <Box
+                                    component="img"
+                                    src={item.photo}
+                                    alt={displayName}
+                                    sx={{ width: 48, height: 48, borderRadius: 2, objectFit: "contain", bgcolor: "#f7f7f7", flexShrink: 0 }}
+                                />
+                            )}
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 14 }} noWrap>
+                                    {displayName}{item.size ? ` (${item.size})` : ""}
+                                </Typography>
+                            </Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                                {item.price.toFixed(2)} {t("currency", { ns: "common" })}
+                            </Typography>
+                        </Stack>
+                    );
+                })}
+            </Stack>
+            <Button
+                fullWidth
+                variant="contained"
+                onClick={handleAddSuggestedToCart}
+                startIcon={<AddShoppingCartRoundedIcon />}
+                sx={{
+                    py: 1.25,
+                    bgcolor: brandRed,
+                    textTransform: "none",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    "&:hover": { bgcolor: "#d23f40" },
+                }}
+            >
+                {t("profile.quickOrder.addToCart")}
+            </Button>
+        </Box>
+    );
+
+    const orderHistory = (
+        <>
+            <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {t("profile.orderHistory")}
+            </Typography>
+
+            <Stack spacing={1.25} sx={{ mb: 2 }}>
+                {!isLoading && orders.length === 0 && (
+                    <Box sx={{ textAlign: "center", py: 3, color: "#9a9a9a" }}>
+                        <ReceiptLongRoundedIcon sx={{ fontSize: 36, mb: 1, opacity: 0.6 }} />
+                        <Typography sx={{ fontSize: 14 }}>
+                            {t("profile.noOrders")}
+                        </Typography>
+                    </Box>
+                )}
+                {orders.map((order) => {
+                    const chip = statusStyle(order.status);
+                    return (
+                        <Box
+                            key={order.id}
+                            onClick={() => openOrderDetail(order.id)}
+                            sx={{
+                                bgcolor: "#fff",
+                                borderRadius: 3.5,
+                                p: 1.75,
+                                boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+                                transition: "box-shadow 0.15s ease",
+                                cursor: "pointer",
+                                "&:hover": { boxShadow: "0 4px 18px rgba(0,0,0,0.08)" },
+                            }}
+                        >
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                                        {t("profile.orderNumber", { number: order.orderNumber })}
+                                    </Typography>
+                                    <Typography sx={{ color: "#9a9a9a", fontSize: 12.5, mt: 0.25 }}>
+                                        {order.orderType}
+                                    </Typography>
+                                </Box>
+                                <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+                                    {order.amountPaid.toFixed(2)} {t("currency", { ns: "common" })}
+                                </Typography>
+                            </Stack>
+                            <Divider sx={{ my: 1.25, borderColor: "#f2f2f2" }} />
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Typography sx={{ color: "#8a8a8a", fontSize: 13 }}>
+                                    {order.createdAt}
+                                </Typography>
+                                <Chip
+                                    label={getStatusLabel(order.status, t)}
+                                    size="small"
+                                    sx={{
+                                        bgcolor: chip.bg,
+                                        color: chip.color,
+                                        fontWeight: 700,
+                                        fontSize: 12,
+                                        height: 24,
+                                        borderRadius: 999,
+                                    }}
+                                />
+                            </Stack>
+                        </Box>
+                    );
+                })}
+            </Stack>
+        </>
+    );
+
+    const pager = (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Button
+                onClick={handlePrev}
+                disabled={page === 0 || isLoading}
+                startIcon={<ChevronLeftRoundedIcon />}
+                sx={{ textTransform: "none", color: brandRed, fontWeight: 600, "&.Mui-disabled": { color: "#c9c9c9" } }}
+            >
+                {t("profile.prev")}
+            </Button>
+            <Typography sx={{ color: "#9a9a9a", fontSize: 13, fontWeight: 600 }}>
+                {t("profile.page", { page: page + 1 })}
+            </Typography>
+            <Button
+                onClick={handleNext}
+                disabled={!hasNext || isLoading}
+                endIcon={<ChevronRightRoundedIcon />}
+                sx={{ textTransform: "none", color: brandRed, fontWeight: 600, "&.Mui-disabled": { color: "#c9c9c9" } }}
+            >
+                {t("profile.next")}
+            </Button>
+        </Stack>
+    );
+
+    const logoutButton = (
+        <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => void handleLogout()}
+            startIcon={<LogoutRoundedIcon />}
+            sx={{
+                py: 1.5,
+                borderColor: brandRed,
+                color: brandRed,
+                bgcolor: "rgba(255,255,255,0.6)",
+                textTransform: "none",
+                fontSize: "1.05rem",
+                fontWeight: 700,
+                borderRadius: 999,
+                "&:hover": { borderColor: "#d23f40", bgcolor: brandRedTint },
+            }}
+        >
+            {t("profile.logout")}
+        </Button>
+    );
+
+    function renderPhone(): React.JSX.Element {
+        return (
+            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                {/* Full-screen header bar with an explicit way out (wired to onClose). */}
+                <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 56, px: 1 }}>
+                    <IconButton aria-label={t("profile.close")} onClick={onClose} sx={{ position: "absolute", left: 4, color: "#333" }}>
+                        <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                    <Typography sx={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}>
+                        {t("profile.title")}
+                    </Typography>
+                </Box>
+
+                <Box sx={{ flex: 1, overflowY: "auto", px: { xs: 3, sm: 4 }, pt: 2 }}>
+                    {errorBanner}
+                    {accountCard}
+                    {quickOrder}
+                    {orderHistory}
+                    {pager}
+                </Box>
+
+                <Box sx={{ px: { xs: 3, sm: 4 }, pt: 2, pb: { xs: 4, sm: 5 } }}>
+                    {logoutButton}
+                </Box>
+            </Box>
+        );
+    }
+
+    // PC: the cart dialog's anatomy. The round close button stands in for the phone's back-arrow
+    // header; the warm column holds who the customer is (and Logout, at its foot); the order
+    // history scrolls beside it with the pager pinned underneath, so Prev/Next stay put while a
+    // short last page changes the list's height.
+    function renderDesktop(): React.JSX.Element {
+        return (
+            <>
+                <Fab size="small" onClick={onClose} aria-label={t("profile.close")} sx={CLOSE_FAB_SX}>
+                    <CloseIcon />
+                </Fab>
+                <Box data-testid="profile-account-column" sx={ASIDE_COLUMN_SX}>
+                    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
+                        <Typography id={PROFILE_TITLE_ID} variant="h6" sx={{ fontWeight: "bold", mb: 2 }}>
+                            {t("profile.title")}
+                        </Typography>
+                        {errorBanner}
+                        {accountCard}
+                        {quickOrder}
+                        <Box sx={{ mt: "auto", pt: 1 }}>
+                            {logoutButton}
+                        </Box>
+                    </Box>
+                </Box>
+                <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0 }}>
+                    {/* pt clears the 40px close button, as in the cart. */}
+                    <Box data-testid="profile-orders-column" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 3, pt: 5 }}>
+                        {orderHistory}
+                    </Box>
+                    <Box sx={{ px: 3, pt: 1, pb: 2 }}>
+                        {pager}
+                    </Box>
+                </Box>
+            </>
+        );
+    }
+
     return (
         <>
         <CustomerSheet
             open={open}
             onClose={onClose}
             desktop={PROFILE_DESKTOP}
+            labelledBy={PROFILE_TITLE_ID}
             PaperProps={{
                 sx: {
                     height: "100dvh",
@@ -253,299 +616,7 @@ export function CustomerProfilePopup({ open, onClose }: Props): React.JSX.Elemen
                 },
             }}
         >
-            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                {/* Full-screen header bar with an explicit way out (wired to onClose). */}
-                <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 56, px: 1 }}>
-                    <IconButton aria-label={t("profile.close")} onClick={onClose} sx={{ position: "absolute", left: 4, color: "#333" }}>
-                        <ArrowBackIosNewRoundedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                    <Typography sx={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}>
-                        {t("profile.title")}
-                    </Typography>
-                </Box>
-
-                <Box sx={{ flex: 1, overflowY: "auto", px: { xs: 3, sm: 4 }, pt: 2 }}>
-                    {error && (
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 0.75,
-                                bgcolor: brandRedTint,
-                                borderRadius: 2.5,
-                                px: 1.5,
-                                py: 1,
-                                mb: 2,
-                            }}
-                        >
-                            <ErrorOutlineRoundedIcon sx={{ fontSize: 18, color: brandRed }} />
-                            <Typography sx={{ color: brandRed, fontSize: 13.5, fontWeight: 500 }}>
-                                {error}
-                            </Typography>
-                        </Box>
-                    )}
-
-                    {isLoading && !profile ? (
-                        <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-                            <CircularProgress size={28} sx={{ color: brandRed }} />
-                        </Box>
-                    ) : (
-                        profile && (
-                            <Stack
-                                direction="row"
-                                spacing={1.75}
-                                alignItems="center"
-                                sx={{ mb: 3, bgcolor: "#fff", borderRadius: 4, p: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}
-                            >
-                                <Avatar sx={{ bgcolor: brandRed, width: 56, height: 56, fontWeight: 700, fontSize: 24 }}>
-                                    {initial}
-                                </Avatar>
-                                <Box sx={{ minWidth: 0, flex: 1 }}>
-                                    {isEditingName ? (
-                                        <>
-                                            <Stack direction="row" spacing={0.5} alignItems="center">
-                                                <TextField
-                                                    variant="standard"
-                                                    autoFocus
-                                                    disabled={isSavingName}
-                                                    error={Boolean(nameError)}
-                                                    value={draftName}
-                                                    onChange={(e) => setDraftName(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter") {
-                                                            e.preventDefault();
-                                                            void handleSaveName();
-                                                        } else if (e.key === "Escape") {
-                                                            e.preventDefault();
-                                                            handleCancelEditName();
-                                                        }
-                                                    }}
-                                                    inputProps={{ maxLength: 255, "aria-label": t("login.nameLabel") }}
-                                                    placeholder={t("login.namePlaceholder")}
-                                                    sx={{ flex: 1, "& .MuiInput-input": { fontWeight: 700, fontSize: 18 } }}
-                                                />
-                                                <IconButton
-                                                    aria-label={t("profile.saveName")}
-                                                    size="small"
-                                                    disabled={isSavingName}
-                                                    onClick={() => void handleSaveName()}
-                                                    sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
-                                                >
-                                                    {isSavingName ? (
-                                                        <CircularProgress size={16} sx={{ color: brandRed }} />
-                                                    ) : (
-                                                        <CheckRoundedIcon sx={{ fontSize: 16 }} />
-                                                    )}
-                                                </IconButton>
-                                                <IconButton
-                                                    aria-label={t("profile.cancelEdit")}
-                                                    size="small"
-                                                    disabled={isSavingName}
-                                                    onClick={handleCancelEditName}
-                                                    sx={{ color: "#6b6b6b", flexShrink: 0, p: 0.25 }}
-                                                >
-                                                    <CloseRoundedIcon sx={{ fontSize: 16 }} />
-                                                </IconButton>
-                                            </Stack>
-                                            {nameError && (
-                                                <Typography sx={{ color: brandRed, fontSize: 12, mt: 0.25 }}>
-                                                    {nameError}
-                                                </Typography>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <Stack direction="row" spacing={0.5} alignItems="center">
-                                            <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }} noWrap>
-                                                {profile.name ?? t("profile.guest")}
-                                            </Typography>
-                                            <IconButton
-                                                aria-label={t("profile.editName")}
-                                                size="small"
-                                                onClick={handleStartEditName}
-                                                sx={{ color: brandRed, flexShrink: 0, p: 0.25 }}
-                                            >
-                                                <EditRoundedIcon sx={{ fontSize: 16 }} />
-                                            </IconButton>
-                                        </Stack>
-                                    )}
-                                    <Typography sx={{ color: "#6b6b6b", fontSize: 14, mt: 0.25 }} noWrap>
-                                        {profile.phone}
-                                    </Typography>
-                                    {typeof profile.amountOfOrders === "number" && profile.amountOfOrders > 0 && (
-                                        <Typography sx={{ color: brandRed, fontSize: 12.5, fontWeight: 600, mt: 0.5 }}>
-                                            {profile.amountOfOrders} {t(profile.amountOfOrders === 1 ? "profile.orderSingular" : "profile.orderPlural")}
-                                        </Typography>
-                                    )}
-                                </Box>
-                            </Stack>
-                        )
-                    )}
-
-                    {availableSuggestedItems.length > 0 && (
-                        <Box sx={{ mb: 3, bgcolor: "#fff", borderRadius: 4, p: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
-                            <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                {t("profile.quickOrder.title")}
-                            </Typography>
-                            {suggestedFallback && (
-                                <Typography sx={{ mb: 1.5, fontSize: 12.5, color: "#9a9a9a" }}>
-                                    {t("profile.quickOrder.fallbackHint")}
-                                </Typography>
-                            )}
-                            <Stack spacing={1.25} sx={{ mb: 1.5 }}>
-                                {availableSuggestedItems.map((item) => {
-                                    const displayName = i18n.language.startsWith("ar") ? (item.nameAr ?? item.name) : item.name;
-                                    return (
-                                        <Stack key={item.menuItemId} direction="row" spacing={1.5} alignItems="center">
-                                            {item.photo && (
-                                                <Box
-                                                    component="img"
-                                                    src={item.photo}
-                                                    alt={displayName}
-                                                    sx={{ width: 48, height: 48, borderRadius: 2, objectFit: "contain", bgcolor: "#f7f7f7", flexShrink: 0 }}
-                                                />
-                                            )}
-                                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                                                <Typography sx={{ fontWeight: 600, fontSize: 14 }} noWrap>
-                                                    {displayName}{item.size ? ` (${item.size})` : ""}
-                                                </Typography>
-                                            </Box>
-                                            <Typography sx={{ fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                                                {item.price.toFixed(2)} {t("currency", { ns: "common" })}
-                                            </Typography>
-                                        </Stack>
-                                    );
-                                })}
-                            </Stack>
-                            <Button
-                                fullWidth
-                                variant="contained"
-                                onClick={handleAddSuggestedToCart}
-                                startIcon={<AddShoppingCartRoundedIcon />}
-                                sx={{
-                                    py: 1.25,
-                                    bgcolor: brandRed,
-                                    textTransform: "none",
-                                    fontSize: "0.95rem",
-                                    fontWeight: 700,
-                                    borderRadius: 999,
-                                    "&:hover": { bgcolor: "#d23f40" },
-                                }}
-                            >
-                                {t("profile.quickOrder.addToCart")}
-                            </Button>
-                        </Box>
-                    )}
-
-                    <Typography sx={{ mb: 1.25, fontWeight: 700, fontSize: 13, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        {t("profile.orderHistory")}
-                    </Typography>
-
-                    <Stack spacing={1.25} sx={{ mb: 2 }}>
-                        {!isLoading && orders.length === 0 && (
-                            <Box sx={{ textAlign: "center", py: 3, color: "#9a9a9a" }}>
-                                <ReceiptLongRoundedIcon sx={{ fontSize: 36, mb: 1, opacity: 0.6 }} />
-                                <Typography sx={{ fontSize: 14 }}>
-                                    {t("profile.noOrders")}
-                                </Typography>
-                            </Box>
-                        )}
-                        {orders.map((order) => {
-                            const chip = statusStyle(order.status);
-                            return (
-                                <Box
-                                    key={order.id}
-                                    onClick={() => openOrderDetail(order.id)}
-                                    sx={{
-                                        bgcolor: "#fff",
-                                        borderRadius: 3.5,
-                                        p: 1.75,
-                                        boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
-                                        transition: "box-shadow 0.15s ease",
-                                        cursor: "pointer",
-                                        "&:hover": { boxShadow: "0 4px 18px rgba(0,0,0,0.08)" },
-                                    }}
-                                >
-                                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                                        <Box>
-                                            <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
-                                                {t("profile.orderNumber", { number: order.orderNumber })}
-                                            </Typography>
-                                            <Typography sx={{ color: "#9a9a9a", fontSize: 12.5, mt: 0.25 }}>
-                                                {order.orderType}
-                                            </Typography>
-                                        </Box>
-                                        <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
-                                            {order.amountPaid.toFixed(2)} {t("currency", { ns: "common" })}
-                                        </Typography>
-                                    </Stack>
-                                    <Divider sx={{ my: 1.25, borderColor: "#f2f2f2" }} />
-                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                        <Typography sx={{ color: "#8a8a8a", fontSize: 13 }}>
-                                            {order.createdAt}
-                                        </Typography>
-                                        <Chip
-                                            label={getStatusLabel(order.status, t)}
-                                            size="small"
-                                            sx={{
-                                                bgcolor: chip.bg,
-                                                color: chip.color,
-                                                fontWeight: 700,
-                                                fontSize: 12,
-                                                height: 24,
-                                                borderRadius: 999,
-                                            }}
-                                        />
-                                    </Stack>
-                                </Box>
-                            );
-                        })}
-                    </Stack>
-
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Button
-                            onClick={handlePrev}
-                            disabled={page === 0 || isLoading}
-                            startIcon={<ChevronLeftRoundedIcon />}
-                            sx={{ textTransform: "none", color: brandRed, fontWeight: 600, "&.Mui-disabled": { color: "#c9c9c9" } }}
-                        >
-                            {t("profile.prev")}
-                        </Button>
-                        <Typography sx={{ color: "#9a9a9a", fontSize: 13, fontWeight: 600 }}>
-                            {t("profile.page", { page: page + 1 })}
-                        </Typography>
-                        <Button
-                            onClick={handleNext}
-                            disabled={!hasNext || isLoading}
-                            endIcon={<ChevronRightRoundedIcon />}
-                            sx={{ textTransform: "none", color: brandRed, fontWeight: 600, "&.Mui-disabled": { color: "#c9c9c9" } }}
-                        >
-                            {t("profile.next")}
-                        </Button>
-                    </Stack>
-                </Box>
-
-                <Box sx={{ px: { xs: 3, sm: 4 }, pt: 2, pb: { xs: 4, sm: 5 } }}>
-                    <Button
-                        fullWidth
-                        variant="outlined"
-                        onClick={() => void handleLogout()}
-                        startIcon={<LogoutRoundedIcon />}
-                        sx={{
-                            py: 1.5,
-                            borderColor: brandRed,
-                            color: brandRed,
-                            bgcolor: "rgba(255,255,255,0.6)",
-                            textTransform: "none",
-                            fontSize: "1.05rem",
-                            fontWeight: 700,
-                            borderRadius: 999,
-                            "&:hover": { borderColor: "#d23f40", bgcolor: brandRedTint },
-                        }}
-                    >
-                        {t("profile.logout")}
-                    </Button>
-                </Box>
-            </Box>
+            {(presentation) => (presentation === "sheet" ? renderPhone() : renderDesktop())}
         </CustomerSheet>
         {/* Rendered as a sibling Drawer so the profile popup's own Drawer stays
             mounted/open underneath — closing the detail popup only clears

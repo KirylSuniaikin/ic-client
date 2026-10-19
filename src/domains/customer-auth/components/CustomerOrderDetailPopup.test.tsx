@@ -1,6 +1,8 @@
 import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React, { useState } from "react";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { layerOf } from "../../cart/components/cartLayout.testutil";
+import { dialogRoots, hasDrawer } from "./accountDialogs.testutil";
 
 // CustomerOrderDetailPopup renders its copy via useTranslation — initialize the real
 // i18n instance so keys resolve to English under the default language (also gives the
@@ -1142,7 +1144,9 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
             clearMatchMedia();
         });
 
-        it("is a side panel over a transparent backdrop whose close button calls onClose", async () => {
+        // The profile is the PC cart's centred dialog now, so the detail it opens is a centred dialog
+        // too: a narrower card of the same height, on the drawer layer it always had.
+        it("is a centred dialog of the profile dialog's height whose close button calls onClose", async () => {
             stubMatchMedia(true);
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "detail-token", isNewAccount: false });
             mockFetchOrderDetail.mockResolvedValueOnce(detail());
@@ -1150,13 +1154,13 @@ describe("CustomerOrderDetailPopup — courier tracking", () => {
             const { onClose } = await renderPopup();
             await screen.findByText("Order ID #88");
 
-            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
+            expect(hasDrawer()).toBe(false);
             const rules = emotionRulesFor(screen.getByRole("dialog"));
-            expect(rules).toContain("left:auto");
-            expect(rules).toContain("width:440px");
-            const backdrop = document.querySelector(".MuiBackdrop-root");
-            expect(backdrop).toBeTruthy();
-            expect(emotionRulesFor(backdrop as Element)).toContain("background-color:transparent");
+            expect(rules).toContain("width:min(440px, 92vw)");
+            expect(rules).toContain("height:min(680px, 90vh)");
+            expect(rules).toContain("border-radius:24px");
+            expect(rules).not.toContain("left:auto");
+            expect(layerOf(dialogRoots()[0])).toBe(1200);
 
             fireEvent.click(screen.getByLabelText("Close"));
 

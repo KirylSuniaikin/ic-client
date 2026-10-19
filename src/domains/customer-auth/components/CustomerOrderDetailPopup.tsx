@@ -25,13 +25,15 @@ import { statusStyle } from "./CustomerProfilePopup";
 import { CustomerSheet } from "../../../shared/components/CustomerSheet";
 import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
 import { ACCOUNT_SHEET_BACKGROUND } from "./accountSheetStyles";
+import { DESKTOP_DIALOG_MAX_HEIGHT } from "../../../shared/utils/desktopDialog";
 
-// PC: a panel stacked on the profile panel. The transparent backdrop keeps the profile visible
-// while an outside click or Esc still steps back one level.
+// PC: a centred dialog. Over the profile's dialog it is a narrower card of the same height, one step
+// deeper, and an outside click or Esc steps back to the profile. A fixed height keeps the title bar
+// put while the body scrolls, as it does in the phone sheet.
 const ORDER_DETAIL_DESKTOP = {
-    placement: "side",
+    placement: "center",
     width: 440,
-    transparentBackdrop: true,
+    height: DESKTOP_DIALOG_MAX_HEIGHT,
     paperSx: { background: ACCOUNT_SHEET_BACKGROUND },
 } satisfies CustomerSheetDesktop;
 

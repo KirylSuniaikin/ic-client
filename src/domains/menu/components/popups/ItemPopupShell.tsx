@@ -64,7 +64,8 @@ export interface ItemPopupShellProps {
 const DESKTOP_PHOTO_BG = "#f4ede8";
 
 // Key order matches the Fab every popup rendered before the shell, so the legacy class is unchanged.
-const CLOSE_FAB_SX: SxProps<Theme> = {
+// Exported for the customer profile's PC dialog, which wears the same round close button.
+export const CLOSE_FAB_SX: SxProps<Theme> = {
     position: "absolute",
     top: 16,
     right: 16,
@@ -104,8 +105,9 @@ const PHOTO_COLUMN_SX: SxProps<Theme> = {
     p: 4,
 };
 
-// A list rather than one image: top-aligned and scrolling instead of centred.
-const ASIDE_COLUMN_SX: SxProps<Theme> = {
+// A list rather than one image: top-aligned and scrolling instead of centred. Exported for the
+// customer profile's PC dialog, whose account column sits on the same warm ground.
+export const ASIDE_COLUMN_SX: SxProps<Theme> = {
     ...WARM_COLUMN_SX,
     minHeight: 0,
     overflowY: "auto",

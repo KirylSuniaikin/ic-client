@@ -1,6 +1,13 @@
 import { jest, describe, it, expect, beforeEach, beforeAll, afterEach } from "@jest/globals";
 import React, { useState } from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { CacheProvider } from "@emotion/react";
+import createCache from "@emotion/cache";
+import { prefixer } from "stylis";
+import rtlPlugin from "stylis-plugin-rtl";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { backdropOf, focusedElement, layerOf, scrollContainerOf } from "../../cart/components/cartLayout.testutil";
+import { dialogRoots, hasDrawer } from "./accountDialogs.testutil";
 
 // CustomerProfilePopup renders its copy via useTranslation — initialize the real i18n
 // instance so keys resolve to English under the default language (also gives the
@@ -631,37 +638,211 @@ describe("CustomerProfilePopup", () => {
         });
     });
 
+    // The PC cart's dialog (CartComponent.desktop.test.tsx), owner 19 Oct 2026: centred, two
+    // columns, the round close button. Everything the profile does stays as on the phone.
     describe("on PC", () => {
         afterEach(() => {
             clearMatchMedia();
         });
 
-        it("is a side panel, and an opened order stacks over it and steps back on an outside click", async () => {
+        async function renderOpenPcPopup(): Promise<{ onClose: () => void }> {
             stubMatchMedia(true);
             mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
             mockFetchCustomerMe.mockResolvedValueOnce(profile);
             mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
-            mockFetchOrderDetail.mockResolvedValueOnce(orderDetail());
+            mockFetchSuggestedItems.mockResolvedValueOnce(suggestedResponse({ items: [suggestedItem()] }));
 
             const { onClose } = await renderOpenPopup();
+            await screen.findByText("Order #88");
+            await screen.findByText("Pepperoni (M)");
+            return { onClose };
+        }
 
-            expect(document.querySelector(".MuiDrawer-root")).toBeNull();
-            const panel = screen.getByRole("dialog");
-            const rules = emotionRulesFor(panel);
-            expect(rules).toContain("left:auto");
-            expect(rules).toContain("width:440px");
+        it("is the PC cart's centred two-column dialog, not a panel docked at the side", async () => {
+            await renderOpenPcPopup();
 
-            fireEvent.click(await screen.findByText("Order #88"));
+            expect(hasDrawer()).toBe(false);
+            const rules = emotionRulesFor(screen.getByRole("dialog", { name: "My Account" }));
+            expect(rules).toContain("width:min(960px, 92vw)");
+            expect(rules).toContain("height:min(680px, 90vh)");
+            expect(rules).toContain("border-radius:24px");
+            expect(rules).toContain("flex-direction:row");
+            expect(rules).not.toContain("left:auto");
+            const accountRules = emotionRulesFor(screen.getByTestId("profile-account-column"));
+            expect(accountRules).toContain("flex:0 0 45%");
+            expect(accountRules).toContain("background-color:#f4ede8");
+        });
+
+        it("puts the account, its quick order and Logout on the warm column and the order history beside it", async () => {
+            await renderOpenPcPopup();
+
+            const account = screen.getByTestId("profile-account-column");
+            const history = screen.getByTestId("profile-orders-column");
+            ["My Account", "Jane", "97333607710", "Order it again", "Pepperoni (M)"].forEach((text) => {
+                expect(within(account).getByText(text)).toBeTruthy();
+            });
+            expect(within(account).getByRole("button", { name: "Add to cart" })).toBeTruthy();
+            expect(within(account).getByRole("button", { name: "Logout" })).toBeTruthy();
+            expect(within(history).getByText("Order history")).toBeTruthy();
+            expect(within(history).getByText("Order #88")).toBeTruthy();
+            expect(within(account).queryByText("Order #88")).toBeNull();
+
+            // Each column scrolls on its own, so a long quick order never pushes the history away.
+            expect(scrollContainerOf(screen.getByText("Jane"))).toBe(account);
+            expect(scrollContainerOf(screen.getByText("Order #88"))).toBe(history);
+        });
+
+        it("pins the pager under the scrolling order history, and it still pages", async () => {
+            const { onClose } = await renderOpenPcPopup();
+
+            const history = screen.getByTestId("profile-orders-column");
+            const next = screen.getByRole("button", { name: "Next" });
+            expect(history.contains(next)).toBe(false);
+            expect(history.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage({
+                orders: [{ id: 99, orderNumber: 77, status: "Picked Up", orderType: "Pick Up", amountPaid: 4, createdAt: "2026-06-01 12:00" }],
+                page: 1,
+                hasNext: false,
+            }));
+            fireEvent.click(next);
+
+            expect(await within(history).findByText("Order #77")).toBeTruthy();
+            expect(mockFetchMyOrders).toHaveBeenLastCalledWith("profile-token", 1, 3);
+            expect(screen.getByText("Page 2")).toBeTruthy();
+            expect(onClose).not.toHaveBeenCalled();
+        });
+
+        it("replaces the phone's back-arrow header with the round close button", async () => {
+            const { onClose } = await renderOpenPcPopup();
+
+            expect(screen.queryByTestId("ArrowBackIosNewRoundedIcon")).toBeNull();
+            fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+            await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        });
+
+        it("closes on Escape", async () => {
+            const { onClose } = await renderOpenPcPopup();
+
+            fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it("closes on a click outside the dialog", async () => {
+            const { onClose } = await renderOpenPcPopup();
+
+            fireEvent.click(backdropOf(screen.getByRole("dialog")));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it("holds focus inside the dialog and hands it back to the account button on close", async () => {
+            stubMatchMedia(true);
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            render(
+                <CustomerAuthProvider>
+                    <CustomerAuthUiProvider>
+                        <ProfilePopupHarness onClose={jest.fn<void, []>()} />
+                    </CustomerAuthUiProvider>
+                </CustomerAuthProvider>
+            );
+            const opener = await screen.findByRole("button", { name: "open-profile" });
+            act(() => opener.focus());
+
+            fireEvent.click(opener);
+            await screen.findByText("Order #88");
+            // MUI's focus trap focuses the dialog's container, which wraps the role="dialog" paper.
+            const [dialogRoot] = dialogRoots();
+            expect(dialogRoot.contains(focusedElement())).toBe(true);
+
+            act(() => opener.focus());
+            expect(dialogRoot.contains(focusedElement())).toBe(true);
+
+            fireEvent.click(screen.getByRole("button", { name: "Close" }));
+            await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+            expect(focusedElement()).toBe(opener);
+        });
+
+        it("keeps the drawer layer, so an opened order paints above it and an outside click steps back one level", async () => {
+            const { onClose } = await renderOpenPcPopup();
+            mockFetchOrderDetail.mockResolvedValueOnce(orderDetail());
+
+            fireEvent.click(screen.getByText("Order #88"));
             expect(await screen.findByText("Detail Order")).toBeTruthy();
-            expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(2);
 
-            // The detail panel's backdrop is the later one, painted over the profile panel.
-            const backdrops = document.querySelectorAll(".MuiBackdrop-root");
-            fireEvent.click(backdrops[backdrops.length - 1]);
+            // Both at theme.zIndex.drawer, as before: the detail's root comes later, so it paints on top.
+            const [profileRoot, detailRoot] = dialogRoots();
+            expect(dialogRoots()).toHaveLength(2);
+            expect(layerOf(profileRoot)).toBe(1200);
+            expect(layerOf(detailRoot)).toBe(1200);
+            expect(within(detailRoot).getByText("Detail Order")).toBeTruthy();
+            expect(within(profileRoot).getByText("Order history")).toBeTruthy();
+
+            fireEvent.click(backdropOf(screen.getByText("Detail Order")));
 
             await waitFor(() => expect(screen.queryByText("Detail Order")).toBeNull());
             expect(screen.getByText("Order history")).toBeTruthy();
             expect(onClose).not.toHaveBeenCalled();
+        });
+
+        it("Escape on an opened order closes only the order", async () => {
+            const { onClose } = await renderOpenPcPopup();
+            mockFetchOrderDetail.mockResolvedValueOnce(orderDetail());
+
+            fireEvent.click(screen.getByText("Order #88"));
+            const title = await screen.findByText("Detail Order");
+            fireEvent.keyDown(title, { key: "Escape" });
+
+            await waitFor(() => expect(screen.queryByText("Detail Order")).toBeNull());
+            expect(screen.getByText("Order history")).toBeTruthy();
+            expect(onClose).not.toHaveBeenCalled();
+        });
+
+        it("puts the close button on the left in Arabic", async () => {
+            stubMatchMedia(true);
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+            // The app's RTL plugin chain (app/providers.tsx). The key starts with "css-" only so that
+            // emotionRulesFor, which reads css-* classes, can see the flipped rules.
+            const rtlCache = createCache({ key: "css-rtl", stylisPlugins: [prefixer, rtlPlugin] });
+            render(
+                <CacheProvider value={rtlCache}>
+                    <ThemeProvider theme={createTheme({ direction: "rtl" })}>
+                        <CustomerAuthProvider>
+                            <CustomerAuthUiProvider>
+                                <ProfilePopupHarness onClose={jest.fn<void, []>()} />
+                            </CustomerAuthUiProvider>
+                        </CustomerAuthProvider>
+                    </ThemeProvider>
+                </CacheProvider>
+            );
+            fireEvent.click(await screen.findByRole("button", { name: "open-profile" }));
+            await screen.findByText("Order #88");
+
+            const rules = emotionRulesFor(screen.getByRole("button", { name: "Close" }));
+            expect(rules).toContain("left:16px");
+            expect(rules).not.toContain("right:16px");
+        });
+
+        it("stays the phone's full-height bottom sheet below md", async () => {
+            stubMatchMedia(false);
+            mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "profile-token", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValueOnce(profile);
+            mockFetchMyOrders.mockResolvedValueOnce(ordersPage());
+
+            await renderOpenPopup();
+            await screen.findByText("Order #88");
+
+            expect(hasDrawer()).toBe(true);
+            expect(dialogRoots()).toHaveLength(0);
+            expect(screen.queryByTestId("profile-account-column")).toBeNull();
+            expect(screen.getByTestId("ArrowBackIosNewRoundedIcon")).toBeTruthy();
         });
     });
 });
