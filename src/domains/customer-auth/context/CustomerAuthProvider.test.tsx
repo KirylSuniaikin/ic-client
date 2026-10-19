@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
 import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import { CustomerAuthApiError } from "../types";
 
 // Uses the manual mock at shared/api/__mocks__/customerAuth.ts (factoryless
 // jest.mock(), mirrors management.test.ts's pattern).
@@ -364,23 +365,63 @@ describe("customerAuthFetch", () => {
         expect(response.status).toBe(200);
     });
 
-    it("clears the in-memory token and rejects when the refresh-on-401 also fails", async () => {
+    it("clears the in-memory token and rejects when the refresh-on-401 is itself rejected with a 401", async () => {
         mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "stored-token", isNewAccount: false });
 
         const { result } = renderCustomerAuth();
         await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+        await act(async () => {
+            await result.current.login("97333607710", "4821");
+        });
 
-        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("refresh failed"));
+        mockRefreshCustomerToken.mockRejectedValueOnce(new CustomerAuthApiError("Invalid refresh token", 401));
 
         savedFetch = global.fetch;
         mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
         global.fetch = mockFetch as typeof fetch;
 
-        await expect(
-            customerAuthFetch("https://example.com/api/customer/me", { method: "GET" })
-        ).rejects.toThrow("refresh failed");
+        await act(async () => {
+            await expect(
+                customerAuthFetch("https://example.com/api/customer/me", { method: "GET" })
+            ).rejects.toThrow("Invalid refresh token");
+        });
 
         expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(result.current.token).toBeNull();
+    });
+
+    // A refresh that hits Render's router mid-restart (502/503), a DB outage (500) or a dropped
+    // connection never reached a verdict on the cookie — dropping the token there showed a
+    // signed-in customer as a guest until they reloaded.
+    it.each([
+        ["a 503 from the router mid-deploy", new CustomerAuthApiError("Service Unavailable", 503)],
+        ["a 500 from a DB outage", new CustomerAuthApiError("Request failed with status 500", 500)],
+        ["a network failure", new TypeError("Failed to fetch")],
+    ])("keeps the in-memory token when the refresh-on-401 fails with %s", async (_label, refreshError) => {
+        mockRefreshCustomerToken.mockRejectedValueOnce(new Error("no session"));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "stored-token", isNewAccount: false });
+
+        const { result } = renderCustomerAuth();
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+        await act(async () => {
+            await result.current.login("97333607710", "4821");
+        });
+
+        mockRefreshCustomerToken.mockRejectedValueOnce(refreshError);
+
+        savedFetch = global.fetch;
+        mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+        mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+        global.fetch = mockFetch as typeof fetch;
+
+        await act(async () => {
+            await expect(
+                customerAuthFetch("https://example.com/api/customer/me", { method: "GET" })
+            ).rejects.toBe(refreshError);
+        });
+
+        expect(result.current.token).toBe("stored-token");
     });
 });

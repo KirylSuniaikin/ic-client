@@ -4,7 +4,7 @@ import { logger } from '../../../shared/utils/logger';
 import { logoutCustomer, refreshCustomerToken, verifyOtp } from '../../../shared/api/customerAuth';
 import { applyClientPlatform } from '../../../shared/api/clientPlatform';
 import { isKioskSearch } from '../../../shared/utils/kioskMode';
-import { CustomerAuthContextMissingError } from '../types';
+import { CustomerAuthApiError, CustomerAuthContextMissingError } from '../types';
 import type { CustomerAuthContextType } from '../types';
 
 // In-memory-only token store, kept at module scope (outside React state) so
@@ -141,10 +141,19 @@ async function performRefresh(): Promise<string> {
     return refreshed.accessToken;
 }
 
+// Only the server answering 401 means the refresh cookie is gone. Everything else — offline,
+// a dropped connection, Render's router answering 502/503 while an instance restarts, a DB
+// outage's 500 — says nothing about the session: the cookie is still there and the next
+// refresh will work, so treating it as a logout shows a signed-in customer as a guest.
+function isSessionRejected(error: unknown): boolean {
+    return error instanceof CustomerAuthApiError && error.status === 401;
+}
+
 // Interceptor-style wrapper: attaches the in-memory bearer token, and on a
 // 401 calls /auth/refresh exactly once (single-flight, shared across
-// concurrent callers) before retrying. If the refresh also fails, the
-// in-memory token is cleared and the original error is rethrown — callers
+// concurrent callers) before retrying. If the refresh is rejected (401), the
+// in-memory token is cleared; any other refresh failure keeps it, so the next
+// call simply tries again. Either way the error is rethrown — callers
 // decide the UX (customer auth is ambient/optional, no redirect here).
 export async function customerAuthFetch(url: string, init: RequestInit = {}): Promise<Response> {
     const buildInit = (token: string | null): RequestInit => {
@@ -171,7 +180,9 @@ export async function customerAuthFetch(url: string, init: RequestInit = {}): Pr
         const newAccessToken = await refreshPromise;
         return await fetch(url, buildInit(newAccessToken));
     } catch (error) {
-        setAccessToken(null);
+        if (isSessionRejected(error)) {
+            setAccessToken(null);
+        }
         throw error;
     }
 }
