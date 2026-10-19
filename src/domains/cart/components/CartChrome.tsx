@@ -114,7 +114,8 @@ export function ActionButton({ label, onClick, disabled = false }: ActionButtonP
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                px: 2,
+                // The total row's and the content's 24px, so the button's edges line up with both.
+                px: 3,
                 pb: 2,
             }}
         >

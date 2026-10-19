@@ -10,6 +10,8 @@ import type { CheckoutPaymentPageProps } from "./CheckoutPaymentPage";
 import type { CartItem, MenuItem } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
+import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+import { wrapperOf } from "./cartLayout.testutil";
 
 // The payment page (owner, 19 Oct 2026): after the cart and a guest's sign-in, every method this
 // customer can use, and one button that pays with the chosen one.
@@ -83,6 +85,16 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         expect(within(fulfilment).getByText("Al-Hidd")).toBeTruthy();
         expect(within(fulfilment).getByText("Road 114 Block 101")).toBeTruthy();
         expect(screen.getByTestId("payment-invite-bubble").textContent).toContain("Hey, we added new payment methods");
+    });
+
+    // Owner, 19 Oct 2026: even paddings. The button sits 24px in from each side, like the total
+    // above it and the page content.
+    it("lines the pay button up with the total and the content", () => {
+        renderPage();
+
+        const rules = emotionRulesFor(wrapperOf(screen.getByRole("button", { name: "Choose how to pay" })));
+        expect(rules).toContain("padding-left:24px");
+        expect(rules).toContain("padding-right:24px");
     });
 
     it("keeps the pay button off until a method is chosen", () => {

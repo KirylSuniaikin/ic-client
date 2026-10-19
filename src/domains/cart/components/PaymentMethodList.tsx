@@ -1,11 +1,13 @@
 import type { KeyboardEvent, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button } from "@mui/material";
-import type { SxProps, Theme } from "@mui/material";
+import type { SvgIcon, SxProps, Theme } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import AppleIcon from "@mui/icons-material/Apple";
 import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
 import RadioButtonCheckedRoundedIcon from "@mui/icons-material/RadioButtonCheckedRounded";
 import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
+import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { CARD_CHOICE, APPLE_PAY_CHOICE } from "../hooks/usePaymentChoice";
 import type { PaymentChoice } from "../hooks/usePaymentChoice";
@@ -33,12 +35,16 @@ import { BRAND_RED } from "../../../shared/utils/theme";
 // Paying at the counter is back for now (owner, 17 Oct 2026) while BenefitPay confirmation is made
 // independent of the customer's browser. It sends DEFAULT_PAYMENT_METHOD, which useCheckout routes
 // to the plain createOrder flow exactly as before the online rollout.
-const PAYMENT_OPTIONS: Readonly<Record<PaymentChoice, { labelKey: string; logo?: string }>> = {
-    [DEFAULT_PAYMENT_METHOD]: { labelKey: "payment.atCounter" },
+//
+// Every method carries a mark (owner, 19 Oct 2026): BENEFIT's own lockups, and a glyph for the rest.
+type PaymentOption = { labelKey: string } & ({ logo: string } | { Icon: typeof SvgIcon });
+
+const PAYMENT_OPTIONS: Readonly<Record<PaymentChoice, PaymentOption>> = {
+    [DEFAULT_PAYMENT_METHOD]: { labelKey: "payment.atCounter", Icon: StorefrontRoundedIcon },
     [PAY_ONLINE_METHOD]: { labelKey: "payment.benefit", logo: "/benefit-logo.png" },
     [WALLET_METHOD]: { labelKey: "payment.benefitPay", logo: "/benefitpay-logo.png" },
-    [APPLE_PAY_CHOICE]: { labelKey: "checkout:delivery.payApplePay" },
-    [CARD_CHOICE]: { labelKey: "checkout:delivery.payCard" },
+    [APPLE_PAY_CHOICE]: { labelKey: "checkout:delivery.payApplePay", Icon: AppleIcon },
+    [CARD_CHOICE]: { labelKey: "checkout:delivery.payCard", Icon: CreditCardRoundedIcon },
 };
 
 /**
@@ -49,6 +55,16 @@ const PAYMENT_OPTIONS: Readonly<Record<PaymentChoice, { labelKey: string; logo?:
  * use for partner marks. They are trademarks: use the files BENEFIT supply, never a redraw.
  */
 const PAYMENT_LOGO_HEIGHT = 20;
+
+// Each mark sits in a slot of one width, so every label starts at the same edge however narrow
+// or wide the mark inside it is.
+const MARK_SLOT_SX = {
+    width: 24,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+} satisfies SxProps<Theme>;
 
 const SINGLE_LINE_SX = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } satisfies SxProps<Theme>;
 
@@ -88,30 +104,30 @@ function focusMoveFor(key: string, isRtl: boolean): FocusMove | null {
     }
 }
 
-/** A method's mark: BENEFIT's own lockup, the card glyph, or nothing for the rest. */
-function PaymentMark({ choice }: { choice: PaymentChoice }): JSX.Element | null {
-    const logo = PAYMENT_OPTIONS[choice].logo;
-    if (logo !== undefined) {
-        return (
-            <Box
-                component="img"
-                src={logo}
-                alt=""
-                aria-hidden
-                sx={{ height: PAYMENT_LOGO_HEIGHT, width: "auto", flexShrink: 0, objectFit: "contain", display: "block" }}
-                // The mark is decoration beside a label that already names the method, so a
-                // missing file must cost nothing: hide it and let the text stand alone rather
-                // than show a broken image.
-                onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                    e.currentTarget.style.display = "none";
-                }}
-            />
-        );
-    }
-    if (choice === CARD_CHOICE) {
-        return <CreditCardRoundedIcon aria-hidden sx={{ fontSize: PAYMENT_LOGO_HEIGHT, flexShrink: 0 }} />;
-    }
-    return null;
+/** A method's mark: BENEFIT's own lockup, or the method's glyph. */
+function PaymentMark({ choice }: { choice: PaymentChoice }): JSX.Element {
+    const option = PAYMENT_OPTIONS[choice];
+    return (
+        <Box component="span" data-testid="payment-mark" aria-hidden sx={MARK_SLOT_SX}>
+            {"logo" in option ? (
+                <Box
+                    component="img"
+                    src={option.logo}
+                    alt=""
+                    aria-hidden
+                    sx={{ height: PAYMENT_LOGO_HEIGHT, width: "auto", objectFit: "contain", display: "block" }}
+                    // The mark is decoration beside a label that already names the method, so a
+                    // missing file must cost nothing: hide it and let the text stand alone rather
+                    // than show a broken image.
+                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                        e.currentTarget.style.display = "none";
+                    }}
+                />
+            ) : (
+                <option.Icon aria-hidden sx={{ fontSize: PAYMENT_LOGO_HEIGHT }} />
+            )}
+        </Box>
+    );
 }
 
 export interface PaymentMethodListProps {

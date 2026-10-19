@@ -1,6 +1,6 @@
 import { jest, describe, it, expect } from "@jest/globals";
 import React from "react";
-import { act, render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // The list renders its labels via useTranslation; initialize the real i18n instance.
@@ -83,17 +83,30 @@ describe("PaymentMethodList — the list", () => {
 });
 
 describe("PaymentMethodList — marks", () => {
-    it("shows both BENEFIT lockups and the card glyph, as decoration, and nothing for the others", () => {
+    it("shows both BENEFIT lockups and a glyph for every other method, as decoration", () => {
         renderList();
 
         expect(paymentMarkOf(radio("Benefit"))).toBe("/benefit-logo.png");
         expect(paymentMarkOf(radio("BenefitPay"))).toBe("/benefitpay-logo.png");
         expect(paymentMarkOf(radio("Card"))).toBe("card");
-        expect(paymentMarkOf(radio("Apple Pay"))).toBeNull();
-        expect(paymentMarkOf(radio("At counter"))).toBeNull();
+        expect(paymentMarkOf(radio("Apple Pay"))).toBe("apple");
+        expect(paymentMarkOf(radio("At counter"))).toBe("counter");
         const logo = paymentLogo("/benefit-logo.png");
         expect(logo.getAttribute("alt")).toBe("");
         expect(logo.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    // Owner, 19 Oct 2026: the rows should line up. A lockup is narrower than a glyph, so each mark
+    // sits in a slot of one width and every label starts at the same edge.
+    it("puts every mark in a slot of one width", () => {
+        renderList();
+
+        for (const option of screen.getAllByRole("radio")) {
+            const slots = within(option).getAllByTestId("payment-mark");
+            expect(slots).toHaveLength(1);
+            expect(emotionRulesFor(slots[0])).toContain("width:24px");
+            expect(slots[0].getAttribute("aria-hidden")).toBe("true");
+        }
     });
 
     it("hides a lockup that fails to load and keeps the label", () => {

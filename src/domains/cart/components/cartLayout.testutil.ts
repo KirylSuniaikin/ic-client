@@ -59,11 +59,18 @@ export function layerOf(root: HTMLElement | null): number {
     return Number(window.getComputedStyle(root).zIndex);
 }
 
-/** What an element shows as its payment mark: a logo's file, "card" for the card glyph, or null. */
+const PAYMENT_GLYPHS: Readonly<Record<string, string>> = {
+    CreditCardRoundedIcon: "card",
+    AppleIcon: "apple",
+    StorefrontRoundedIcon: "counter",
+};
+
+/** What an element shows as its payment mark: a logo's file, the glyph's name ("card", "apple", "counter"), or null. */
 export function paymentMarkOf(element: Element): string | null {
     const logo = element.querySelector("img");
     if (logo !== null) return logo.getAttribute("src");
-    return element.querySelector("[data-testid='CreditCardRoundedIcon']") !== null ? "card" : null;
+    const glyph = Object.keys(PAYMENT_GLYPHS).find((id) => element.querySelector(`[data-testid='${id}']`) !== null);
+    return glyph === undefined ? null : PAYMENT_GLYPHS[glyph];
 }
 
 /** A rendered payment logo, by its file. */
@@ -71,4 +78,11 @@ export function paymentLogo(src: string): HTMLImageElement {
     const logo = document.querySelector<HTMLImageElement>(`img[src="${src}"]`);
     if (logo === null) throw new Error(`no payment logo ${src}`);
     return logo;
+}
+
+/** The box an element sits in, for reading the padding around it. */
+export function wrapperOf(element: Element): Element {
+    const parent = element.parentElement;
+    if (parent === null) throw new Error("element has no wrapper");
+    return parent;
 }
