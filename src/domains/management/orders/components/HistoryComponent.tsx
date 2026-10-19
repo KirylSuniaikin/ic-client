@@ -1,10 +1,13 @@
 import React, {useEffect, useRef, useState} from "react";
 import { LoadingIndicator } from "../../../../shared/components/LoadingIndicator";
 import OrderCard from "./OrderCard";
-import {Box, IconButton, InputBase, Tooltip, Typography} from "@mui/material";
+import {Box, Chip, IconButton, InputBase, Tooltip, Typography} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import {endOfDay, format, parseISO, startOfDay} from "date-fns";
 import {Masonry} from "@mui/lab";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import type { Order } from '../../../order/types';
@@ -14,6 +17,11 @@ import {DeleteOrderDialog} from "./DeleteOrderDialog";
 import {BranchSelectorComponent} from "../../_shared/components/BranchSelectorComponent";
 import {useBranchScope} from "../../_shared/hooks/useBranchScope";
 import type {IBranch} from "../../inventory/types";
+import {DateRangePickerPopover} from "../../statistics/components/performance/DateRangePickerPopover";
+import {formatStatRange} from "../../statistics/components/performance/statsFormat";
+import type {DateRangeState} from "../../statistics/types";
+import type {HistoryDateRange} from "../../../order/types";
+import {BRAND_RED} from "../../../../shared/utils/theme";
 
 // The search field has no mode switch -- what you type IS the filter, picked purely by shape.
 // Mirrors classifySearchInput() in useOrderHistory.ts; keep the two in sync.
@@ -38,6 +46,16 @@ const searchLegend = (
     </Box>
 );
 
+// What the calendar opens on: the applied range, or today when none is applied -- never a range
+// that was picked and then dismissed without Apply.
+function pickerRangeFor(applied: HistoryDateRange | null): DateRangeState[] {
+    if (applied === null) {
+        const now = new Date();
+        return [{startDate: startOfDay(now), endDate: endOfDay(now), key: "selection"}];
+    }
+    return [{startDate: parseISO(applied.startDate), endDate: parseISO(applied.finishDate), key: "selection"}];
+}
+
 interface HistoryComponentProps {
     onClose: () => void;
     selectedBranch: IBranch;
@@ -52,10 +70,14 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
         error,
         searchInput,
         setSearchInput,
+        dateRange,
+        setDateRange,
         loadMore,
     } = useOrderHistory(scopedBranch.id);
 
     const [searchOpen, setSearchOpen] = useState(false);
+    const [calendarAnchorEl, setCalendarAnchorEl] = useState<HTMLElement | null>(null);
+    const [pickerRange, setPickerRange] = useState<DateRangeState[]>(() => pickerRangeFor(null));
 
     const {deleteDialogOpen, orderToDelete, handleDeleteClick, confirmDelete, cancelDelete} =
         useDeleteOrder((id) => setOrders(prev => prev.filter((order: Order) => order.id !== id)));
@@ -88,9 +110,25 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
     const handleToggleSearch = (): void => {
         setSearchOpen(prev => {
             const next = !prev;
-            if (!next) setSearchInput("");
+            if (!next) {
+                setSearchInput("");
+                setDateRange(null);
+            }
             return next;
         });
+    };
+
+    const handleOpenCalendar = (event: React.MouseEvent<HTMLElement>): void => {
+        setPickerRange(pickerRangeFor(dateRange));
+        setCalendarAnchorEl(event.currentTarget);
+    };
+
+    const handleApplyRange = (): void => {
+        setDateRange({
+            startDate: format(pickerRange[0].startDate, "yyyy-MM-dd"),
+            finishDate: format(pickerRange[0].endDate, "yyyy-MM-dd"),
+        });
+        setCalendarAnchorEl(null);
     };
 
     if (error) return <div>Error: {error}</div>;
@@ -138,10 +176,14 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                     backgroundColor: "#fbfaf6",
                     borderBottom: 1,
                     borderColor: "divider",
+                    // The range chip sits beside the input on a wide screen and wraps under it on a phone.
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 1,
                 }}>
                     <InputBase
                         autoFocus
-                        fullWidth
                         placeholder="Search by order id, external id, telephone no, or customer name"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
@@ -151,6 +193,8 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                             </Tooltip>
                         }
                         sx={{
+                            flex: "1 1 220px",
+                            minWidth: 0,
                             px: 1.5,
                             py: 0.5,
                             borderRadius: 2,
@@ -158,6 +202,35 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                             border: 1,
                             borderColor: "divider",
                         }}
+                    />
+                    <IconButton onClick={handleOpenCalendar} aria-label="filter by date" size="small">
+                        <CalendarTodayRoundedIcon fontSize="small" sx={{color: BRAND_RED}}/>
+                    </IconButton>
+                    {dateRange !== null && (
+                        <Chip
+                            data-testid="history-date-range-chip"
+                            size="small"
+                            variant="outlined"
+                            label={formatStatRange(dateRange.startDate, dateRange.finishDate)}
+                            onDelete={() => setDateRange(null)}
+                            deleteIcon={<CloseRoundedIcon/>}
+                            sx={{
+                                color: BRAND_RED,
+                                borderColor: BRAND_RED,
+                                "& .MuiChip-deleteIcon": {color: BRAND_RED},
+                            }}
+                        />
+                    )}
+                    <DateRangePickerPopover
+                        mode="range"
+                        id="history-date-range-popover"
+                        open={Boolean(calendarAnchorEl)}
+                        anchorEl={calendarAnchorEl}
+                        onClose={() => setCalendarAnchorEl(null)}
+                        range={pickerRange}
+                        onRangeChange={setPickerRange}
+                        applyLabel="Apply"
+                        onApply={handleApplyRange}
                     />
                 </Box>
             )}

@@ -2,7 +2,7 @@ import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals
 import React, { useState } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { Order } from "../../../order/types";
+import type { HistoryDateRange, Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
 import type { IBranch } from "../../inventory/types";
 
@@ -26,6 +26,9 @@ const mockUpdateOrderStatus = jest.fn<Promise<void>, [unknown]>();
 (publicApi as unknown as { updateOrderStatus: unknown }).updateOrderStatus = mockUpdateOrderStatus;
 
 const mockUseOrderHistory = jest.mocked(useOrderHistory);
+const mockGetHistory = jest.mocked(publicApi.getHistory);
+// Cast: jest.requireActual returns unknown in this jest typing; the module shape is known.
+const actualHistoryHook = jest.requireActual("../hooks/useOrderHistory") as typeof import("../hooks/useOrderHistory");
 
 function makeOrder(id: string, orderNo: number): Order {
     return {
@@ -70,6 +73,7 @@ function makeMockHookImplementation(
     return (): UseOrderHistoryResult => {
         const [orders, setOrders] = useState<Order[]>(overrides.initialOrders ?? []);
         const [searchInput, setSearchInput] = useState<string>("");
+        const [dateRange, setDateRange] = useState<HistoryDateRange | null>(null);
         const [loading, setLoading] = useState<boolean>(overrides.loading ?? false);
 
         if (loadingControl) loadingControl.current = setLoading;
@@ -83,6 +87,8 @@ function makeMockHookImplementation(
             error: overrides.error ?? null,
             searchInput,
             setSearchInput,
+            dateRange,
+            setDateRange,
             loadMore: loadMoreSpy,
         };
     };
@@ -204,6 +210,133 @@ describe("HistoryComponent", () => {
             fireEvent.change(input, { target: { value: "John" } });
 
             expect(screen.getByDisplayValue("John")).toBeTruthy();
+        });
+    });
+
+    describe("date range calendar", () => {
+        // 19 Oct 2026, so "Last 3 months" is 19 Jul -> 19 Oct.
+        beforeEach(() => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date(2026, 9, 19, 12, 0));
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        function openSearch(): void {
+            fireEvent.click(screen.getByRole("button", { name: /search/i }));
+        }
+
+        function applyLastThreeMonths(): void {
+            fireEvent.click(screen.getByRole("button", { name: /filter by date/i }));
+            fireEvent.click(screen.getByRole("button", { name: "Last 3 months" }));
+            fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+        }
+
+        it("shows no calendar button while the search bar is closed", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+
+            expect(screen.queryByRole("button", { name: /filter by date/i })).toBeNull();
+        });
+
+        it("shows the calendar button once the search bar is open", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+
+            expect(screen.getByRole("button", { name: /filter by date/i })).toBeTruthy();
+        });
+
+        it("opens the stats' range picker, fast picks included, from the calendar button", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+            fireEvent.click(screen.getByRole("button", { name: /filter by date/i }));
+
+            expect(screen.getByRole("button", { name: "Last 6 months" })).toBeTruthy();
+            expect(screen.getByRole("button", { name: "Apply" })).toBeTruthy();
+        });
+
+        it("shows the applied range as a chip beside the search box", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+            applyLastThreeMonths();
+
+            expect(screen.getByTestId("history-date-range-chip").textContent).toBe("Jul 19, 2026 — Oct 19, 2026");
+        });
+
+        it("shows no range chip before a range is applied", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+
+            expect(screen.queryByTestId("history-date-range-chip")).toBeNull();
+        });
+
+        it("clears the range when the chip's close icon is pressed", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+            applyLastThreeMonths();
+            fireEvent.click(screen.getByTestId("CloseRoundedIcon"));
+
+            expect(screen.queryByTestId("history-date-range-chip")).toBeNull();
+        });
+
+        it("clears the range along with the search text when the search bar is closed", () => {
+            mockUseOrderHistory.mockImplementation(makeMockHookImplementation());
+
+            renderHistory();
+            openSearch();
+            applyLastThreeMonths();
+            openSearch();
+            openSearch();
+
+            expect(screen.queryByTestId("history-date-range-chip")).toBeNull();
+        });
+
+        it("refetches page 0 for the applied range, keeping the typed search", async () => {
+            mockUseOrderHistory.mockImplementation(actualHistoryHook.useOrderHistory);
+            mockGetHistory.mockResolvedValue({ orders: [], hasMore: false });
+
+            renderHistory();
+            openSearch();
+            fireEvent.change(screen.getByPlaceholderText(/search by order id/i), { target: { value: "Ahmed" } });
+            applyLastThreeMonths();
+            await act(async () => { jest.advanceTimersByTime(300); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(expect.objectContaining({
+                page: 0,
+                filter: { type: "customerName", value: "Ahmed" },
+                dateRange: { startDate: "2026-07-19", finishDate: "2026-10-19" },
+            }));
+        });
+
+        it("drops the range from the next fetch once the search bar is closed", async () => {
+            mockUseOrderHistory.mockImplementation(actualHistoryHook.useOrderHistory);
+            mockGetHistory.mockResolvedValue({ orders: [], hasMore: false });
+
+            renderHistory();
+            openSearch();
+            applyLastThreeMonths();
+            await act(async () => { jest.advanceTimersByTime(300); });
+            openSearch();
+            await act(async () => { jest.advanceTimersByTime(300); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(expect.objectContaining({
+                page: 0,
+                filter: { type: "none" },
+                dateRange: null,
+            }));
         });
     });
 

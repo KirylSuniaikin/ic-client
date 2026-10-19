@@ -669,6 +669,49 @@ describe("getHistory", () => {
         expect(url).not.toContain("customerName=");
     });
 
+    it("sends a date range as the stats endpoint's start_date and finish_date", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, dateRange: { startDate: "2026-10-15", finishDate: "2026-10-19" } });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("start_date=2026-10-15");
+        expect(url).toContain("finish_date=2026-10-19");
+    });
+
+    it("sends the date range alongside the search filter", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({
+            branchId: "branch-1",
+            page: 2,
+            filter: { type: "customerName", value: "John" },
+            dateRange: { startDate: "2026-10-15", finishDate: "2026-10-15" },
+        });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain("page=2");
+        expect(url).toContain("customerName=John");
+        expect(url).toContain("start_date=2026-10-15");
+        expect(url).toContain("finish_date=2026-10-15");
+    });
+
+    it("omits start_date and finish_date when no date range is given", async () => {
+        mockAuthFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ orders: [], hasMore: false }), { status: 200 })
+        );
+
+        await getHistory({ branchId: "branch-1", page: 0, dateRange: null });
+
+        const [url] = mockAuthFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).not.toContain("start_date=");
+        expect(url).not.toContain("finish_date=");
+    });
+
     it("returns the parsed orders and hasMore from the response body", async () => {
         mockAuthFetch.mockResolvedValueOnce(
             new Response(JSON.stringify({ orders: [], hasMore: true }), { status: 200 })

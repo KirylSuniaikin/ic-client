@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import type { Order, GetHistoryResponse } from "../../../order/types";
+import type { Order, GetHistoryResponse, HistoryDateRange } from "../../../order/types";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../shared/api/public");
@@ -35,6 +35,8 @@ function makeOrder(id: string): Order {
 function response(orders: Order[], hasMore: boolean): GetHistoryResponse {
     return { orders, hasMore };
 }
+
+const MID_OCTOBER: HistoryDateRange = { startDate: "2026-10-15", finishDate: "2026-10-19" };
 
 describe("useOrderHistory", () => {
     beforeEach(() => {
@@ -317,6 +319,152 @@ describe("useOrderHistory", () => {
             expect(mockGetHistory).toHaveBeenCalledTimes(1);
             expect(mockGetHistory).toHaveBeenCalledWith(
                 expect.objectContaining({ filter: { type: "customerName", value: "Joh" } })
+            );
+        });
+    });
+
+    describe("date range", () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        it("sends no range on mount", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+
+            renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenCalledWith(
+                expect.objectContaining({ page: 0, filter: { type: "none" }, dateRange: null })
+            );
+        });
+
+        it("refetches page 0 for the range once it is set", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ page: 0, filter: { type: "none" }, dateRange: MID_OCTOBER })
+            );
+        });
+
+        it("combines the range with the typed search", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setSearchInput("Ahmed"));
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ page: 0, filter: { type: "customerName", value: "Ahmed" }, dateRange: MID_OCTOBER })
+            );
+        });
+
+        it("resets paging and the loaded orders when the range changes", async () => {
+            mockGetHistory.mockResolvedValueOnce(response([makeOrder("1")], true));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+            mockGetHistory.mockResolvedValueOnce(response([makeOrder("2")], true));
+            await act(async () => {
+                result.current.loadMore();
+                await Promise.resolve();
+            });
+
+            mockGetHistory.mockResolvedValueOnce(response([makeOrder("15")], true));
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+            const ordersAfterRange = result.current.orders.map(o => o.id);
+            mockGetHistory.mockResolvedValueOnce(response([], false));
+            await act(async () => {
+                result.current.loadMore();
+                await Promise.resolve();
+            });
+
+            expect(ordersAfterRange).toEqual(["15"]);
+            expect(mockGetHistory.mock.calls.map(([params]) => params.page)).toEqual([0, 1, 0, 1]);
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ page: 1, dateRange: MID_OCTOBER })
+            );
+        });
+
+        it("keeps paging within the range", async () => {
+            mockGetHistory.mockResolvedValue(response([makeOrder("1")], true));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            await act(async () => {
+                result.current.loadMore();
+                await Promise.resolve();
+            });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ page: 1, dateRange: MID_OCTOBER })
+            );
+        });
+
+        it("refetches without a range once it is cleared", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+            await act(async () => { await Promise.resolve(); });
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            act(() => result.current.setDateRange(null));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenLastCalledWith(
+                expect.objectContaining({ page: 0, dateRange: null })
+            );
+        });
+
+        it("ignores a slow response from before the range was applied", async () => {
+            let resolveFirst!: (value: GetHistoryResponse) => void;
+            mockGetHistory.mockReturnValueOnce(new Promise<GetHistoryResponse>((resolve) => { resolveFirst = resolve; }));
+            const { result } = renderHook(() => useOrderHistory("branch-1"));
+
+            mockGetHistory.mockResolvedValueOnce(response([makeOrder("in-range")], false));
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+            await act(async () => {
+                resolveFirst(response([makeOrder("stale")], false));
+                await Promise.resolve();
+            });
+
+            expect(result.current.orders.map(o => o.id)).toEqual(["in-range"]);
+        });
+
+        it("keeps the range when the branch changes", async () => {
+            mockGetHistory.mockResolvedValue(response([], false));
+            const { result, rerender } = renderHook(
+                ({ branchId }: { branchId: string }) => useOrderHistory(branchId),
+                { initialProps: { branchId: "branch-1" } }
+            );
+            await act(async () => { await Promise.resolve(); });
+            act(() => result.current.setDateRange(MID_OCTOBER));
+            act(() => { jest.advanceTimersByTime(300); });
+            await act(async () => { await Promise.resolve(); });
+            mockGetHistory.mockClear();
+
+            rerender({ branchId: "branch-2" });
+            await act(async () => { await Promise.resolve(); });
+
+            expect(mockGetHistory).toHaveBeenCalledWith(
+                expect.objectContaining({ branchId: "branch-2", page: 0, dateRange: MID_OCTOBER })
             );
         });
     });

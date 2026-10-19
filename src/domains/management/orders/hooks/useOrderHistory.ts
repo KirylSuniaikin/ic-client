@@ -1,7 +1,7 @@
 import { logger } from "../../../../shared/utils/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getHistory } from "../../../../shared/api/public";
-import type { Order, OrderHistoryFilter } from "../../../order/types";
+import type { HistoryDateRange, Order, OrderHistoryFilter } from "../../../order/types";
 
 export interface UseOrderHistoryResult {
     orders: Order[];
@@ -12,6 +12,8 @@ export interface UseOrderHistoryResult {
     error: string | null;
     searchInput: string;
     setSearchInput: (value: string) => void;
+    dateRange: HistoryDateRange | null;
+    setDateRange: (range: HistoryDateRange | null) => void;
     loadMore: () => void;
 }
 
@@ -43,22 +45,27 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
     const [hasMore, setHasMore] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [searchInput, setSearchInput] = useState<string>("");
+    const [dateRange, setDateRange] = useState<HistoryDateRange | null>(null);
 
     // Tracks the page/filter belonging to the in-flight fetch so a slow, superseded
     // response can be discarded when it resolves (stale-response guard, spec §6.5).
     const requestTokenRef = useRef<number>(0);
     const filterRef = useRef<OrderHistoryFilter>({ type: "none" });
+    const rangeRef = useRef<HistoryDateRange | null>(null);
     const pageRef = useRef<number>(0);
     const loadingMoreRef = useRef<boolean>(false);
     const hasMoreRef = useRef<boolean>(true);
-    // Mirrors searchInput on every render so the branch-change effect can read the
-    // current value without depending on it (which would defeat the debounce effect).
+    // Mirror searchInput and dateRange on every render so the branch-change effect can read
+    // the current values without depending on them (which would defeat the debounce effect).
     const searchInputRef = useRef<string>(searchInput);
     searchInputRef.current = searchInput;
+    const dateRangeRef = useRef<HistoryDateRange | null>(dateRange);
+    dateRangeRef.current = dateRange;
 
-    const fetchInitialPage = useCallback((filter: OrderHistoryFilter): void => {
+    const fetchInitialPage = useCallback((filter: OrderHistoryFilter, range: HistoryDateRange | null): void => {
         const token = ++requestTokenRef.current;
         filterRef.current = filter;
+        rangeRef.current = range;
         pageRef.current = 0;
         hasMoreRef.current = true;
         setOrders([]);
@@ -68,7 +75,7 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
 
         void (async (): Promise<void> => {
             try {
-                const response = await getHistory({ branchId, page: 0, size: PAGE_SIZE, filter });
+                const response = await getHistory({ branchId, page: 0, size: PAGE_SIZE, filter, dateRange: range });
                 if (token !== requestTokenRef.current) return;
                 setOrders(response.orders);
                 setHasMore(response.hasMore);
@@ -84,14 +91,16 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
     }, [branchId]);
 
     // Reset to page 0 on mount and whenever the branch changes, using whatever
-    // search filter is currently active (spec §6.1).
+    // search filter and date range are currently active (spec §6.1).
     useEffect(() => {
-        fetchInitialPage(classifySearchInput(searchInputRef.current));
+        fetchInitialPage(classifySearchInput(searchInputRef.current), dateRangeRef.current);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [branchId]);
 
-    // Debounced re-fetch whenever the search input changes; skips the very first
-    // render since the branch-change effect above already performs the initial load.
+    // Debounced re-fetch whenever the search input or the date range changes; skips the very first
+    // render since the branch-change effect above already performs the initial load. The range goes
+    // through the same path as a keystroke so it resets paging and the stale-response token the
+    // same way, and closing the search -- which clears both at once -- costs one request, not two.
     const isFirstSearchRenderRef = useRef<boolean>(true);
     useEffect(() => {
         if (isFirstSearchRenderRef.current) {
@@ -100,11 +109,11 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
         }
 
         const timer = setTimeout(() => {
-            fetchInitialPage(classifySearchInput(searchInput));
+            fetchInitialPage(classifySearchInput(searchInput), dateRange);
         }, SEARCH_DEBOUNCE_MS);
 
         return () => clearTimeout(timer);
-    }, [searchInput, fetchInitialPage]);
+    }, [searchInput, dateRange, fetchInitialPage]);
 
     const loadMore = useCallback((): void => {
         if (loadingMoreRef.current || !hasMoreRef.current) return;
@@ -112,12 +121,13 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
         const token = requestTokenRef.current;
         const nextPage = pageRef.current + 1;
         const filter = filterRef.current;
+        const range = rangeRef.current;
         loadingMoreRef.current = true;
         setLoadingMore(true);
 
         void (async (): Promise<void> => {
             try {
-                const response = await getHistory({ branchId, page: nextPage, size: PAGE_SIZE, filter });
+                const response = await getHistory({ branchId, page: nextPage, size: PAGE_SIZE, filter, dateRange: range });
                 if (token !== requestTokenRef.current) return;
                 setOrders(prev => [...prev, ...response.orders]);
                 pageRef.current = nextPage;
@@ -148,6 +158,8 @@ export function useOrderHistory(branchId: string): UseOrderHistoryResult {
         error,
         searchInput,
         setSearchInput,
+        dateRange,
+        setDateRange,
         loadMore,
     };
 }

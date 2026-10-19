@@ -326,11 +326,19 @@ export type OrderHistoryFilter =
     | { type: 'phone'; value: string }
     | { type: 'none' };
 
+// Inclusive calendar days as yyyy-MM-dd, sent as the stats endpoint's start_date/finish_date. The
+// server turns each day into the stats' business day, 04:00 to 03:59:59 the next morning.
+export type HistoryDateRange = {
+    startDate: string;
+    finishDate: string;
+};
+
 export type GetHistoryParams = {
     branchId: string;
     page: number;
     size?: number;
     filter?: OrderHistoryFilter;
+    dateRange?: HistoryDateRange | null;
 };
 
 export type GetHistoryResponse = {

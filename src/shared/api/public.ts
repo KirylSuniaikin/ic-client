@@ -209,7 +209,7 @@ export async function getAllActiveOrders(branchId: string): Promise<Order[]> {
 }
 
 export async function getHistory(params: GetHistoryParams): Promise<GetHistoryResponse> {
-    const { branchId, page, size, filter } = params;
+    const { branchId, page, size, filter, dateRange } = params;
 
     const queryParams = new URLSearchParams({
         branchId,
@@ -222,6 +222,11 @@ export async function getHistory(params: GetHistoryParams): Promise<GetHistoryRe
 
     if (filter && filter.type !== 'none') {
         queryParams.append(filter.type, String(filter.value));
+    }
+
+    if (dateRange) {
+        queryParams.append('start_date', dateRange.startDate);
+        queryParams.append('finish_date', dateRange.finishDate);
     }
 
     const response = await authFetch(BASE_URL + `/get_history?${queryParams.toString()}`, {
