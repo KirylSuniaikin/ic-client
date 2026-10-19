@@ -171,6 +171,11 @@ beforeEach(() => {
     mockGetReport.mockResolvedValue(report());
 });
 
+// This popup renders a full MUI table with a Select per row, so a single test takes seconds alone
+// and can pass Jest's 5 s default when the whole suite runs in parallel. A longer limit for this
+// file only; a test that truly hangs still fails.
+jest.setTimeout(20000);
+
 describe("column-header sort and filters", () => {
     // Debounce + portal transitions are comfortably fast alone but not under a parallel full run.
     const SLOW = { timeout: 10_000 };
