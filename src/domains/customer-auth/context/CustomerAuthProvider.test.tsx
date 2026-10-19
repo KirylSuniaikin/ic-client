@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@j
 import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { CustomerAuthApiError } from "../types";
+import type { CustomerTokenResponse } from "../types";
 
 // Uses the manual mock at shared/api/__mocks__/customerAuth.ts (factoryless
 // jest.mock(), mirrors management.test.ts's pattern).
@@ -390,6 +391,38 @@ describe("customerAuthFetch", () => {
 
         expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(result.current.token).toBeNull();
+    });
+
+    // The refresh token is single-use: two refreshes presenting the same cookie each rotate it,
+    // and the browser keeps whichever Set-Cookie lands last — not necessarily the one the server
+    // kept — so the next page load is logged out.
+    it("a provider mounting while a refresh-on-401 is in flight joins it instead of refreshing again", async () => {
+        let resolveRefresh: (value: CustomerTokenResponse) => void = () => undefined;
+        mockRefreshCustomerToken.mockReturnValueOnce(
+            new Promise<CustomerTokenResponse>((resolve) => {
+                resolveRefresh = resolve;
+            })
+        );
+
+        savedFetch = global.fetch;
+        mockFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 }))
+            .mockResolvedValueOnce(new Response(null, { status: 200 }));
+        global.fetch = mockFetch as typeof fetch;
+
+        const pendingCall = customerAuthFetch("https://example.com/api/customer/me", { method: "GET" });
+        await waitFor(() => expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1));
+
+        const { result } = renderCustomerAuth();
+        await act(async () => {
+            resolveRefresh({ accessToken: "rotated-once", isNewAccount: false });
+            await pendingCall;
+        });
+        await waitFor(() => expect(result.current.isAuthLoading).toBe(false));
+
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
+        expect(result.current.token).toBe("rotated-once");
     });
 
     // A refresh that hits Render's router mid-restart (502/503), a DB outage (500) or a dropped

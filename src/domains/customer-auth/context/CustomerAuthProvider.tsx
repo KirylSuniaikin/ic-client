@@ -72,10 +72,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
             }
 
             try {
-                const response = await refreshCustomerToken();
-                if (!cancelled) {
-                    setAccessToken(response.accessToken);
-                }
+                await refreshAccessToken();
             } catch (error) {
                 logger.debug('Customer silent refresh: no active session', error);
             } finally {
@@ -132,13 +129,26 @@ export function useCustomerAuth(): CustomerAuthContextType {
 // promise instead of starting a second refresh. CustomerProfilePopup fires
 // loadProfile/loadOrders/loadSuggestedItems in parallel on every open, so
 // without this dedupe an expired access token would race the single-slot,
-// rotating refresh token against itself.
+// rotating refresh token against itself. The silent refresh on mount goes through
+// the same guard: the refresh token is single-use, so a page-load refresh and a
+// refresh-on-401 presenting the same cookie at once would each rotate it, and the
+// browser would keep whichever Set-Cookie landed last — not necessarily the one
+// the server kept.
 let refreshPromise: Promise<string> | null = null;
 
 async function performRefresh(): Promise<string> {
     const refreshed = await refreshCustomerToken();
     setAccessToken(refreshed.accessToken);
     return refreshed.accessToken;
+}
+
+function refreshAccessToken(): Promise<string> {
+    if (!refreshPromise) {
+        refreshPromise = performRefresh().finally(() => {
+            refreshPromise = null;
+        });
+    }
+    return refreshPromise;
 }
 
 // Only the server answering 401 means the refresh cookie is gone. Everything else — offline,
@@ -172,12 +182,7 @@ export async function customerAuthFetch(url: string, init: RequestInit = {}): Pr
     }
 
     try {
-        if (!refreshPromise) {
-            refreshPromise = performRefresh().finally(() => {
-                refreshPromise = null;
-            });
-        }
-        const newAccessToken = await refreshPromise;
+        const newAccessToken = await refreshAccessToken();
         return await fetch(url, buildInit(newAccessToken));
     } catch (error) {
         if (isSessionRejected(error)) {
@@ -193,4 +198,5 @@ export async function customerAuthFetch(url: string, init: RequestInit = {}): Pr
 export function __resetCustomerAuthStoreForTests(): void {
     currentAccessToken = null;
     tokenListeners.clear();
+    refreshPromise = null;
 }
