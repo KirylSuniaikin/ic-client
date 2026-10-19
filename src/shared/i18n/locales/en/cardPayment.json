@@ -20,7 +20,7 @@
         "paying": "Paying...",
         "tryAgain": "Try again"
     },
-    "loading": "Preparing secure payment...",
+    "loading": "Connecting the dough with the sauce... wait a sec",
     "pending": "We are confirming your payment. Please do not pay again.",
     "errors": {
         "generic": "Card payment could not be completed. You were not charged.",

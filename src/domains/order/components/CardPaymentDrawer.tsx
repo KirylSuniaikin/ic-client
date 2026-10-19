@@ -1,4 +1,4 @@
-import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
+import { Box, Button, IconButton, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import * as React from "react";
@@ -9,6 +9,7 @@ import type { CardCheckoutStep, CardFieldErrors } from "../hooks/useCardCheckout
 import { CustomerSheet } from "../../../shared/components/CustomerSheet";
 import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
 import { SheetHandle } from "../../delivery/components/sheetStyles";
+import { DoughSauceLoader } from "./DoughSauceLoader";
 
 interface CardPaymentDrawerProps {
     open: boolean;
@@ -139,51 +140,58 @@ export default function CardPaymentDrawer({
                     <Typography fontWeight="bold" sx={{ color: "#3b352c" }}>{total}</Typography>
                 </Box>
 
-                {preparing && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }} role="status">
-                        <CircularProgress size={20} sx={{ color: BRAND_RED }} />
-                        <Typography sx={{ color: "#8a807a" }}>{t("loading")}</Typography>
-                    </Box>
-                )}
-
-                {/* Kept mounted (only hidden) while a new session is needed, so a retry can re-attach.
-                    The usual card layout (owner, 19 Oct 2026): the number on its own line, then
-                    the expiry date and CVV side by side. */}
-                <Box ref={fieldContainerRef} dir="ltr" sx={{ display: needsNewSession ? "none" : "block" }}>
-                    <Box sx={{ mb: 1.5 }}>
-                        <Typography component="label" htmlFor={CARD_FIELD_IDS.cardNumber} variant="body2" sx={FIELD_LABEL_SX}>
-                            {t("fields.cardNumber")}
-                        </Typography>
-                        <Box sx={fieldBoxSx(fieldErrors.cardNumber)}>
-                            <HostedInput field="cardNumber" invalid={fieldErrors.cardNumber} />
+                {/* While the session loads, the loader stands in for the fields (owner, 19 Oct 2026). */}
+                <Box sx={{ position: "relative" }}>
+                    {preparing && (
+                        <Box sx={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <DoughSauceLoader label={t("loading")} />
                         </Box>
-                    </Box>
-
-                    <Box sx={{ display: "flex", gap: 1.5, mb: 1.5 }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography id={EXPIRY_LABEL_ID} variant="body2" sx={FIELD_LABEL_SX}>
-                                {t("fields.expiry")}
+                    )}
+                    {/* Kept mounted (only hidden) while a new session is needed, so a retry can re-attach.
+                        Under the loader the fields stay laid out, only invisible: the gateway sizes its
+                        frames from the inputs it replaces, and a display:none box has no size. The usual
+                        card layout (owner, 19 Oct 2026): the number on its own line, then the expiry
+                        date and CVV side by side. */}
+                    <Box
+                        ref={fieldContainerRef}
+                        dir="ltr"
+                        sx={{ display: needsNewSession ? "none" : "block", visibility: preparing ? "hidden" : "visible" }}
+                    >
+                        <Box sx={{ mb: 1.5 }}>
+                            <Typography component="label" htmlFor={CARD_FIELD_IDS.cardNumber} variant="body2" sx={FIELD_LABEL_SX}>
+                                {t("fields.cardNumber")}
                             </Typography>
-                            <Box
-                                role="group"
-                                aria-labelledby={EXPIRY_LABEL_ID}
-                                sx={fieldBoxSx(fieldErrors.expiryMonth || fieldErrors.expiryYear)}
-                            >
-                                <Box sx={EXPIRY_PART_SX}>
-                                    <HostedInput field="expiryMonth" invalid={fieldErrors.expiryMonth} />
-                                </Box>
-                                <Typography aria-hidden component="span" sx={{ color: "#8a807a", px: 0.75 }}>/</Typography>
-                                <Box sx={EXPIRY_PART_SX}>
-                                    <HostedInput field="expiryYear" invalid={fieldErrors.expiryYear} />
-                                </Box>
+                            <Box sx={fieldBoxSx(fieldErrors.cardNumber)}>
+                                <HostedInput field="cardNumber" invalid={fieldErrors.cardNumber} />
                             </Box>
                         </Box>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography component="label" htmlFor={CARD_FIELD_IDS.securityCode} variant="body2" sx={FIELD_LABEL_SX}>
-                                {t("fields.cvv")}
-                            </Typography>
-                            <Box sx={fieldBoxSx(fieldErrors.securityCode)}>
-                                <HostedInput field="securityCode" invalid={fieldErrors.securityCode} />
+
+                        <Box sx={{ display: "flex", gap: 1.5, mb: 1.5 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography id={EXPIRY_LABEL_ID} variant="body2" sx={FIELD_LABEL_SX}>
+                                    {t("fields.expiry")}
+                                </Typography>
+                                <Box
+                                    role="group"
+                                    aria-labelledby={EXPIRY_LABEL_ID}
+                                    sx={fieldBoxSx(fieldErrors.expiryMonth || fieldErrors.expiryYear)}
+                                >
+                                    <Box sx={EXPIRY_PART_SX}>
+                                        <HostedInput field="expiryMonth" invalid={fieldErrors.expiryMonth} />
+                                    </Box>
+                                    <Typography aria-hidden component="span" sx={{ color: "#8a807a", px: 0.75 }}>/</Typography>
+                                    <Box sx={EXPIRY_PART_SX}>
+                                        <HostedInput field="expiryYear" invalid={fieldErrors.expiryYear} />
+                                    </Box>
+                                </Box>
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography component="label" htmlFor={CARD_FIELD_IDS.securityCode} variant="body2" sx={FIELD_LABEL_SX}>
+                                    {t("fields.cvv")}
+                                </Typography>
+                                <Box sx={fieldBoxSx(fieldErrors.securityCode)}>
+                                    <HostedInput field="securityCode" invalid={fieldErrors.securityCode} />
+                                </Box>
                             </Box>
                         </Box>
                     </Box>

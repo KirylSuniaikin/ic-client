@@ -7,6 +7,7 @@ import type { CardCheckoutStep } from "../hooks/useCardCheckout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+import { cardFieldContainer } from "./cardDrawer.testutil";
 
 const READY_STEP: CardCheckoutStep = "ready";
 
@@ -73,6 +74,24 @@ describe("CardPaymentDrawer", () => {
         expect(emotionRulesFor(screen.getByRole("group", { name: "Expiry date" }))).toContain("border-color:#E44B4C");
         expect(screen.getByLabelText("Expiry year").getAttribute("aria-invalid")).toBe("true");
         expect(screen.getByLabelText("Expiry month").hasAttribute("aria-invalid")).toBe(false);
+    });
+
+    // Owner, 19 Oct 2026: a funnier loader, and no card fields until the form is ready. The fields
+    // stay mounted and laid out underneath (only invisible) so the gateway can size its frames.
+    it("shows the dough-and-sauce loader instead of the fields while preparing", () => {
+        renderDrawer({ step: "preparing" });
+
+        expect(screen.getByRole("status").textContent).toBe("Connecting the dough with the sauce... wait a sec");
+        const rules = emotionRulesFor(cardFieldContainer());
+        expect(rules).toContain("visibility:hidden");
+        expect(rules).toContain("display:block");
+    });
+
+    it("drops the loader and shows the fields once ready", () => {
+        renderDrawer();
+
+        expect(screen.queryByTestId("dough-sauce-loader")).toBeNull();
+        expect(emotionRulesFor(cardFieldContainer())).toContain("visibility:visible");
     });
 
     it("associates the title with the dialog via aria-labelledby", () => {
