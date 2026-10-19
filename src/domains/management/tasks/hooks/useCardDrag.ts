@@ -30,10 +30,18 @@ export const BOARD_SCROLLER_SELECTOR = "[data-board-scroller]";
 // belongs to an ancestor (in practice the page). A card held near the top or bottom of that
 // scroller drives it too, otherwise a card at the foot of a long column can never be carried to
 // the top of it.
+//
+// <body> must be a candidate too: public/index.css gives html and body `overflow-x: hidden` and a
+// fixed height, which makes body, not the document, the element that scrolls the admin page. A walk
+// that stopped short of body fell through to <html>, which never moves, so a card held at the top
+// or bottom edge scrolled nothing. Body's overflow is only its own while <html>'s is not `visible`;
+// otherwise it is handed to the viewport and body.scrollTop does nothing.
 function findVerticalScroller(start: HTMLElement | null, doc: Document): HTMLElement {
     const view = doc.defaultView;
+    const bodyOwnsOverflow = view?.getComputedStyle(doc.documentElement).overflowY !== "visible";
     let el = start?.parentElement ?? null;
-    while (el !== null && el !== doc.body && el !== doc.documentElement) {
+    while (el !== null && el !== doc.documentElement) {
+        if (el === doc.body && !bodyOwnsOverflow) break;
         const overflowY = view?.getComputedStyle(el).overflowY;
         if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) return el;
         el = el.parentElement;

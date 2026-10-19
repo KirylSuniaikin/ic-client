@@ -495,6 +495,113 @@ describe("useCardDrag", () => {
             jest.useRealTimers();
         });
 
+        it("a swipe that starts on a card never cancels a touchmove, while a lifted card does", () => {
+            jest.useFakeTimers();
+            const cards = [makeCard({ id: 1, status: "BACKLOG" }), makeCard({ id: 2, status: "BACKLOG" })];
+            const onDrop = jest.fn<void, [DropInput]>();
+            const onCardClick = jest.fn<void, [TaskCard]>();
+
+            render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+            const card1 = screen.getByTestId("card-1");
+            const card2 = screen.getByTestId("card-2");
+
+            // fireEvent returns false only when a listener cancelled the (cancelable) touchmove.
+            fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 300, button: 0 });
+            expect(fireEvent.touchMove(card1)).toBe(true);
+            fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 100 });
+            jest.advanceTimersByTime(300); // past the point a still finger would have lifted the card
+            expect(fireEvent.touchMove(card1)).toBe(true);
+            fireEvent.pointerCancel(card1, { pointerId: 1, pointerType: "touch" }); // the browser took the pan
+
+            fireEvent.pointerDown(card2, { pointerId: 2, pointerType: "touch", clientX: 50, clientY: 150, button: 0 });
+            act(() => {
+                jest.advanceTimersByTime(300); // lift
+            });
+            expect(fireEvent.touchMove(card2)).toBe(false);
+            fireEvent.pointerUp(card2, { pointerId: 2, pointerType: "touch", clientX: 50, clientY: 150 });
+            jest.useRealTimers();
+        });
+
+        // public/index.css gives html and body `overflow-x: hidden` (so overflow-y computes to `auto`)
+        // and a fixed 100% height: on the admin page it is <body>, not the document, that scrolls. The
+        // page-scroll tests above run on jsdom's default document scroller, which is how a hook that
+        // never considered body passed them while doing nothing on a real page.
+        describe("when <body> is the page's scroll container, as on the admin page", () => {
+            const body = document.body;
+            const page = document.documentElement;
+
+            beforeEach(() => {
+                page.style.overflowY = "auto";
+                body.style.overflowY = "auto";
+                // jsdom has no layout: give body a viewport-sized box with taller content inside it.
+                jest.spyOn(body, "clientHeight", "get").mockReturnValue(window.innerHeight);
+                jest.spyOn(body, "scrollHeight", "get").mockReturnValue(window.innerHeight * 4);
+                jest.spyOn(body, "getBoundingClientRect").mockReturnValue({
+                    top: 0, bottom: window.innerHeight, left: 0, right: 1024, width: 1024, height: window.innerHeight, x: 0, y: 0,
+                    toJSON: () => ({}),
+                } as DOMRect);
+                body.scrollTop = 600;
+                page.scrollTop = 0;
+            });
+
+            afterEach(() => {
+                page.style.overflowY = "";
+                body.style.overflowY = "";
+                body.scrollTop = 0;
+                page.scrollTop = 0;
+                jest.useRealTimers();
+            });
+
+            it("holding a lifted card at the top edge scrolls body up, keeping the card under the finger", () => {
+                jest.useFakeTimers();
+                const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+                const onDrop = jest.fn<void, [DropInput]>();
+                const onCardClick = jest.fn<void, [TaskCard]>();
+
+                render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+                const card1 = screen.getByTestId("card-1");
+
+                fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 400, button: 0 });
+                act(() => {
+                    jest.advanceTimersByTime(300); // lift
+                });
+                fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+                act(() => {
+                    jest.advanceTimersByTime(100); // dwell at the top edge
+                });
+
+                expect(body.scrollTop).toBeLessThan(600);
+                expect(page.scrollTop).toBe(0);
+                expect(card1.style.transform).toContain(`, ${10 - 400 + (body.scrollTop - 600)}px)`);
+                fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+            });
+
+            it("leaves body alone when <html>'s overflow is visible, since body's then belongs to the viewport", () => {
+                jest.useFakeTimers();
+                page.style.overflowY = "visible";
+                page.scrollTop = 600;
+                const cards = [makeCard({ id: 1, status: "BACKLOG" })];
+                const onDrop = jest.fn<void, [DropInput]>();
+                const onCardClick = jest.fn<void, [TaskCard]>();
+
+                render(React.createElement(Harness, { cards, onDrop, onCardClick }));
+                const card1 = screen.getByTestId("card-1");
+
+                fireEvent.pointerDown(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 400, button: 0 });
+                act(() => {
+                    jest.advanceTimersByTime(300); // lift
+                });
+                fireEvent.pointerMove(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+                act(() => {
+                    jest.advanceTimersByTime(100);
+                });
+
+                expect(page.scrollTop).toBeLessThan(600);
+                expect(body.scrollTop).toBe(600);
+                fireEvent.pointerUp(card1, { pointerId: 1, pointerType: "touch", clientX: 50, clientY: 10 });
+            });
+        });
+
         it("a long press released without moving stays a tap: it opens the card and reports no move", () => {
             jest.useFakeTimers();
             const cards = [makeCard({ id: 1, status: "BACKLOG" })];
