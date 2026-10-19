@@ -3,6 +3,7 @@ import React from "react";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { CustomerAuthApiError } from "../types";
 import type { CustomerTokenResponse } from "../types";
+import { PreResponseNetworkError } from "../../../shared/api/client";
 
 // Uses the manual mock at shared/api/__mocks__/customerAuth.ts (factoryless
 // jest.mock(), mirrors management.test.ts's pattern).
@@ -92,6 +93,110 @@ describe("CustomerAuthProvider — silent refresh on mount", () => {
         await waitFor(() => {
             expect(result.current.isAuthLoading).toBe(false);
         });
+
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
+    });
+});
+
+// A page opened while the backend restarts (Render deploy, a suspended service, a DB outage)
+// used to try the refresh once and then stay a guest until the customer reloaded — which they
+// read as "I got logged out after the update".
+describe("CustomerAuthProvider — silent refresh through a backend blip", () => {
+    beforeEach(() => {
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    // Lets the pending refresh promise chain settle. waitFor is avoided here: under fake timers it
+    // advances the clock itself, which would fire the very retries these tests count.
+    async function settle(): Promise<void> {
+        await act(async () => undefined);
+    }
+
+    async function advance(ms: number): Promise<void> {
+        await act(async () => {
+            jest.advanceTimersByTime(ms);
+        });
+        await settle();
+    }
+
+    it.each([
+        ["a 503 from the router mid-deploy", new CustomerAuthApiError("Service Unavailable", 503)],
+        ["a 500 from a DB outage", new CustomerAuthApiError("Request failed with status 500", 500)],
+        ["no answer at all", new PreResponseNetworkError(new TypeError("Failed to fetch"))],
+    ])("restores the session on its own after %s", async (_label, firstFailure) => {
+        mockRefreshCustomerToken
+            .mockRejectedValueOnce(firstFailure)
+            .mockResolvedValueOnce({ accessToken: "restored-token", isNewAccount: false });
+
+        const { result } = renderCustomerAuth();
+        await settle();
+        expect(result.current.isAuthLoading).toBe(false);
+        expect(result.current.token).toBeNull();
+
+        await advance(2_000);
+
+        expect(result.current.token).toBe("restored-token");
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry a 401: that is the server saying there is no session", async () => {
+        mockRefreshCustomerToken.mockRejectedValue(new CustomerAuthApiError("Missing refresh token", 401));
+
+        const { result } = renderCustomerAuth();
+        await settle();
+        expect(result.current.isAuthLoading).toBe(false);
+        await advance(60_000);
+
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
+        expect(result.current.token).toBeNull();
+    });
+
+    it("gives up after about three minutes of a backend that never comes back", async () => {
+        const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+        mockRefreshCustomerToken.mockRejectedValue(new CustomerAuthApiError("Service Unavailable", 503));
+
+        const { result } = renderCustomerAuth();
+        await settle();
+        expect(result.current.isAuthLoading).toBe(false);
+        // No delay in the schedule exceeds a minute, so each step fires at most one retry.
+        const oneMinuteSteps = Array.from({ length: 10 }, () => 60_000);
+        for (const step of oneMinuteSteps) {
+            await advance(step);
+        }
+
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(8);
+        expect(result.current.token).toBeNull();
+        warn.mockRestore();
+    });
+
+    it("stops retrying once the customer has logged in meanwhile", async () => {
+        mockRefreshCustomerToken.mockRejectedValue(new CustomerAuthApiError("Service Unavailable", 503));
+        mockVerifyOtp.mockResolvedValueOnce({ accessToken: "login-token", isNewAccount: false });
+
+        const { result } = renderCustomerAuth();
+        await settle();
+        expect(result.current.isAuthLoading).toBe(false);
+        await act(async () => {
+            await result.current.login("97333607710", "4821");
+        });
+        await advance(60_000);
+
+        expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
+        expect(result.current.token).toBe("login-token");
+    });
+
+    it("stops retrying once the provider unmounts", async () => {
+        mockRefreshCustomerToken.mockRejectedValue(new CustomerAuthApiError("Service Unavailable", 503));
+
+        const { result, unmount } = renderCustomerAuth();
+        await settle();
+        expect(result.current.isAuthLoading).toBe(false);
+        unmount();
+        await advance(60_000);
 
         expect(mockRefreshCustomerToken).toHaveBeenCalledTimes(1);
     });

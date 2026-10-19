@@ -1,4 +1,4 @@
-import { BASE_URL } from './client';
+import { BASE_URL, PreResponseNetworkError } from './client';
 import { applyClientPlatform } from './clientPlatform';
 import { customerAuthFetch } from '../../domains/customer-auth/context/CustomerAuthProvider';
 import { CustomerAuthApiError } from '../../domains/customer-auth/types';
@@ -96,11 +96,18 @@ export async function verifyOtp(payload: OtpVerifyPayload): Promise<CustomerToke
 }
 
 export async function refreshCustomerToken(): Promise<CustomerTokenResponse> {
-    const response = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: withClientPlatform(),
-    });
+    let response: Response;
+    try {
+        response = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: withClientPlatform(),
+        });
+    } catch (error) {
+        // No answer at all (offline, DNS, CORS, a dropped connection): typed apart from an
+        // answer, so CustomerAuthProvider can tell "try again" from "the session is gone".
+        throw new PreResponseNetworkError(error);
+    }
 
     if (!response.ok) {
         throw new CustomerAuthApiError(await extractErrorMessage(response), response.status);

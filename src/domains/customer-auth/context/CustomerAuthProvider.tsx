@@ -3,6 +3,7 @@ import type React from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { logoutCustomer, refreshCustomerToken, verifyOtp } from '../../../shared/api/customerAuth';
 import { applyClientPlatform } from '../../../shared/api/clientPlatform';
+import { PreResponseNetworkError } from '../../../shared/api/client';
 import { isKioskSearch } from '../../../shared/utils/kioskMode';
 import { CustomerAuthApiError, CustomerAuthContextMissingError } from '../types';
 import type { CustomerAuthContextType } from '../types';
@@ -47,9 +48,39 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     }, []);
 
     // Silent refresh on mount: if there's no in-memory token yet, try the
-    // cookie-driven refresh once. Failure is ambient — guest, no visible error.
+    // cookie-driven refresh. Failure is ambient — guest, no visible error. A failure
+    // that is not an answer about the session (see isTransientRefreshFailure) is
+    // retried in the background, so a page opened while the backend restarts comes
+    // back signed in on its own instead of staying a guest until a manual reload.
     useEffect(() => {
         let cancelled = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+        async function attemptSilentRefresh(attempt: number): Promise<void> {
+            // A login, or a refresh-on-401 elsewhere, may have restored the session meanwhile.
+            if (cancelled || getAccessToken() !== null) {
+                return;
+            }
+
+            try {
+                await refreshAccessToken();
+            } catch (error) {
+                if (cancelled) {
+                    return;
+                }
+                const retryDelayMs = SILENT_REFRESH_RETRY_DELAYS_MS[attempt];
+                if (!isTransientRefreshFailure(error)) {
+                    logger.debug('Customer silent refresh: no active session', error);
+                } else if (retryDelayMs === undefined) {
+                    logger.warn('Customer silent refresh: backend still unreachable, giving up until reload', error);
+                } else {
+                    logger.debug(`Customer silent refresh: retrying in ${retryDelayMs} ms`, error);
+                    retryTimer = setTimeout(() => {
+                        void attemptSilentRefresh(attempt + 1);
+                    }, retryDelayMs);
+                }
+            }
+        }
 
         async function silentRefresh(): Promise<void> {
             // The kiosk is a shared walk-up device and has no login entry point at all, so a
@@ -71,14 +102,9 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
                 return;
             }
 
-            try {
-                await refreshAccessToken();
-            } catch (error) {
-                logger.debug('Customer silent refresh: no active session', error);
-            } finally {
-                if (!cancelled) {
-                    setIsAuthLoading(false);
-                }
+            await attemptSilentRefresh(0);
+            if (!cancelled) {
+                setIsAuthLoading(false);
             }
         }
 
@@ -86,6 +112,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
 
         return () => {
             cancelled = true;
+            clearTimeout(retryTimer);
         };
     }, [isKiosk]);
 
@@ -158,6 +185,19 @@ function refreshAccessToken(): Promise<string> {
 function isSessionRejected(error: unknown): boolean {
     return error instanceof CustomerAuthApiError && error.status === 401;
 }
+
+// The failures worth asking again about: no answer at all, or the server failing to answer
+// (5xx). A 401 is the answer "no session", and anything unrecognised is not retried either.
+function isTransientRefreshFailure(error: unknown): boolean {
+    if (error instanceof PreResponseNetworkError) {
+        return true;
+    }
+    return error instanceof CustomerAuthApiError && error.status >= 500;
+}
+
+// Spans ~3 minutes: a Render deploy or restart is 1-3 minutes, and a refresh is cheap.
+// After that a reload is the customer's cue; retrying forever would only hide an outage.
+const SILENT_REFRESH_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000, 10_000, 20_000, 30_000, 60_000, 60_000];
 
 // Interceptor-style wrapper: attaches the in-memory bearer token, and on a
 // 401 calls /auth/refresh exactly once (single-flight, shared across

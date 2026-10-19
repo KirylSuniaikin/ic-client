@@ -19,3 +19,5 @@ export const reportNetworkError = jest.fn<Promise<void>, [unknown, string, strin
 const actual = jest.requireActual("../client") as typeof import("../client");
 export const DEFAULT_RETRY_DELAYS_MS = actual.DEFAULT_RETRY_DELAYS_MS;
 export const fetchWithRetryPolicy = actual.fetchWithRetryPolicy;
+// A real class, not a stub: callers tell a network failure apart with `instanceof`.
+export const PreResponseNetworkError = actual.PreResponseNetworkError;

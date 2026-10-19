@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
-import { BASE_URL } from "./client";
+import { BASE_URL, PreResponseNetworkError } from "./client";
 import {
     requestOtp,
     verifyOtp,
@@ -123,6 +123,13 @@ describe("refreshCustomerToken", () => {
         mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
         await expect(refreshCustomerToken()).rejects.toThrow(CustomerAuthApiError);
+    });
+
+    // Typed apart from an answer, so the provider retries it instead of treating it as "no session".
+    it("throws a PreResponseNetworkError when no answer arrives at all", async () => {
+        mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+        await expect(refreshCustomerToken()).rejects.toThrow(PreResponseNetworkError);
     });
 });
 
