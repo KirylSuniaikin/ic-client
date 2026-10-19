@@ -95,6 +95,34 @@ describe("CardPaymentDrawer", () => {
         }
     });
 
+    // Owner, 19 Oct 2026, on an iPhone: the second M and Y of "MM / YY" were cut in half. session.js
+    // copies our input's computed styles into the gateway's frame, and iOS Safari's default input
+    // padding (0.5em a side) left 16px of a 32px part for "MM", which is 27px in SF Pro.
+    it("gives the hosted text no browser padding and sizes each expiry part in the hosted font", () => {
+        renderDrawer();
+
+        const month = screen.getByLabelText("Expiry month");
+        const boxes = [
+            fieldBoxOf(screen.getByLabelText("Card number")),
+            screen.getByRole("group", { name: "Expiry date" }),
+            fieldBoxOf(screen.getByLabelText("Security code")),
+        ];
+        for (const box of boxes) {
+            expect(emotionRulesFor(box)).toMatch(/ input ?\{[^}]*font-size:1rem[^}]*padding-left:0(px)?;[^}]*padding-right:0(px)?;/);
+        }
+        for (const part of [fieldBoxOf(month), fieldBoxOf(screen.getByLabelText("Expiry year"))]) {
+            const rules = emotionRulesFor(part);
+            expect(rules).toContain("font-size:1rem");
+            expect(rules).toContain("width:2em");
+            expect(rules).toContain("flex-shrink:0");
+        }
+        // "MM" leaves ~0.25em of its 2em part empty; the slash gives that back on its leading side.
+        const slash = within(screen.getByRole("group", { name: "Expiry date" })).getByText("/");
+        const slashRules = emotionRulesFor(slash);
+        expect(slashRules).toContain("padding-inline-start:0.25em");
+        expect(slashRules).toContain("padding-inline-end:0.5em");
+    });
+
     // Owner, 19 Oct 2026: a funnier loader, and no card fields until the form is ready. The fields
     // stay mounted and laid out underneath (only invisible) so the gateway can size its frames.
     it("shows the dough-and-sauce loader instead of the fields while preparing", () => {

@@ -49,6 +49,9 @@ const CTA_SX = {
     "&:hover": { filter: "brightness(0.94)" },
 } as const;
 
+// The font the gateway draws the card digits in: it copies this from our input into its frame.
+const HOSTED_FONT_SIZE = "1rem";
+
 const FIELD_BOX_SX = {
     display: "flex",
     alignItems: "center",
@@ -63,7 +66,16 @@ const FIELD_BOX_SX = {
     // un-hides the input to copy its width onto that iframe. A shrinking flex item shared the row
     // with the iframe, so it measured "box minus iframe" and the frame flipped between two widths
     // forever (a clipped, blinking number; a 4px CVV). An input that never shrinks measures the box.
-    "& input": { width: "100%", flexShrink: 0, border: 0, outline: 0, background: "transparent", fontSize: "1rem" },
+    //
+    // session.js also copies every computed style of our input onto the gateway's own input inside
+    // the frame, padding included, so the browser's default input padding lands in there too. iOS
+    // Safari's is 0.5em a side (WebKit html.css), which took 16px of a 32px expiry part and cut the
+    // second M and Y in half. Zero inline padding makes the text box the same on every browser; the
+    // field box's own padding is the inset. Block padding is left alone: it is the frame's tap height.
+    "& input": {
+        width: "100%", flexShrink: 0, border: 0, outline: 0, background: "transparent",
+        fontSize: HOSTED_FONT_SIZE, paddingLeft: 0, paddingRight: 0,
+    },
     // An inline iframe sits on the text baseline with a descender gap under it, which lifted the
     // expiry MM and YY above our slash; as a block it centres like the slash does.
     "& iframe": { display: "block" },
@@ -72,8 +84,18 @@ const FIELD_BOX_SX = {
 const FIELD_LABEL_SX = { color: "#8a807a", display: "block", mb: 0.5 } as const;
 
 // Month and year are two hosted fields (the gateway has no single expiry field), drawn as one
-// "MM / YY" box: each sized for its two digits, the slash between them ours.
-const EXPIRY_PART_SX = { width: 32, flexShrink: 0 } as const;
+// "MM / YY" box, the slash between them ours. Each part is 2em of the hosted font, so it grows with
+// that font: "MM", the widest thing either part shows, is 1.71em in iOS's SF Pro, 1.75em in Roboto
+// and at most 1.81em (Noto Sans) among system fonts, so 2em fits it with room to spare everywhere
+// while staying snug enough that the slash still reads as part of the date.
+const EXPIRY_PART_SX = { fontSize: HOSTED_FONT_SIZE, width: "2em", flexShrink: 0 } as const;
+
+// "MM" leaves about a quarter em of its part empty, so the slash takes that much less on its leading
+// side and sits evenly between MM and YY. Logical sides: the RTL emotion cache flips left and right
+// even inside this dir="ltr" box.
+const EXPIRY_SLASH_SX = {
+    color: "#8a807a", fontSize: HOSTED_FONT_SIZE, paddingInlineStart: "0.25em", paddingInlineEnd: "0.5em",
+} as const;
 
 function fieldBoxSx(invalid: boolean | undefined): SxProps<Theme> {
     return { ...FIELD_BOX_SX, ...(invalid ? { borderColor: BRAND_RED } : {}) };
@@ -186,7 +208,7 @@ export default function CardPaymentDrawer({
                                     <Box sx={EXPIRY_PART_SX}>
                                         <HostedInput field="expiryMonth" invalid={fieldErrors.expiryMonth} />
                                     </Box>
-                                    <Typography aria-hidden component="span" sx={{ color: "#8a807a", px: 0.75 }}>/</Typography>
+                                    <Typography aria-hidden component="span" sx={EXPIRY_SLASH_SX}>/</Typography>
                                     <Box sx={EXPIRY_PART_SX}>
                                         <HostedInput field="expiryYear" invalid={fieldErrors.expiryYear} />
                                     </Box>
