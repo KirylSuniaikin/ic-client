@@ -1,16 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Typography, Button, ToggleButtonGroup, ToggleButton } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { Box, Typography, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import CartItemHorizontal from "./CartItemHorizontal";
-import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import type { CartItem, MenuItem, Topping, ExtraIngr } from "../../menu/types";
-import type { IBranch } from "../../management/inventory/types";
 import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { ItemPopupShell } from "../../menu/components/popups/ItemPopupShell";
 import type { ItemPopupDesktopLayout } from "../../menu/components/popups/ItemPopupShell";
-import { branchDisplayName } from "../../branch/utils/branchDisplayName";
 import { ActionButton, SCREEN_ROOT_SX, ScreenHeader } from "./CartChrome";
 import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
 import { DELIVERY_COMING_SOON } from "../../delivery/constants";
@@ -58,12 +53,6 @@ interface CartPopupProps {
     orderType: string;
     onDeliveryTypeChange: (value: string) => void;
     isKiosk: boolean;
-    // The branch a pickup order will be collected from, and the way to change it. The "Pick up
-    // from" card needs both: a chevron that does nothing on tap is a broken promise, so without a
-    // handler the card is not rendered at all. Irrelevant for admin and kiosk, which hide the
-    // whole section.
-    pickupBranch?: IBranch | null;
-    onChangeBranch?: () => void;
 }
 
 function CartPopup({
@@ -90,13 +79,8 @@ function CartPopup({
                        orderType,
                        onDeliveryTypeChange,
                        isKiosk,
-                       pickupBranch = null,
-                       onChangeBranch,
                    }: CartPopupProps): JSX.Element {
-    const { t, i18n } = useTranslation("cart");
-    // The RTL emotion cache mirrors the card's layout but not an icon's glyph, so the chevron has
-    // to be chosen by direction to keep pointing "onward".
-    const isRtl = useTheme().direction === "rtl";
+    const { t } = useTranslation("cart");
     const isDesktop = useDesktopLayout();
     const totalPrice = items
         .reduce((acc, i) => {
@@ -138,12 +122,6 @@ function CartPopup({
         },
         "&.Mui-disabled": { border: 0, color: "#bbb" },
     };
-    // A delivery order goes to whichever kitchen the address resolves to, so naming the pickup
-    // branch there would be wrong; an empty name would be a blank card.
-    const pickupBranchName = pickupBranch ? branchDisplayName(pickupBranch, i18n.language) : "";
-    const pickupBranchAddress = pickupBranch?.address?.trim() ?? "";
-    const showPickupBranch = orderType !== "Delivery" && pickupBranchName !== "" && onChangeBranch !== undefined;
-    const singleLineSx = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
     // Every checkout leaves with the tender the cart was handed. Admin and kiosk pay with it; a
     // customer's Checkout goes on to sign-in and the payment page, where the method is chosen.
@@ -201,55 +179,6 @@ function CartPopup({
                             )}
                         </ToggleButton>
                     </ToggleButtonGroup>
-                </Box>
-            )}
-
-            {/* Where this pickup will be collected, at the moment the customer is
-                deciding — the menu header that names the branch has scrolled away by
-                now. Label above, control below, on the same gray track as the two
-                toggle groups around it, so the section reads as one family rather than
-                a bare text row wedged between two controls. */}
-            {showPickupBranch && (
-                <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ color: "#000", mb: 0.75 }}>
-                        {t("pickupFrom")}
-                    </Typography>
-                    <Button
-                        fullWidth
-                        onClick={onChangeBranch}
-                        aria-label={`${t("pickupFrom")} ${pickupBranchName}`}
-                        sx={{
-                            backgroundColor: brandGray,
-                            borderRadius: 3,
-                            minHeight: 48,
-                            px: 2,
-                            py: 1,
-                            gap: 1,
-                            justifyContent: "space-between",
-                            textAlign: "start",
-                            textTransform: "none",
-                            color: "#000",
-                            // Without this MUI tints the hover with the primary red,
-                            // which the toggles beside it never do.
-                            "&:hover": { backgroundColor: brandGray },
-                        }}
-                    >
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ fontSize: "14px", fontWeight: 700, color: "#000", ...singleLineSx }}>
-                                {pickupBranchName}
-                            </Typography>
-                            {pickupBranchAddress !== "" && (
-                                <Typography data-testid="cart-pickup-branch-address" sx={{ fontSize: "12px", color: "#666", ...singleLineSx }}>
-                                    {pickupBranchAddress}
-                                </Typography>
-                            )}
-                        </Box>
-                        {isRtl ? (
-                            <ChevronLeftRoundedIcon data-testid="cart-pickup-branch-chevron-left" sx={{ color: "#666", flexShrink: 0 }} />
-                        ) : (
-                            <ChevronRightRoundedIcon data-testid="cart-pickup-branch-chevron-right" sx={{ color: "#666", flexShrink: 0 }} />
-                        )}
-                    </Button>
                 </Box>
             )}
         </Box>

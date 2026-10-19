@@ -100,9 +100,9 @@ export default function HomePageModals({
     // (narrowing a property access would not survive into the callback).
     const pendingOrder = checkout.pendingOrder;
 
-    // The branch a pickup order is filed against: useCheckout sends chosenBranchId, so the cart
-    // names that same branch. Looked up in the fresh branch list rather than the stored copy, which
-    // was frozen at selection time and can predate fields like the address or the Arabic name.
+    // The branch a pickup order is filed against: useCheckout sends chosenBranchId, so the payment
+    // page names that same branch. Looked up in the fresh branch list rather than the stored copy,
+    // which was frozen at selection time and can predate fields like the address or the Arabic name.
     const { chosenBranchId } = useBranchResolution();
     const pickupBranch = availableBranches.find(b => String(b.id) === chosenBranchId) ?? null;
 
@@ -485,10 +485,6 @@ export default function HomePageModals({
                     orderType={checkout.orderType}
                     onDeliveryTypeChange={handleDeliveryTypeChange}
                     isKiosk={isKiosk}
-                    pickupBranch={pickupBranch}
-                    // The picker opens ON TOP of the still-open cart rather than replacing it, so
-                    // closing or confirming it lands the customer back in the cart, not the menu.
-                    onChangeBranch={branchSwitch.openPicker}
                 />
             )}
 
@@ -504,6 +500,10 @@ export default function HomePageModals({
                     menuData={menuData}
                     total={cart.totalPrice}
                     fulfilment={pickupFulfilment}
+                    // The branch picker moved here from the cart (owner, 19 Oct 2026). It opens ON
+                    // TOP of the still-open page, so closing or confirming it lands the customer
+                    // back on it; every method then files the order at the newly chosen branch.
+                    onChangeBranch={branchSwitch.openPicker}
                     busy={checkout.checkoutLoading}
                     payment={{ kind: "pickup", applePay, cardPayment, onPayWithTender: checkout.payWithTender }}
                 />

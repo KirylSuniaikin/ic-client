@@ -48,6 +48,11 @@ export function sheetRoot(form: SheetForm): HTMLElement {
     return root;
 }
 
+/** The Modal root that holds `element`. */
+export function modalRootOf(element: Element): HTMLElement | null {
+    return element.closest<HTMLElement>(".MuiModal-root");
+}
+
 /** The cart's own Modal root, found from its title. */
 export function cartModalRoot(): HTMLElement | null {
     return screen.getByText("Cart").closest<HTMLElement>(".MuiModal-root");

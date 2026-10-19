@@ -6,7 +6,8 @@ import { CustomerSheet } from "../../../shared/components/CustomerSheet";
 import type { CustomerSheetDesktop } from "../../../shared/components/CustomerSheet";
 import { SheetHandle } from "../../delivery/components/sheetStyles";
 
-// PC: a centred 440px dialog at the same modal + 1 as the phone sheet, so it still clears the cart.
+// PC: a centred 440px dialog at the same modal + 1 as the phone sheet, so it still clears the
+// payment page.
 const SWITCH_WARNING_DESKTOP = {
     placement: "center",
     width: 440,
@@ -40,10 +41,10 @@ export function BranchSwitchWarningDrawer({
             open={open}
             onClose={onCancel}
             desktop={SWITCH_WARNING_DESKTOP}
-            // A switch started from the cart's "Pick up from" card always has items, so this
-            // warning opens over the still-open cart — a MUI Modal at theme.zIndex.modal (1300),
-            // above a Drawer's default zIndex.drawer (1200). Without this the warning takes focus
-            // while painting invisibly behind the cart.
+            // A switch started from the payment page's "Pick up from" card always has items, so
+            // this warning opens over the still-open page — a MUI Modal at theme.zIndex.modal
+            // (1300), above a Drawer's default zIndex.drawer (1200). Without this the warning takes
+            // focus while painting invisibly behind the page.
             sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
             PaperProps={{
                 sx: {

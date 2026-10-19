@@ -11,19 +11,14 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import "../../../shared/i18n";
 
 import CartPopup from "./CartComponent";
-import { BranchPickerDrawer } from "../../branch/components/BranchPickerDrawer";
-import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchWarningDrawer";
 import type { CartItem } from "../../menu/types";
-import type { IBranch } from "../../management/inventory/types";
 import { WALLET_METHOD } from "../../order/types";
 import { DesktopLayoutAllowedContext } from "../../../shared/hooks/useDesktopLayout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import {
-    backdropOf, cartModalRoot, focusedElement, layerOf, phoneCartRoot, scrollContainerOf, sheetRoot,
+    backdropOf, cartModalRoot, focusedElement, phoneCartRoot, scrollContainerOf,
 } from "./cartLayout.testutil";
-
-jest.mock("../../branch/components/BranchMapView");
 
 // The PC cart (owner, 18 Oct 2026): the pizza popup's centred two-column dialog — items on the
 // warm left, choices in the white column beside them, total and pay button pinned under those.
@@ -122,6 +117,23 @@ describe("CartPopup — PC dialog", () => {
         const rules = emotionRulesFor(screen.getByRole("button", { name: "Checkout · 2.50 BHD" }));
         expect(rules).toContain("height:48px");
         expect(rules).toContain("border-radius:16px");
+    });
+
+    // Owner, 19 Oct 2026: the branch picker left the cart for the payment page. Handed what the old
+    // cart drew its card from (spread untyped: CartPopup no longer declares them), it draws none.
+    it("keeps the items and the delivery-type picker, with no 'Pick up from' card", () => {
+        stubMatchMedia(true);
+        const oldBranchProps: Record<string, unknown> = {
+            pickupBranch: { id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Grunwald", locale: "en", latitude: null, longitude: null },
+            onChangeBranch: jest.fn<void, []>(),
+        };
+        render(<CartPopup {...cartProps()} {...oldBranchProps} />);
+
+        expect(within(screen.getByTestId("item-popup-aside")).getByText("Water")).toBeTruthy();
+        expect(screen.getByText("Delivery type")).toBeTruthy();
+        expect(screen.queryByText("Pick up from")).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Pick up from/ })).toBeNull();
+        expect(screen.queryByText("Grunwald")).toBeNull();
     });
 
     it("replaces the phone's back-arrow header with the round close button", () => {
@@ -274,53 +286,5 @@ describe("CartPopup — the phone cart is unchanged", () => {
         render(<CartPopup {...cartProps({ unavailablePopupOpen: true, unavailableItems: ["Cola"] })} />);
 
         expect(phoneCartRoot().contains(screen.getByText("Cola"))).toBe(true);
-    });
-});
-
-/**
- * PC twins of CartComponent.test.tsx's "sheets opened from the cart": the cart's "Pick up from"
- * card opens the picker, and a switch with a full cart opens the cart-loss warning, on top of the
- * still-open cart dialog. As dialogs they keep the phone sheets' modal + 1, so they still paint
- * above the cart's Modal.
- */
-describe("CartPopup — PC dialogs opened from the cart dialog", () => {
-    const GRUNWALD: IBranch = {
-        id: "b-grunwald", externalId: "ext-grunwald", branchNo: 2, branchName: "Grunwald",
-        locale: "en", latitude: null, longitude: null,
-    };
-
-    it("paints the branch picker dialog above the cart dialog", () => {
-        stubMatchMedia(true);
-        render(
-            <>
-                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
-                <BranchPickerDrawer open branches={[GRUNWALD]} onSelect={jest.fn()} dismissable onClose={jest.fn()} />
-            </>
-        );
-
-        const pickerZ = layerOf(sheetRoot("dialog"));
-        const cartZ = layerOf(cartModalRoot());
-
-        expect(Number.isNaN(pickerZ)).toBe(false);
-        expect(pickerZ > cartZ).toBe(true);
-    });
-
-    it("paints the cart-loss warning dialog above the cart dialog", () => {
-        stubMatchMedia(true);
-        render(
-            <>
-                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
-                <BranchSwitchWarningDrawer
-                    open loading={false} targetBranch={GRUNWALD} unavailableNames={[]} error={null}
-                    onConfirm={jest.fn()} onCancel={jest.fn()}
-                />
-            </>
-        );
-
-        const warningZ = layerOf(sheetRoot("dialog"));
-        const cartZ = layerOf(cartModalRoot());
-
-        expect(Number.isNaN(warningZ)).toBe(false);
-        expect(warningZ > cartZ).toBe(true);
     });
 });

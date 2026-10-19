@@ -802,48 +802,95 @@ describe("HomePage -- branch chip and cart-loss switch warning", () => {
         expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
     });
 
-    // The owner's complaint on mobile: changing branch from the cart dropped the customer on the
-    // menu. On web the picker opens over the cart and the cart never closes, so every exit from
-    // the picker — and from the warning that follows — lands back in it.
-    it("changing branch from the cart's 'Pick up from' card returns the customer to the cart", async () => {
+    // Owner, 19 Oct 2026: the branch picker left the cart to give the items its room. The cart
+    // keeps the items and the delivery type; the branch is changed on the payment page (below) or
+    // from the menu header's chip.
+    it("the cart has no 'Pick up from' card; the menu header's chip still changes the branch", async () => {
         mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        // Cola is on the target's menu too, so the switch keeps the cart non-empty.
-        mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
         renderHomePage(["/menu"]);
         await waitForAuthReady();
         await waitForCartSeeded();
 
         fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
-        // Opened on top: the cart is still mounted underneath.
-        expect(screen.getByText("Pick up from")).toBeTruthy();
+        expect(await screen.findByRole("button", { name: /^Checkout · / })).toBeTruthy();
+        expect(screen.getByText("Delivery type")).toBeTruthy();
+        expect(screen.queryByText("Pick up from")).toBeNull();
 
-        fireEvent.click(screen.getByTestId(`branch-option-${TARGET_BRANCH.id}`));
-        fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
-        await waitFor(() => expect(screen.getByText("Switch to New Branch?")).toBeTruthy());
-        fireEvent.click(await screen.findByRole("button", { name: "Switch branch" }));
-
-        await waitFor(() => expect(screen.queryByText("Switch to New Branch?")).toBeNull());
-        expect(screen.queryByText("Choose your branch")).toBeNull();
-        expect(await screen.findByRole("button", { name: "Pick up from New Branch" })).toBeTruthy();
-        expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(TARGET_BRANCH);
+        fireEvent.click(screen.getByTestId("ArrowBackIosNewIcon"));
+        await waitFor(() => expect(screen.queryByRole("button", { name: /^Checkout · / })).toBeNull());
+        fireEvent.click(screen.getByRole("button", { name: /change branch/i }));
+        expect(await screen.findByText("Choose your branch")).toBeTruthy();
     });
 
-    it("dismissing the picker opened from the cart leaves the cart open", async () => {
-        mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
-        renderHomePage(["/menu"]);
-        await waitForAuthReady();
-        await waitForCartSeeded();
+    describe("from the payment page's 'Pick up from' card", () => {
+        // amountOfOrders > 0 keeps the first-timer pick-up reminder out of the way.
+        const SIGNED_IN: CustomerMeResponse = {
+            id: "account-1", phone: VERIFIED_PHONE, preferredBranchId: null, name: "Layla",
+            address: null, amountOfOrders: 4, lastOrderDate: null,
+        };
+        const PLACED: Order = {
+            id: "4321", order_no: 12, tel: VERIFIED_PHONE, customer_name: "Layla", delivery_method: "Pick Up",
+            payment_type: "Cash", address: "", notes: "", items: [], amount_paid: 1, order_type: "Pick Up",
+            external_id: null, phone_number: VERIFIED_PHONE, order_created: "2026-10-19T12:00:00",
+            status: "Kitchen Phase", isPaid: false, branch_id: TARGET_BRANCH.id,
+        };
 
-        fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Pick up from Chosen Branch" }));
-        await waitFor(() => expect(screen.getByText("Choose your branch")).toBeTruthy());
+        beforeEach(() => {
+            mockFetchPublicBranches.mockResolvedValue([CHOSEN_BRANCH, TARGET_BRANCH]);
+            // Cola is on the target's menu too, so the switch keeps the cart, and the page, open.
+            mockFetchBaseAppInfo.mockResolvedValue(BASE_APP_INFO);
+            mockRefreshCustomerToken.mockResolvedValue({ accessToken: "tok-1", isNewAccount: false });
+            mockFetchCustomerMe.mockResolvedValue(SIGNED_IN);
+            mockGetAllBannedCstmrs.mockResolvedValue([]);
+            mockCreateOrder.mockResolvedValue(PLACED);
+        });
 
-        fireEvent.click(screen.getByRole("button", { name: /close/i }));
+        /** Cart, Checkout, past the cross-sell, onto the payment page. */
+        async function openPaymentPage(): Promise<void> {
+            renderHomePage(["/menu"]);
+            await waitForAuthReady();
+            await waitForCartSeeded();
+            fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
+            fireEvent.click(await screen.findByRole("button", { name: /^Checkout · / }));
+            fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+            await screen.findByRole("radiogroup", { name: "Payment method" });
+        }
 
-        await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
-        expect(screen.getByRole("button", { name: "Pick up from Chosen Branch" })).toBeTruthy();
+        // Owner, 19 Oct 2026: the branch picker moved here from the cart. It opens over the page,
+        // and every way out of it, and of the warning after it, lands back on the page.
+        it("switches branch and returns the customer to the payment page, which files the order there", async () => {
+            await openPaymentPage();
+
+            fireEvent.click(screen.getByRole("button", { name: "Pick up from Chosen Branch" }));
+            expect(await screen.findByText("Choose your branch")).toBeTruthy();
+            fireEvent.click(screen.getByTestId(`branch-option-${TARGET_BRANCH.id}`));
+            fireEvent.click(await screen.findByRole("button", { name: /order here/i }));
+            expect(await screen.findByText("Switch to New Branch?")).toBeTruthy();
+            fireEvent.click(await screen.findByRole("button", { name: "Switch branch" }));
+
+            await waitFor(() => expect(screen.queryByText("Switch to New Branch?")).toBeNull());
+            expect(screen.queryByText("Choose your branch")).toBeNull();
+            expect(await screen.findByRole("button", { name: "Pick up from New Branch" })).toBeTruthy();
+            expect(JSON.parse(localStorage.getItem(CHOSEN_BRANCH_KEY) ?? "null")).toEqual(TARGET_BRANCH);
+
+            fireEvent.click(screen.getByRole("radio", { name: "At counter" }));
+            fireEvent.click(screen.getByRole("button", { name: /^Place order · / }));
+
+            await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+            expect(mockCreateOrder.mock.calls[0][0].branchId).toBe(TARGET_BRANCH.id);
+        });
+
+        it("dismissing the picker leaves the payment page open on the same branch", async () => {
+            await openPaymentPage();
+
+            fireEvent.click(screen.getByRole("button", { name: "Pick up from Chosen Branch" }));
+            expect(await screen.findByText("Choose your branch")).toBeTruthy();
+            fireEvent.click(screen.getByRole("button", { name: /close/i }));
+
+            await waitFor(() => expect(screen.queryByText("Choose your branch")).toBeNull());
+            expect(screen.getByRole("button", { name: "Pick up from Chosen Branch" })).toBeTruthy();
+            expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
+        });
     });
 
     it("does not render the chip in kiosk mode", async () => {

@@ -1,23 +1,16 @@
 import { jest, describe, it, expect, afterEach, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // CartPopup renders its copy via useTranslation, so initialize the real i18n instance the
 // same way app/providers.tsx does.
 import i18n from "../../../shared/i18n";
 
 import CartPopup from "./CartComponent";
-import { BranchPickerDrawer } from "../../branch/components/BranchPickerDrawer";
-import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchWarningDrawer";
 import type { CartItem } from "../../menu/types";
-import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD } from "../../order/types";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
 import { wrapperOf } from "./cartLayout.testutil";
-
-// The stacking test below mounts the real picker; its map half must never load the Google script.
-jest.mock("../../branch/components/BranchMapView");
 
 // Read through a getter so each describe can open or close delivery for its own tests.
 let mockDeliveryComingSoon = false;
@@ -79,8 +72,8 @@ function renderCart(overrides: Partial<React.ComponentProps<typeof CartPopup>> =
     return props;
 }
 
-// Owner, 19 Oct 2026: the cart asks only pickup or delivery and the branch; the methods are on the
-// payment page that follows it (PaymentPage.test.tsx).
+// Owner, 19 Oct 2026: the cart asks only pickup or delivery; the methods are on the payment page
+// that follows it (PaymentPage.test.tsx).
 describe("CartPopup — no payment choice in the cart", () => {
     it("shows a customer no payment methods, only Checkout", () => {
         renderCart({ paymentMethod: PAY_ONLINE_METHOD });
@@ -284,183 +277,45 @@ describe("CartPopup — checkout", () => {
     });
 });
 
-const GRUNWALD: IBranch = {
-    id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Grunwald", branchNameAr: "جرونوالد",
-    locale: "en", latitude: null, longitude: null, address: "Náměstí 14. října, Praha 5",
-};
-
-describe("CartPopup — pick-up branch card", () => {
-    afterEach(async () => {
-        await i18n.changeLanguage("en");
-    });
-
-    it("names the pickup branch and its address under a 'Pick up from' label", () => {
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.getByText("Pick up from")).toBeTruthy();
-        expect(screen.getByText("Grunwald")).toBeTruthy();
-        expect(screen.getByText("Náměstí 14. října, Praha 5")).toBeTruthy();
-        // The chevron card replaces the old text link.
-        expect(screen.queryByText(/change branch/i)).toBeNull();
-    });
-
-    it("is one button labelled with the section and the branch, opening the picker on tap", () => {
-        const onChangeBranch = jest.fn<void, []>();
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch });
-
-        fireEvent.click(screen.getByRole("button", { name: "Pick up from Grunwald" }));
-
-        expect(onChangeBranch).toHaveBeenCalledTimes(1);
-    });
-
-    // The order the owner chose: delivery type, then the pickup branch, then the button.
-    it("sits between the delivery-type toggle and the Checkout button", () => {
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        const deliveryTitle = screen.getByText("Delivery type");
-        const pickupTitle = screen.getByText("Pick up from");
-        const total = screen.getByRole("button", { name: "Checkout · 2.50 BHD" });
-
-        expect(deliveryTitle.compareDocumentPosition(pickupTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(pickupTitle.compareDocumentPosition(total) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it("shows the branch address on its own line under the name", () => {
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.getByTestId("cart-pickup-branch-address").textContent).toBe("Náměstí 14. října, Praha 5");
-    });
-
-    // Asserted by testid, not by text: an empty secondary line would still pass a text check
-    // while leaving a blank row under the name.
-    it.each([
-        ["missing", undefined],
-        ["null", null],
-        ["blank", "   "],
-    ])("omits the address line when the address is %s", (_label, address) => {
-        renderCart({ pickupBranch: { ...GRUNWALD, address }, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.getByText("Grunwald")).toBeTruthy();
-        expect(screen.queryByTestId("cart-pickup-branch-address")).toBeNull();
-    });
-
-    // A delivery order is filed at whichever kitchen the address resolves to.
-    it("is hidden for a delivery order", () => {
-        renderCart({ orderType: "Delivery", pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.queryByText("Pick up from")).toBeNull();
-        expect(screen.queryByText("Grunwald")).toBeNull();
-    });
-
-    it("is hidden when no branch is known", () => {
-        renderCart({ pickupBranch: null, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.queryByText("Pick up from")).toBeNull();
-    });
-
-    it("is hidden when the branch has no name to show", () => {
-        renderCart({ pickupBranch: { ...GRUNWALD, branchName: "  ", branchNameAr: null }, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.queryByText("Pick up from")).toBeNull();
-    });
-
-    // A chevron that does nothing on tap is a broken affordance, so no handler means no card.
-    it("is hidden when nothing can change the branch", () => {
-        renderCart({ pickupBranch: GRUNWALD });
-
-        expect(screen.queryByText("Pick up from")).toBeNull();
-    });
-
-    it("is hidden on kiosk, which hides the whole section", () => {
-        renderCart({ isKiosk: true, pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-        expect(screen.queryByText("Grunwald")).toBeNull();
-    });
-
-    it("is hidden for admin", () => {
-        renderCart({ isAdmin: true, pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-        expect(screen.queryByText("Grunwald")).toBeNull();
-    });
-
-    it("shows the Arabic branch name to an Arabic reader", async () => {
-        await i18n.changeLanguage("ar");
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.getByText("الاستلام من")).toBeTruthy();
-        expect(screen.getByText("جرونوالد")).toBeTruthy();
-        expect(screen.getByRole("button", { name: "الاستلام من جرونوالد" })).toBeTruthy();
-    });
-
-    it("points the chevron onward in LTR", () => {
-        renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
-
-        expect(screen.getByTestId("cart-pickup-branch-chevron-right")).toBeTruthy();
-        expect(screen.queryByTestId("cart-pickup-branch-chevron-left")).toBeNull();
-    });
-
-    // The RTL emotion cache mirrors the row but not the glyph, so a right chevron would point back.
-    it("mirrors the chevron in RTL", () => {
-        render(
-            <ThemeProvider theme={createTheme({ direction: "rtl" })}>
-                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
-            </ThemeProvider>
-        );
-
-        expect(screen.getByTestId("cart-pickup-branch-chevron-left")).toBeTruthy();
-        expect(screen.queryByTestId("cart-pickup-branch-chevron-right")).toBeNull();
-    });
-});
-
 /**
- * The card opens the picker WITHOUT closing the cart, so closing or confirming the picker lands
- * the customer back in the cart. That only works if the picker — and the cart-loss warning that
- * follows a switch with a full cart — paint above the cart.
- *
- * MUI does not raise a later modal: ModalManager handles aria-hidden, focus and the scroll lock,
- * never z-index. The cart is a `Modal` (theme.zIndex.modal, 1300) and a temporary `Drawer` gets
- * theme.zIndex.drawer (1200), so without an explicit z-index both sheets open BEHIND the cart.
+ * What HomePageModals handed the cart before the card moved: the branch, and the handler without
+ * which the old cart hid the card. Spread in untyped, since CartPopup no longer declares them, so
+ * these tests fail against the old cart instead of passing for want of a handler.
  */
-describe("CartPopup — sheets opened from the cart", () => {
-    function zIndexOf(root: Element | null | undefined): number {
-        expect(root).toBeTruthy();
-        return Number(window.getComputedStyle(root as HTMLElement).zIndex);
-    }
+function oldBranchProps(): Record<string, unknown> {
+    return {
+        pickupBranch: {
+            id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Grunwald", branchNameAr: "جرونوالد",
+            locale: "en", latitude: null, longitude: null, address: "Náměstí 14. října, Praha 5",
+        },
+        onChangeBranch: jest.fn<void, []>(),
+    };
+}
 
-    function cartRoot(): Element | null {
-        return screen.getByText("Cart").closest(".MuiModal-root");
-    }
+// Owner, 19 Oct 2026: the branch picker moved out of the cart to give the items its room. The cart
+// keeps the items and the delivery-type picker; the payment page's card changes the pickup branch.
+describe("CartPopup — no pick-up branch card", () => {
+    it("shows the items and the delivery-type picker, and no 'Pick up from' card", () => {
+        render(<CartPopup {...cartProps()} {...oldBranchProps()} />);
 
-    it("paints the branch picker above the still-open cart", () => {
-        render(
-            <>
-                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
-                <BranchPickerDrawer open branches={[GRUNWALD]} onSelect={jest.fn()} dismissable onClose={jest.fn()} />
-            </>
-        );
-
-        const pickerRoot = document.querySelector(".MuiDrawer-root");
-        const pickerZ = zIndexOf(pickerRoot);
-        const cartZ = zIndexOf(cartRoot());
-
-        expect(Number.isNaN(pickerZ)).toBe(false);
-        expect(pickerZ > cartZ).toBe(true);
+        expect(screen.getByText("Water")).toBeTruthy();
+        expect(screen.getByText("Delivery type")).toBeTruthy();
+        expect(screen.getByRole("button", { name: /pickup/i })).toBeTruthy();
+        expect(screen.queryByText("Pick up from")).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Pick up from/ })).toBeNull();
+        expect(screen.queryByText("Grunwald")).toBeNull();
     });
 
-    it("paints the cart-loss warning above the still-open cart", () => {
-        render(
-            <>
-                <CartPopup {...cartProps({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() })} />
-                <BranchSwitchWarningDrawer
-                    open loading={false} targetBranch={GRUNWALD} unavailableNames={[]} error={null}
-                    onConfirm={jest.fn()} onCancel={jest.fn()}
-                />
-            </>
-        );
+    it("shows no 'Pick up from' card to an Arabic customer either", async () => {
+        await i18n.changeLanguage("ar");
+        try {
+            const { unmount } = render(<CartPopup {...cartProps()} {...oldBranchProps()} />);
 
-        const warningRoot = document.querySelector(".MuiDrawer-root");
-        const warningZ = zIndexOf(warningRoot);
-        const cartZ = zIndexOf(cartRoot());
-
-        expect(Number.isNaN(warningZ)).toBe(false);
-        expect(warningZ > cartZ).toBe(true);
+            expect(screen.queryByText("الاستلام من")).toBeNull();
+            expect(screen.queryByText("جرونوالد")).toBeNull();
+            unmount();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
     });
 });

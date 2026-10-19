@@ -155,9 +155,10 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
     const verificationRef = useRef<{ items: CartItem[]; deliveryMethod: string | null } | null>(null);
     const [paymentPageOpen, setPaymentPageOpen] = useState(false);
     // Who the payment page's order is for, settled before it opens: the signed-in profile's phone
-    // and name, or what ClientInfoPopup collected for an account with no name on file.
+    // and name, or what ClientInfoPopup collected for an account with no name on file. Not the
+    // branch: the page's "Pick up from" card can change it, so Pay reads the one chosen now.
     const [payer, setPayer] =
-        useState<{ tel: string; name: string; branchId: string; deliveryMethod: string | null } | null>(null);
+        useState<{ tel: string; name: string; deliveryMethod: string | null } | null>(null);
     // Guards against misreading the render before isLoginOpen flips true (in the same
     // commit a successful login opens and closes the sheet) as a dismissal -- see the
     // resolution effect below.
@@ -352,9 +353,9 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         }
     }
 
-    // Owner, 19 Oct 2026: the cart asks only pickup or delivery (and the branch). A guest then
-    // signs in with their phone and the WhatsApp code; everyone lands on the payment page, where
-    // every method is listed. A signed-in customer goes straight there.
+    // Owner, 19 Oct 2026: the cart asks only pickup or delivery. A guest then signs in with their
+    // phone and the WhatsApp code; everyone lands on the payment page, where every method is listed
+    // and a pickup's branch can be changed. A signed-in customer goes straight there.
     async function continueToPayment(items: CartItem[], deliveryMethod: string | null): Promise<void> {
         if (token === null) {
             verificationRef.current = { items, deliveryMethod };
@@ -394,15 +395,17 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
             logger.error("Error checking the blacklist before payment:", error);
             return;
         }
-        setPayer({ tel, name: customerName, branchId, deliveryMethod });
+        setPayer({ tel, name: customerName, deliveryMethod });
         setCartOpen(false);
         setPhonePopupOpen(false);
         setPaymentPageOpen(true);
     }
 
+    // The branch is read at the tap, as card and Apple Pay read it, so a switch made on the payment
+    // page reaches every method: the page names the branch the order is filed at.
     function payWithTender(tender: string): void {
         if (payer === null) return;
-        void handleCheckout(cartItems, payer.tel, payer.name, payer.deliveryMethod, tender, "", payer.branchId, true);
+        void handleCheckout(cartItems, payer.tel, payer.name, payer.deliveryMethod, tender, "", chosenBranchId, true);
     }
 
     function continueWithDetails(tel: string, customerName: string, branchId: string): void {

@@ -417,6 +417,43 @@ describe("useCheckout — handleCheckout payment gate (non-admin, logged in)", (
         }));
     });
 
+    // Owner, 19 Oct 2026: the payment page's "Pick up from" card changes the branch, so Pay files
+    // the order at the branch chosen by then, as card and Apple Pay do, not the one the page
+    // opened with.
+    it("files a tender order at the branch switched to on the payment page", async () => {
+        const OPENED_WITH: IBranch = {
+            id: "branch-opened", externalId: "ext-opened", branchNo: 2, branchName: "Seef Branch",
+            locale: "en", latitude: null, longitude: null,
+        };
+        const SWITCHED_TO: IBranch = { ...OPENED_WITH, id: "branch-switched", externalId: "ext-switched", branchName: "Hidd" };
+        writeChosenBranch(OPENED_WITH);
+
+        mockRefreshCustomerToken.mockReset();
+        mockRefreshCustomerToken.mockResolvedValueOnce({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValueOnce(MOCK_CUSTOMER_ME);
+        mockGetAllBannedCstmrs.mockResolvedValue([]);
+        mockCreateOrder.mockResolvedValue(MOCK_ORDER);
+
+        const { result, rerender } = renderHook(() => useCheckout(makeParams({ isAdmin: false })), { wrapper });
+        await waitForAuthReady();
+
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
+        });
+        await act(async () => {
+            await result.current.handleCheckout(ITEMS, "12345678", null, "Pick Up", null, "", null);
+        });
+        await waitFor(() => expect(result.current.paymentPageOpen).toBe(true));
+
+        // What useBranchSwitch does on confirm; the menu reload that follows re-renders the page.
+        writeChosenBranch(SWITCHED_TO);
+        rerender();
+        await payOnPage(() => result.current, DEFAULT_PAYMENT_METHOD);
+
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalled());
+        expect(mockCreateOrder).toHaveBeenCalledWith(expect.objectContaining({ branchId: SWITCHED_TO.id }));
+    });
+
     // DELIVERY_SPEC.md §12.1-A: `type` was hardcoded to "Pick Up" while deliveryMethod was
     // accepted and dropped, so a Delivery order could never reach the backend. The Pick Up
     // assertion above passed for the wrong reason — it could not fail.

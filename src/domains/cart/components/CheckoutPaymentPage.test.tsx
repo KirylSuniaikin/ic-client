@@ -1,17 +1,25 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import type { RenderOptions } from "@testing-library/react";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // The page renders its copy via useTranslation; initialize the real i18n instance.
 import i18n from "../../../shared/i18n";
 
 import { CheckoutPaymentPage } from "./CheckoutPaymentPage";
 import type { CheckoutPaymentPageProps } from "./CheckoutPaymentPage";
+import { BranchPickerDrawer } from "../../branch/components/BranchPickerDrawer";
+import { BranchSwitchWarningDrawer } from "../../branch/components/BranchSwitchWarningDrawer";
+import type { IBranch } from "../../management/inventory/types";
 import type { CartItem, MenuItem } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { wrapperOf } from "./cartLayout.testutil";
+import { layerOf, modalRootOf, sheetRoot, wrapperOf } from "./cartLayout.testutil";
+
+// The stacking tests below mount the real picker; its map half must never load the Google script.
+jest.mock("../../branch/components/BranchMapView");
 
 // The payment page (owner, 19 Oct 2026): after the cart and a guest's sign-in, every method this
 // customer can use, and one button that pays with the chosen one.
@@ -32,7 +40,11 @@ function checkoutMethod(available = true, busy = false) {
     return { available, busy, start: jest.fn<void, []>() };
 }
 
-function renderPage(overrides: Partial<CheckoutPaymentPageProps> = {}, payment: Partial<PickupPayment> = {}) {
+function renderPage(
+    overrides: Partial<CheckoutPaymentPageProps> = {},
+    payment: Partial<PickupPayment> = {},
+    options: RenderOptions = {},
+) {
     const onBack = jest.fn<void, []>();
     const onPayWithTender = jest.fn<void, [string]>();
     const pickup: PickupPayment = { kind: "pickup", onPayWithTender, ...payment };
@@ -47,7 +59,7 @@ function renderPage(overrides: Partial<CheckoutPaymentPageProps> = {}, payment: 
         payment: pickup,
         ...overrides,
     };
-    const view = render(<CheckoutPaymentPage {...props} />);
+    const view = render(<CheckoutPaymentPage {...props} />, options);
     return { ...view, onBack, onPayWithTender };
 }
 
@@ -267,6 +279,126 @@ describe.each([
         expect(appleRules).toContain("height:48px");
         expect(appleRules).toContain("border-radius:16px");
         expect(emotionRulesFor(wrapperOf(apple))).toBe(ourSlot);
+    });
+});
+
+// Owner, 19 Oct 2026: the branch picker moved from the cart to the payment page. The "Pick up
+// from" card is where a pickup's branch is changed before paying.
+describe("CheckoutPaymentPage — the 'Pick up from' card", () => {
+    it("is one button labelled with the section and the branch, opening the picker on tap", () => {
+        const onChangeBranch = jest.fn<void, []>();
+        renderPage({ onChangeBranch });
+
+        const card = screen.getByRole("button", { name: "Pick up from Al-Hidd" });
+        expect(within(card).getByText("Al-Hidd")).toBeTruthy();
+        expect(within(card).getByText("Road 114 Block 101")).toBeTruthy();
+        fireEvent.click(card);
+
+        expect(onChangeBranch).toHaveBeenCalledTimes(1);
+    });
+
+    // A chevron that does nothing on tap is a broken promise, so no handler means no button.
+    it("is plain text when nothing can change it, as on a delivery's page", () => {
+        renderPage({ fulfilment: { title: "Deliver to", name: "Home", detail: "Block 101, Road 114" } });
+
+        expect(within(screen.getByTestId("payment-fulfilment")).getByText("Home")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: /^Deliver to/ })).toBeNull();
+        expect(screen.queryByTestId("ChevronRightRoundedIcon")).toBeNull();
+    });
+
+    // A branch switched mid-payment would leave the order that is being placed at the old one.
+    it("cannot be tapped while a payment is under way", () => {
+        const onChangeBranch = jest.fn<void, []>();
+        renderPage({ onChangeBranch, busy: true });
+
+        const card = screen.getByRole("button", { name: "Pick up from Al-Hidd" });
+        expect(card.hasAttribute("disabled")).toBe(true);
+        fireEvent.click(card);
+        expect(onChangeBranch).not.toHaveBeenCalled();
+    });
+
+    it("points the chevron onward in LTR", () => {
+        renderPage({ onChangeBranch: jest.fn<void, []>() });
+
+        expect(screen.getByTestId("ChevronRightRoundedIcon")).toBeTruthy();
+        expect(screen.queryByTestId("ChevronLeftRoundedIcon")).toBeNull();
+    });
+
+    // The RTL emotion cache mirrors the row but not the glyph, so a right chevron would point back.
+    it("mirrors the chevron in RTL", () => {
+        const rtl = createTheme({ direction: "rtl" });
+        renderPage({ onChangeBranch: jest.fn<void, []>() }, {}, {
+            wrapper: ({ children }) => <ThemeProvider theme={rtl}>{children}</ThemeProvider>,
+        });
+
+        expect(screen.getByTestId("ChevronLeftRoundedIcon")).toBeTruthy();
+        expect(screen.queryByTestId("ChevronRightRoundedIcon")).toBeNull();
+    });
+
+    // Only when the chosen branch is missing from the branch list; a blank gray card says nothing.
+    it("is left out, title and all, when the branch has no name", () => {
+        renderPage({ fulfilment: { title: "Pick up from", name: "", detail: "" }, onChangeBranch: jest.fn<void, []>() });
+
+        expect(screen.queryByText("Pick up from")).toBeNull();
+        expect(screen.queryByTestId("payment-fulfilment")).toBeNull();
+        expect(screen.getByRole("radiogroup", { name: "Payment method" })).toBeTruthy();
+    });
+
+    it("is the same button on PC", () => {
+        stubMatchMedia(true);
+        const onChangeBranch = jest.fn<void, []>();
+        renderPage({ onChangeBranch });
+
+        fireEvent.click(screen.getByRole("button", { name: "Pick up from Al-Hidd" }));
+
+        expect(onChangeBranch).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * The card opens the picker WITHOUT closing the payment page, so closing or confirming the picker
+ * lands the customer back on it. That only works if the picker, and the cart-loss warning that
+ * follows a switch, paint above the page: MUI never raises a later modal, the page is a Modal at
+ * theme.zIndex.modal (1300) and a temporary Drawer gets theme.zIndex.drawer (1200).
+ */
+describe.each([
+    ["the phone", false, "drawer"],
+    ["PC", true, "dialog"],
+] as const)("CheckoutPaymentPage — sheets opened from the page, on %s", (_surface, desktop, form) => {
+    const GRUNWALD: IBranch = {
+        id: "b-grunwald", externalId: "ext-grunwald", branchNo: 2, branchName: "Grunwald",
+        locale: "en", latitude: null, longitude: null,
+    };
+
+    function pageLayer(): number {
+        return layerOf(modalRootOf(screen.getByTestId("payment-fulfilment")));
+    }
+
+    it("paints the branch picker above the still-open page", () => {
+        stubMatchMedia(desktop);
+        renderPage({ onChangeBranch: jest.fn<void, []>() });
+        render(<BranchPickerDrawer open branches={[GRUNWALD]} onSelect={jest.fn()} dismissable onClose={jest.fn()} />);
+
+        const pickerZ = layerOf(sheetRoot(form));
+
+        expect(Number.isNaN(pickerZ)).toBe(false);
+        expect(pickerZ > pageLayer()).toBe(true);
+    });
+
+    it("paints the cart-loss warning above the still-open page", () => {
+        stubMatchMedia(desktop);
+        renderPage({ onChangeBranch: jest.fn<void, []>() });
+        render(
+            <BranchSwitchWarningDrawer
+                open loading={false} targetBranch={GRUNWALD} unavailableNames={[]} error={null}
+                onConfirm={jest.fn()} onCancel={jest.fn()}
+            />
+        );
+
+        const warningZ = layerOf(sheetRoot(form));
+
+        expect(Number.isNaN(warningZ)).toBe(false);
+        expect(warningZ > pageLayer()).toBe(true);
     });
 });
 

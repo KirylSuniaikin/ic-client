@@ -243,6 +243,7 @@ type PaymentPageProbe = {
     open: boolean;
     onBack: () => void;
     fulfilment: { title: string; name: string; detail: string };
+    onChangeBranch?: () => void;
     payment: { kind: "delivery"; onPayDelivery: (m: DeliveryPaymentMethod) => void }
         | { kind: "pickup"; onPayWithTender: (tender: string) => void; applePay?: unknown; cardPayment?: unknown };
 };
@@ -308,6 +309,16 @@ describe("HomePageModals — delivery checkout hand-off", () => {
         expect(page.fulfilment).toEqual(expect.objectContaining({ title: "Deliver to" }));
         expect(mockDeliveryDrawer).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }));
         expect(mockPay).not.toHaveBeenCalled();
+    });
+
+    // The kitchen follows the address, so there is no branch to change here; Back changes the address.
+    it("gives the delivery payment page no way to open the branch picker", () => {
+        mockPaymentPage.mockClear();
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        confirmAddress();
+
+        expect(lastPaymentPage().onChangeBranch).toBeUndefined();
     });
 
     it("goes back from the payment page to the address step", () => {
@@ -579,9 +590,9 @@ describe("HomePageModals — branch-switch cart-loss warning", () => {
     });
 });
 
-// The cart's "Pick up from" card: which branch it names, and that tapping it reopens the same
-// voluntary picker the menu header uses — on top of the cart, which stays open.
-describe("HomePageModals — the cart's pick-up branch card", () => {
+// Owner, 19 Oct 2026: the branch picker left the cart to give the items its room, and moved to the
+// payment page: its "Pick up from" card names the pickup branch and opens the picker.
+describe("HomePageModals — the pickup branch, on the payment page and not in the cart", () => {
     const BRANCHES: IBranch[] = [
         { id: "b-1", externalId: "ext-1", branchNo: 1, branchName: "Downtown", locale: "en", latitude: null, longitude: null, address: "Road 1" },
         { id: "b-2", externalId: "ext-2", branchNo: 2, branchName: "Seef", branchNameAr: "السيف", locale: "en", latitude: null, longitude: null, address: "Seef Mall" },
@@ -589,6 +600,7 @@ describe("HomePageModals — the cart's pick-up branch card", () => {
 
     beforeEach(() => {
         mockCartPopup.mockClear();
+        mockPaymentPage.mockClear();
         clearChosenBranch();
     });
 
@@ -596,30 +608,46 @@ describe("HomePageModals — the cart's pick-up branch card", () => {
         clearChosenBranch();
     });
 
-    it("names the branch the order is filed against and wires the card to the branch picker", () => {
+    it("hands the cart no branch and no way to open the picker", () => {
+        writeChosenBranch(BRANCHES[1]);
+        renderModals({}, {}, { availableBranches: BRANCHES });
+
+        const calls = mockCartPopup.mock.calls;
+        const cartProps = calls[calls.length - 1][0] as Record<string, unknown>;
+        expect(cartProps).not.toHaveProperty("pickupBranch");
+        expect(cartProps).not.toHaveProperty("onChangeBranch");
+    });
+
+    it("names on the payment page the branch the order is filed against", () => {
+        writeChosenBranch(BRANCHES[1]);
+        renderModals({}, { paymentPageOpen: true }, { availableBranches: BRANCHES });
+
+        expect(lastPaymentPage().fulfilment).toEqual({ title: "Pick up from", name: "Seef", detail: "Seef Mall" });
+    });
+
+    // The menu header's chip is hidden while a customer has an order in progress, so this card is
+    // the one way to change branch that is always there before paying.
+    it("wires the payment page's card to the same voluntary picker the menu header opens", () => {
         writeChosenBranch(BRANCHES[1]);
         const branchSwitch = createBranchSwitch();
-        renderModals({}, {}, { availableBranches: BRANCHES, branchSwitch });
+        renderModals({}, { paymentPageOpen: true }, { availableBranches: BRANCHES, branchSwitch });
 
-        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({
-            pickupBranch: BRANCHES[1],
-            onChangeBranch: branchSwitch.openPicker,
-        }));
+        expect(lastPaymentPage().onChangeBranch).toBe(branchSwitch.openPicker);
     });
 
     // The stored copy is frozen at the moment of choice; the list is what the server says now.
     it("takes the branch from the fresh list, not the copy stored when it was chosen", () => {
         writeChosenBranch({ ...BRANCHES[1], address: null, branchNameAr: null });
-        renderModals({}, {}, { availableBranches: BRANCHES });
+        renderModals({}, { paymentPageOpen: true }, { availableBranches: BRANCHES });
 
-        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({ pickupBranch: BRANCHES[1] }));
+        expect(lastPaymentPage().fulfilment).toEqual(expect.objectContaining({ name: "Seef", detail: "Seef Mall" }));
     });
 
-    it("passes no branch when the chosen one is not in the list", () => {
+    it("names no branch when the chosen one is not in the list", () => {
         writeChosenBranch({ ...BRANCHES[0], id: "b-gone" });
-        renderModals({}, {}, { availableBranches: BRANCHES });
+        renderModals({}, { paymentPageOpen: true }, { availableBranches: BRANCHES });
 
-        expect(mockCartPopup).toHaveBeenLastCalledWith(expect.objectContaining({ pickupBranch: null }));
+        expect(lastPaymentPage().fulfilment).toEqual(expect.objectContaining({ name: "", detail: "" }));
     });
 });
 
