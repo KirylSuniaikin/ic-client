@@ -51,6 +51,37 @@ export const WS_URL: string = process.env.NODE_ENV === 'production'
     ? PROD_WS_URL
     : `${devOrigin()}/ws`;
 
+// Derived from the API host (api.ic-pizza.com -> ic-pizza.com) so the production domain is written
+// down in one place only.
+const SITE_DOMAIN: string = new URL(PROD_BASE_URL).hostname.split('.').slice(1).join('.');
+
+function isSiteHost(hostname: string): boolean {
+    return hostname === SITE_DOMAIN || hostname.endsWith(`.${SITE_DOMAIN}`);
+}
+
+/**
+ * Where the four cookie-carrying customer sign-in calls go (OTP request/verify, refresh, logout).
+ *
+ * Safari's ITP caps a cookie at 7 days when the response that set it came from a subdomain that is a
+ * CNAME to a different IP than the site itself — api.ic-pizza.com (Render) next to ic-pizza.com
+ * (Vercel) — so a customer who stayed away for a week was signed out. On the site's own domain these
+ * calls go to the page's origin instead, which vercel.json rewrites to the API, so the refresh cookie
+ * arrives on a first-party response.
+ *
+ * Every other host keeps calling the API host directly. The cookie is scoped Domain=.ic-pizza.com, so
+ * on a *.vercel.app preview the browser would reject it from a same-origin response and sign-in would
+ * never stick. Development has no proxy at all.
+ */
+function customerAuthBaseUrl(): string {
+    if (process.env.NODE_ENV !== 'production' || typeof window === 'undefined') {
+        return BASE_URL;
+    }
+    const {hostname, origin} = window.location;
+    return isSiteHost(hostname) ? `${origin}/api` : BASE_URL;
+}
+
+export const CUSTOMER_AUTH_BASE_URL: string = customerAuthBaseUrl();
+
 export const DEFAULT_BRANCH_ID = '2e8c35f7-d75e-4442-b496-cbb929842c10';
 
 // Thrown ONLY when the raw `fetch()` call inside authFetch itself rejects (offline, DNS

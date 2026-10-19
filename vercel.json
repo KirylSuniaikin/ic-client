@@ -8,6 +8,11 @@
       "permanent": true
     }
   ],
+  "rewrites": [
+    { "source": "/api/auth/otp/:path*", "destination": "https://api.ic-pizza.com/api/auth/otp/:path*" },
+    { "source": "/api/auth/refresh", "destination": "https://api.ic-pizza.com/api/auth/refresh" },
+    { "source": "/api/auth/logout", "destination": "https://api.ic-pizza.com/api/auth/logout" }
+  ],
   "headers": [
     {
       "source": "/menuImages/(.*)",

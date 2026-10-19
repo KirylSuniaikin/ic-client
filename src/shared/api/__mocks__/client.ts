@@ -5,6 +5,8 @@ import { jest } from "@jest/globals";
 // Used by public.test.ts and management.test.ts via jest.mock("./client").
 export const authFetch = jest.fn<Promise<Response>, [string, RequestInit?, { skipAuthRedirectOn401?: boolean }?]>();
 export const BASE_URL = "http://test-api.com/api";
+// Equal to BASE_URL, as it is everywhere outside production.
+export const CUSTOMER_AUTH_BASE_URL = BASE_URL;
 export const WS_URL = "ws://test.com/ws";
 export const DEFAULT_BRANCH_ID = "2e8c35f7-d75e-4442-b496-cbb929842c10";
 // ST6 additions — public.ts's raw `fetch` call sites (fetchBaseAppInfo) import these

@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll } from "@jest/globals";
-import { BASE_URL, PreResponseNetworkError } from "./client";
+import { BASE_URL, CUSTOMER_AUTH_BASE_URL, PreResponseNetworkError } from "./client";
 import {
     requestOtp,
     verifyOtp,
@@ -49,7 +49,7 @@ describe("requestOtp", () => {
         await requestOtp({ phone: "97333607710" });
 
         const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe(`${BASE_URL}/auth/otp/request`);
+        expect(url).toBe(`${CUSTOMER_AUTH_BASE_URL}/auth/otp/request`);
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
         expect(init.body).toBe(JSON.stringify({ phone: "97333607710" }));
@@ -82,7 +82,7 @@ describe("verifyOtp", () => {
         const result = await verifyOtp(payload);
 
         const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe(`${BASE_URL}/auth/otp/verify`);
+        expect(url).toBe(`${CUSTOMER_AUTH_BASE_URL}/auth/otp/verify`);
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
         expect(init.body).toBe(JSON.stringify(payload));
@@ -109,7 +109,7 @@ describe("refreshCustomerToken", () => {
         const result = await refreshCustomerToken();
 
         const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe(`${BASE_URL}/auth/refresh`);
+        expect(url).toBe(`${CUSTOMER_AUTH_BASE_URL}/auth/refresh`);
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
         expect(result).toEqual({ accessToken: "refreshed-token" });
@@ -140,7 +140,7 @@ describe("logoutCustomer", () => {
         await logoutCustomer();
 
         const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe(`${BASE_URL}/auth/logout`);
+        expect(url).toBe(`${CUSTOMER_AUTH_BASE_URL}/auth/logout`);
         expect(init.method).toBe("POST");
         expect(init.credentials).toBe("include");
     });
@@ -272,7 +272,7 @@ describe("fetchCustomerMe", () => {
         expect(result).toEqual(profile);
         expect(mockFetch).toHaveBeenCalledTimes(3);
         const [refreshUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
-        expect(refreshUrl).toBe(`${BASE_URL}/auth/refresh`);
+        expect(refreshUrl).toBe(`${CUSTOMER_AUTH_BASE_URL}/auth/refresh`);
         const [retryUrl, retryInit] = mockFetch.mock.calls[2] as [string, RequestInit];
         expect(retryUrl).toBe(`${BASE_URL}/customer/me`);
         const retryHeaders = new Headers(retryInit.headers);
@@ -372,7 +372,7 @@ describe("concurrent 401s (single-flight refresh)", () => {
         expect(ordersResult).toEqual(page);
         expect(mockFetch).toHaveBeenCalledTimes(5);
         const refreshCalls = mockFetch.mock.calls.filter(
-            (call) => (call as [string, RequestInit])[0] === `${BASE_URL}/auth/refresh`
+            (call) => (call as [string, RequestInit])[0] === `${CUSTOMER_AUTH_BASE_URL}/auth/refresh`
         );
         expect(refreshCalls).toHaveLength(1);
     });
@@ -521,5 +521,78 @@ describe("fetchSuggestedItems", () => {
             .mockResolvedValueOnce(new Response(null, { status: 401 })); // POST /auth/refresh
 
         await expect(fetchSuggestedItems("bad-token")).rejects.toThrow(CustomerAuthApiError);
+    });
+});
+
+// Outside production CUSTOMER_AUTH_BASE_URL equals BASE_URL, so the URL assertions above cannot tell
+// the two apart. A production copy loaded on the storefront's own host is where they differ.
+describe("in production on the storefront's own domain", () => {
+    type CustomerAuthModule = typeof import("./customerAuth");
+
+    const STOREFRONT_ORIGIN = "https://ic-pizza.com";
+    const API_BASE_URL = "https://api.ic-pizza.com/api";
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalLocation = window.location;
+
+    function loadProductionCustomerAuth(): CustomerAuthModule {
+        let loaded: CustomerAuthModule | null = null;
+        jest.isolateModules(() => {
+            // Cast: require() is untyped; the module shape is known from the type import above.
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            loaded = require("./customerAuth") as CustomerAuthModule;
+        });
+        if (loaded === null) throw new Error("customerAuth did not load");
+        return loaded;
+    }
+
+    beforeEach(() => {
+        process.env.NODE_ENV = "production";
+        Object.defineProperty(window, "location", {
+            writable: true,
+            configurable: true,
+            value: { hostname: "ic-pizza.com", origin: STOREFRONT_ORIGIN, protocol: "https:", search: "" },
+        });
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        Object.defineProperty(window, "location", { writable: true, configurable: true, value: originalLocation });
+    });
+
+    it("sends the four sign-in calls to the storefront's own origin", async () => {
+        const api = loadProductionCustomerAuth();
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 204 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: "a" }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: "b" }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        await api.requestOtp({ phone: "97333607710" });
+        await api.verifyOtp({ phone: "97333607710", code: "1234" });
+        await api.refreshCustomerToken();
+        await api.logoutCustomer();
+
+        expect(mockFetch.mock.calls.map((call) => call[0])).toEqual([
+            `${STOREFRONT_ORIGIN}/api/auth/otp/request`,
+            `${STOREFRONT_ORIGIN}/api/auth/otp/verify`,
+            `${STOREFRONT_ORIGIN}/api/auth/refresh`,
+            `${STOREFRONT_ORIGIN}/api/auth/logout`,
+        ]);
+    });
+
+    it("keeps a Bearer call on the API host while its refresh-on-401 goes through the storefront", async () => {
+        const api = loadProductionCustomerAuth();
+        mockFetch
+            .mockResolvedValueOnce(new Response(null, { status: 401 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: "refreshed" }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ phone: "97333607710" }), { status: 200 }));
+
+        await api.fetchCustomerMe("expired-token");
+
+        expect(mockFetch.mock.calls.map((call) => call[0])).toEqual([
+            `${API_BASE_URL}/customer/me`,
+            `${STOREFRONT_ORIGIN}/api/auth/refresh`,
+            `${API_BASE_URL}/customer/me`,
+        ]);
     });
 });

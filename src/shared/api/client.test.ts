@@ -52,6 +52,85 @@ describe("URL constants", () => {
     });
 });
 
+// ── CUSTOMER_AUTH_BASE_URL ────────────────────────────────────────────────────
+
+// Resolved once at module load from NODE_ENV and the page's host, so each case loads its own copy.
+describe("CUSTOMER_AUTH_BASE_URL", () => {
+    type ClientModule = typeof import("./client");
+
+    const API_BASE_URL = "https://api.ic-pizza.com/api";
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalApiOverride = process.env.REACT_APP_API_BASE_URL;
+    let savedLocation: Location;
+
+    function loadClient(nodeEnv: string, pageUrl: string): ClientModule {
+        process.env.NODE_ENV = nodeEnv;
+        const { hostname, origin, protocol } = new URL(pageUrl);
+        Object.defineProperty(window, "location", {
+            writable: true,
+            configurable: true,
+            value: { hostname, origin, protocol, href: pageUrl },
+        });
+        let loaded: ClientModule | null = null;
+        jest.isolateModules(() => {
+            // Cast: require() is untyped; the module shape is known from the type import above.
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            loaded = require("./client") as ClientModule;
+        });
+        if (loaded === null) throw new Error("client did not load");
+        return loaded;
+    }
+
+    beforeEach(() => {
+        savedLocation = window.location;
+        // A developer's own override would otherwise decide the development BASE_URL.
+        delete process.env.REACT_APP_API_BASE_URL;
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalApiOverride === undefined) {
+            delete process.env.REACT_APP_API_BASE_URL;
+        } else {
+            process.env.REACT_APP_API_BASE_URL = originalApiOverride;
+        }
+        Object.defineProperty(window, "location", { writable: true, configurable: true, value: savedLocation });
+    });
+
+    it("is the storefront's own origin in production on ic-pizza.com", () => {
+        const client = loadClient("production", "https://ic-pizza.com/menu");
+
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe("https://ic-pizza.com/api");
+        expect(client.BASE_URL).toBe(API_BASE_URL);
+    });
+
+    it("is the storefront's own origin in production on www.ic-pizza.com", () => {
+        const client = loadClient("production", "https://www.ic-pizza.com/");
+
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe("https://www.ic-pizza.com/api");
+    });
+
+    // The refresh cookie is Domain=.ic-pizza.com: a preview host would have it rejected.
+    it("is the API host in production on a vercel.app preview", () => {
+        const client = loadClient("production", "https://ic-client-git-web-auth-proxy-andrew.vercel.app/");
+
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe(API_BASE_URL);
+    });
+
+    it("is the API host in production on a lookalike domain that merely ends in the site's name", () => {
+        const client = loadClient("production", "https://evil-ic-pizza.com/");
+
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe(API_BASE_URL);
+    });
+
+    it("is BASE_URL in development, where there is no proxy", () => {
+        const client = loadClient("development", "http://localhost:3000/");
+
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe(client.BASE_URL);
+        expect(client.CUSTOMER_AUTH_BASE_URL).toBe("http://localhost:8000/api");
+    });
+});
+
 // ── authFetch ─────────────────────────────────────────────────────────────────
 
 describe("authFetch", () => {

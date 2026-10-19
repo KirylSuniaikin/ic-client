@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { BASE_URL } from "../../../shared/api/client";
+import { BASE_URL, CUSTOMER_AUTH_BASE_URL } from "../../../shared/api/client";
 import {
     CustomerAuthProvider,
     __resetCustomerAuthStoreForTests,
@@ -150,7 +150,7 @@ beforeEach(() => {
     localStorage.clear();
     calls = [];
     routes = {
-        [`POST ${BASE_URL}/auth/refresh`]: () => json({ accessToken: ACCESS_TOKEN, isNewAccount: false }),
+        [`POST ${CUSTOMER_AUTH_BASE_URL}/auth/refresh`]: () => json({ accessToken: ACCESS_TOKEN, isNewAccount: false }),
         [`GET ${ROOT}/eligibility`]: () => json({ enabled: true }),
         [`GET ${BASE_URL}/customer/me`]: () => json(PROFILE),
         [`GET ${BASE_URL}/blacklist/get_all`]: () => json([]),

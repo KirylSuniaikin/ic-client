@@ -1,4 +1,4 @@
-import { BASE_URL, PreResponseNetworkError } from './client';
+import { BASE_URL, CUSTOMER_AUTH_BASE_URL, PreResponseNetworkError } from './client';
 import { applyClientPlatform } from './clientPlatform';
 import { customerAuthFetch } from '../../domains/customer-auth/context/CustomerAuthProvider';
 import { CustomerAuthApiError } from '../../domains/customer-auth/types';
@@ -64,11 +64,13 @@ function withClientPlatform(headers?: HeadersInit): Headers {
     return result;
 }
 
-// All five customer-auth endpoints always send credentials: 'include' —
-// the refresh/logout flow is cookie-driven (customer_refresh_token, HttpOnly).
+// The four sign-in endpoints below always send credentials: 'include' — the refresh/logout flow is
+// cookie-driven (customer_refresh_token, HttpOnly). They go to CUSTOMER_AUTH_BASE_URL, the storefront's
+// own origin in production, so Safari keeps that cookie past 7 days (see client.ts). The Bearer-token
+// calls further down stay on BASE_URL: they never touch the cookie.
 
 export async function requestOtp(payload: OtpRequestPayload): Promise<void> {
-    const response = await fetch(`${BASE_URL}/auth/otp/request`, {
+    const response = await fetch(`${CUSTOMER_AUTH_BASE_URL}/auth/otp/request`, {
         method: 'POST',
         credentials: 'include',
         headers: withClientPlatform({ 'Content-Type': 'application/json' }),
@@ -81,7 +83,7 @@ export async function requestOtp(payload: OtpRequestPayload): Promise<void> {
 }
 
 export async function verifyOtp(payload: OtpVerifyPayload): Promise<CustomerTokenResponse> {
-    const response = await fetch(`${BASE_URL}/auth/otp/verify`, {
+    const response = await fetch(`${CUSTOMER_AUTH_BASE_URL}/auth/otp/verify`, {
         method: 'POST',
         credentials: 'include',
         headers: withClientPlatform({ 'Content-Type': 'application/json' }),
@@ -98,7 +100,7 @@ export async function verifyOtp(payload: OtpVerifyPayload): Promise<CustomerToke
 export async function refreshCustomerToken(): Promise<CustomerTokenResponse> {
     let response: Response;
     try {
-        response = await fetch(`${BASE_URL}/auth/refresh`, {
+        response = await fetch(`${CUSTOMER_AUTH_BASE_URL}/auth/refresh`, {
             method: 'POST',
             credentials: 'include',
             headers: withClientPlatform(),
@@ -117,7 +119,7 @@ export async function refreshCustomerToken(): Promise<CustomerTokenResponse> {
 }
 
 export async function logoutCustomer(): Promise<void> {
-    const response = await fetch(`${BASE_URL}/auth/logout`, {
+    const response = await fetch(`${CUSTOMER_AUTH_BASE_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
         headers: withClientPlatform(),
