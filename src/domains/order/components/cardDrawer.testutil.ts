@@ -10,6 +10,13 @@ export function cardFieldContainer(): Element {
     return container;
 }
 
+/** The white box a hosted input sits in: the box the gateway's iframe joins beside that input. */
+export function fieldBoxOf(input: Element): Element {
+    const box = input.parentElement;
+    if (!box) throw new Error("hosted input has no field box");
+    return box;
+}
+
 /** The loader's drawing. */
 export function loaderDrawing(loader: Element): SVGSVGElement {
     const svg = loader.querySelector("svg");

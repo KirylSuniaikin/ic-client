@@ -7,7 +7,7 @@ import type { CardCheckoutStep } from "../hooks/useCardCheckout";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { sheetHandleCount } from "../../../shared/components/sheetHandle.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { cardFieldContainer } from "./cardDrawer.testutil";
+import { cardFieldContainer, fieldBoxOf } from "./cardDrawer.testutil";
 
 const READY_STEP: CardCheckoutStep = "ready";
 
@@ -74,6 +74,25 @@ describe("CardPaymentDrawer", () => {
         expect(emotionRulesFor(screen.getByRole("group", { name: "Expiry date" }))).toContain("border-color:#E44B4C");
         expect(screen.getByLabelText("Expiry year").getAttribute("aria-invalid")).toBe("true");
         expect(screen.getByLabelText("Expiry month").hasAttribute("aria-invalid")).toBe(false);
+    });
+
+    // Live site, 19 Oct 2026: session.js puts its iframe beside our input and, every 50 ms, copies
+    // the input's width onto it. A shrinkable input measured "box minus iframe", so the number frame
+    // flipped between 106 and 300 px and the CVV frame between 4 and 180 px: a clipped, blinking
+    // number and an empty CVV. An inline frame also sat on the baseline, lifting MM and YY above "/".
+    it("keeps each hosted input the width of its box and lays the gateway frames out as blocks", () => {
+        renderDrawer();
+
+        const boxes = [
+            fieldBoxOf(screen.getByLabelText("Card number")),
+            screen.getByRole("group", { name: "Expiry date" }),
+            fieldBoxOf(screen.getByLabelText("Security code")),
+        ];
+        for (const box of boxes) {
+            const rules = emotionRulesFor(box);
+            expect(rules).toMatch(/ input ?\{[^}]*width:100%[^}]*flex-shrink:0/);
+            expect(rules).toMatch(/ iframe ?\{display:block/);
+        }
     });
 
     // Owner, 19 Oct 2026: a funnier loader, and no card fields until the form is ready. The fields

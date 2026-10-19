@@ -59,7 +59,14 @@ const FIELD_BOX_SX = {
     py: 1,
     bgcolor: "#ffffff",
     boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-    "& input": { width: "100%", border: 0, outline: 0, background: "transparent", fontSize: "1rem" },
+    // The gateway's session.js puts its iframe right after our input and, every 50 ms, briefly
+    // un-hides the input to copy its width onto that iframe. A shrinking flex item shared the row
+    // with the iframe, so it measured "box minus iframe" and the frame flipped between two widths
+    // forever (a clipped, blinking number; a 4px CVV). An input that never shrinks measures the box.
+    "& input": { width: "100%", flexShrink: 0, border: 0, outline: 0, background: "transparent", fontSize: "1rem" },
+    // An inline iframe sits on the text baseline with a descender gap under it, which lifted the
+    // expiry MM and YY above our slash; as a block it centres like the slash does.
+    "& iframe": { display: "block" },
 } as const;
 
 const FIELD_LABEL_SX = { color: "#8a807a", display: "block", mb: 0.5 } as const;
