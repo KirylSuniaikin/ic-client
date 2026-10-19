@@ -161,13 +161,18 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                     />
                 </Box>
             )}
-            <Box sx={{
+            {/* No scroll anchoring: when a page is appended, Masonry draws the new cards first in
+                the flex order for one frame before it re-orders them, and Chrome's anchoring follows
+                the card it was holding on to as it jumps up a column, landing the list back on its
+                first orders (owner, 19 Oct 2026; reproduced with 2+ columns). */}
+            <Box data-testid="history-scroll-list" sx={{
                 pt: 1,
                 pl: 1,
                 backgroundColor: "#fbfaf6",
                 flex: 1,
                 overflowY: 'auto',
                 overscrollBehaviorY: 'contain',
+                overflowAnchor: 'none',
                 width: '100%'
             }}>
             {/* Only the list is swapped for the spinner: a debounced search re-fetches on every

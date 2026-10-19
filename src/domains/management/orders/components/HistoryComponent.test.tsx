@@ -14,6 +14,7 @@ jest.mock("../hooks/useOrderHistory");
 import * as publicApi from "../../../../shared/api/public";
 import { useOrderHistory } from "../hooks/useOrderHistory";
 import HistoryComponent from "./HistoryComponent";
+import { emotionRulesFor } from "../../couriers/components/emotionRules.testutil";
 
 // __mocks__/public.ts (owned by Phase 2) only exports what useAdminOrders/useOrderHistory
 // tests need, so it has no deleteOrder/updateOrderStatus — OrderCard/useDeleteOrder reach
@@ -255,6 +256,19 @@ describe("HistoryComponent", () => {
             );
 
             expect(loadMore).toHaveBeenCalledTimes(1);
+        });
+
+        // Owner, 19 Oct 2026: loading the next page threw the list back to its first orders. Masonry
+        // shows the appended cards first in the flex order for a frame, and Chrome's scroll
+        // anchoring follows the shuffle; with anchoring off the list stays where it was scrolled.
+        it("keeps the list where it was scrolled when a page is appended", () => {
+            mockUseOrderHistory.mockImplementation(
+                makeMockHookImplementation({ initialOrders: [makeOrder("1", 11111111)], hasMore: true })
+            );
+
+            renderHistory();
+
+            expect(emotionRulesFor(screen.getByTestId("history-scroll-list"))).toContain("overflow-anchor:none");
         });
 
         it("does not call loadMore when the sentinel is not intersecting", () => {
