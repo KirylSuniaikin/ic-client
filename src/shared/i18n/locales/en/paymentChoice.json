@@ -1,8 +1,10 @@
 {
     "newMethodsInvite": "Hey, we added new payment methods — check them out!",
-    "choosePlaceholder": "Choose how to pay",
+    "choosePlaceholder": "Choose how to pay · {{amount}} BHD",
     "title": "Payment",
     "back": "Back",
-    "payAmount": "Pay {{amount}} BHD",
-    "continue": "Continue"
+    "payAmount": "Pay · {{amount}} BHD",
+    "continue": "Continue",
+    "checkoutAmount": "Checkout · {{amount}} BHD",
+    "placeOrderAmount": "Place order · {{amount}} BHD"
 }

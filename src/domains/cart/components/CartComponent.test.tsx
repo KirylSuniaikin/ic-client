@@ -14,6 +14,7 @@ import type { CartItem } from "../../menu/types";
 import type { IBranch } from "../../management/inventory/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD } from "../../order/types";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
+import { wrapperOf } from "./cartLayout.testutil";
 
 // The stacking test below mounts the real picker; its map half must never load the Google script.
 jest.mock("../../branch/components/BranchMapView");
@@ -88,7 +89,7 @@ describe("CartPopup — no payment choice in the cart", () => {
         expect(screen.queryByRole("radio")).toBeNull();
         expect(screen.queryByRole("button", { name: "Pay with Apple Pay" })).toBeNull();
         expect(screen.queryByTestId("payment-invite-bubble")).toBeNull();
-        expect(screen.getByRole("button", { name: "Checkout" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Checkout · 2.50 BHD" })).toBeTruthy();
     });
 
     it("shows an Arabic customer no payment section either", async () => {
@@ -202,13 +203,53 @@ describe("CartPopup — delivery-type toggle", () => {
         expect(screen.queryByRole("button", { name: /pickup/i })).toBeNull();
     });
 
-    it("leaves the rest of the cart chrome intact on kiosk — items, total and Checkout button still render", () => {
+    it("leaves the rest of the cart chrome intact on kiosk — items and the Checkout button with the total still render", () => {
         renderCart({ isKiosk: true });
 
         expect(screen.getByText("Water")).toBeTruthy();
-        expect(screen.getByText(/total/i)).toBeTruthy();
-        expect(screen.getAllByText("2.50").length).toBeGreaterThan(0);
-        expect(screen.getByRole("button", { name: /checkout/i })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Checkout · 2.50 BHD" })).toBeTruthy();
+    });
+});
+
+// Owner, 19 Oct 2026: the total line over the button is gone and the total rides on the button
+// itself, so the items get that room; the button is as tall as Apple's on the payment page.
+describe("CartPopup — the total on the Checkout button", () => {
+    it("names the total on the button, with no total line above it", () => {
+        renderCart();
+
+        expect(screen.getByRole("button", { name: "Checkout · 2.50 BHD" })).toBeTruthy();
+        expect(screen.queryByText("Total(VAT incl.)")).toBeNull();
+    });
+
+    it("adds up quantities and discounts into the total it names", () => {
+        renderCart({ items: [{ ...makeCartItem(), quantity: 3, discountAmount: 20 }] });
+
+        expect(screen.getByRole("button", { name: "Checkout · 6.00 BHD" })).toBeTruthy();
+    });
+
+    it("says it in Arabic to an Arabic customer", async () => {
+        await i18n.changeLanguage("ar");
+        try {
+            const { unmount } = render(<CartPopup {...cartProps()} />);
+
+            expect(screen.getByRole("button", { name: "إتمام الطلب · 2.50 د.ب" })).toBeTruthy();
+            expect(screen.queryByText("الإجمالي (شامل الضريبة)")).toBeNull();
+            unmount();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
+    });
+
+    it("is the payment page's 48px button with 16px corners, 24px in from each side", () => {
+        renderCart();
+
+        const button = screen.getByRole("button", { name: "Checkout · 2.50 BHD" });
+        const rules = emotionRulesFor(button);
+        expect(rules).toContain("height:48px");
+        expect(rules).toContain("border-radius:16px");
+        const slot = emotionRulesFor(wrapperOf(button));
+        expect(slot).toContain("padding-left:24px");
+        expect(slot).toContain("padding-right:24px");
     });
 });
 
@@ -272,13 +313,13 @@ describe("CartPopup — pick-up branch card", () => {
         expect(onChangeBranch).toHaveBeenCalledTimes(1);
     });
 
-    // The order the owner chose: delivery type, then the pickup branch, then the total.
-    it("sits between the delivery-type toggle and the total", () => {
+    // The order the owner chose: delivery type, then the pickup branch, then the button.
+    it("sits between the delivery-type toggle and the Checkout button", () => {
         renderCart({ pickupBranch: GRUNWALD, onChangeBranch: jest.fn<void, []>() });
 
         const deliveryTitle = screen.getByText("Delivery type");
         const pickupTitle = screen.getByText("Pick up from");
-        const total = screen.getByText("Total(VAT incl.)");
+        const total = screen.getByRole("button", { name: "Checkout · 2.50 BHD" });
 
         expect(deliveryTitle.compareDocumentPosition(pickupTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(pickupTitle.compareDocumentPosition(total) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

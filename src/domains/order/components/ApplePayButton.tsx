@@ -1,5 +1,6 @@
 import { Box } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { PAY_BUTTON_HEIGHT, PAY_BUTTON_RADIUS, PAY_BUTTON_SLOT_SX } from "../../cart/components/CartChrome";
 
 type Props = {
     onClick: () => void;
@@ -16,12 +17,13 @@ function hasNativeApplePayButton(): boolean {
 
 // The button face is rendered by Safari itself via the -apple-pay-button appearance, or by
 // Apple's <apple-pay-button> component elsewhere (the SDK is loaded by then: the button is only
-// offered once useApplePayCapability has fetched it). Apple's guidelines forbid redrawing it.
+// offered once useApplePayCapability has fetched it). Apple's guidelines forbid redrawing it. Its
+// size, corner and slot are the payment page's own red button's, so the two read as one family.
 export function ApplePayButton({ onClick, disabled = false }: Props): JSX.Element {
     const { t, i18n } = useTranslation("applePay");
     const label = t("button.label");
     return (
-        <Box sx={{ flexShrink: 0, px: 2, pb: 2 }}>
+        <Box sx={PAY_BUTTON_SLOT_SX}>
             {hasNativeApplePayButton() ? (
                 <Box
                     component="button"
@@ -32,10 +34,10 @@ export function ApplePayButton({ onClick, disabled = false }: Props): JSX.Elemen
                     sx={{
                         display: "block",
                         width: "100%",
-                        height: 48,
+                        height: PAY_BUTTON_HEIGHT,
                         border: 0,
                         padding: 0,
-                        borderRadius: 4,
+                        borderRadius: `${PAY_BUTTON_RADIUS}px`,
                         cursor: disabled ? "default" : "pointer",
                         opacity: disabled ? 0.5 : 1,
                         WebkitAppearance: "-apple-pay-button",
@@ -57,11 +59,11 @@ export function ApplePayButton({ onClick, disabled = false }: Props): JSX.Elemen
                     style={{
                         display: "block",
                         width: "100%",
-                        height: "48px",
+                        height: `${PAY_BUTTON_HEIGHT}px`,
                         opacity: disabled ? 0.5 : 1,
                         "--apple-pay-button-width": "100%",
-                        "--apple-pay-button-height": "48px",
-                        "--apple-pay-button-border-radius": "16px",
+                        "--apple-pay-button-height": `${PAY_BUTTON_HEIGHT}px`,
+                        "--apple-pay-button-border-radius": `${PAY_BUTTON_RADIUS}px`,
                     }}
                 />
             )}

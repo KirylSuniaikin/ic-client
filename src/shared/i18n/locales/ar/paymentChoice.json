@@ -1,8 +1,10 @@
 {
     "newMethodsInvite": "مرحباً! أضفنا طرق دفع جديدة، اكتشفها الآن",
-    "choosePlaceholder": "اختر طريقة الدفع",
+    "choosePlaceholder": "اختر طريقة الدفع · {{amount}} د.ب",
     "title": "الدفع",
     "back": "رجوع",
-    "payAmount": "ادفع {{amount}} د.ب",
-    "continue": "متابعة"
+    "payAmount": "ادفع · {{amount}} د.ب",
+    "continue": "متابعة",
+    "checkoutAmount": "إتمام الطلب · {{amount}} د.ب",
+    "placeOrderAmount": "إتمام الطلب · {{amount}} د.ب"
 }

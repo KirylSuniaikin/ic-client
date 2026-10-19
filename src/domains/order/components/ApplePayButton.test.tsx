@@ -39,6 +39,16 @@ describe("ApplePayButton", () => {
             expect(button?.getAttribute("type")).toBe("buy");
         });
 
+        // Owner, 19 Oct 2026: the same height and corners as the payment page's own red button.
+        it("sizes Apple's component like the page's own button: full width, 48px tall, 16px corners", () => {
+            render(<ApplePayButton onClick={jest.fn()} />);
+
+            const style = screen.getByRole("button", { name: "Pay with Apple Pay" }).getAttribute("style") ?? "";
+            expect(style).toContain("--apple-pay-button-width: 100%");
+            expect(style).toContain("--apple-pay-button-height: 48px");
+            expect(style).toContain("--apple-pay-button-border-radius: 16px");
+        });
+
         it("starts the payment on tap", () => {
             const onClick = jest.fn<void, []>();
             render(<ApplePayButton onClick={onClick} />);

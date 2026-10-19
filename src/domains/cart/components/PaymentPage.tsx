@@ -12,7 +12,7 @@ import { APPLE_PAY_CHOICE } from "../hooks/usePaymentChoice";
 import type { PaymentChoice } from "../hooks/usePaymentChoice";
 import { PaymentMethodList } from "./PaymentMethodList";
 import { PaymentInviteBubble } from "./PaymentInvite";
-import { ActionButton, SCREEN_ROOT_SX, ScreenHeader, TotalRow } from "./CartChrome";
+import { ActionButton, SCREEN_ROOT_SX, ScreenHeader } from "./CartChrome";
 
 /** Where the order is going: "Pick up from" a branch, or "Deliver to" an address. */
 export interface Fulfilment {
@@ -94,8 +94,12 @@ function OrderSummary({ items, menuData }: { items: CartItem[]; menuData: MenuIt
 /**
  * The payment page (owner, 19 Oct 2026). The cart asks only pickup or delivery; a guest then signs
  * in with their phone; and here every method this customer can use is laid out, with one button
- * that pays with the chosen one. Drawn in the cart's own frame — the same header, total line and
- * red button on the phone, the same two-column dialog on PC — so it reads as the cart moving on.
+ * that pays with the chosen one. Drawn in the cart's own frame — the same header and red button on
+ * the phone, the same two-column dialog on PC — so it reads as the cart moving on.
+ *
+ * The total is on the button itself, in every state, rather than on a line above it (owner,
+ * 19 Oct 2026). Apple's own button cannot carry it, and none of Apple's rules asks for it next to
+ * that button: Apple's payment sheet, which the tap opens, shows the total the customer authorises.
  */
 export function PaymentPage({
     open, onBack, items, menuData, total, fulfilment, choices, selected, onSelect, onPay, busy,
@@ -106,14 +110,14 @@ export function PaymentPage({
 
     function payButton(): JSX.Element {
         if (selected === null) {
-            return <ActionButton label={t("choosePlaceholder")} onClick={() => {}} disabled />;
+            return <ActionButton label={t("choosePlaceholder", { amount: total })} onClick={() => {}} disabled />;
         }
         // Apple's own button, whose sheet has to open inside this very tap.
         if (selected === APPLE_PAY_CHOICE) {
             return <ApplePayButton onClick={() => onPay(selected)} disabled={busy} />;
         }
         const label = selected === DEFAULT_PAYMENT_METHOD
-            ? t("checkout:delivery.placeOrder")
+            ? t("placeOrderAmount", { amount: total })
             : t("payAmount", { amount: total });
         return <ActionButton label={label} onClick={() => onPay(selected)} disabled={busy} />;
     }
@@ -151,7 +155,7 @@ export function PaymentPage({
             legacy={{ paperSx: SCREEN_ROOT_SX }}
             showClose={isDesktop}
             desktop={{ aside: <OrderSummary items={items} menuData={menuData} /> }}
-            footer={isDesktop ? <><TotalRow total={total} />{payButton()}</> : undefined}
+            footer={isDesktop ? payButton() : undefined}
         >
             {isDesktop ? (
                 <Box sx={{ px: 3, pb: 2 }}>
@@ -166,7 +170,6 @@ export function PaymentPage({
                     <Box sx={{ flex: 1, overflowY: "auto", px: 3, pt: 2.5, pb: 2 }}>
                         {content}
                     </Box>
-                    <TotalRow total={total} />
                     {payButton()}
                 </>
             )}

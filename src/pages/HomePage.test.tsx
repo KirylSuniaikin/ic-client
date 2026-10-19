@@ -405,7 +405,7 @@ describe("HomePage -- kiosk checkout flow", () => {
         await waitForCartSeeded();
 
         fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Checkout · / }));
 
         // First Checkout press is swallowed by the cross-sell gate, which kiosk keeps.
         fireEvent.click(await screen.findByRole("button", { name: "Next" }));
@@ -525,7 +525,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         await waitForAuthReady();
         await waitForCartSeeded();
         fireEvent.click(screen.getByTestId("ShoppingCartIcon"));
-        fireEvent.click(await screen.findByRole("button", { name: "Checkout" }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Checkout · / }));
         await screen.findByText("Customers also buy");
         // The menu behind the sheet shows the same photos, but the open sheet hides it from the
         // accessibility tree, so a role query finds only the sheet's own card.
@@ -534,7 +534,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
     }
 
     /** On the payment page (owner, 19 Oct 2026): chooses `method` and presses its Pay button. */
-    async function payOnPaymentPage(method: string, payButton: RegExp | string = /^Pay \d/): Promise<void> {
+    async function payOnPaymentPage(method: string, payButton: RegExp | string = /^Pay · \d/): Promise<void> {
         fireEvent.click(await screen.findByRole("radio", { name: method }));
         fireEvent.click(screen.getByRole("button", { name: payButton }));
     }
@@ -623,7 +623,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         renderHomePage(["/menu"]);
 
         await checkoutThroughCrossSell([]);
-        await payOnPaymentPage("At counter", "Place order");
+        await payOnPaymentPage("At counter", /^Place order · /);
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         expect(mockCreateOrder.mock.calls[0][0].payment_type).toBe(DEFAULT_PAYMENT_METHOD);
@@ -641,7 +641,7 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         expect(screen.queryByRole("textbox", { name: "Phone number" })).toBeNull();
         expect(screen.queryByRole("radiogroup", { name: "Payment method" })).toBeNull();
         fireEvent.click(screen.getByText("test-verify-otp"));
-        await payOnPaymentPage("At counter", "Place order");
+        await payOnPaymentPage("At counter", /^Place order · /);
 
         await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         expect(mockCreateOrder.mock.calls[0][0].payment_type).toBe(DEFAULT_PAYMENT_METHOD);

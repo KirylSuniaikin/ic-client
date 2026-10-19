@@ -87,12 +87,12 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         expect(screen.getByTestId("payment-invite-bubble").textContent).toContain("Hey, we added new payment methods");
     });
 
-    // Owner, 19 Oct 2026: even paddings. The button sits 24px in from each side, like the total
-    // above it and the page content.
-    it("lines the pay button up with the total and the content", () => {
+    // Owner, 19 Oct 2026: even paddings. The button sits 24px in from each side, like the page
+    // content.
+    it("lines the pay button up with the content", () => {
         renderPage();
 
-        const rules = emotionRulesFor(wrapperOf(screen.getByRole("button", { name: "Choose how to pay" })));
+        const rules = emotionRulesFor(wrapperOf(screen.getByRole("button", { name: "Choose how to pay · 2.50 BHD" })));
         expect(rules).toContain("padding-left:24px");
         expect(rules).toContain("padding-right:24px");
     });
@@ -100,7 +100,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
     it("keeps the pay button off until a method is chosen", () => {
         const { onPayWithTender } = renderPage();
 
-        const button = screen.getByRole("button", { name: "Choose how to pay" });
+        const button = screen.getByRole("button", { name: "Choose how to pay · 2.50 BHD" });
         expect(button.hasAttribute("disabled")).toBe(true);
         fireEvent.click(button);
         expect(onPayWithTender).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         const { onPayWithTender } = renderPage();
 
         pick(name);
-        fireEvent.click(screen.getByRole("button", { name: "Pay 2.50 BHD" }));
+        fireEvent.click(screen.getByRole("button", { name: "Pay · 2.50 BHD" }));
 
         expect(onPayWithTender).toHaveBeenCalledWith(tender);
     });
@@ -122,7 +122,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         const { onPayWithTender } = renderPage();
 
         pick("At counter");
-        fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+        fireEvent.click(screen.getByRole("button", { name: "Place order · 2.50 BHD" }));
 
         expect(onPayWithTender).toHaveBeenCalledWith(DEFAULT_PAYMENT_METHOD);
     });
@@ -132,7 +132,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         const { onPayWithTender } = renderPage({}, { cardPayment });
 
         pick("Card");
-        fireEvent.click(screen.getByRole("button", { name: "Pay 2.50 BHD" }));
+        fireEvent.click(screen.getByRole("button", { name: "Pay · 2.50 BHD" }));
 
         expect(cardPayment.start).toHaveBeenCalledTimes(1);
         expect(onPayWithTender).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
         const { onPayWithTender } = renderPage({}, { applePay });
 
         pick("Apple Pay");
-        expect(screen.queryByRole("button", { name: /^Pay 2.50/ })).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Pay · 2.50/ })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: "Pay with Apple Pay" }));
 
         expect(applePay.start).toHaveBeenCalledTimes(1);
@@ -163,7 +163,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
 
         pick("BenefitPay");
 
-        expect(screen.getByRole("button", { name: "Pay 2.50 BHD" }).hasAttribute("disabled")).toBe(true);
+        expect(screen.getByRole("button", { name: "Pay · 2.50 BHD" }).hasAttribute("disabled")).toBe(true);
     });
 
     // Sign-out or a refused eligibility check takes card away after it was picked.
@@ -180,7 +180,7 @@ describe("CheckoutPaymentPage — a pickup order", () => {
             />
         );
 
-        expect(screen.getByRole("button", { name: "Choose how to pay" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Choose how to pay · 2.50 BHD" })).toBeTruthy();
     });
 
     it("goes back with the header's Back button on the phone", () => {
@@ -197,12 +197,76 @@ describe("CheckoutPaymentPage — a pickup order", () => {
             const { unmount } = renderPage();
 
             expect(screen.getByText("الدفع")).toBeTruthy();
+            expect(screen.getByRole("button", { name: "اختر طريقة الدفع · 2.50 د.ب" })).toBeTruthy();
             pick("بنفت");
-            expect(screen.getByRole("button", { name: "ادفع 2.50 د.ب" })).toBeTruthy();
+            expect(screen.getByRole("button", { name: "ادفع · 2.50 د.ب" })).toBeTruthy();
             unmount();
         } finally {
             await i18n.changeLanguage("en");
         }
+    });
+});
+
+// Owner, 19 Oct 2026: no total line over the button; the total is in the button's own label, and
+// our red button is as tall and as wide as Apple's, on phone and PC alike.
+describe.each([
+    ["the phone", false],
+    ["PC", true],
+])("CheckoutPaymentPage — the total and the button, on %s", (_surface, desktop) => {
+    function renderOn(): void {
+        stubMatchMedia(desktop);
+        renderPage({}, { applePay: checkoutMethod(), cardPayment: checkoutMethod() });
+    }
+
+    it.each([
+        ["Card", "Pay · 2.50 BHD"],
+        ["Benefit", "Pay · 2.50 BHD"],
+        ["BenefitPay", "Pay · 2.50 BHD"],
+        ["At counter", "Place order · 2.50 BHD"],
+    ])("puts the total on the button for %s", (method, label) => {
+        renderOn();
+
+        pick(method);
+
+        expect(screen.getByRole("button", { name: label })).toBeTruthy();
+        expect(screen.queryByText("Total(VAT incl.)")).toBeNull();
+    });
+
+    it("shows the total before anything is chosen, on the button that asks for a method", () => {
+        renderOn();
+
+        expect(screen.getByRole("button", { name: "Choose how to pay · 2.50 BHD" })).toBeTruthy();
+        expect(screen.queryByText("Total(VAT incl.)")).toBeNull();
+    });
+
+    // None of Apple's rules asks for the total beside its button: its payment sheet shows it.
+    it("draws no total line over Apple's button either", () => {
+        renderOn();
+
+        pick("Apple Pay");
+
+        expect(screen.getByRole("button", { name: "Pay with Apple Pay" })).toBeTruthy();
+        expect(screen.queryByText("Total(VAT incl.)")).toBeNull();
+    });
+
+    it("gives our button Apple's height, corners and slot, so switching to Apple Pay moves nothing", () => {
+        renderOn();
+
+        pick("Card");
+        const ours = screen.getByRole("button", { name: "Pay · 2.50 BHD" });
+        const ourRules = emotionRulesFor(ours);
+        const ourSlot = emotionRulesFor(wrapperOf(ours));
+        expect(ourRules).toContain("height:48px");
+        expect(ourRules).toContain("border-radius:16px");
+        expect(ourSlot).toContain("padding-left:24px");
+        expect(ourSlot).toContain("padding-right:24px");
+
+        pick("Apple Pay");
+        const apple = screen.getByRole("button", { name: "Pay with Apple Pay" });
+        const appleRules = emotionRulesFor(apple);
+        expect(appleRules).toContain("height:48px");
+        expect(appleRules).toContain("border-radius:16px");
+        expect(emotionRulesFor(wrapperOf(apple))).toBe(ourSlot);
     });
 });
 
@@ -232,7 +296,7 @@ describe("CheckoutPaymentPage — a delivery order", () => {
         const onPayDelivery = openDeliveryPage();
 
         pick(name);
-        fireEvent.click(screen.getByRole("button", { name: "Pay 2.50 BHD" }));
+        fireEvent.click(screen.getByRole("button", { name: "Pay · 2.50 BHD" }));
 
         expect(onPayDelivery).toHaveBeenCalledWith(method);
     });
@@ -258,7 +322,7 @@ describe("CheckoutPaymentPage — on PC", () => {
         expect(within(aside).getByText("2.50")).toBeTruthy();
         expect(aside.contains(screen.getByRole("radiogroup", { name: "Payment method" }))).toBe(false);
         expect(screen.getByText("Payment")).toBeTruthy();
-        expect(screen.getByText("Total(VAT incl.)")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Choose how to pay · 2.50 BHD" })).toBeTruthy();
     });
 
     it("names the items in Arabic for an Arabic customer", async () => {

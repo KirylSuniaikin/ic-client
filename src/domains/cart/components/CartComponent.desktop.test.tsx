@@ -94,25 +94,34 @@ describe("CartPopup — PC dialog", () => {
         expect(scrollContainerOf(screen.getByText("Water"))).toBe(aside);
 
         const dialog = screen.getByTestId("item-popup-dialog");
-        [screen.getByText("Delivery type"), screen.getByRole("button", { name: "Checkout" })].forEach((control) => {
+        [screen.getByText("Delivery type"), screen.getByRole("button", { name: "Checkout · 2.50 BHD" })].forEach((control) => {
             expect(dialog.contains(control)).toBe(true);
             expect(aside.contains(control)).toBe(false);
         });
     });
 
-    it("pins the total and the pay button under the scrolling choices", () => {
+    // Owner, 19 Oct 2026: the total rides on the button; there is no total line above it.
+    it("pins the pay button, which names the total, under the scrolling choices", () => {
         stubMatchMedia(true);
         render(<CartPopup {...cartProps()} />);
 
         const choices = scrollContainerOf(screen.getByText("Delivery type"));
         expect(choices).not.toBeNull();
         expect(choices).not.toBe(screen.getByTestId("item-popup-aside"));
-        const pinned = [screen.getByText("Total(VAT incl.)"), screen.getByRole("button", { name: "Checkout" })];
-        pinned.forEach((element) => {
-            expect(choices?.contains(element)).toBe(false);
-            expect(scrollContainerOf(element)).toBeNull();
-            expect((choices as Node).compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        });
+        const button = screen.getByRole("button", { name: "Checkout · 2.50 BHD" });
+        expect(choices?.contains(button)).toBe(false);
+        expect(scrollContainerOf(button)).toBeNull();
+        expect((choices as Node).compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.queryByText("Total(VAT incl.)")).toBeNull();
+    });
+
+    it("gives the pay button the phone's 48px height and 16px corners", () => {
+        stubMatchMedia(true);
+        render(<CartPopup {...cartProps()} />);
+
+        const rules = emotionRulesFor(screen.getByRole("button", { name: "Checkout · 2.50 BHD" }));
+        expect(rules).toContain("height:48px");
+        expect(rules).toContain("border-radius:16px");
     });
 
     it("replaces the phone's back-arrow header with the round close button", () => {
@@ -201,7 +210,7 @@ describe("CartPopup — PC dialog", () => {
         render(<CartPopup {...props} />);
 
         expect(screen.getByText("Delivery type")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+        fireEvent.click(screen.getByRole("button", { name: "Checkout · 2.50 BHD" }));
 
         expect(props.onCheckout).toHaveBeenCalledWith(ITEMS, null, null, "Pick Up", WALLET_METHOD, "", null, false);
     });

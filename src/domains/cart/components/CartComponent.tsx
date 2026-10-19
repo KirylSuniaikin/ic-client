@@ -11,7 +11,7 @@ import { UnavailablePopup } from "../../menu/components/UnavailablePopup";
 import { ItemPopupShell } from "../../menu/components/popups/ItemPopupShell";
 import type { ItemPopupDesktopLayout } from "../../menu/components/popups/ItemPopupShell";
 import { branchDisplayName } from "../../branch/utils/branchDisplayName";
-import { ActionButton, SCREEN_ROOT_SX, ScreenHeader, TotalRow } from "./CartChrome";
+import { ActionButton, SCREEN_ROOT_SX, ScreenHeader } from "./CartChrome";
 import { useDesktopLayout } from "../../../shared/hooks/useDesktopLayout";
 import { DELIVERY_COMING_SOON } from "../../delivery/constants";
 
@@ -255,8 +255,14 @@ function CartPopup({
         </Box>
     );
 
-    const totalRow = <TotalRow total={totalPrice} />;
-    const payButton = <ActionButton label={t("checkout")} onClick={() => checkoutWith(paymentMethod)} />;
+    // The total rides on the button rather than on a line above it (owner, 19 Oct 2026), which
+    // gives the items that line's room.
+    const payButton = (
+        <ActionButton
+            label={t("paymentChoice:checkoutAmount", { amount: totalPrice })}
+            onClick={() => checkoutWith(paymentMethod)}
+        />
+    );
 
     const unavailablePopup = (
         <UnavailablePopup
@@ -271,8 +277,8 @@ function CartPopup({
     );
 
     // PC (owner, 18 Oct 2026: "the same style we did for pizzapopup"): the pizza popup's
-    // two-column dialog, with the items on the warm ground where its photo sits and the choices,
-    // total and pay button in the white column beside them.
+    // two-column dialog, with the items on the warm ground where its photo sits and the choices
+    // and pay button in the white column beside them.
     const desktopLayout: ItemPopupDesktopLayout = {
         aside: (
             <>
@@ -296,7 +302,7 @@ function CartPopup({
             legacy={{ paperSx: SCREEN_ROOT_SX }}
             showClose={isDesktop}
             desktop={desktopLayout}
-            footer={isDesktop ? <>{totalRow}{payButton}</> : undefined}
+            footer={isDesktop ? payButton : undefined}
         >
             {isDesktop ? (
                 <>
@@ -313,7 +319,6 @@ function CartPopup({
                     </Box>
 
                     {choiceSection}
-                    {totalRow}
                     {payButton}
 
                     {/*

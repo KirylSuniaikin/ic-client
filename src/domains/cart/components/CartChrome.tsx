@@ -1,12 +1,12 @@
-import { useTranslation } from "react-i18next";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { BRAND_RED } from "../../../shared/utils/theme";
 
-// The phone cart's frame — header, total line and red action button — shared with the payment
-// page that follows it (owner, 19 Oct 2026), so the two read as one screen moving on. Moved out of
-// CartComponent unchanged.
+// The phone cart's frame — header and red action button — shared with the payment page that
+// follows it (owner, 19 Oct 2026), so the two read as one screen moving on. Moved out of
+// CartComponent unchanged. The total line that sat above the button is gone: the total is in the
+// button's own label now (owner, 19 Oct 2026).
 
 // The full-screen paper on the phone. Key order matches the literal this replaced, so the phone's
 // CSS class is unchanged.
@@ -70,33 +70,21 @@ export function ScreenHeader({ title, onBack, backLabel }: ScreenHeaderProps): J
     );
 }
 
-export function TotalRow({ total }: { total: string }): JSX.Element {
-    const { t } = useTranslation("cart");
-    return (
-        <Box
-            sx={{
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                px: 3,
-                py: 2,
-                borderTop: "1px solid #eee",
-            }}
-        >
-            <Typography
-                variant="subtitle1"
-                color="text.secondary"
-                sx={{ color: "#000" }}
-            >
-                {t("totalVatIncl")}
-            </Typography>
-            <Typography variant="h6" fontWeight="bold" sx={{ color: "#000" }}>
-                {total}
-            </Typography>
-        </Box>
-    );
-}
+// One size for every button at the foot of the cart and the payment page, ours and Apple's, so the
+// two read as one family and switching to Apple Pay does not move the button (owner, 19 Oct 2026:
+// ours was the shorter one). 48px is Apple's own button's height, well above its 30px minimum.
+export const PAY_BUTTON_HEIGHT = 48;
+// In px. Apple's guidelines let its button's corner radius match the buttons around it.
+export const PAY_BUTTON_RADIUS = 16;
+
+// The strip both buttons sit in: 24px in from each side, on the content's edge, under the hairline
+// the total line used to draw between the scrolling content and the button.
+export const PAY_BUTTON_SLOT_SX = {
+    flexShrink: 0,
+    px: 3,
+    py: 2,
+    borderTop: "1px solid #eee",
+} satisfies SxProps<Theme>;
 
 interface ActionButtonProps {
     label: string;
@@ -107,18 +95,7 @@ interface ActionButtonProps {
 /** The red button at the foot of the cart and the payment page. */
 export function ActionButton({ label, onClick, disabled = false }: ActionButtonProps): JSX.Element {
     return (
-        <Box
-            sx={{
-                flexShrink: 0,
-                height: 56,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                // The total row's and the content's 24px, so the button's edges line up with both.
-                px: 3,
-                pb: 2,
-            }}
-        >
+        <Box sx={PAY_BUTTON_SLOT_SX}>
             <Button
                 variant="contained"
                 onClick={onClick}
@@ -128,7 +105,8 @@ export function ActionButton({ label, onClick, disabled = false }: ActionButtonP
                     color: "#fff",
                     textTransform: "none",
                     fontWeight: "bold",
-                    borderRadius: 4,
+                    height: PAY_BUTTON_HEIGHT,
+                    borderRadius: `${PAY_BUTTON_RADIUS}px`,
                     width: "100%",
                     "&:hover": { backgroundColor: BRAND_RED },
                 }}
