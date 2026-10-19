@@ -9,6 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { DEFAULT_PAYMENT_METHOD } from "../domains/order/types";
 import { installPointerEvent, removePointerEvent, tap } from "../shared/hooks/tapGesture.testutil";
+import { connectSocket } from "../shared/api/socket";
 
 // HomePage (via HeroSection/CustomerIconButton) uses useTranslation -- initialize the real
 // i18n instance (side-effect import) so keys resolve to English, mirroring HeroSection.test.tsx.
@@ -18,6 +19,9 @@ import "../shared/i18n";
 jest.mock("../shared/api/public");
 jest.mock("../shared/api/management");
 jest.mock("../shared/api/customerAuth");
+// Only an active order reaches the socket (useOrderLiveStatus); without the mock that one test
+// would open a real STOMP connection from jsdom.
+jest.mock("../shared/api/socket");
 
 // Manual mock (src/domains/schedule/utils/__mocks__/isWithinWorkingHours.ts) -- lets the
 // ScrollHintArrow "closed branch" popup test below force cart.closedPopup open via the real
@@ -50,7 +54,7 @@ jest.mock("../shared/hooks/useImagePreloader", () => ({
 
 import { fetchBaseAppInfo, fetchPublicBranches, bpgCheckout } from "../shared/api/public";
 import { getAllBannedCstmrs } from "../shared/api/management";
-import { refreshCustomerToken, fetchCustomerMe, verifyOtp } from "../shared/api/customerAuth";
+import { refreshCustomerToken, fetchCustomerMe, verifyOtp, fetchActiveOrder } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
 import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import HomePage from "./HomePage";
@@ -58,7 +62,7 @@ import { createOrder } from "../shared/api/public";
 import { CHOSEN_BRANCH_KEY } from "../domains/branch/constants";
 import type { BaseAppInfoResponse, CreateOrderRequest, Order } from "../domains/order/types";
 import type { IBranch } from "../domains/management/inventory/types";
-import type { CustomerMeResponse } from "../domains/customer-auth/types";
+import type { CustomerActiveOrder, CustomerMeResponse } from "../domains/customer-auth/types";
 import type { BpgCheckoutResult } from "../domains/payment/types";
 
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
@@ -72,6 +76,8 @@ const mockBpgCheckout = jest.mocked(bpgCheckout);
 const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
 const mockVerifyOtp = jest.mocked(verifyOtp);
+const mockFetchActiveOrder = jest.mocked(fetchActiveOrder);
+const mockConnectSocket = jest.mocked(connectSocket);
 
 // A single available, non-pizza item so useMenuData's recommended-items effect seeds the
 // cart directly (upsellDeclined=true bypasses the pizza/brick-pizza upsell popup entirely --
@@ -961,5 +967,74 @@ describe("HomePage -- cart pill under a scrolling menu", () => {
         tap(screen.getByTestId("ShoppingCartIcon"));
 
         await waitFor(() => expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull());
+    });
+});
+
+// InAppBrowserNotice.test.tsx covers the notice itself; this only pins where HomePage mounts it.
+describe("HomePage -- Instagram in-app browser notice", () => {
+    const INSTAGRAM_IOS =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 337.0.3.23.54 (iPhone14,5; iOS 17_5; en_US; en; scale=3.00; 1170x2532; 615196410)";
+
+    // jsdom's navigator.userAgent is a read-only getter; deleting the own property restores it.
+    function setUserAgent(userAgent: string): void {
+        Object.defineProperty(window.navigator, "userAgent", { value: userAgent, configurable: true });
+    }
+
+    beforeEach(() => {
+        sessionStorage.clear();
+    });
+
+    afterEach(() => {
+        Reflect.deleteProperty(window.navigator, "userAgent");
+    });
+
+    it("does not show the notice in an ordinary browser", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        expect(screen.queryByTestId("in-app-browser-notice")).toBeNull();
+    });
+
+    it("shows the notice to a storefront customer inside Instagram", async () => {
+        setUserAgent(INSTAGRAM_IOS);
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        expect(screen.getByTestId("in-app-browser-notice")).toBeTruthy();
+    });
+
+    // The active-order card floats over the top of the page, right where the notice would sit.
+    it("leaves the top of the page to a signed-in customer's active-order card", async () => {
+        const activeOrder: CustomerActiveOrder = {
+            id: 42, orderNumber: 7, status: "Kitchen Phase", type: "Pick Up", createdAt: "2026-10-19 12:00:00",
+            estimation: 15, branchId: CHOSEN_BRANCH.id, branchName: CHOSEN_BRANCH.branchName,
+        };
+        setUserAgent(INSTAGRAM_IOS);
+        mockRefreshCustomerToken.mockResolvedValue({ accessToken: "tok-1", isNewAccount: false });
+        mockFetchCustomerMe.mockResolvedValue({
+            id: "account-1", phone: VERIFIED_PHONE, preferredBranchId: null, name: "Layla",
+            address: null, amountOfOrders: 4, lastOrderDate: null,
+        });
+        mockFetchActiveOrder.mockResolvedValue(activeOrder);
+        mockConnectSocket.mockReturnValue(() => undefined);
+        renderHomePage(["/menu"]);
+
+        await screen.findByTestId("active-order-island-pill");
+        expect(screen.queryByTestId("in-app-browser-notice")).toBeNull();
+    });
+
+    it.each([
+        ["the kiosk", "/menu?mode=kiosk"],
+        ["staff ordering", "/menu?isAdmin=true"],
+    ])("never shows the notice on %s, even with an Instagram user agent", async (_surface, entry) => {
+        setUserAgent(INSTAGRAM_IOS);
+        seedKioskBranchSelected();
+        renderHomePage([entry]);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        expect(screen.queryByTestId("in-app-browser-notice")).toBeNull();
     });
 });

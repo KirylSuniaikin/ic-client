@@ -12,6 +12,7 @@ import { useCardCheckout } from "../domains/order/hooks/useCardCheckout";
 import { useCustomerAuthUi } from "../domains/customer-auth/context/CustomerAuthUiProvider";
 import { useActiveOrderIsland } from "../domains/customer-auth/hooks/useActiveOrderIsland";
 import { ActiveOrderIslandPill } from "../domains/customer-auth/components/ActiveOrderIslandPill";
+import { InAppBrowserNotice } from "../domains/customer-auth/components/InAppBrowserNotice";
 import { usePixelTracking } from "../domains/order/hooks/usePixelTracking";
 import PizzaLoader from "../domains/order-status/components/animations/PizzaLoader";
 import { MenuLoadErrorPage } from "../domains/menu/components/MenuLoadErrorPage";
@@ -346,7 +347,8 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // When a customer has an active order the homepage top area collapses to just the
     // Live-Activity card — the branch header + account/language cluster are hidden so the
     // card stands alone (like the iOS Dynamic Island reference).
-    const showActiveOrderCard = noPopupOpen && activeOrderIsland.isVisible && activeOrderIsland.activeOrder !== null;
+    const hasActiveOrder = activeOrderIsland.isVisible && activeOrderIsland.activeOrder !== null;
+    const showActiveOrderCard = noPopupOpen && hasActiveOrder;
 
     // Staff ordering (admin mode) is English-only and must not invert when an Arabic preference
     // is stored in localStorage; the customer-facing flow stays language-dependent (RTL for Arabic).
@@ -366,6 +368,10 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
                     onClick={activeOrderIsland.handleClick}
                 />
             )}
+            {/* Storefront only. Gated on the active order itself rather than on the card being
+                shown: the card floats over this spot, and following its popup-driven toggling would
+                shift the page under every sheet. */}
+            {!isAdmin && !isKiosk && !hasActiveOrder && <InAppBrowserNotice />}
             {!isAdmin && <HeroSection isKiosk={isKiosk} branches={menu.availableBranches} workingHours={menu.workingHours} hideTopBar={showActiveOrderCard} onAdminGesture={handleRepairGesture} onBranchClick={branchSwitch.openPicker} />}
             <Box ref={menuTopRef} />
             <MenuSections

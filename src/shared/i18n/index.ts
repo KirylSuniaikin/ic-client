@@ -15,6 +15,7 @@ import enPayment from "./locales/en/payment.json";
 import enApplePay from "./locales/en/applePay.json";
 import enCardPayment from "./locales/en/cardPayment.json";
 import enPaymentChoice from "./locales/en/paymentChoice.json";
+import enInAppBrowser from "./locales/en/inAppBrowser.json";
 
 import arCommon from "./locales/ar/common.json";
 import arHome from "./locales/ar/home.json";
@@ -29,11 +30,12 @@ import arPayment from "./locales/ar/payment.json";
 import arApplePay from "./locales/ar/applePay.json";
 import arCardPayment from "./locales/ar/cardPayment.json";
 import arPaymentChoice from "./locales/ar/paymentChoice.json";
+import arInAppBrowser from "./locales/ar/inAppBrowser.json";
 
 // Namespaces map to domains. Add a new domain → add `<lng>/<domain>.json` here.
 export const resources = {
-    en: {common: enCommon, home: enHome, menu: enMenu, cart: enCart, checkout: enCheckout, schedule: enSchedule, customerAuth: enCustomerAuth, kiosk: enKiosk, branch: enBranch, payment: enPayment, applePay: enApplePay, cardPayment: enCardPayment, paymentChoice: enPaymentChoice},
-    ar: {common: arCommon, home: arHome, menu: arMenu, cart: arCart, checkout: arCheckout, schedule: arSchedule, customerAuth: arCustomerAuth, kiosk: arKiosk, branch: arBranch, payment: arPayment, applePay: arApplePay, cardPayment: arCardPayment, paymentChoice: arPaymentChoice},
+    en: {common: enCommon, home: enHome, menu: enMenu, cart: enCart, checkout: enCheckout, schedule: enSchedule, customerAuth: enCustomerAuth, kiosk: enKiosk, branch: enBranch, payment: enPayment, applePay: enApplePay, cardPayment: enCardPayment, paymentChoice: enPaymentChoice, inAppBrowser: enInAppBrowser},
+    ar: {common: arCommon, home: arHome, menu: arMenu, cart: arCart, checkout: arCheckout, schedule: arSchedule, customerAuth: arCustomerAuth, kiosk: arKiosk, branch: arBranch, payment: arPayment, applePay: arApplePay, cardPayment: arCardPayment, paymentChoice: arPaymentChoice, inAppBrowser: arInAppBrowser},
 } as const;
 
 export const SUPPORTED_LANGUAGES = ["en", "ar"] as const;
@@ -51,7 +53,7 @@ void i18n
         fallbackLng: DEFAULT_LANGUAGE,
         supportedLngs: [...SUPPORTED_LANGUAGES],
         nonExplicitSupportedLngs: true, // treat "ar-BH" etc. as "ar"
-        ns: ["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth", "kiosk", "branch", "payment", "applePay", "cardPayment", "paymentChoice"],
+        ns: ["common", "home", "menu", "cart", "checkout", "schedule", "customerAuth", "kiosk", "branch", "payment", "applePay", "cardPayment", "paymentChoice", "inAppBrowser"],
         defaultNS: "common",
         interpolation: {escapeValue: false}, // React already escapes
         // Untranslated Arabic keys are left as "" placeholders for the team to fill;

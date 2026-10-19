@@ -1,0 +1,12 @@
+{
+    "ios": {
+        "title": "Open in Safari to stay signed in",
+        "button": "Open in Safari",
+        "hint": "Or tap ⋯ and choose “Open in external browser”"
+    },
+    "android": {
+        "title": "Open in Chrome to stay signed in",
+        "button": "Open in Chrome"
+    },
+    "dismiss": "Dismiss"
+}
