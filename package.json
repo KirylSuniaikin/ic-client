@@ -54,7 +54,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "postbuild": "node scripts/prerenderSeo.mjs",
+    "postbuild": "node scripts/prerenderSeo.mjs && node scripts/writeBuildInfo.mjs",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

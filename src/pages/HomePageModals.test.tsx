@@ -83,7 +83,20 @@ jest.mock("../domains/branch/components/BranchSwitchWarningDrawer", () => ({
     },
 }));
 
+// The wallet's QR loads a vendor script jsdom cannot run; the probe hands this file its callbacks.
+const mockBenefitPayDialog = jest.fn();
+jest.mock("../domains/payment/components/BenefitPayDialog", () => ({
+    BenefitPayDialog: (props: unknown) => {
+        mockBenefitPayDialog(props);
+        return null;
+    },
+}));
+
 import HomePageModals from "./HomePageModals";
+import * as publicApi from "../shared/api/public";
+import { clearPageLeaving, isPageLeaving } from "../shared/utils/pageLeaving";
+import type { BenefitPayDialogProps } from "../domains/payment/components/BenefitPayDialog";
+import type { BenefitPaySession } from "../domains/payment/types";
 import { getDeliveryAvailability, payForDelivery, reportKeetaFallbackChosen } from "../shared/api/delivery";
 import type { CustomerAddress, DeliveryAvailability, DeliveryPaymentMethod } from "../domains/delivery/types";
 import type { UseKioskCheckoutResult } from "../domains/kiosk/hooks/useKioskCheckout";
@@ -96,6 +109,10 @@ import { clearChosenBranch, writeChosenBranch } from "../domains/branch/utils/cu
 const mockPay = jest.mocked(payForDelivery);
 const mockGate = jest.mocked(getDeliveryAvailability);
 const mockReportKeeta = jest.mocked(reportKeetaFallbackChosen);
+// The wallet confirm is a real POST. Replaced on the module object (OrderCard.test.tsx's pattern) so
+// the rest of the public API stays real.
+const mockConfirmBenefitPay = jest.fn<Promise<string>, [string]>();
+(publicApi as unknown as { confirmBenefitPayPayment: unknown }).confirmBenefitPayPayment = mockConfirmBenefitPay;
 
 const ADDRESS: CustomerAddress = {
     id: "addr-1", label: "Home", block: "338", road: "3801", building: "12", flat: null,
@@ -469,6 +486,39 @@ describe("HomePageModals — delivery checkout hand-off", () => {
 
         await waitFor(() => expect(setShowOrderConfirmed).toHaveBeenCalledWith(true));
         expect(mockLocationAssign).not.toHaveBeenCalled();
+    });
+
+    // The cart is emptied in the same tick, so without the mark the page would look idle to the
+    // stale-bundle reload while the gateway is still answering.
+    it("marks the page as leaving before it hands the order to the hosted payment page", async () => {
+        clearPageLeaving();
+        let leavingAtAssign = false;
+        mockLocationAssign.mockImplementation(() => {
+            leavingAtAssign = isPageLeaving();
+        });
+        mockPay.mockResolvedValue({
+            orderNo: 101, status: "Pending Payment",
+            redirectUrl: "https://pay.example/session/abc", stub: false,
+        });
+        renderModals({}, { orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER });
+
+        await payDelivery("CARD");
+
+        await waitFor(() => expect(mockLocationAssign).toHaveBeenCalledTimes(1));
+        expect(leavingAtAssign).toBe(true);
+    });
+
+    it("leaves the page unmarked when the stubbed order stays on the confirmation screen", async () => {
+        clearPageLeaving();
+        const setShowOrderConfirmed = jest.fn();
+        renderModals({}, {
+            orderType: "Delivery", pendingDeliveryOrder: PENDING_ORDER, setShowOrderConfirmed,
+        });
+
+        await payDelivery("CARD");
+
+        await waitFor(() => expect(setShowOrderConfirmed).toHaveBeenCalledWith(true));
+        expect(isPageLeaving()).toBe(false);
     });
 
     it("surfaces a payment failure instead of clearing the cart", async () => {
@@ -1124,5 +1174,50 @@ describe("HomePageModals — the pickup payment page", () => {
 
         expect(setPaymentPageOpen).toHaveBeenCalledWith(false);
         expect(setCartOpen).toHaveBeenCalledWith(true);
+    });
+});
+
+// The cart is already empty while the QR is up, so closing it is all it takes for the page to look
+// idle; the confirm that follows can take half a minute before /payment_result opens.
+describe("HomePageModals — the BenefitPay QR closing", () => {
+    const SESSION = { reference: "wallet-ref-1" } as BenefitPaySession;
+
+    function lastDialog(): BenefitPayDialogProps {
+        const calls = mockBenefitPayDialog.mock.calls;
+        return calls[calls.length - 1][0] as BenefitPayDialogProps;
+    }
+
+    beforeEach(() => {
+        clearPageLeaving();
+        mockBenefitPayDialog.mockClear();
+        mockLocationAssign.mockClear();
+        mockConfirmBenefitPay.mockResolvedValue("Paid");
+    });
+
+    it("marks the page as leaving before it clears the session, then opens the result page", async () => {
+        let leavingWhenCleared = false;
+        const setWalletSession = jest.fn(() => {
+            leavingWhenCleared = isPageLeaving();
+        });
+        renderModals({}, { walletSession: SESSION, setWalletSession });
+
+        act(() => lastDialog().onFinished(true));
+
+        expect(leavingWhenCleared).toBe(true);
+        expect(setWalletSession).toHaveBeenCalledWith(null);
+        await waitFor(() =>
+            expect(mockLocationAssign).toHaveBeenCalledWith("/payment_result?ref=wallet-ref-1"));
+        expect(mockConfirmBenefitPay).toHaveBeenCalledWith("wallet-ref-1");
+    });
+
+    it("leaves the page unmarked when the customer closes the QR without finishing", () => {
+        const setWalletSession = jest.fn();
+        renderModals({}, { walletSession: SESSION, setWalletSession });
+
+        act(() => lastDialog().onFinished(false));
+
+        expect(setWalletSession).toHaveBeenCalledWith(null);
+        expect(isPageLeaving()).toBe(false);
+        expect(mockConfirmBenefitPay).not.toHaveBeenCalled();
     });
 });

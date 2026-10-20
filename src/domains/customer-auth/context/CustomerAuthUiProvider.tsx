@@ -24,6 +24,7 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
     // profile/order-detail popups can localize description text without a second fetch.
     const [menuLocalizationData, setMenuLocalizationData] =
         useState<MenuLocalizationCatalog>(EMPTY_MENU_LOCALIZATION_DATA);
+    const [isReviewPromptOpen, setReviewPromptOpen] = useState(false);
 
     // True when the detail popup was opened WITHOUT the profile already being open
     // (i.e. from the homepage island / post-checkout), so closing the detail should
@@ -110,6 +111,8 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             refreshActiveOrder,
             menuLocalizationData,
             setMenuLocalizationData,
+            isReviewPromptOpen,
+            setReviewPromptOpen,
         }),
         [
             isLoginOpen,
@@ -127,6 +130,7 @@ export function CustomerAuthUiProvider({ children }: { children: React.ReactNode
             activeOrderRefreshKey,
             refreshActiveOrder,
             menuLocalizationData,
+            isReviewPromptOpen,
         ]
     );
 

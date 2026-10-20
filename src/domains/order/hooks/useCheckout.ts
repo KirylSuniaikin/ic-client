@@ -17,6 +17,7 @@ import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
 import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
 import { newIdempotencyKey } from "../../../shared/utils/idempotencyKey";
+import { markPageLeaving } from "../../../shared/utils/pageLeaving";
 // TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists
 const GENERAL_CROSS_SELL: string[] = ["Hot Honey Sauce", "Ranch Sauce", "Coca Cola Zero"];
 const FINAL_CROSS_SELL: string[] = ["BBQ Chicken Ranch Detroit Brick", "Coca Cola Zero", "Ranch Sauce", "Hot Honey Sauce", "Pizza Rolls", "Water"];
@@ -236,6 +237,7 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
                 setPendingOrder(null);
                 // A full-page assign, not a route change: the destination is the gateway's own
                 // domain, which is where card details belong.
+                markPageLeaving();
                 window.location.assign(checkout.redirectUrl);
                 return;
             }

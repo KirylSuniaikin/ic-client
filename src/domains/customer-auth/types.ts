@@ -224,6 +224,10 @@ export type CustomerAuthUiContextType = {
     // See MenuLocalizationCatalog above. Empty arrays until HomePage's useMenuData resolves.
     menuLocalizationData: MenuLocalizationCatalog;
     setMenuLocalizationData: (data: MenuLocalizationCatalog) => void;
+    // Published by CustomerAuthModals, which owns the review drawer, so HomePage can hold its
+    // stale-bundle reload while the ask is on screen: the backend already counts it as asked.
+    isReviewPromptOpen: boolean;
+    setReviewPromptOpen: (open: boolean) => void;
 };
 
 // Thrown by useCustomerAuthUi() when called outside a CustomerAuthUiProvider.

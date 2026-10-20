@@ -36,6 +36,7 @@ import { basketSignature, toDeliveryBasket } from "../domains/delivery/basket";
 import { DeliveryCheckoutDrawer } from "../domains/delivery/components/DeliveryCheckoutDrawer";
 import { payForDelivery, reportKeetaFallbackChosen } from "../shared/api/delivery";
 import { logger } from "../shared/utils/logger";
+import { markPageLeaving } from "../shared/utils/pageLeaving";
 import { DesktopLayoutAllowedContext } from "../shared/hooks/useDesktopLayout";
 import { Snackbar } from "@mui/material";
 import { formatAddressLine } from "../domains/delivery/types";
@@ -202,6 +203,7 @@ export default function HomePageModals({
             // an order nothing will ever settle — and they would never reach the payment page at
             // all. The stub has no page to send them to, so it keeps the confirmation path.
             if (!result.stub && result.redirectUrl) {
+                markPageLeaving();
                 window.location.assign(result.redirectUrl);
                 return;
             }
@@ -706,8 +708,12 @@ export default function HomePageModals({
                 session={checkout.walletSession}
                 onFinished={(completed) => {
                     const reference = checkout.walletSession?.reference ?? null;
+                    const confirming = reference != null && completed;
+                    // Before the session is cleared: with the cart already empty, a closed QR is
+                    // all it takes for the page to look idle during the confirm.
+                    if (confirming) markPageLeaving();
                     checkout.setWalletSession(null);
-                    if (reference != null && completed) {
+                    if (confirming) {
                         // Ask our own server what actually happened, then show the result page — the
                         // widget's callback is advisory and never decides an outcome.
                         void confirmBenefitPayPayment(reference)

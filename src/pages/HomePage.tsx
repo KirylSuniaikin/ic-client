@@ -23,6 +23,7 @@ import HeroSection from "./HeroSection";
 import { useScrolledAboveViewport } from "../shared/hooks/useScrolledAboveViewport";
 import { useTapGuard } from "../shared/hooks/useTapGuard";
 import { useImagePreloader } from "../shared/hooks/useImagePreloader";
+import { useStaleBundleReload } from "../shared/hooks/useStaleBundleReload";
 import { groupItemsByCategory, groupAvailableItemsByName, collectPreloadUrls } from "../shared/utils/menuUtils";
 import { isWithinWorkingHours } from "../domains/schedule/utils/isWithinWorkingHours";
 import { TextButton } from "../shared/components/typography";
@@ -81,7 +82,7 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     // instance so they aren't localized to the customer's stored Arabic preference.
     const tr = isAdmin ? enI18n.t : t;
 
-    const { isAnyCustomerAuthPopupOpen, setMenuLocalizationData } = useCustomerAuthUi();
+    const { isAnyCustomerAuthPopupOpen, setMenuLocalizationData, isReviewPromptOpen } = useCustomerAuthUi();
     const activeOrderIsland = useActiveOrderIsland();
 
     const menu = useMenuData({ userParam, recommendedIds, giftId, isKiosk, isEditMode, searchParams, setSearchParams, isAdmin, adminBranchId });
@@ -261,45 +262,6 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
         </>
     );
 
-    if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <>{seoHead}<PizzaLoader /></>;
-    if (menu.error) {
-        return (
-            <>
-                {seoHead}
-                <MenuLoadErrorPage
-                    title={tr("home:connectionError.title")}
-                    message={tr("home:connectionError.message")}
-                    reloadLabel={tr("home:connectionError.reload")}
-                />
-            </>
-        );
-    }
-
-    localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
-
-    function handleOpenCart(): void {
-        if (!isWithinWorkingHours(menu.workingHours) && !isAdmin) cart.setClosedPopupOpen(true);
-        else cart.setCartOpen(true);
-    }
-
-    function handleOpenPopup(item: Group | MenuItem): void {
-        const menuItem = item as MenuItem;
-        if (menuItem.category === "Pizzas") {
-            cart.setPopupGroup(item); cart.setPizzaPopupOpen(true);
-        } else if (menuItem.category === "Combo Deals") {
-            if (menuItem.name === "Pizza Combo") {
-                cart.setPopupGroup(menu.menuData.filter(m => m.name === menuItem.name && m.category === "Combo Deals"));
-                cart.setPizzaComboPopupOpen(true);
-            } else if (menuItem.name === "Detroit Combo") {
-                cart.setPopupGroup(item); cart.setDetroitComboPopupOpen(true);
-            }
-        } else if (menuItem.category === "Baguette Pizzas") {
-            cart.setPopupGroup(item); cart.setBaguettePizzaPopupOpen(true);
-        } else {
-            cart.setPopupGroup(item); cart.setGenericPopupOpen(true);
-        }
-    }
-
     /**
      * Every popup, sheet and overlay this page can put on screen.
      *
@@ -340,6 +302,60 @@ function HomePage({ userParam, recommendedIds, giftId }: HomePageProps): JSX.Ele
     ];
 
     const noPopupOpen = !openOverlays.some(Boolean);
+
+    // A reload drops the in-memory cart and aborts whatever payment step is in flight, so a newer
+    // build is only picked up on a bare customer menu. Staff POS and the kiosk never reload on their
+    // own. Beyond the overlay list: the payment drawers and Apple Pay stay busy while a charge is
+    // pending, the BenefitPay QR opens only after the cart has already been emptied, and the review
+    // ask is mounted at the app root. The full-page gateway redirects look safe from here; they
+    // mark the page as leaving, which the hook honours.
+    const staleBundleReloadSafe =
+        !isAdmin && !isKiosk && noPopupOpen && !isReviewPromptOpen &&
+        cart.cartItems.length === 0 &&
+        !checkout.checkoutLoading &&
+        checkout.walletSession === null &&
+        !cardPayment.drawerOpen && !cardPayment.busy &&
+        !applePay.busy && !applePay.reminderOpen;
+    useStaleBundleReload(staleBundleReloadSafe);
+
+    if (menu.loading || checkout.checkoutLoading || !menuImagesReady) return <>{seoHead}<PizzaLoader /></>;
+    if (menu.error) {
+        return (
+            <>
+                {seoHead}
+                <MenuLoadErrorPage
+                    title={tr("home:connectionError.title")}
+                    message={tr("home:connectionError.message")}
+                    reloadLabel={tr("home:connectionError.reload")}
+                />
+            </>
+        );
+    }
+
+    localStorage.setItem("availableMenuGroups", JSON.stringify(availableGroups));
+
+    function handleOpenCart(): void {
+        if (!isWithinWorkingHours(menu.workingHours) && !isAdmin) cart.setClosedPopupOpen(true);
+        else cart.setCartOpen(true);
+    }
+
+    function handleOpenPopup(item: Group | MenuItem): void {
+        const menuItem = item as MenuItem;
+        if (menuItem.category === "Pizzas") {
+            cart.setPopupGroup(item); cart.setPizzaPopupOpen(true);
+        } else if (menuItem.category === "Combo Deals") {
+            if (menuItem.name === "Pizza Combo") {
+                cart.setPopupGroup(menu.menuData.filter(m => m.name === menuItem.name && m.category === "Combo Deals"));
+                cart.setPizzaComboPopupOpen(true);
+            } else if (menuItem.name === "Detroit Combo") {
+                cart.setPopupGroup(item); cart.setDetroitComboPopupOpen(true);
+            }
+        } else if (menuItem.category === "Baguette Pizzas") {
+            cart.setPopupGroup(item); cart.setBaguettePizzaPopupOpen(true);
+        } else {
+            cart.setPopupGroup(item); cart.setGenericPopupOpen(true);
+        }
+    }
 
     // Kept as its own name because ScrollHintArrow reads it; the two are now exact complements.
     const anyPopupOpen = !noPopupOpen;

@@ -70,7 +70,24 @@ jest.mock("../shared/hooks/useImagePreloader", () => ({
     },
 }));
 
-import { fetchBaseAppInfo, fetchPublicBranches, bpgCheckout } from "../shared/api/public";
+// useStaleBundleReload.test.ts covers the reload itself; here the hook only records what HomePage
+// tells it, so these tests can pin when a reload is allowed without any version check running.
+const mockStaleBundleSafety: boolean[] = [];
+jest.mock("../shared/hooks/useStaleBundleReload", () => ({
+    __esModule: true,
+    useStaleBundleReload: (isSafe: boolean): void => {
+        mockStaleBundleSafety.push(isSafe);
+    },
+}));
+
+// The BenefitPay QR loads a vendor script jsdom cannot run; held open forever, the dialog stays up
+// for as long as a test needs to look at the page behind it.
+jest.mock("../domains/payment/openBenefitPayWidget", () => ({
+    __esModule: true,
+    openBenefitPayWidget: (): Promise<never> => new Promise(() => undefined),
+}));
+
+import { fetchBaseAppInfo, fetchPublicBranches, bpgCheckout, benefitPayCheckout } from "../shared/api/public";
 import { getAllBannedCstmrs } from "../shared/api/management";
 import { refreshCustomerToken, fetchCustomerMe, verifyOtp, fetchActiveOrder } from "../shared/api/customerAuth";
 import { CustomerAuthProvider, useCustomerAuth, __resetCustomerAuthStoreForTests } from "../domains/customer-auth/context/CustomerAuthProvider";
@@ -79,6 +96,7 @@ import HomePage from "./HomePage";
 import { createOrder } from "../shared/api/public";
 import { CHOSEN_BRANCH_KEY } from "../domains/branch/constants";
 import { DEFAULT_BRANCH_ID } from "../shared/api/client";
+import { clearPageLeaving, isPageLeaving } from "../shared/utils/pageLeaving";
 import type { BaseAppInfoResponse, CreateOrderRequest, Order } from "../domains/order/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { CustomerActiveOrder, CustomerMeResponse } from "../domains/customer-auth/types";
@@ -92,6 +110,7 @@ const mockFetchPublicBranches = jest.mocked(fetchPublicBranches);
 const mockRefreshCustomerToken = jest.mocked(refreshCustomerToken);
 const mockCreateOrder = jest.mocked(createOrder);
 const mockBpgCheckout = jest.mocked(bpgCheckout);
+const mockBenefitPayCheckout = jest.mocked(benefitPayCheckout);
 const mockGetAllBannedCstmrs = jest.mocked(getAllBannedCstmrs);
 const mockFetchCustomerMe = jest.mocked(fetchCustomerMe);
 const mockVerifyOtp = jest.mocked(verifyOtp);
@@ -138,13 +157,17 @@ const BASE_APP_INFO: BaseAppInfoResponse = {
 // mode, so this is also the only way to open it there).
 // The login sheet itself mounts at the app root (CustomerAuthModals, app/providers.tsx), outside
 // this tree, so test-verify-otp stands in for a customer entering the right code in it.
+// The review drawer mounts there too, so test-show-review-prompt stands in for CustomerAuthModals
+// publishing that it is on screen.
 function AuthUiTestTrigger(): React.JSX.Element {
-    const { openLogin, closeAll } = useCustomerAuthUi();
+    const { openLogin, closeAll, setReviewPromptOpen } = useCustomerAuthUi();
     const { login } = useCustomerAuth();
     return (
         <>
             <button onClick={() => openLogin()}>test-open-login</button>
             <button onClick={() => closeAll()}>test-close-all</button>
+            <button onClick={() => setReviewPromptOpen(true)}>test-show-review-prompt</button>
+            <button onClick={() => setReviewPromptOpen(false)}>test-hide-review-prompt</button>
             <button onClick={() => { void login(VERIFIED_PHONE, "4821"); }}>test-verify-otp</button>
         </>
     );
@@ -601,6 +624,42 @@ describe("HomePage -- items picked in the cross-sell reach the order", () => {
         const order = await waitForGatewayOrder();
         expect(orderLines(order)).toEqual(["Cola x1", "Coca Cola Zero x1"]);
         expect(order.amount_paid).toBe(1.5);
+    });
+
+    // The cart is emptied in the same tick as the hand-off, so the page looks idle to the stale-bundle
+    // reload from then on; the mark is what keeps it from cancelling a slow gateway.
+    it("named logged-in customer: the hand-off to the payment gateway marks the page as leaving first", async () => {
+        clearPageLeaving();
+        let leavingAtAssign = false;
+        mockLocationAssign.mockImplementation(() => {
+            leavingAtAssign = isPageLeaving();
+        });
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell([]);
+        await payOnPaymentPage("Benefit");
+
+        await waitFor(() => expect(mockLocationAssign).toHaveBeenCalledWith(BPG_CHECKOUT.redirectUrl));
+        expect(leavingAtAssign).toBe(true);
+    });
+
+    // The cart is emptied before the QR opens, so an empty cart alone must not read as "nothing in
+    // progress": a reload here would take the QR away from a customer who is mid-payment.
+    it("named logged-in customer: the BenefitPay QR keeps the stale-bundle reload off, though the cart is already empty", async () => {
+        mockBenefitPayCheckout.mockResolvedValue({
+            orderNo: 78, status: "Pending Payment", reference: "wallet-ref-1", merchantId: "m-1", appId: "a-1",
+            amount: "1.000", currency: "048", secureHash: "hash", qrTimeoutMs: 120000,
+        });
+        signInAs(NAMED_CUSTOMER);
+        renderHomePage(["/menu"]);
+
+        await checkoutThroughCrossSell([]);
+        await payOnPaymentPage("BenefitPay");
+
+        await screen.findByText("Pay with BenefitPay");
+        expect(screen.queryByTestId("ShoppingCartIcon")).toBeNull();
+        expect(mockStaleBundleSafety[mockStaleBundleSafety.length - 1]).toBe(false);
     });
 
     it("named logged-in customer: a pick already in the cart goes out as one line with both units", async () => {
@@ -1085,5 +1144,72 @@ describe("HomePage -- Instagram in-app browser notice", () => {
         await screen.findByText("Cola");
 
         expect(screen.queryByTestId("in-app-browser-notice")).toBeNull();
+    });
+});
+
+// What HomePage hands useStaleBundleReload. A reload drops the in-memory cart and whatever sheet is
+// up, so it is only ever allowed on an ordinary customer's bare menu.
+describe("HomePage -- stale-bundle reload safety", () => {
+    function latestSafety(): boolean | undefined {
+        return mockStaleBundleSafety[mockStaleBundleSafety.length - 1];
+    }
+
+    beforeEach(() => {
+        mockStaleBundleSafety.length = 0;
+    });
+
+    it("allows it on a customer's bare menu with an empty cart", async () => {
+        renderHomePage(["/menu"], []);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        expect(latestSafety()).toBe(true);
+    });
+
+    it("never allows it while the cart holds anything", async () => {
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+        await waitForCartSeeded();
+
+        expect(latestSafety()).toBe(false);
+    });
+
+    // The customer leaves for WhatsApp to read the code and comes back to this tab.
+    it("holds it while the sign-in sheet is open", async () => {
+        renderHomePage(["/menu"], []);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        fireEvent.click(screen.getByText("test-open-login"));
+        await waitFor(() => expect(latestSafety()).toBe(false));
+
+        fireEvent.click(screen.getByText("test-close-all"));
+        await waitFor(() => expect(latestSafety()).toBe(true));
+    });
+
+    // The drawer is mounted at the app root, and the backend has counted the ask the moment it showed.
+    it("holds it while the review prompt is on screen", async () => {
+        renderHomePage(["/menu"], []);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        fireEvent.click(screen.getByText("test-show-review-prompt"));
+        await waitFor(() => expect(latestSafety()).toBe(false));
+
+        fireEvent.click(screen.getByText("test-hide-review-prompt"));
+        await waitFor(() => expect(latestSafety()).toBe(true));
+    });
+
+    it.each([
+        ["the kiosk", "/menu?mode=kiosk"],
+        ["staff ordering", "/menu?isAdmin=true"],
+    ])("never allows it on %s", async (_surface, entry) => {
+        seedKioskBranchSelected();
+        renderHomePage([entry], []);
+        await waitForAuthReady();
+        await screen.findByText("Cola");
+
+        expect(mockStaleBundleSafety.length).toBeGreaterThan(0);
+        expect(mockStaleBundleSafety).not.toContain(true);
     });
 });

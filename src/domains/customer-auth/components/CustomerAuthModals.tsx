@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useCustomerAuthUi } from "../context/CustomerAuthUiProvider";
 import { CustomerLoginPopup } from "./CustomerLoginPopup";
 import { CustomerProfilePopup } from "./CustomerProfilePopup";
@@ -19,12 +19,21 @@ export function CustomerAuthModals(): React.JSX.Element {
         loginCheckoutMode,
         closeAll,
         isAnyCustomerAuthPopupOpen,
+        setReviewPromptOpen,
     } = useCustomerAuthUi();
 
     // Gated on the existing isAnyCustomerAuthPopupOpen rather than a new piece of
     // provider state: the review ask must never stack on top of the login or
     // profile sheet, and that flag already answers exactly that question.
     const { prompt, markShown, answer } = useReviewPrompt(!isAnyCustomerAuthPopupOpen);
+    // Gated at render as well as at fetch: a prompt already loaded when the customer opens their
+    // profile must not stay on screen underneath it.
+    const visiblePrompt = isAnyCustomerAuthPopupOpen ? null : prompt;
+    const isPromptVisible = visiblePrompt !== null;
+
+    useEffect(() => {
+        setReviewPromptOpen(isPromptVisible);
+    }, [isPromptVisible, setReviewPromptOpen]);
 
     return (
         <>
@@ -36,10 +45,8 @@ export function CustomerAuthModals(): React.JSX.Element {
                 checkoutMode={loginCheckoutMode}
             />
             <CustomerProfilePopup open={isProfileOpen} onClose={closeAll} />
-            {/* Gated at render as well as at fetch: a prompt already loaded when the
-                customer opens their profile must not stay on screen underneath it. */}
             <ReviewPromptDrawer
-                prompt={isAnyCustomerAuthPopupOpen ? null : prompt}
+                prompt={visiblePrompt}
                 onShown={markShown}
                 onAnswer={answer}
             />
