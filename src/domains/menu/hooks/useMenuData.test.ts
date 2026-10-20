@@ -5,10 +5,29 @@ import {BaseAppInfoResponse} from "../../order/types";
 import {IBranch} from "../../management/inventory/types";
 import {CHOSEN_BRANCH_KEY} from "../../branch/constants";
 import {writeChosenBranch} from "../../branch/utils/customerBranch";
+import {DEFAULT_BRANCH_ID} from "../../../shared/api/client";
+import type {DaySchedule, WorkingHoursSchedule} from "../../../shared/api/management";
 import {useMenuData} from "./useMenuData";
 
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../shared/api/public");
+
+// Read through a getter so a describe can switch the entry gate off. It defaults to on, because
+// the gate tests below describe how it behaves once a second branch opens.
+let mockBranchEntryGateEnabled = true;
+// The factory may not call jest.requireActual itself (`jest` is an import from @jest/globals, which
+// babel-plugin-jest-hoist treats as out of scope), and it runs before this file's own statements,
+// so the real CHOSEN_BRANCH_KEY is read through a getter too.
+// Cast: jest.requireActual returns unknown in this jest typing; the module shape is known.
+const mockActualBranchConstants = jest.requireActual("../../branch/constants") as typeof import("../../branch/constants");
+jest.mock("../../branch/constants", () => ({
+    get CHOSEN_BRANCH_KEY() {
+        return mockActualBranchConstants.CHOSEN_BRANCH_KEY;
+    },
+    get BRANCH_ENTRY_GATE_ENABLED() {
+        return mockBranchEntryGateEnabled;
+    },
+}));
 
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
@@ -328,6 +347,8 @@ describe("useMenuData — customer branch entry gate", () => {
             expect(result.current.customerBranchGateOpen).toBe(true);
         });
         expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).toBeNull();
+        // The customer's choice in the gate reloads the menu, so the hook does not load it twice.
+        expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a stored branch when the branch list comes back empty", async () => {
@@ -375,6 +396,94 @@ describe("useMenuData — customer branch entry gate", () => {
         });
 
         expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+});
+
+// Owner, 20 Oct 2026: one branch for now, so the first-visit gate is switched off.
+describe("useMenuData — customer branch entry gate switched off", () => {
+    const STALE_BRANCH: IBranch = {
+        id: "stale-1", externalId: "ext-stale", branchNo: 3, branchName: "Closed Branch",
+        locale: "en", latitude: null, longitude: null,
+    };
+
+    beforeEach(() => {
+        mockBranchEntryGateEnabled = false;
+        mockFetchBaseAppInfo.mockResolvedValue(MENU_RESPONSE);
+        mockFetchPublicBranches.mockResolvedValue(BRANCHES);
+    });
+
+    afterEach(() => {
+        mockBranchEntryGateEnabled = true;
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it("lets a customer with no stored branch straight into the default branch's menu, storing nothing", async () => {
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.customerBranchGateOpen).toBe(false);
+        expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).toBeNull();
+        expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, DEFAULT_BRANCH_ID);
+        expect(result.current.menuData).toHaveLength(1);
+    });
+
+    it("still forgets a stored branch that is no longer offered, without asking again", async () => {
+        // BRANCHES does not include STALE_BRANCH: it was switched off after the customer chose it.
+        writeChosenBranch(STALE_BRANCH);
+
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).toBeNull();
+        expect(result.current.customerBranchGateOpen).toBe(false);
+    });
+
+    it("reloads the menu, stock and hours from the default branch once the stored one is forgotten", async () => {
+        // Nobody is asked to choose again, so nothing else would replace the closed branch's data.
+        const STALE_RESPONSE: BaseAppInfoResponse = {
+            ...MENU_RESPONSE,
+            menu: [{ ...MENU_RESPONSE.menu[0], id: 99, name: "Closed Branch Pizza", available: false }],
+            isSDoughAvailable: false,
+            workingHours: null,
+        };
+        const OPEN: DaySchedule = { isOpen: true, shifts: [["11:00", "23:00"]] };
+        const DEFAULT_HOURS: WorkingHoursSchedule = {
+            Sunday: OPEN, Monday: OPEN, Tuesday: OPEN, Wednesday: OPEN,
+            Thursday: OPEN, Friday: OPEN, Saturday: OPEN,
+        };
+        mockFetchBaseAppInfo.mockImplementation(async (_user: string | null, branchId: string) =>
+            branchId === STALE_BRANCH.id ? STALE_RESPONSE : { ...MENU_RESPONSE, workingHours: DEFAULT_HOURS },
+        );
+        writeChosenBranch(STALE_BRANCH);
+
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(mockFetchBaseAppInfo).toHaveBeenNthCalledWith(1, null, STALE_BRANCH.id);
+        expect(mockFetchBaseAppInfo).toHaveBeenLastCalledWith(null, DEFAULT_BRANCH_ID);
+        expect(result.current.menuData.map((item) => item.name)).toEqual(["Margherita"]);
+        expect(result.current.isSDoughAvailable).toBe(true);
+        expect(result.current.workingHours).toEqual(DEFAULT_HOURS);
+    });
+
+    it("does not load the menu twice when no stored branch was forgotten", async () => {
+        const { result } = renderHook(() => useMenuData(makeParams()));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(1);
     });
 });
 

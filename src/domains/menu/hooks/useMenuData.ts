@@ -13,8 +13,10 @@ import {
 } from "../utils/customizations";
 import type { IBranch } from "../../management/inventory/types";
 import type { WorkingHoursSchedule } from "../../../shared/api/management";
+import type { BaseAppInfoResponse } from "../../order/types";
 import { resolveKioskBranchId, readKioskBranch } from "../../kiosk/utils/kioskBranch";
 import { clearChosenBranch, readChosenBranch } from "../../branch/utils/customerBranch";
+import { BRANCH_ENTRY_GATE_ENABLED } from "../../branch/constants";
 
 export interface UseMenuDataResult {
     menuData: MenuItem[];
@@ -151,25 +153,39 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
         if (didInit.current) return;
         didInit.current = true;
 
+        function applyBaseInfo(baseInfo: BaseAppInfoResponse): void {
+            setMenuData(baseInfo.menu);
+            setExtraIngredients(baseInfo.extraIngr);
+            setToppings(baseInfo.toppings);
+            setSDoughAvailable(baseInfo.isSDoughAvailable);
+            setWorkingHours(baseInfo.workingHours ?? null);
+        }
+
         async function load(): Promise<void> {
             try {
                 setLoading(true);
-                const baseInfo = await fetchBaseAppInfo(userParam, resolveBranchId());
-                setMenuData(baseInfo.menu);
-                setExtraIngredients(baseInfo.extraIngr);
-                setToppings(baseInfo.toppings);
-                setSDoughAvailable(baseInfo.isSDoughAvailable);
-                setWorkingHours(baseInfo.workingHours ?? null);
+                const loadedBranchId = resolveBranchId();
+                let baseInfo = await fetchBaseAppInfo(userParam, loadedBranchId);
+                applyBaseInfo(baseInfo);
 
                 const branches = await fetchPublicBranches();
                 setAvailableBranches(branches);
 
                 // A branch can be switched off after a customer chose it (the Saar test branch,
-                // 18 Oct 2026). Forget it, so the entry gate below asks them to choose again
-                // instead of sending their next order to a shop nobody runs.
+                // 18 Oct 2026). Forget it, so their next order does not go to a shop nobody runs:
+                // the entry gate below asks them to choose again, or, while the gate is switched
+                // off, the default branch takes over.
                 const storedBranch = readChosenBranch();
                 if (storedBranch !== null && branches.length > 0 && !branches.some((b) => b.id === storedBranch.id)) {
                     clearChosenBranch();
+                    // With the gate on, choosing a branch reloads the menu. With it off nobody is
+                    // asked, so reload here, or the stock and working hours on screen stay the
+                    // closed branch's while the header and checkout already say the default one.
+                    const fallbackBranchId = resolveBranchId();
+                    if (!BRANCH_ENTRY_GATE_ENABLED && fallbackBranchId !== loadedBranchId) {
+                        baseInfo = await fetchBaseAppInfo(userParam, fallbackBranchId);
+                        applyBaseInfo(baseInfo);
+                    }
                 }
 
                 if (isKiosk && !readKioskBranch()) {
@@ -178,8 +194,8 @@ export function useMenuData(params: UseMenuDataParams): UseMenuDataResult {
 
                 // Entry gate (task-spec.md §6.2): an ordinary customer (not kiosk, not admin,
                 // not editing an existing order) who has never chosen a branch must choose one
-                // before reaching the menu.
-                if (!isKiosk && !isAdmin && !isEditMode && !readChosenBranch()) {
+                // before reaching the menu. Switched off while there is only one branch to choose.
+                if (BRANCH_ENTRY_GATE_ENABLED && !isKiosk && !isAdmin && !isEditMode && !readChosenBranch()) {
                     setCustomerBranchGateOpen(true);
                 }
 

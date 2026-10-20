@@ -23,6 +23,24 @@ jest.mock("../shared/api/customerAuth");
 // would open a real STOMP connection from jsdom.
 jest.mock("../shared/api/socket");
 
+// Read through a getter so a describe can switch the first-visit branch gate off. It defaults to
+// on (reset in beforeEach), because the gate tests below describe how it behaves once a second
+// branch opens.
+let mockBranchEntryGateEnabled = true;
+// The factory may not call jest.requireActual itself (`jest` is an import from @jest/globals, which
+// babel-plugin-jest-hoist treats as out of scope), and it runs before this file's own statements,
+// so the real CHOSEN_BRANCH_KEY is read through a getter too.
+// Cast: jest.requireActual returns unknown in this jest typing; the module shape is known.
+const mockActualBranchConstants = jest.requireActual("../domains/branch/constants") as typeof import("../domains/branch/constants");
+jest.mock("../domains/branch/constants", () => ({
+    get CHOSEN_BRANCH_KEY() {
+        return mockActualBranchConstants.CHOSEN_BRANCH_KEY;
+    },
+    get BRANCH_ENTRY_GATE_ENABLED() {
+        return mockBranchEntryGateEnabled;
+    },
+}));
+
 // Manual mock (src/domains/schedule/utils/__mocks__/isWithinWorkingHours.ts) -- lets the
 // ScrollHintArrow "closed branch" popup test below force cart.closedPopup open via the real
 // handleOpenCart entry point, without needing a real working-hours schedule fixture.
@@ -60,6 +78,7 @@ import { CustomerAuthUiProvider, useCustomerAuthUi } from "../domains/customer-a
 import HomePage from "./HomePage";
 import { createOrder } from "../shared/api/public";
 import { CHOSEN_BRANCH_KEY } from "../domains/branch/constants";
+import { DEFAULT_BRANCH_ID } from "../shared/api/client";
 import type { BaseAppInfoResponse, CreateOrderRequest, Order } from "../domains/order/types";
 import type { IBranch } from "../domains/management/inventory/types";
 import type { CustomerActiveOrder, CustomerMeResponse } from "../domains/customer-auth/types";
@@ -178,6 +197,7 @@ beforeEach(() => {
     mockIsWithinWorkingHours.mockReturnValue(true);
     mockImagesReady = true;
     mockPreloadedUrls.length = 0;
+    mockBranchEntryGateEnabled = true;
     localStorage.clear();
     // task-spec.md §6.2: an ordinary customer with no stored branch is blocked by the entry gate.
     // Every PRE-EXISTING scenario in this file exercises the menu as an ordinary customer, so a
@@ -741,6 +761,35 @@ describe("HomePage -- customer branch entry gate", () => {
 
         await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, "order-branch-xyz"));
         expect(screen.queryByText("Choose your branch")).toBeNull();
+    });
+});
+
+// Owner, 20 Oct 2026: one branch for now, so the first-visit gate is switched off and a new
+// customer lands on the default branch's menu.
+describe("HomePage -- customer branch entry gate switched off", () => {
+    const DEFAULT_BRANCH: IBranch = {
+        id: DEFAULT_BRANCH_ID, externalId: "ext-default", branchNo: 1, branchName: "Al-Hidd",
+        locale: "en", latitude: null, longitude: null,
+    };
+
+    beforeEach(() => {
+        mockBranchEntryGateEnabled = false;
+    });
+
+    it("takes a first-time visitor straight to the menu; the header chip still opens the picker", async () => {
+        // Overrides this file's beforeEach seeding -- this test exercises the first visit.
+        localStorage.clear();
+        mockFetchPublicBranches.mockResolvedValue([DEFAULT_BRANCH]);
+        renderHomePage(["/menu"]);
+        await waitForAuthReady();
+
+        await waitFor(() => expect(screen.getByText("Cola")).toBeTruthy());
+        expect(screen.queryByText("Choose your branch")).toBeNull();
+        expect(mockFetchBaseAppInfo).toHaveBeenCalledWith(null, DEFAULT_BRANCH_ID);
+        expect(localStorage.getItem(CHOSEN_BRANCH_KEY)).toBeNull();
+
+        fireEvent.click(screen.getByRole("button", { name: /^Al-Hidd .*change branch/i }));
+        expect(await screen.findByText("Choose your branch")).toBeTruthy();
     });
 });
 
