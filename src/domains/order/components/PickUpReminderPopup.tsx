@@ -1,4 +1,4 @@
-import {Box, Button, Stack, Typography} from "@mui/material";
+import {Box, Button, Modal, Stack, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import PriorityHighRoundedIcon from '@mui/icons-material/PriorityHighRounded';
 
@@ -12,10 +12,17 @@ type Props = {
 
 export function PickUpReminderPopup({onClose, onClick, disabled = false}: Props) {
     const { t } = useTranslation("checkout");
+    // A Modal, not just a fixed box: the payment page is a Modal at the same z-index that portals
+    // into <body>, so a box rendered in the page's own tree sat underneath it. A first-time
+    // customer tapped Pay, the reminder opened out of sight, and Pay seemed to do nothing.
+    // hideBackdrop because the blurred box below is the backdrop and already handles outside taps.
     return (
+        <Modal open onClose={onClose} hideBackdrop>
         <Box
+            data-testid="pickup-reminder-backdrop"
             onClick={onClose}
             sx={{
+                outline: "none",
                 position: "fixed",
                 top: 0,
                 left: 0,
@@ -94,5 +101,6 @@ export function PickUpReminderPopup({onClose, onClick, disabled = false}: Props)
             </Stack>
         </Box>
         </Box>
+        </Modal>
     )
 }

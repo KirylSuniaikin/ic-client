@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { Modal } from "@mui/material";
 
 // PickUpReminderPopup renders its copy via useTranslation("checkout") — initialize the
 // real i18n instance (side-effect import) so keys resolve to English, mirroring
@@ -17,9 +18,9 @@ describe("PickUpReminderPopup", () => {
     const onClick = jest.fn<void, []>();
 
     function renderPopup() {
-        const { container } = render(<PickUpReminderPopup onClose={onClose} onClick={onClick} />);
-        // The full-screen backdrop is the component's root element; the card is its child.
-        return { backdrop: container.firstChild as HTMLElement };
+        render(<PickUpReminderPopup onClose={onClose} onClick={onClick} />);
+        // The full-screen backdrop; the card is its child.
+        return { backdrop: screen.getByTestId("pickup-reminder-backdrop") };
     }
 
     beforeEach(() => {
@@ -46,6 +47,29 @@ describe("PickUpReminderPopup", () => {
 
         expect(onClose).toHaveBeenCalledTimes(1);
         expect(onClick).not.toHaveBeenCalled();
+    });
+
+    // The payment page is a Modal. A first-time customer's Pay opens this reminder while that page
+    // is still up, and the reminder used to render underneath it: Pay looked like it did nothing.
+    it("opens on top of a page that is already showing in a Modal", () => {
+        render(
+            <>
+                <Modal open onClose={() => undefined}>
+                    <div>Payment page</div>
+                </Modal>
+                <PickUpReminderPopup onClose={onClose} onClick={onClick} />
+            </>,
+        );
+        const paymentPage = screen.getByText("Payment page").closest(".MuiModal-root") as HTMLElement;
+        const reminder = screen.getByTestId("pickup-reminder-backdrop").closest(".MuiModal-root") as HTMLElement;
+
+        expect(paymentPage.compareDocumentPosition(reminder) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // MUI hides every modal below the top one from assistive tech; the payment page being
+        // hidden is what proves the reminder is the one in front.
+        expect(paymentPage.getAttribute("aria-hidden")).toBe("true");
+
+        fireEvent.click(screen.getByRole("button", { name: ACTION }));
+        expect(onClick).toHaveBeenCalledTimes(1);
     });
 
     it("places the order — and does not dismiss — when the action button is tapped", () => {
