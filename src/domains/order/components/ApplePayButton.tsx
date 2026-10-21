@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Box } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { PAY_BUTTON_HEIGHT, PAY_BUTTON_RADIUS, PAY_BUTTON_SLOT_SX } from "../../cart/components/CartChrome";
@@ -22,6 +23,20 @@ function hasNativeApplePayButton(): boolean {
 export function ApplePayButton({ onClick, disabled = false }: Props): JSX.Element {
     const { t, i18n } = useTranslation("applePay");
     const label = t("button.label");
+    const appleButtonRef = useRef<HTMLElement>(null);
+
+    // Apple's component stops every click at its own host (apple-pay-button.js, connectedCallback:
+    // addEventListener("click", e => e.stopPropagation())), so the click never bubbles up to the root
+    // where React 18 dispatches onClick: a React onClick on it never fires, and Apple Pay never
+    // started outside Safari. stopPropagation does not stop the host's other listeners, so the tap
+    // is bound on the host itself.
+    useEffect(() => {
+        const host = appleButtonRef.current;
+        if (!host || disabled) return undefined;
+        host.addEventListener("click", onClick);
+        return () => host.removeEventListener("click", onClick);
+    }, [onClick, disabled]);
+
     return (
         <Box sx={PAY_BUTTON_SLOT_SX}>
             {hasNativeApplePayButton() ? (
@@ -49,13 +64,13 @@ export function ApplePayButton({ onClick, disabled = false }: Props): JSX.Elemen
                 // The component has no disabled state of its own, so a busy session both dims it
                 // and drops the tap; the checkout hook's own re-entry guard stays the real lock.
                 <apple-pay-button
+                    ref={appleButtonRef}
                     buttonstyle="black"
                     type="buy"
                     locale={i18n.language === "ar" ? "ar-AB" : "en-US"}
                     role="button"
                     aria-label={label}
                     aria-disabled={disabled}
-                    onClick={disabled ? undefined : onClick}
                     style={{
                         display: "block",
                         width: "100%",

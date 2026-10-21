@@ -71,7 +71,9 @@ declare namespace JSX {
       "aria-disabled"?: boolean;
       "data-testid"?: string;
       style?: Record<string, string | number>;
-      onClick?: () => void;
+      // No onClick: Apple's component stops the click at its host, so React's delegated handler
+      // would never run. Bind the click on the element through this ref instead.
+      ref?: React.Ref<HTMLElement>;
     };
   }
 }
