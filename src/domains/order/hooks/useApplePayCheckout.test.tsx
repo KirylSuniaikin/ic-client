@@ -23,6 +23,7 @@ import { CustomerAuthUiProvider } from "../../customer-auth/context/CustomerAuth
 import "../../../shared/i18n";
 import { useApplePayCheckout } from "./useApplePayCheckout";
 import { ApplePayApiError } from "../applePayTypes";
+import type { ApplePayPaymentResponse } from "../applePayTypes";
 import { BranchClosedError, ItemsUnavailableError } from "../types";
 import type { CartItem } from "../../menu/types";
 import type { CustomerMeResponse } from "../../customer-auth/types";
@@ -739,6 +740,135 @@ describe("useApplePayCheckout — PENDING", () => {
         expect(session.completePayment).toHaveBeenCalledWith(FakeApplePaySession.STATUS_FAILURE);
         expect(result.current.notice).toBe("Your payment needs a manual check. Please contact the restaurant.");
         expect(result.current.busy).toBe(true);
+    });
+});
+
+describe("useApplePayCheckout — cancel while authorizing", () => {
+    const PENDING: ApplePayPaymentResponse = { orderId: 4821, status: "PENDING", amount: "5.000", currency: "BHD" };
+    const APPROVED: ApplePayPaymentResponse = { ...PENDING, status: "APPROVED" };
+    const PENDING_NOTICE = "We are confirming your payment. Please do not pay again.";
+
+    type Deferred<T> = { resolve: (value: T) => void; reject: (reason: unknown) => void };
+
+    // Holds pay in flight so the cancel can land between the customer's authorization and its result.
+    function deferPay(): Deferred<ApplePayPaymentResponse> {
+        const deferred: Deferred<ApplePayPaymentResponse> = { resolve: () => undefined, reject: () => undefined };
+        mockPay.mockReturnValue(new Promise<ApplePayPaymentResponse>((resolve, reject) => {
+            deferred.resolve = resolve;
+            deferred.reject = reject;
+        }));
+        return deferred;
+    }
+
+    // WebKit: once the sheet was cancelled or timed out, completePayment throws InvalidAccessError.
+    // authorize() runs fire-and-forget, so a throw escaping it is an unhandled rejection, and
+    // jest-circus fails the running test on one; that is what these tests catch.
+    function cancelSafariSheet(session: FakeApplePaySession): void {
+        session.completePayment.mockImplementation(() => {
+            throw new DOMException("The payment session is no longer active.", "InvalidAccessError");
+        });
+        act(() => { session.oncancel?.(); });
+    }
+
+    it("a cancel before the customer authorizes still unlocks the button", async () => {
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+
+        act(() => { session.oncancel?.(); });
+
+        expect(result.current.busy).toBe(false);
+        act(() => { result.current.start(); });
+        expect(FakeApplePaySession.instances).toHaveLength(2);
+    });
+
+    it("a cancel while pay is in flight keeps the button locked; PENDING then shows the notice and polls", async () => {
+        const pay = deferPay();
+        mockStatus.mockResolvedValue(APPROVED);
+        const { result, params } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        jest.useFakeTimers();
+        await authorize(session);
+
+        act(() => { session.oncancel?.(); });
+
+        expect(result.current.busy).toBe(true);
+        act(() => { result.current.start(); });
+        expect(FakeApplePaySession.instances).toHaveLength(1);
+        await act(async () => { pay.resolve(PENDING); });
+        expect(result.current.notice).toBe(PENDING_NOTICE);
+        expect(result.current.busy).toBe(true);
+        await act(async () => { jest.advanceTimersByTime(3000); });
+        expect(mockStatus).toHaveBeenCalledWith(TOKEN_SENTINEL, 4821);
+        expect(params.setCartItems).toHaveBeenCalledWith([]);
+        expect(result.current.busy).toBe(false);
+    });
+
+    // Outside Safari, Apple's SDK fires oncancel on every QR close but a success close, so the
+    // QR closing on the FAILURE completion of a PENDING payment lands after authorize() is done.
+    it("the QR closing after a PENDING completion keeps the button locked while the poll runs", async () => {
+        mockPay.mockResolvedValue(PENDING);
+        mockStatus.mockResolvedValue(PENDING);
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        jest.useFakeTimers();
+        await authorize(session);
+
+        act(() => { session.oncancel?.(); });
+
+        expect(result.current.busy).toBe(true);
+        expect(result.current.notice).toBe(PENDING_NOTICE);
+        await act(async () => { jest.advanceTimersByTime(3000); });
+        expect(mockStatus).toHaveBeenCalledWith(TOKEN_SENTINEL, 4821);
+    });
+
+    it("a completePayment that throws after a Safari cancel still shows the notice and polls on PENDING", async () => {
+        const pay = deferPay();
+        mockStatus.mockResolvedValue(PENDING);
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        jest.useFakeTimers();
+        await authorize(session);
+        cancelSafariSheet(session);
+
+        await act(async () => { pay.resolve(PENDING); });
+
+        expect(result.current.notice).toBe(PENDING_NOTICE);
+        expect(result.current.busy).toBe(true);
+        await act(async () => { jest.advanceTimersByTime(3000); });
+        expect(mockStatus).toHaveBeenCalledWith(TOKEN_SENTINEL, 4821);
+        expect(console.warn).toHaveBeenCalledWith("Apple Pay sheet could not be completed:", "InvalidAccessError");
+    });
+
+    it("a completePayment that throws after a Safari cancel still completes an APPROVED payment", async () => {
+        const pay = deferPay();
+        const { result, params } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        await authorize(session);
+        cancelSafariSheet(session);
+
+        await act(async () => { pay.resolve(APPROVED); });
+
+        expect(session.completePayment).toHaveBeenCalledWith(FakeApplePaySession.STATUS_SUCCESS);
+        expect(params.setCartItems).toHaveBeenCalledWith([]);
+        expect(params.setCartOpen).toHaveBeenCalledWith(false);
+        expect(result.current.notice).toBeNull();
+        expect(result.current.busy).toBe(false);
+        expect(console.warn).toHaveBeenCalledWith("Apple Pay sheet could not be completed:", "InvalidAccessError");
+    });
+
+    it("a completePayment that throws after a Safari cancel still reports a definitive rejection and unlocks", async () => {
+        const pay = deferPay();
+        const { result } = await renderAvailable();
+        const session = tapAndGetSession(result.current.start);
+        await authorize(session);
+        cancelSafariSheet(session);
+
+        await act(async () => { pay.reject(new ApplePayApiError("APPLE_PAY_INVALID_REQUEST", 400)); });
+
+        expect(result.current.error).toBe("Apple Pay payment could not be completed. You were not charged.");
+        expect(result.current.busy).toBe(false);
+        expect(mockStatus).not.toHaveBeenCalled();
+        expect(console.warn).toHaveBeenCalledWith("Apple Pay sheet could not be completed:", "InvalidAccessError");
     });
 });
 

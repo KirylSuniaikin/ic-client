@@ -200,6 +200,18 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         );
     }
 
+    // Safari throws InvalidAccessError from completePayment once its sheet was cancelled or timed
+    // out while authorize() still waited on the backend. There is no sheet left to update, but the
+    // outcome still has to land: letting the throw escape would skip the notice, the poll or
+    // completeSuccess and leave authorize() rejecting unhandled.
+    function completeSheet(session: ApplePaySessionInstance, status: number): void {
+        try {
+            session.completePayment(status);
+        } catch (failure: unknown) {
+            logger.warn("Apple Pay sheet could not be completed:", describeError(failure));
+        }
+    }
+
     async function authorize(
         session: ApplePaySessionInstance,
         event: ApplePayPaymentAuthorizedEvent,
@@ -229,7 +241,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
             createdOrderId = created.orderId;
             if (created.amount !== sheetAmount) {
                 logger.error("Apple Pay amount mismatch for order", created.orderId);
-                session.completePayment(window.ApplePaySession?.STATUS_FAILURE ?? 1);
+                completeSheet(session, window.ApplePaySession?.STATUS_FAILURE ?? 1);
                 report(handlers.current.t("errors.generic"));
                 release();
                 return;
@@ -241,11 +253,11 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
                 fbp: resolveFbp() ?? null,
             });
             if (result.status === "APPROVED") {
-                session.completePayment(window.ApplePaySession?.STATUS_SUCCESS ?? 0);
+                completeSheet(session, window.ApplePaySession?.STATUS_SUCCESS ?? 0);
                 completeSuccess(result.orderId, amount, tel);
                 return;
             }
-            session.completePayment(window.ApplePaySession?.STATUS_FAILURE ?? 1);
+            completeSheet(session, window.ApplePaySession?.STATUS_FAILURE ?? 1);
             if (result.status === "DECLINED") {
                 report(handlers.current.t("errors.declined"));
                 release();
@@ -257,7 +269,7 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
             }
         } catch (failure: unknown) {
             logger.error("Apple Pay authorization failed:", describeError(failure));
-            session.completePayment(window.ApplePaySession?.STATUS_FAILURE ?? 1);
+            completeSheet(session, window.ApplePaySession?.STATUS_FAILURE ?? 1);
             // Any pay-stage failure AFTER the order exists that is not a documented definitive
             // rejection (5xx, transport, unknown token) may still have charged the customer:
             // never unblock on a guess, resolve it through the status endpoint instead.
@@ -301,9 +313,19 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
             const { amount, sheetAmount } = computeSheetTotal(current.items);
             const session = new SessionClass(APPLE_PAY_VERSION, buildApplePayRequest(sheetAmount));
             const snapshot = { items: current.items, orderType: current.orderType, branchId: current.branchId, profile, amount, sheetAmount };
+            // Once the customer authorizes, authorize() owns the lock: every path it ends on releases,
+            // hands over to the poll (which releases on APPROVED or DECLINED and otherwise keeps it)
+            // or holds it on purpose for REVIEW. A cancel after that says nothing about the charge:
+            // Safari's cancel or timeout can land while pay is still in flight, and outside Safari
+            // Apple's SDK fires oncancel on every QR close but a success close, including the one
+            // after a FAILURE completion. Unlocking there would let the customer pay a second time.
+            let authorized = false;
             session.onvalidatemerchant = (event): void => { void validateMerchant(session, event.validationURL); };
-            session.onpaymentauthorized = (event): void => { void authorize(session, event, snapshot); };
-            session.oncancel = (): void => { release(); };
+            session.onpaymentauthorized = (event): void => {
+                authorized = true;
+                void authorize(session, event, snapshot);
+            };
+            session.oncancel = (): void => { if (!authorized) release(); };
             session.begin();
         } catch (failure: unknown) {
             logger.error("Apple Pay session could not start:", describeError(failure));
