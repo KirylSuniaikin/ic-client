@@ -31,7 +31,7 @@ const WATER: CartItem = {
 };
 const WATER_MENU = { name: "Water", name_ar: "ماء" } as MenuItem;
 
-const ALL_METHODS = ["Card", "Apple Pay", "Benefit", "BenefitPay", "At counter"];
+const ALL_METHODS = ["Apple Pay", "BenefitPay", "Card", "Benefit", "At counter"];
 
 type PickupPayment = Extract<CheckoutPaymentPageProps["payment"], { kind: "pickup" }>;
 
@@ -76,7 +76,7 @@ afterEach(() => {
 });
 
 describe("CheckoutPaymentPage — a pickup order", () => {
-    it("lists every method by Talabat popularity, the counter last, with none chosen", () => {
+    it("lists every method by Keeta popularity, the counter last, with none chosen", () => {
         renderPage({}, { applePay: checkoutMethod(), cardPayment: checkoutMethod() });
 
         expect(methodNames()).toEqual(ALL_METHODS);
@@ -86,7 +86,13 @@ describe("CheckoutPaymentPage — a pickup order", () => {
     it("leaves out card and Apple Pay when this customer cannot use them", () => {
         renderPage({}, { applePay: checkoutMethod(false), cardPayment: checkoutMethod(false) });
 
-        expect(methodNames()).toEqual(["Benefit", "BenefitPay", "At counter"]);
+        expect(methodNames()).toEqual(["BenefitPay", "Benefit", "At counter"]);
+    });
+
+    it("opens on BenefitPay where the device has no Apple Pay", () => {
+        renderPage({}, { applePay: checkoutMethod(false), cardPayment: checkoutMethod() });
+
+        expect(methodNames()).toEqual(["BenefitPay", "Card", "Benefit", "At counter"]);
     });
 
     it("says where the order is collected from, and carries the new-methods bubble", () => {
@@ -413,10 +419,10 @@ describe("CheckoutPaymentPage — a delivery order", () => {
     }
 
     // EazyPay's hosted page runs card and Apple Pay itself, so they do not depend on ours.
-    it("lists what EazyPay's hosted page takes: card, Apple Pay and Benefit", () => {
+    it("lists what EazyPay's hosted page takes: Apple Pay, card and Benefit", () => {
         openDeliveryPage();
 
-        expect(methodNames()).toEqual(["Card", "Apple Pay", "Benefit"]);
+        expect(methodNames()).toEqual(["Apple Pay", "Card", "Benefit"]);
         expect(screen.getByText("Deliver to")).toBeTruthy();
         expect(screen.getByText("Home")).toBeTruthy();
     });

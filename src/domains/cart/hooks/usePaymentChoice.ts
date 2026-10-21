@@ -13,13 +13,13 @@ type TenderChoice = typeof DEFAULT_PAYMENT_METHOD | typeof PAY_ONLINE_METHOD | t
 type CheckoutChoice = typeof APPLE_PAY_CHOICE | typeof CARD_CHOICE;
 export type PaymentChoice = TenderChoice | CheckoutChoice;
 
-// Most used first, by how our Talabat customers paid (export of 11–17 Oct 2026, 257 delivered
-// orders): Credit Card 50.6%, Cash 25.3%, not stated 12.1%, Debit Card 10.1%, Talabat Credit
-// 1.9%. Card leads; Apple Pay and BenefitPay never appear there, so Apple Pay — card-funded —
-// sits beside card, and Benefit stands in for "Debit Card" because Bahraini debit cards run on
-// BENEFIT. At counter is last on the owner's instruction (18 Oct 2026), although cash ranks second.
+// Most used first, by how our Keeta pickup customers paid (1–17 Oct 2026, 503 orders): Apple Pay
+// 58.4%, BenefitPay 16.9%, bank card 12.1%, Benefit 5.6%, cash 4.6%. Keeta replaced the earlier
+// Talabat export as the source (owner, 21 Oct 2026): Talabat never lists Apple Pay or BenefitPay,
+// so it ranked card first. Apple Pay shows only where the device has it, so other phones open on
+// BenefitPay. At counter is last on the owner's instruction (18 Oct 2026).
 const DISPLAY_ORDER: readonly PaymentChoice[] = [
-    CARD_CHOICE, APPLE_PAY_CHOICE, PAY_ONLINE_METHOD, WALLET_METHOD, DEFAULT_PAYMENT_METHOD,
+    APPLE_PAY_CHOICE, WALLET_METHOD, CARD_CHOICE, PAY_ONLINE_METHOD, DEFAULT_PAYMENT_METHOD,
 ];
 
 // What a delivery order can be paid with: the three methods EazyPay's hosted page takes. That page
