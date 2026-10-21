@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 // The title and the "Next" label come from useTranslation("checkout") — initialize the real
 // i18n instance so the keys resolve to English.
@@ -35,7 +35,7 @@ type PopupMocks = {
     onClose: ReturnType<typeof jest.fn<void, []>>;
 };
 
-function renderPopup(): PopupMocks {
+function renderPopup(crossSellItems: MenuItem[] = ITEMS): PopupMocks {
     const onAddToCart = jest.fn<void, [CartItem[]]>();
     const onCheckout = jest.fn<void, []>();
     const onClose = jest.fn<void, []>();
@@ -44,11 +44,31 @@ function renderPopup(): PopupMocks {
             open
             onClose={onClose}
             onAddToCart={onAddToCart}
-            crossSellItems={ITEMS}
+            crossSellItems={crossSellItems}
             onCheckout={onCheckout}
         />
     );
     return { onAddToCart, onCheckout, onClose };
+}
+
+/** A card is the direct parent of its item's name. */
+function cardOf(name: string): HTMLElement {
+    const card = screen.getByText(name).parentElement;
+    if (card === null) throw new Error(`"${name}" has no card`);
+    return card;
+}
+
+function gridOf(name: string): HTMLElement {
+    const grid = cardOf(name).parentElement;
+    if (grid === null) throw new Error(`"${name}" has no grid`);
+    return grid;
+}
+
+/** The slot under the name that holds the price, or the -/qty/+ stepper once the card is picked. */
+function bottomSlotOf(name: string): HTMLElement {
+    const slot = cardOf(name).lastElementChild;
+    if (!(slot instanceof HTMLElement)) throw new Error(`"${name}" has an empty card`);
+    return slot;
 }
 
 function buttonLabels(): string[] {
@@ -104,7 +124,7 @@ describe("CrossSellPopup — PC", () => {
         expect(emotionRulesFor(dialog)).toContain("width:min(560px, 92vw)");
         expect(buttonLabels()).toEqual(["Next"]);
 
-        // Pinned: the footer sits outside the scrolling body that holds the title and the rows.
+        // Pinned: the footer sits outside the scrolling body that holds the title and the cards.
         const body = screen.getByText("Customers also buy").parentElement;
         if (body === null) throw new Error("title has no parent");
         expect(emotionRulesFor(body)).toContain("overflow-y:auto");
@@ -116,5 +136,83 @@ describe("CrossSellPopup — PC", () => {
         stubMatchMedia(true);
 
         expectNextAddsThenChecksOutThenCloses(renderPopup());
+    });
+});
+
+// Owner, 21 Oct 2026 (iPhone, 393pt): rows of three fixed 140px cards scrolled sideways, so the third
+// card was cut off at the right edge, and a name wrapping to two lines pushed its price lower.
+describe("CrossSellPopup — card grid", () => {
+    it.each([
+        ["phone", false],
+        ["PC", true],
+    ])("%s: all six cards share one grid, two columns below 600px and three from 600px up, with no sideways scroll", (_surface, desktop) => {
+        stubMatchMedia(desktop);
+        renderPopup();
+
+        const grid = gridOf(NAMES[0]);
+        expect(grid.children).toHaveLength(6);
+        NAMES.slice(0, 6).forEach((name) => {
+            expect(gridOf(name)).toBe(grid);
+        });
+
+        const rules = emotionRulesFor(grid);
+        expect(rules).toContain("display:grid");
+        expect(rules).toContain("grid-template-columns:repeat(2, minmax(0, 1fr))");
+        expect(rules).toMatch(/@media \(min-width:600px\) \{[^}]*grid-template-columns:repeat\(3, minmax\(0, 1fr\)\)/);
+        expect(rules).not.toContain("overflow-x");
+    });
+
+    it("cards take their column's width and pin the price to the bottom, so a row lines up whatever the name's length", () => {
+        renderPopup();
+
+        // Grid items stretch to their row's height unless told otherwise; nothing here may opt out.
+        expect(emotionRulesFor(gridOf(NAMES[0]))).not.toContain("align-items");
+        NAMES.slice(0, 6).forEach((name) => {
+            const cardRules = emotionRulesFor(cardOf(name));
+            expect(cardRules).toContain("display:flex");
+            expect(cardRules).toContain("flex-direction:column");
+            expect(cardRules).toContain("min-width:0");
+            expect(cardRules).not.toMatch(/[\s;{]width:/);
+            expect(cardRules).not.toContain("flex-shrink");
+
+            expect(emotionRulesFor(screen.getByText(name))).toContain("flex-grow:1");
+            expect(bottomSlotOf(name).textContent).toBe("+1.5");
+        });
+    });
+
+    it("keeps a photo's aspect in a fixed-height box, as tall as a photo-less card's placeholder", () => {
+        renderPopup([{ ...menuItem(1, "Hot Honey Sauce"), photo: "hot-honey.webp" }, menuItem(2, "Water")]);
+
+        const photo = screen.getByRole("img", { name: "Hot Honey Sauce" });
+        expect(photo.style.display).toBe("block");
+        expect(photo.style.width).toBe("100%");
+        expect(photo.style.height).toBe("120px");
+        expect(photo.style.objectFit).toBe("contain");
+
+        const placeholder = cardOf("Water").firstElementChild;
+        if (placeholder === null) throw new Error("Water has an empty card");
+        expect(emotionRulesFor(placeholder)).toContain("height:120px");
+    });
+
+    it("a picked card swaps its price for the -/qty/+ stepper in the same one-line slot at the bottom", () => {
+        const mocks = renderPopup();
+        const slot = bottomSlotOf("Garlic Bread");
+        const slotRules = emotionRulesFor(slot);
+        expect(slotRules).toContain("height:30px");
+        expect(slotRules).toContain("white-space:nowrap");
+
+        fireEvent.click(screen.getByText("Garlic Bread"));
+
+        expect(bottomSlotOf("Garlic Bread")).toBe(slot);
+        expect(within(slot).getAllByRole("button").map((button) => button.textContent)).toEqual(["–", "+"]);
+        expect(slot.textContent).toBe("–1+");
+        expect(bottomSlotOf("Pizza Rolls").textContent).toBe("+1.5");
+
+        fireEvent.click(within(slot).getByRole("button", { name: "+" }));
+        expect(slot.textContent).toBe("–2+");
+        fireEvent.click(screen.getByRole("button", { name: "Next" }));
+        expect(mocks.onAddToCart.mock.calls[0][0]).toEqual([
+            expect.objectContaining({ name: "Garlic Bread", quantity: 2 }),
+        ]);
     });
 });
