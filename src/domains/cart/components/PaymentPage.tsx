@@ -174,6 +174,10 @@ export function PaymentPage({
     const { t } = useTranslation("paymentChoice");
     const isDesktop = useDesktopLayout();
     const methodsTitleId = useId();
+    // Outside Safari, Apple Pay's sheet is a QR that Apple's SDK draws beside this page, up while
+    // the Apple Pay checkout is busy. Holding focus would pull it back from the QR, and the
+    // customer's Escape would then close this page under the QR, its session still running.
+    const applePayBusy = selected === APPLE_PAY_CHOICE && busy;
 
     function payButton(): JSX.Element {
         if (selected === null) {
@@ -218,6 +222,7 @@ export function PaymentPage({
             onClose={onBack}
             legacy={{ paperSx: SCREEN_ROOT_SX }}
             showClose={isDesktop}
+            yieldFocus={applePayBusy}
             desktop={{ aside: <OrderSummary items={items} menuData={menuData} /> }}
             footer={isDesktop ? payButton() : undefined}
         >

@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import type { RenderOptions } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -16,7 +16,7 @@ import type { CartItem, MenuItem } from "../../menu/types";
 import { DEFAULT_PAYMENT_METHOD, PAY_ONLINE_METHOD, WALLET_METHOD } from "../../order/types";
 import { clearMatchMedia, stubMatchMedia } from "../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../management/couriers/components/emotionRules.testutil";
-import { layerOf, modalRootOf, sheetRoot, wrapperOf } from "./cartLayout.testutil";
+import { focusedElement, layerOf, modalRootOf, sheetRoot, wrapperOf } from "./cartLayout.testutil";
 
 // The stacking tests below mount the real picker; its map half must never load the Google script.
 jest.mock("../../branch/components/BranchMapView");
@@ -482,6 +482,72 @@ describe("CheckoutPaymentPage — on PC", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Outside Safari, Apple Pay's sheet is a QR in Apple's own <apple-pay-modal>, a sibling of this
+ * page's portal, up for as long as the Apple Pay checkout is busy. The page must not pull focus back
+ * from it, or the customer's Escape closes the page underneath while the QR and its session stay.
+ */
+describe.each([
+    ["the phone", false],
+    ["PC", true],
+])("CheckoutPaymentPage — beside Apple Pay's QR, on %s", (_surface, desktop) => {
+    function openOnApplePay(busy: boolean) {
+        stubMatchMedia(desktop);
+        const view = renderPage({}, { applePay: checkoutMethod(true, busy) });
+        pick("Apple Pay");
+        return view;
+    }
+
+    /** Renders a focusable stand-in for Apple's QR dialog outside the page and moves focus onto it. */
+    function focusAppleQr(): HTMLElement {
+        render(<button type="button">Apple Pay QR</button>);
+        const qr = screen.getByRole("button", { name: "Apple Pay QR" });
+        act(() => qr.focus());
+        return qr;
+    }
+
+    function pressEscape(): void {
+        fireEvent.keyDown(screen.getByRole("radiogroup", { name: "Payment method" }), { key: "Escape" });
+    }
+
+    it("leaves focus on the QR while Apple Pay is busy", () => {
+        openOnApplePay(true);
+
+        const qr = focusAppleQr();
+
+        expect(focusedElement()).toBe(qr);
+    });
+
+    it("does not go back on Escape while Apple Pay is busy", () => {
+        const { onBack } = openOnApplePay(true);
+
+        pressEscape();
+
+        expect(onBack).not.toHaveBeenCalled();
+    });
+
+    it("keeps focus on the page and goes back on Escape when Apple Pay is idle", () => {
+        const { onBack } = openOnApplePay(false);
+
+        const qr = focusAppleQr();
+        expect(focusedElement()).not.toBe(qr);
+        expect(focusedElement().contains(screen.getByRole("radiogroup", { name: "Payment method" }))).toBe(true);
+
+        pressEscape();
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    // Only Apple Pay's QR sits outside the page; the card form is a Drawer that MUI stacks over it.
+    it("goes back on Escape while the card checkout is busy", () => {
+        stubMatchMedia(desktop);
+        const { onBack } = renderPage({}, { cardPayment: checkoutMethod(true, true) });
+        pick("Card");
+
+        pressEscape();
         expect(onBack).toHaveBeenCalledTimes(1);
     });
 });

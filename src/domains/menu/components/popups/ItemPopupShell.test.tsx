@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import { prefixer } from "stylis";
@@ -16,6 +16,7 @@ import type { ItemPopupShellProps } from "./ItemPopupShell";
 import { DesktopLayoutAllowedContext } from "../../../../shared/hooks/useDesktopLayout";
 import { clearMatchMedia, stubMatchMedia } from "../../../../shared/hooks/stubMatchMedia.testutil";
 import { emotionRulesFor } from "../../../management/couriers/components/emotionRules.testutil";
+import { focusedElement } from "../../../cart/components/cartLayout.testutil";
 
 type ShellOverrides = Partial<Omit<ItemPopupShellProps, "onClose" | "children">>;
 
@@ -237,5 +238,52 @@ describe("ItemPopupShell — PC path", () => {
         const rules = emotionRulesFor(screen.getByRole("button", { name: "Close" }));
         expect(rules).toContain("left:16px");
         expect(rules).not.toContain("right:16px");
+    });
+});
+
+// Outside Safari, Apple Pay's QR is Apple's own <apple-pay-modal>, a sibling of this Modal's portal.
+// While it is up the payment page yields to it: focus left on it stays there, and Escape is for it.
+describe.each([
+    ["phone", false],
+    ["PC", true],
+] as const)("ItemPopupShell — beside a dialog outside it, on %s", (_surface, desktop) => {
+    /** Renders a focusable stand-in for Apple's dialog outside the Modal and moves focus onto it. */
+    function focusOutside(): HTMLElement {
+        render(<button type="button">Apple Pay QR</button>);
+        const outside = screen.getByRole("button", { name: "Apple Pay QR" });
+        act(() => outside.focus());
+        return outside;
+    }
+
+    it("pulls focus back and closes on Escape by default", () => {
+        stubMatchMedia(desktop);
+        const onClose = jest.fn<void, []>();
+        renderShell({}, onClose);
+
+        const outside = focusOutside();
+        expect(focusedElement()).not.toBe(outside);
+        expect(focusedElement().contains(screen.getByText("Options"))).toBe(true);
+
+        fireEvent.keyDown(screen.getByText("Options"), { key: "Escape" });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves focus outside while it yields focus", () => {
+        stubMatchMedia(desktop);
+        renderShell({ yieldFocus: true });
+
+        const outside = focusOutside();
+
+        expect(focusedElement()).toBe(outside);
+    });
+
+    it("stays open on Escape while it yields focus", () => {
+        stubMatchMedia(desktop);
+        const onClose = jest.fn<void, []>();
+        renderShell({ yieldFocus: true }, onClose);
+
+        fireEvent.keyDown(screen.getByText("Options"), { key: "Escape" });
+
+        expect(onClose).not.toHaveBeenCalled();
     });
 });

@@ -347,6 +347,22 @@ describe("useApplePayCheckout — gesture", () => {
         expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
+    // Outside Safari, Apple's SDK shows its QR and focuses it inside begin() itself from the second
+    // session of a page load. The payment page lets go of focus on the busy render, so that render
+    // must already be committed by then, or the page pulls focus straight back from the QR.
+    it("commits busy before begin(), so the page has let go of focus when Apple's QR takes it", async () => {
+        const { result } = await renderAvailable();
+        const busyAtBegin: boolean[] = [];
+        class BusyProbeSession extends FakeApplePaySession {
+            begin = jest.fn<void, []>(() => { busyAtBegin.push(result.current.busy); });
+        }
+        window.ApplePaySession = BusyProbeSession;
+
+        act(() => { result.current.start(); });
+
+        expect(busyAtBegin).toEqual([true]);
+    });
+
     it("reports sessionFailed and unlocks when the constructor throws", async () => {
         const { result } = await renderAvailable();
         FakeApplePaySession.throwOnConstruct = true;

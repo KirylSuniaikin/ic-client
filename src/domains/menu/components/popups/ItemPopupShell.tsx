@@ -56,6 +56,10 @@ export interface ItemPopupShellProps {
     footer?: ReactNode;
     /** Round close button. Default true. CrossSell and Upsell pass false (they have none today). */
     showClose?: boolean;
+    /** While true the Modal neither pulls focus back into itself nor closes on Escape: a dialog
+     *  outside its portal owns both for now. That is Apple Pay's QR outside Safari, which Apple's
+     *  SDK draws in its own <apple-pay-modal> on <body>. Default false. */
+    yieldFocus?: boolean;
     children: ReactNode;
 }
 
@@ -146,6 +150,7 @@ export function ItemPopupShell({
     modalSx,
     footer,
     showClose = true,
+    yieldFocus = false,
     children,
 }: ItemPopupShellProps): JSX.Element {
     const { t } = useTranslation("customerAuth");
@@ -155,7 +160,13 @@ export function ItemPopupShell({
     // at 2000, later Modals at 1300) relies on MUI's default and on portal order.
     if (!isDesktop) {
         return (
-            <Modal open={open} onClose={onClose} sx={modalSx}>
+            <Modal
+                open={open}
+                onClose={onClose}
+                sx={modalSx}
+                disableEnforceFocus={yieldFocus}
+                disableEscapeKeyDown={yieldFocus}
+            >
                 <Box sx={legacy.paperSx}>
                     {showClose && (
                         <Fab size="small" onClick={onClose} aria-label={undefined} sx={CLOSE_FAB_SX}>
@@ -176,7 +187,13 @@ export function ItemPopupShell({
     const split = photo !== undefined || aside !== undefined;
 
     return (
-        <Modal open={open} onClose={onClose} sx={modalSx}>
+        <Modal
+            open={open}
+            onClose={onClose}
+            sx={modalSx}
+            disableEnforceFocus={yieldFocus}
+            disableEscapeKeyDown={yieldFocus}
+        >
             <Box data-testid="item-popup-dialog" sx={split ? SPLIT_PAPER_SX : centredModalPaperSx(desktop?.width ?? 560)}>
                 {showClose && (
                     <Fab size="small" onClick={onClose} aria-label={t("login.close")} sx={CLOSE_FAB_SX}>

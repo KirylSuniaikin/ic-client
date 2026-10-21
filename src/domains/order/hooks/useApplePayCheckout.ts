@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, Dispatch, SetStateAction } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { logger } from "../../../shared/utils/logger";
 import {
@@ -291,7 +292,10 @@ export function useApplePayCheckout(params: UseApplePayCheckoutParams): UseApple
         const profile = current.prefetch?.profile;
         if (busyRef.current || !SessionClass || !profile) return;
         busyRef.current = true;
-        setBusy(true);
+        // Committed before begin(): outside Safari, from the second session of a page load, Apple's
+        // SDK shows its QR and focuses it inside begin() itself. The payment page stops holding
+        // focus only on this render, so a render left for later would let it pull focus back.
+        flushSync(() => setBusy(true));
         setError(null);
         try {
             const { amount, sheetAmount } = computeSheetTotal(current.items);
