@@ -113,6 +113,30 @@ describe("CrossSellPopup — phone", () => {
     it("adds the picked items, then checks out, then closes on Next", () => {
         expectNextAddsThenChecksOutThenCloses(renderPopup());
     });
+
+    // Owner, 22 Oct 2026: with six items the sheet needs a third row of cards, and Next scrolled
+    // away with them.
+    it("pins Next under the scrolling title and cards", () => {
+        renderPopup();
+
+        const body = screen.getByText("Customers also buy").parentElement;
+        if (body === null) throw new Error("title has no parent");
+        const sheet = body.parentElement;
+        if (sheet === null) throw new Error("scroll area has no sheet");
+        const next = screen.getByRole("button", { name: "Next" });
+
+        const bodyRules = emotionRulesFor(body);
+        expect(bodyRules).toContain("overflow-y:auto");
+        expect(bodyRules).toContain("min-height:0");
+        expect(body.contains(gridOf(NAMES[0]))).toBe(true);
+        expect(body.contains(next)).toBe(false);
+
+        const sheetRules = emotionRulesFor(sheet);
+        expect(sheetRules).toContain("max-height:85vh");
+        expect(sheetRules).toContain("overflow:hidden");
+        expect(sheetRules).not.toContain("overflow-y");
+        expect(sheet.lastElementChild?.contains(next)).toBe(true);
+    });
 });
 
 describe("CrossSellPopup — PC", () => {

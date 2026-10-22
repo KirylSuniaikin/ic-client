@@ -21,8 +21,8 @@ export interface ItemPopupLegacyLayout {
     /** Today's sheet Box sx, MOVED verbatim from the popup (never edited) — keeps the phone,
      *  admin and kiosk path byte-identical, md-keyed values included. */
     paperSx: SxProps<Theme>;
-    /** Today's scroll container sx. Omit when the paper itself scrolls (CrossSell) or nothing
-     *  scrolls (Upsell): media/children/footer are then direct children of the paper. */
+    /** Today's scroll container sx. Omit when the paper itself scrolls or nothing scrolls
+     *  (Upsell): media/children/footer are then direct children of the paper. */
     scrollSx?: SxProps<Theme>;
     /** First child of the scroll container: the popup's current photo block, unchanged. */
     media?: ReactNode;

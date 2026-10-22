@@ -118,9 +118,16 @@ function CrossSellPopup({
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
                     maxHeight: "85vh",
-                    overflowY: "auto",
+                    overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
+                },
+                // Only the title and cards scroll, so Next stays on screen when six items need a
+                // third row of cards on a phone.
+                scrollSx: {
+                    flex: "1 1 auto",
+                    minHeight: 0,
+                    overflowY: "auto",
                 },
             }}
             desktop={{ width: 560 }}
