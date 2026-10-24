@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React, { useState } from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { HistoryDateRange, Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
@@ -391,9 +391,9 @@ describe("HistoryComponent", () => {
             expect(loadMore).toHaveBeenCalledTimes(1);
         });
 
-        // Owner, 19 Oct 2026: loading the next page threw the list back to its first orders. Masonry
-        // shows the appended cards first in the flex order for a frame, and Chrome's scroll
-        // anchoring follows the shuffle; with anchoring off the list stays where it was scrolled.
+        // Owner, 19 Oct 2026: loading the next page threw the list back to its first orders. The old
+        // Masonry layout showed the appended cards first in the flex order for a frame, and Chrome's
+        // scroll anchoring followed the shuffle; with anchoring off the list stays where it was scrolled.
         it("keeps the list where it was scrolled when a page is appended", () => {
             mockUseOrderHistory.mockImplementation(
                 makeMockHookImplementation({ initialOrders: [makeOrder("1", 11111111)], hasMore: true })
@@ -418,6 +418,34 @@ describe("HistoryComponent", () => {
             );
 
             expect(loadMore).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("order grid", () => {
+        // Owner, 24 Oct 2026: Masonry packed the tickets into columns, so they did not read in order.
+        // They now sit in rows, and each row starts under the tallest ticket of the row above.
+        it("lays the tickets out in rows, newest first, left to right", () => {
+            mockUseOrderHistory.mockImplementation(
+                makeMockHookImplementation({
+                    initialOrders: [
+                        { ...makeOrder("1", 1001), order_created: "2026-10-24T08:00:00Z" },
+                        { ...makeOrder("2", 1002), order_created: "2026-10-24T10:00:00Z" },
+                        { ...makeOrder("3", 1003), order_created: "2026-10-24T09:00:00Z" },
+                    ],
+                })
+            );
+
+            renderHistory();
+
+            const grid = screen.getByTestId("history-order-grid");
+            const rules = emotionRulesFor(grid);
+            expect(rules).toContain("display:grid");
+            expect(rules).toContain("grid-template-columns:repeat(4, minmax(0, 1fr))");
+            // 8px between tickets both ways, as under Masonry, not the card's own 16px bottom margin.
+            expect(rules).toContain("gap:8px");
+            expect(rules).toMatch(/(\.css-[\w-]+)\1 ?> ?\* ?\{margin:0px;/);
+            expect(Array.from(grid.children).map(card => within(card as HTMLElement).queryByText(/#100\d/)?.textContent?.trim()))
+                .toEqual(["#1002", "#1003", "#1001"]);
         });
     });
 

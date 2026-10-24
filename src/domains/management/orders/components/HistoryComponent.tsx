@@ -8,7 +8,6 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import {endOfDay, format, parseISO, startOfDay} from "date-fns";
-import {Masonry} from "@mui/lab";
 import {ManagementTopBar} from "../../_shared/components/ManagementTopBar";
 import type { Order } from '../../../order/types';
 import {useDeleteOrder} from "../hooks/useDeleteOrder";
@@ -234,10 +233,9 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                     />
                 </Box>
             )}
-            {/* No scroll anchoring: when a page is appended, Masonry draws the new cards first in
-                the flex order for one frame before it re-orders them, and Chrome's anchoring follows
-                the card it was holding on to as it jumps up a column, landing the list back on its
-                first orders (owner, 19 Oct 2026; reproduced with 2+ columns). */}
+            {/* No scroll anchoring: under the old Masonry layout it followed appended cards as they
+                were re-ordered and landed the list back on its first orders (owner, 19 Oct 2026). The
+                grid appends pages below what is on screen, so there is nothing to anchor. */}
             <Box data-testid="history-scroll-list" sx={{
                 pt: 1,
                 pl: 1,
@@ -257,7 +255,28 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
             ) : sortedOrders.length === 0 ? (
                 <Typography sx={{p: 2, color: "text.secondary"}}>No orders found.</Typography>
             ) : (
-                <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={1} sequential>
+                // Rows rather than Masonry (owner, 24 Oct 2026): orders read left to right, newest
+                // first, and each row starts below the tallest ticket of the row above.
+                <Box
+                    data-testid="history-order-grid"
+                    sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                            xs: "repeat(1, minmax(0, 1fr))",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                            md: "repeat(3, minmax(0, 1fr))",
+                            lg: "repeat(4, minmax(0, 1fr))",
+                        },
+                        gap: 1,
+                        // OrderCard brings its own bottom margin for the live board; here the gap alone
+                        // spaces the tickets, 8px each way as under Masonry. "&&" outranks the card's
+                        // class whichever order emotion inserted the two in.
+                        "&& > *": {m: 0},
+                        // The scroll box is 100% wide plus its left padding, so its last 8px are off
+                        // screen; Masonry stopped short of them too.
+                        pr: 1,
+                    }}
+                >
                     {sortedOrders.map((order) => (
                         <OrderCard
                             key={order.id}
@@ -266,7 +285,7 @@ function HistoryComponent({onClose, selectedBranch}: HistoryComponentProps): JSX
                             isHistory={true}
                             onDeleteClick={() => {handleDeleteClick(order)}}/>
                     ))}
-                </Masonry>
+                </Box>
             )}
             <div ref={sentinelRef} data-testid="history-scroll-sentinel" style={{height: 1}}/>
             </Box>
