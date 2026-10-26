@@ -212,8 +212,9 @@ function IcPizzaPolicy(): JSX.Element {
                     <Bullet>
                         <strong>Advertising and measurement (Meta, TikTok)</strong> — website and
                         mobile app only. We send purchase events so we can measure our advertising,
-                        and our customers&apos; phone numbers, in hashed form, to Meta so we can show
-                        our ads to our own customers or leave them out.
+                        and the phone numbers of our website customers, in hashed form, to Meta so we
+                        can show our ads to our own customers or leave them out. A phone number you
+                        have used in the mobile app is never sent to Meta for advertising.
                         <strong> Orders placed at a kiosk are never sent to these services.</strong>
                     </Bullet>
                     <Bullet>
