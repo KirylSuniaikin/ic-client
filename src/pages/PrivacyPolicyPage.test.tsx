@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import { DELETE_DATA_SECTION_ID, PrivacyPolicyPage, type PrivacyPolicyTab } from "./PrivacyPolicyPage";
+import { DELETE_ACCOUNT_SECTION_ID, DELETE_DATA_SECTION_ID, PrivacyPolicyPage, type PrivacyPolicyTab } from "./PrivacyPolicyPage";
 
 const IC_PIZZA_TAB_NAME = "IC Pizza (website, app, kiosk)";
 const DELIVERY_TAB_NAME = "Astra Courier (delivery)";
@@ -68,9 +68,9 @@ describe("PrivacyPolicyPage", () => {
             renderPolicy("ic-pizza", "/privacy");
 
             expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeTruthy();
-            expect(screen.getByText("Last updated: 10 August 2026")).toBeTruthy();
+            expect(screen.getByText("Last updated: 26 October 2026")).toBeTruthy();
             expect(screen.getByText(/It covers three products: our website, our customer mobile app/)).toBeTruthy();
-            expect(screen.getByRole("heading", { level: 2, name: "9. Changes" })).toBeTruthy();
+            expect(screen.getByRole("heading", { level: 2, name: "10. Changes" })).toBeTruthy();
 
             const tab = screen.getByRole("tab", { name: IC_PIZZA_TAB_NAME });
             expect(tab.getAttribute("aria-selected")).toBe("true");
@@ -83,6 +83,40 @@ describe("PrivacyPolicyPage", () => {
 
             expect(screen.queryByText(/Effective date:/)).toBeNull();
             expect(panelText()).not.toMatch(/Astra Courier is operated by/);
+        });
+
+        it("tells an app customer where to delete their account, and gives the section its own id", () => {
+            renderPolicy("ic-pizza", "/privacy");
+
+            const section = sectionOf("7. Delete your account");
+            expect(section.id).toBe(DELETE_ACCOUNT_SECTION_ID);
+            expect(within(section).getByText(/choose/).textContent).toMatch(/tap ••• and choose Delete account/);
+            expect(within(sectionOf("6. Your choices")).getByText(/delete your account yourself — see section 7/)).toBeTruthy();
+        });
+
+        it("says what an account deletion removes, that marketing stops, and that order records stay", () => {
+            renderPolicy("ic-pizza", "/privacy");
+
+            const section = within(sectionOf("7. Delete your account"));
+            expect(section.getByText(/your saved delivery addresses and your phone's notification token/)).toBeTruthy();
+            expect(section.getByText(/we send you no marketing/)).toBeTruthy();
+            expect(section.getByText(/records of the orders you placed/)).toBeTruthy();
+        });
+
+        it("discloses the app's foreground-only location and the hashed phone lists sent to Meta", () => {
+            renderPolicy("ic-pizza", "/privacy");
+
+            const collected = within(sectionOf("2. What we collect"));
+            expect(collected.getByText(/find the branch\s+nearest to you/)).toBeTruthy();
+            expect(collected.getByText(/does not\s+read your location in the background/)).toBeTruthy();
+            expect(within(sectionOf("4. Who we share it with")).getByText(/phone numbers, in hashed form, to Meta/)).toBeTruthy();
+        });
+
+        it("keeps its later sections numbered after the new one", () => {
+            renderPolicy("ic-pizza", "/privacy");
+
+            expect(screen.getByRole("heading", { level: 2, name: "8. Security" })).toBeTruthy();
+            expect(screen.getByRole("heading", { level: 2, name: "9. Children" })).toBeTruthy();
         });
     });
 

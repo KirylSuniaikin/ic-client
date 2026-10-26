@@ -8,7 +8,7 @@ import {SeoHead} from '../shared/components/SeoHead';
 // mobile suite. A legal document also needs a reviewed translation rather than a machine one —
 // when the Arabic version is ready, add it as a separate route or a web-only namespace.
 
-const LAST_UPDATED = '10 August 2026';
+const LAST_UPDATED = '26 October 2026';
 // Its own date rather than LAST_UPDATED: the two policies change independently, and re-dating the
 // customer policy for a rider-only change would tell customers something changed for them.
 const COURIER_APP_EFFECTIVE_DATE = '6 October 2026';
@@ -50,6 +50,9 @@ const POLICY_TABS: Record<PrivacyPolicyTab, PolicyTabDefinition> = {
         seoDescription: "How the Astra Courier app used by IC Pizza's delivery riders collects, uses and protects rider data, including background location and delivery photos.",
     },
 };
+
+// The App Store asks where a customer deletes their account; this id lets a link land on the steps.
+export const DELETE_ACCOUNT_SECTION_ID = 'delete-account';
 
 // Google Play's data-safety form asks for a URL that opens the deletion instructions themselves,
 // so the section has an id and a route of its own (/privacy/delivery/delete-data).
@@ -135,12 +138,19 @@ function IcPizzaPolicy(): JSX.Element {
                         kitchen (for example &quot;no onions&quot;).
                     </Bullet>
                     <Bullet>
-                        <strong>Delivery address and approximate location</strong> — website and
-                        mobile app only, and only when you choose delivery.
+                        <strong>Delivery address</strong> — website and mobile app only, and only
+                        when you choose delivery.
+                    </Bullet>
+                    <Bullet>
+                        <strong>Location</strong> — mobile app only, and only if you allow it. While
+                        the app is open it reads your device&apos;s location to find the branch
+                        nearest to you and to place your delivery address on the map. It does not
+                        read your location in the background.
                     </Bullet>
                     <Bullet>
                         <strong>Account data</strong> — website and mobile app only. We verify your
-                        phone number with a one-time code and keep a record of your past orders.
+                        phone number with a one-time code and keep a record of your past orders and
+                        the delivery addresses you save.
                     </Bullet>
                     <Bullet>
                         <strong>Device and app information</strong> — mobile app and kiosk only:
@@ -156,8 +166,9 @@ function IcPizzaPolicy(): JSX.Element {
                 <P>
                     <strong>We never receive or store your card details.</strong> Card payments are
                     processed by our payment providers on their own equipment and systems — at a
-                    kiosk, on the physical card terminal next to it. Card numbers do not pass
-                    through our apps or our servers.
+                    kiosk, on the physical card terminal next to it; on the website and in the app,
+                    in the payment provider&apos;s own secure card form or through Apple Pay. Card
+                    numbers do not pass through our apps or our servers.
                 </P>
             </Section>
 
@@ -200,7 +211,9 @@ function IcPizzaPolicy(): JSX.Element {
                     </Bullet>
                     <Bullet>
                         <strong>Advertising and measurement (Meta, TikTok)</strong> — website and
-                        mobile app only. We send purchase events so we can measure our advertising.
+                        mobile app only. We send purchase events so we can measure our advertising,
+                        and our customers&apos; phone numbers, in hashed form, to Meta so we can show
+                        our ads to our own customers or leave them out.
                         <strong> Orders placed at a kiosk are never sent to these services.</strong>
                     </Bullet>
                     <Bullet>
@@ -213,9 +226,9 @@ function IcPizzaPolicy(): JSX.Element {
             <Section title="5. How long we keep it">
                 <P>
                     We keep order records for as long as we need them to run the business and to
-                    satisfy accounting and tax requirements. Account data is kept while your
-                    account exists. When data is no longer needed for either purpose, it is deleted
-                    or anonymised.
+                    satisfy accounting and tax requirements, including after you delete your
+                    account. Account data is kept while your account exists. When data is no longer
+                    needed for either purpose, it is deleted or anonymised.
                 </P>
             </Section>
 
@@ -228,6 +241,9 @@ function IcPizzaPolicy(): JSX.Element {
                         You can turn off push notifications in your device settings at any time.
                     </Bullet>
                     <Bullet>
+                        In the mobile app you can delete your account yourself — see section 7.
+                    </Bullet>
+                    <Bullet>
                         You can ask us for a copy of your data, ask us to correct it, or ask us to
                         delete it and your account — write to{' '}
                         <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link>. We may need
@@ -236,21 +252,47 @@ function IcPizzaPolicy(): JSX.Element {
                 </Box>
             </Section>
 
-            <Section title="7. Security">
+            <Section title="7. Delete your account" id={DELETE_ACCOUNT_SECTION_ID}>
+                <P>
+                    In the IC Pizza mobile app, open your profile (top right), tap{' '}
+                    <strong>•••</strong> and choose <strong>Delete account</strong>. The deletion
+                    happens straight away.
+                </P>
+                <P>
+                    <strong>What we delete:</strong> your account and its sign-in on every device,
+                    your saved delivery addresses and your phone&apos;s notification token. From
+                    then on we send you no marketing: no offers on WhatsApp, and your phone number
+                    is left out of the customer lists we share with Meta.
+                </P>
+                <P>
+                    <strong>What we keep:</strong> the records of the orders you placed (items,
+                    amounts, branch and times), because they are part of our accounting and tax
+                    records and our sales statistics. If you order again with the same phone number,
+                    we still send you the messages about that order.
+                </P>
+                <P>
+                    You can sign up again later with the same phone number; it starts a new, empty
+                    account. If you do not use the app, write to{' '}
+                    <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link> and we will
+                    delete your data for you.
+                </P>
+            </Section>
+
+            <Section title="8. Security">
                 <P>
                     All traffic between our apps and our servers is encrypted in transit. Access to
                     order data is limited to staff who need it to do their job.
                 </P>
             </Section>
 
-            <Section title="8. Children">
+            <Section title="9. Children">
                 <P>
                     Our services are intended for adults. We do not knowingly collect data from
                     children.
                 </P>
             </Section>
 
-            <Section title="9. Changes">
+            <Section title="10. Changes">
                 <P>
                     If we change this policy we will update the date at the top of this page.
                 </P>
