@@ -161,7 +161,9 @@ function IcPizzaPolicy(): JSX.Element {
                 <P>
                     <strong>Kiosk terminals collect only a phone number, your order contents and
                     any note you type.</strong> They have no user accounts, no login, and no
-                    advertising or analytics tracking of any kind.
+                    advertising or analytics tracking on the terminal itself. The phone number you
+                    give at a kiosk may be included, in hashed form, in the customer lists we share
+                    with Meta (see section 4).
                 </P>
                 <P>
                     <strong>We never receive or store your card details.</strong> Card payments are
@@ -179,8 +181,9 @@ function IcPizzaPolicy(): JSX.Element {
                     <Bullet>To take payment for it.</Bullet>
                     <Bullet>To keep your order history, if you use an account.</Bullet>
                     <Bullet>
-                        To measure and improve our service, and — on the website and mobile app
-                        only — to measure the effectiveness of our advertising.
+                        To measure and improve our service, to measure the effectiveness of our
+                        advertising on the website and mobile app, and to show our ads to people who
+                        have ordered from us on the website or at a kiosk.
                     </Bullet>
                     <Bullet>To meet our accounting and tax obligations.</Bullet>
                 </Box>
@@ -210,12 +213,13 @@ function IcPizzaPolicy(): JSX.Element {
                         only, to deliver order-status notifications to your device.
                     </Bullet>
                     <Bullet>
-                        <strong>Advertising and measurement (Meta, TikTok)</strong> — website and
-                        mobile app only. We send purchase events so we can measure our advertising,
-                        and the phone numbers of our website customers, in hashed form, to Meta so we
-                        can show our ads to our own customers or leave them out. A phone number you
-                        have used in the mobile app is never sent to Meta for advertising.
-                        <strong> Orders placed at a kiosk are never sent to these services.</strong>
+                        <strong>Advertising and measurement (Meta, TikTok)</strong> — we send
+                        purchase events from the website and mobile app so we can measure our
+                        advertising. We also send Meta the phone numbers of customers who ordered on
+                        our website or at a kiosk, in hashed form, so we can show our ads to our own
+                        customers or leave them out. A phone number you have used in the mobile app
+                        is never sent to Meta for advertising.
+                        <strong> What you order at a kiosk is never sent to these services.</strong>
                     </Bullet>
                     <Bullet>
                         <strong>Hosting and infrastructure providers</strong> — who store the data

@@ -103,15 +103,22 @@ describe("PrivacyPolicyPage", () => {
             expect(section.getByText(/records of the orders you placed/)).toBeTruthy();
         });
 
-        it("discloses the app's foreground-only location, and that only website customers' hashed phones go to Meta", () => {
+        it("discloses the app's foreground-only location, and which customers' hashed phones go to Meta", () => {
             renderPolicy("ic-pizza", "/privacy");
 
             const collected = within(sectionOf("2. What we collect"));
             expect(collected.getByText(/find the branch\s+nearest to you/)).toBeTruthy();
             expect(collected.getByText(/does not\s+read your location in the background/)).toBeTruthy();
             const shared = within(sectionOf("4. Who we share it with"));
-            expect(shared.getByText(/phone numbers of our website customers, in hashed form, to Meta/)).toBeTruthy();
+            expect(shared.getByText(/phone numbers of customers who ordered on\s+our website or at a kiosk, in hashed form/)).toBeTruthy();
             expect(shared.getByText(/used in the mobile app is never sent to Meta for advertising/)).toBeTruthy();
+        });
+
+        it("tells kiosk customers their phone number may go to Meta, but not what they ordered", () => {
+            renderPolicy("ic-pizza", "/privacy");
+
+            expect(within(sectionOf("2. What we collect")).getByText(/phone number you\s+give at a kiosk may be included, in hashed form/)).toBeTruthy();
+            expect(within(sectionOf("4. Who we share it with")).getByText(/What you order at a kiosk is never sent to these services/)).toBeTruthy();
         });
 
         it("keeps its later sections numbered after the new one", () => {
