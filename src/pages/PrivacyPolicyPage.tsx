@@ -183,7 +183,7 @@ function IcPizzaPolicy(): JSX.Element {
                     <Bullet>
                         To measure and improve our service, to measure the effectiveness of our
                         advertising on the website and mobile app, and to show our ads to people who
-                        have ordered from us on the website or at a kiosk.
+                        have ordered from us on the website, in the mobile app or at a kiosk.
                     </Bullet>
                     <Bullet>To meet our accounting and tax obligations.</Bullet>
                 </Box>
@@ -216,9 +216,8 @@ function IcPizzaPolicy(): JSX.Element {
                         <strong>Advertising and measurement (Meta, TikTok)</strong> — we send
                         purchase events from the website and mobile app so we can measure our
                         advertising. We also send Meta the phone numbers of customers who ordered on
-                        our website or at a kiosk, in hashed form, so we can show our ads to our own
-                        customers or leave them out. A phone number you have used in the mobile app
-                        is never sent to Meta for advertising.
+                        our website, in our mobile app or at a kiosk, in hashed form, so we can show
+                        our ads to our own customers or leave them out.
                         <strong> What you order at a kiosk is never sent to these services.</strong>
                     </Bullet>
                     <Bullet>
