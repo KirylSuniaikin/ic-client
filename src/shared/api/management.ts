@@ -25,7 +25,7 @@ import type {
     VendorTO
 } from '../../domains/management/purchases/types';
 import { DuplicateVendorNameError } from '../../domains/management/purchases/types';
-import type { ConsumptionReportTO } from '../../domains/management/consumption/types';
+import type { ConsumptionReportTO, SpendHistoryTO } from '../../domains/management/consumption/types';
 import type { BusinessStatsResponse, CategoryClassification, ChannelOverridePatch, ChannelPerformanceMonth, ComponentCost, MenuCostCardsResponse, UpdateCategoryClassification, UpdateComponentCost } from '../../domains/management/statistics/types';
 import { ChannelRowConflictError } from '../../domains/management/statistics/types';
 import type {
@@ -383,6 +383,16 @@ export async function setPurchaseInvoicePaid(payload: SetPurchaseInvoicePaidPayl
 
 export async function fetchLatestConsumptionReport(branchId: string): Promise<ConsumptionReportTO> {
     const res = await authFetch(BASE_URL + `/get_consumption_report?branchId=${branchId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+    if (!res.ok) throw new Error(`Response: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchSpendHistory(branchId: string, vendor: string, product: string): Promise<SpendHistoryTO> {
+    const params = new URLSearchParams({ branchId, vendor, product, months: "6" });
+    const res = await authFetch(BASE_URL + `/get_spend_history?${params.toString()}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" }
     });

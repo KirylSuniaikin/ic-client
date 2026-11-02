@@ -1,10 +1,14 @@
 import React, {useEffect, useMemo, useState} from "react";
 import {fetchLatestConsumptionReport} from "../../../../shared/api/management";
 import {ConsumptionProductTO, ConsumptionReportTO} from "../types";
-import {DataGrid, GridColDef, GridFilterModel} from "@mui/x-data-grid";
+import {ConsumptionSummaryRow} from "./ConsumptionSummaryRow";
+import {SpendHistoryDialog} from "./SpendHistoryDialog";
+import {distinctVendors, filterRows, NO_VENDOR, Row, summarizeRows} from "../consumptionRows";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import { getDaysInMonth } from "date-fns";
-import {Box, Card, CardContent, InputAdornment, TextField, Typography} from "@mui/material";
+import {Badge, Box, Button, ButtonBase, Card, Chip, Collapse, InputAdornment, MenuItem, TextField, Typography} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
 
 type Props = {
     branchId: string;
@@ -29,20 +33,15 @@ function countMondays(year: number, month1to12: number): number {
     return count;
 }
 
-type Row = {
-    id: number;
-    name: string;
-    price: number;
-    usage: number;
-    usagePerWeek: number;
-    usagePerShift: number;
-};
-
 export function ConsumptionStatistics({branchId}: Props) {
     const [report, setReport] = useState<ConsumptionReportTO | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
-    const [filterModel, setFilterModel] = useState<GridFilterModel>({items: []});
+    const [nameQuery, setNameQuery] = useState("");
+    const [vendorFilter, setVendorFilter] = useState("");
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    // product "" = the whole filtered selection; vendor "" = every vendor.
+    const [history, setHistory] = useState<{vendor: string; product: string} | null>(null);
 
 
     useEffect(() => {
@@ -75,56 +74,60 @@ export function ConsumptionStatistics({branchId}: Props) {
         return (report.consumptionProducts ?? [])
             .map<Row>((p: ConsumptionProductTO, idx) => {
                 const usage = p.quantity ?? 0;
-                const price = p.finalPrice ?? 0;
+                const spent = p.spent ?? 0;
                 return {
                     id: idx,
                     name: p.productName,
-                    price,
+                    vendor: p.vendorName ?? "",
+                    spent,
                     usage,
                     usagePerWeek: usage / 4.3,
                     usagePerShift: usage / shifts,
                 };
             })
-            .sort((a, b) => b.price - a.price);
+            .sort((a, b) => b.spent - a.spent);
     }, [report, meta]);
 
+    const vendors = useMemo(() => distinctVendors(rows), [rows]);
+    const visibleRows = useMemo(() => filterRows(rows, nameQuery, vendorFilter), [rows, nameQuery, vendorFilter]);
+    const summary = useMemo(() => summarizeRows(visibleRows), [visibleRows]);
+    const reportSpent = useMemo(() => summarizeRows(rows).total, [rows]);
+    const vendorLabel = vendorFilter === NO_VENDOR ? "No vendor" : vendorFilter || "All vendors";
+
+    const money = (p: {value?: unknown}) => (p.value as number).toFixed(3);
     const columns: GridColDef<Row>[] = [
         { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
-        { field: "price", headerName: "Price (BD)", width: 130, renderCell: (p) => ((p.value as number).toFixed(3))},
-        { field: "usage", headerName: "Usage", width: 120, renderCell: (p) => ((p.value as number).toFixed(3)) },
-        { field: "usagePerWeek", headerName: "Usage / Week", width: 150, renderCell: (p) => ((p.value as number).toFixed(3)) },
-        { field: "usagePerShift", headerName: "Usage / Shift", width: 150, renderCell: (p) => ((p.value as number).toFixed(3)) },
+        {
+            field: "vendor", headerName: "Vendor", width: 180,
+            renderCell: (p) => p.value ? <Chip label={p.value as string} size="small" variant="outlined" /> : <Typography color="text.disabled">—</Typography>,
+        },
+        { field: "spent", headerName: "Spent (BD)", width: 130, type: "number", renderCell: (p) => (
+                <ButtonBase
+                    onClick={() => setHistory({vendor: "", product: p.row.name})}
+                    aria-label={`Show purchase history of ${p.row.name}`}
+                    sx={{fontWeight: 700, fontSize: "inherit", textDecoration: "underline dotted", textUnderlineOffset: 4}}
+                >
+                    {money(p)}
+                </ButtonBase>
+            ),
+        },
+        { field: "usage", headerName: "Usage", width: 110, type: "number", renderCell: money },
+        { field: "usagePerWeek", headerName: "Usage / Week", width: 140, type: "number", renderCell: money },
+        { field: "usagePerShift", headerName: "Usage / Shift", width: 140, type: "number", renderCell: money },
     ];
 
-    const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setFilterModel({
-            items: value ? [{
-                id: 0,
-                field: "name",
-                operator: "contains",
-                value: value
-            }]: []
-        });
-    };
+    const handleFilterParamChange = (e: React.ChangeEvent<HTMLInputElement>) => setNameQuery(e.target.value);
 
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Card sx={{ borderRadius: 3, boxShadow: 3 }}>
-                <Box
-                    sx={{p:2
-                    }}
-                >
-                    {report && (
-                        <Typography variant="h6" sx={{ mb: 1 }}>
-                            <b>{report.title}</b>
-                        </Typography>
-                    )}
-                    {report?.missingBranches && report.missingBranches.length > 0 && (
-                        <Typography variant="caption" color="error" sx={{ display: "block", mb: 1 }}>
-                            No report for this month from: {report.missingBranches.join(", ")} — totals below are partial.
-                        </Typography>
-                    )}
+        <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                {report && <Typography variant="h6" sx={{ fontWeight: 700 }}>{report.title}</Typography>}
+                {report?.missingBranches && report.missingBranches.length > 0 && (
+                    <Typography variant="caption" color="error">
+                        No report for this month from: {report.missingBranches.join(", ")} — totals below are partial.
+                    </Typography>
+                )}
+                <Box sx={{ display: "flex", gap: 1 }}>
                     <TextField
                         variant="outlined"
                         size="small"
@@ -134,52 +137,88 @@ export function ConsumptionStatistics({branchId}: Props) {
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#a5a5a5' }} />
+                                    <SearchIcon sx={{ color: "text.disabled" }} />
                                 </InputAdornment>
                             ),
                         }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                borderRadius: 3,
-                                borderColor: '#a5a5a5',
-
-                                '& fieldset': { borderColor: '#a5a5a5' },
-                                '&:hover fieldset': { borderColor: '#a5a5a5' },
-                                '&.Mui-focused fieldset': {
-                                    borderColor: '#a5a5a5'
-                                },
-                                '&.Mui-disabled fieldset': { borderColor: '#a5a5a5' }
-                            },
-                            '& .MuiInputLabel-root': {
-                                color: '#6b7280',
-                            },
-
-                            '& .MuiInputBase-input': { py: 1, px: 1.5 },
-                        }}
+                        sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
                     />
+                    <Badge color="primary" variant="dot" invisible={!vendorFilter}>
+                        <Button
+                            variant={filtersOpen ? "contained" : "outlined"}
+                            color="inherit"
+                            startIcon={<FilterListIcon />}
+                            onClick={() => setFiltersOpen((open) => !open)}
+                            sx={{ borderRadius: 3, textTransform: "none", height: "100%", whiteSpace: "nowrap" }}
+                        >
+                            Filters
+                        </Button>
+                    </Badge>
                 </Box>
-                <CardContent>
-                    <Box sx={{ height: 560, width: "100%" }}>
-                        <DataGrid
-                            rows={rows}
-                            columns={columns}
-                            loading={loading}
-                            disableRowSelectionOnClick
-                            onFilterModelChange={setFilterModel}
-                            filterModel={filterModel}
-                            pageSizeOptions={[10, 25, 50]}
-                            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                        />
-                    </Box>
-
-                    {report && (
-                        <Typography sx={{ mt: 1.5, fontWeight: 600 }}>
-                            Report Total: {report.finalPrice.toFixed(3)} BD
-                        </Typography>
-                    )}
-                    {err && <Typography color="error" sx={{ mt: 1 }}>{err}</Typography>}
-                </CardContent>
-            </Card>
-        </Box>
+                <Collapse in={filtersOpen} unmountOnExit>
+                    <TextField
+                        select
+                        size="small"
+                        label="Vendor"
+                        value={vendorFilter}
+                        onChange={(e) => setVendorFilter(e.target.value)}
+                        fullWidth
+                        // "All vendors" is the empty value; without a forced shrink the label sits on top of it.
+                        slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+                        sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                    >
+                        <MenuItem value="">All vendors</MenuItem>
+                        {vendors.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                        <MenuItem value={NO_VENDOR}>No vendor</MenuItem>
+                    </TextField>
+                </Collapse>
+                <ConsumptionSummaryRow
+                    vendorLabel={vendorLabel}
+                    onClearVendor={vendorFilter ? () => setVendorFilter("") : undefined}
+                    summary={summary}
+                    onOpenHistory={() => setHistory({vendor: vendorFilter === NO_VENDOR ? "" : vendorFilter, product: ""})}
+                />
+            </Box>
+            <Box sx={{ height: 560, width: "100%" }}>
+                <DataGrid
+                    rows={visibleRows}
+                    columns={columns}
+                    loading={loading}
+                    rowHeight={46}
+                    disableRowSelectionOnClick
+                    disableColumnFilter
+                    pageSizeOptions={[10, 25, 50]}
+                    initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+                    sx={{
+                        border: 0,
+                        borderTop: 1,
+                        borderColor: "divider",
+                        "& .MuiDataGrid-columnSeparator": { display: "none" },
+                        "& .MuiDataGrid-columnHeaders": { borderColor: "divider" },
+                        "& .MuiDataGrid-columnHeaderTitle": {
+                            fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, color: "text.secondary",
+                        },
+                        "& .MuiDataGrid-cell": { borderColor: "divider", fontVariantNumeric: "tabular-nums" },
+                        "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": { outline: "none" },
+                        "& .MuiDataGrid-footerContainer": { borderColor: "divider" },
+                    }}
+                />
+            </Box>
+            <Box sx={{ p: 2 }}>
+                {report && (
+                    <Typography sx={{ fontWeight: 600 }}>
+                        Report total spent: {reportSpent.toFixed(3)} BD
+                    </Typography>
+                )}
+                {err && <Typography color="error" sx={{ mt: 1 }}>{err}</Typography>}
+            </Box>
+            <SpendHistoryDialog
+                open={history !== null}
+                onClose={() => setHistory(null)}
+                branchId={branchId}
+                vendor={history?.vendor ?? ""}
+                product={history?.product ?? ""}
+            />
+        </Card>
     );
 }
