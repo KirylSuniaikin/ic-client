@@ -1,5 +1,5 @@
+import {jest, describe, it, expect} from "@jest/globals";
 import React from "react";
-import "@testing-library/jest-dom";
 import {render, screen, waitFor, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {ConsumptionStatistics} from "./ConsumptionStatistics";
@@ -30,9 +30,9 @@ const report: ConsumptionReportTO = {
 const summary = () => within(screen.getByTestId("consumption-summary-row"));
 
 async function renderLoaded() {
-    (fetchLatestConsumptionReport as jest.Mock).mockResolvedValue(report);
+    jest.mocked(fetchLatestConsumptionReport).mockResolvedValue(report);
     render(<ConsumptionStatistics branchId="b1"/>);
-    await waitFor(() => expect(summary().getByText("165.500")).toBeInTheDocument());
+    await waitFor(() => expect(summary().getByText("165.500")).toBeTruthy());
 }
 
 async function pickVendor(option: string) {
@@ -56,16 +56,16 @@ describe("ConsumptionStatistics vendor summary", () => {
 
         await userEvent.click(within(screen.getByTestId("consumption-summary-row")).getByTestId("CancelIcon"));
 
-        expect(summary().getByText("All vendors")).toBeInTheDocument();
-        expect(summary().getByText("4 items")).toBeInTheDocument();
+        expect(summary().getByText("All vendors")).toBeTruthy();
+        expect(summary().getByText("4 items")).toBeTruthy();
     });
 
     it("totals every product while no vendor is chosen", async () => {
         await renderLoaded();
 
-        expect(summary().getByText("4 items")).toBeInTheDocument();
-        expect(summary().getByText("All vendors")).toBeInTheDocument();
-        expect(screen.getByTestId("grid-rows")).toHaveTextContent("4");
+        expect(summary().getByText("4 items")).toBeTruthy();
+        expect(summary().getByText("All vendors")).toBeTruthy();
+        expect(screen.getByTestId("grid-rows").textContent).toBe("4");
     });
 
     it("totals only the chosen vendor's products", async () => {
@@ -73,10 +73,10 @@ describe("ConsumptionStatistics vendor summary", () => {
 
         await pickVendor("Gulf Dairy");
 
-        expect(summary().getByText("2 items")).toBeInTheDocument();
-        expect(summary().getByText("Gulf Dairy")).toBeInTheDocument();
-        expect(summary().getByText("120.500")).toBeInTheDocument();
-        expect(screen.getByTestId("grid-rows")).toHaveTextContent("2");
+        expect(summary().getByText("2 items")).toBeTruthy();
+        expect(summary().getByText("Gulf Dairy")).toBeTruthy();
+        expect(summary().getByText("120.500")).toBeTruthy();
+        expect(screen.getByTestId("grid-rows").textContent).toBe("2");
     });
 
     it("totals the products that have no vendor", async () => {
@@ -84,8 +84,8 @@ describe("ConsumptionStatistics vendor summary", () => {
 
         await pickVendor("No vendor");
 
-        expect(summary().getByText("1 item")).toBeInTheDocument();
-        expect(summary().getByText("5.000")).toBeInTheDocument();
+        expect(summary().getByText("1 item")).toBeTruthy();
+        expect(summary().getByText("5.000")).toBeTruthy();
     });
 
     it("narrows the total further when the name search is also used", async () => {
@@ -94,8 +94,8 @@ describe("ConsumptionStatistics vendor summary", () => {
         await pickVendor("Gulf Dairy");
         await userEvent.type(screen.getByPlaceholderText("Type to filter"), "light");
 
-        expect(summary().getByText("1 item")).toBeInTheDocument();
-        expect(summary().getByText("20.500")).toBeInTheDocument();
+        expect(summary().getByText("1 item")).toBeTruthy();
+        expect(summary().getByText("20.500")).toBeTruthy();
     });
 });
 
@@ -113,7 +113,7 @@ describe("ConsumptionStatistics spend history popup", () => {
     };
 
     it("asks for the filtered vendor's history when the summary amount is pressed", async () => {
-        (fetchSpendHistory as jest.Mock).mockResolvedValue(history);
+        jest.mocked(fetchSpendHistory).mockResolvedValue(history);
         await renderLoaded();
         await pickVendor("Gulf Dairy");
 
@@ -121,8 +121,8 @@ describe("ConsumptionStatistics spend history popup", () => {
 
         expect(fetchSpendHistory).toHaveBeenCalledWith("b1", "Gulf Dairy", "");
         const dialog = await screen.findByRole("dialog");
-        expect(await within(dialog).findByTestId("price-card")).toBeInTheDocument();
-        expect(within(dialog).getByText("+20.0%")).toBeInTheDocument();
+        expect(await within(dialog).findByTestId("price-card")).toBeTruthy();
+        expect(within(dialog).getByText("+20.0%")).toBeTruthy();
         expect(within(dialog).getAllByTestId("spend-bar")).toHaveLength(6);
     });
 });

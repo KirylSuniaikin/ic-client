@@ -1,3 +1,4 @@
+import {describe, it, expect} from "@jest/globals";
 import {distinctVendors, filterRows, NO_VENDOR, Row, summarizeRows} from "./consumptionRows";
 
 const row = (id: number, name: string, vendor: string, spent: number): Row => ({
