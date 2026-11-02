@@ -10,6 +10,7 @@ import type {
     ReportTO,
     UpdateProductSettingsRequest
 } from "../../../domains/management/inventory/types";
+import type { ConsumptionReportTO, SpendHistoryTO } from "../../../domains/management/consumption/types";
 import type { BlackListCstmr } from "../../../domains/management/blacklist/types";
 import type {
     BasePurchaseResponse,
@@ -169,6 +170,10 @@ export const getAccountingCategories = jest.fn<Promise<AccountingCategoryTO[]>, 
 export const uploadAccountingEntryImage = jest.fn<Promise<EntryImageMetaTO>, [number, Blob]>();
 export const fetchAccountingEntryImage = jest.fn<Promise<Blob | null>, [number]>();
 export const deleteAccountingEntryImage = jest.fn<Promise<void>, [number]>();
+
+// Consumption report (Statistics -> Consumption tab).
+export const fetchLatestConsumptionReport = jest.fn<Promise<ConsumptionReportTO>, [string]>();
+export const fetchSpendHistory = jest.fn<Promise<SpendHistoryTO>, [string, string, string]>();
 
 // Prep plan (Statistics -> Consumption tab; MULTIBRANCH_SPEC.md Part 4).
 export const fetchCurrentPrepPlan = jest.fn<Promise<PrepPlanResponse | null>, [string]>();
