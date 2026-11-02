@@ -1,3 +1,4 @@
+import {describe, it, expect} from "@jest/globals";
 import {monthLabel, priceDirection, pricedPoints} from "./spendHistory";
 
 describe("spendHistory helpers", () => {
