@@ -1,11 +1,13 @@
 import React from "react";
 import {Box, Card, CardContent, Grid, Tooltip, Typography} from "@mui/material";
-import type {Kpi, KpiBlock} from "../../types";
+import type {InventoryCogs, Kpi, KpiBlock} from "../../types";
 import {formatBd} from "./businessFormat";
 import {TrendChip} from "../performance/TrendChip";
 
 type Props = {
     blocks: KpiBlock[];
+    /** Source of the Food cost tile: the COGS% the Inventory COGS card shows, matched by period. */
+    inventoryCogs: InventoryCogs[];
 };
 
 function monthLabel(period: string): string {
@@ -23,13 +25,32 @@ function formatValue(kpi: Kpi): string {
 }
 
 /**
+ * Food cost is the inventory-movement COGS % (opening + purchases - ending), the same figure as the
+ * Inventory COGS card -- not the server's recipe-costed KPI, which counted tech cards. Missing a
+ * stock count yields an em dash with the reason, never a zero.
+ */
+function withInventoryFoodCost(kpi: Kpi, cogs: InventoryCogs | undefined): Kpi {
+    if (kpi.key !== "foodCost") return kpi;
+    const value = cogs?.cogsPercentOfGrossRevenue ?? null;
+    return {
+        ...kpi,
+        value,
+        previousValue: null,
+        unavailableReason: value === null
+            ? "COGS is not available for this month yet — a stock count or revenue is missing (see Inventory COGS)."
+            : null,
+        detail: "inventory COGS, of gross revenue",
+    };
+}
+
+/**
  * The headline block, showing the most recent month in the range.
  *
  * <p>A KPI that could not be computed renders an em dash with the reason on hover — never a zero.
  * "0% margin" and "we cannot tell you the margin" look identical on a dashboard and mean opposite
  * things, and only one of them is ever true.
  */
-export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
+export default function KpiBlockCard({blocks, inventoryCogs}: Props): React.JSX.Element {
     const latest = blocks[blocks.length - 1];
 
     if (!latest) {
@@ -40,6 +61,9 @@ export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
         );
     }
 
+    const latestCogs = inventoryCogs.find(m => m.period === latest.period);
+    const kpis = latest.kpis.map(kpi => withInventoryFoodCost(kpi, latestCogs));
+
     return (
         <>
             <Typography variant="body2" sx={{color: '#8a807a', mb: 2}}>
@@ -47,7 +71,7 @@ export default function KpiBlockCard({blocks}: Props): React.JSX.Element {
             </Typography>
 
             <Grid container spacing={2}>
-                {latest.kpis.map(kpi => (
+                {kpis.map(kpi => (
                     <Grid key={kpi.key} size={{xs: 6, sm: 4, md: 3}}>
                         <Box
                             data-testid={`kpi-${kpi.key}`}

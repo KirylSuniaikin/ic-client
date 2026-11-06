@@ -741,6 +741,44 @@ describe("BusinessTab", () => {
             expect(tile.textContent).not.toContain("0.000");
         });
 
+        it("shows food cost as the inventory COGS % of the latest month, not the recipe-costed KPI", async () => {
+            const withFoodCost: BusinessStatsResponse = {
+                ...report,
+                inventoryCogs: report.inventoryCogs.map(m => m.period === "2026-07"
+                    ? { ...m, movementCogs: 900, cogsPercentOfGrossRevenue: 27.45 }
+                    : m),
+                kpi: report.kpi.map(block => block.period === "2026-07"
+                    ? { ...block, kpis: [...block.kpis, {
+                        key: "foodCost", label: "Food cost", value: 22.68, unit: "%",
+                        previousValue: 20, unavailableReason: null, detail: "recipe-costed, of gross revenue",
+                    }] }
+                    : block),
+            };
+            renderTab(withFoodCost);
+
+            const tile = await screen.findByTestId("kpi-foodCost");
+            expect(tile.textContent).toContain("27.45%");
+            expect(tile.textContent).not.toContain("22.68%");
+            expect(tile.textContent).toContain("inventory COGS");
+        });
+
+        it("renders an em dash for food cost while the month has no COGS yet", async () => {
+            const noCogs: BusinessStatsResponse = {
+                ...report,
+                kpi: report.kpi.map(block => block.period === "2026-07"
+                    ? { ...block, kpis: [...block.kpis, {
+                        key: "foodCost", label: "Food cost", value: 22.68, unit: "%",
+                        previousValue: null, unavailableReason: null, detail: "recipe-costed, of gross revenue",
+                    }] }
+                    : block),
+            };
+            renderTab(noCogs);
+
+            const tile = await screen.findByTestId("kpi-foodCost");
+            expect(tile.textContent).toContain("—");
+            expect(tile.textContent).not.toContain("22.68%");
+        });
+
         it("explains prime cost in the Key metrics info", async () => {
             renderTab();
 
