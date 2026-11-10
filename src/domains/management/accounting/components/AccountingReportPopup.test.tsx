@@ -54,8 +54,8 @@ const BRANCH: IBranch = {
 };
 
 const CATEGORIES: AccountingCategoryTO[] = [
-    { id: 1, name: "Sales", type: "CREDIT" },
-    { id: 2, name: "Supplies", type: "DEBIT" },
+    { id: 1, name: "Sales", type: "CREDIT", pnlClass: null },
+    { id: 2, name: "Supplies", type: "DEBIT", pnlClass: null },
 ];
 
 function report(overrides: Partial<AccountingReportTO> = {}): AccountingReportTO {
