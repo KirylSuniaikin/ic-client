@@ -393,3 +393,29 @@ describe("P&L class filter", () => {
         expect(isDefaultView({ ...EMPTY_FILTERS, pnl: "OPEX" }, DEFAULT_SORTS)).toBe(false);
     });
 });
+
+describe("stable position while editing", () => {
+    const ctx = (basis: TestRow[]): EntryViewContext => ({
+        categoryNameById: new Map(),
+        sortBasis: new Map(basis.map((r) => [r._key, r] as const)),
+    });
+
+    it("keeps an edited row where it was saved until the edit is saved", () => {
+        const a = row({ date: "2026-11-05T10:00" });
+        const b = row({ date: "2026-11-03T10:00" });
+        const edited = { ...a, date: "2026-10-07T10:00" };
+
+        const result = applyEntryView([edited, b], EMPTY_FILTERS, DEFAULT_SORTS, ctx([a, b]));
+
+        expect(result.map((r) => r._key)).toEqual([a._key, b._key]);
+    });
+
+    it("keeps unsaved new rows on top whatever date they are given", () => {
+        const saved = row({ date: "2026-11-05T10:00" });
+        const fresh = row({ id: undefined, date: "2026-09-01T10:00" });
+
+        const result = applyEntryView([saved, fresh], EMPTY_FILTERS, DEFAULT_SORTS, ctx([saved]));
+
+        expect(result.map((r) => r._key)).toEqual([fresh._key, saved._key]);
+    });
+});
