@@ -4,6 +4,8 @@ export interface AccountingCategoryTO {
     id: number;
     name: string;
     type: AccountingType;
+    // Null = unclassified. Only OPEX and CAPEX are filterable in the report popup.
+    pnlClass: string | null;
 }
 
 export interface AccountingEntryTO {

@@ -6,6 +6,7 @@ import {
     EMPTY_FILTERS,
     isDefaultView,
     nextSorts,
+    nextPnlFilter,
     nextTypeFilter,
     setSortDir,
     unsavedRowKeys,
@@ -368,5 +369,27 @@ describe("setSortDir", () => {
 
     it("turns the sort off when the active direction is picked again", () => {
         expect(setSortDir([{ column: "note", dir: "asc" }], "note", "asc")).toEqual([]);
+    });
+});
+
+describe("P&L class filter", () => {
+    const ctx: EntryViewContext = {
+        categoryNameById: new Map(),
+        pnlClassByCategoryId: new Map<number, string | null>([[1, "OPEX"], [2, "CAPEX"], [3, null]]),
+    };
+    const rows = [row({ categoryId: 1 }), row({ categoryId: 2 }), row({ categoryId: 3 }), row({ categoryId: null })];
+
+    it("keeps only entries whose category has the chosen class", () => {
+        const opex = applyEntryView(rows, { ...EMPTY_FILTERS, pnl: "OPEX" }, DEFAULT_SORTS, ctx);
+        const capex = applyEntryView(rows, { ...EMPTY_FILTERS, pnl: "CAPEX" }, DEFAULT_SORTS, ctx);
+        expect(opex.map((r) => r.categoryId)).toEqual([1]);
+        expect(capex.map((r) => r.categoryId)).toEqual([2]);
+    });
+
+    it("cycles All -> OPEX -> CAPEX -> All and counts as a non-default view", () => {
+        expect(nextPnlFilter("ALL")).toBe("OPEX");
+        expect(nextPnlFilter("OPEX")).toBe("CAPEX");
+        expect(nextPnlFilter("CAPEX")).toBe("ALL");
+        expect(isDefaultView({ ...EMPTY_FILTERS, pnl: "OPEX" }, DEFAULT_SORTS)).toBe(false);
     });
 });

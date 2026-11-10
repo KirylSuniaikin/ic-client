@@ -53,8 +53,8 @@ const BRANCH: IBranch = {
 };
 
 const CATEGORIES: AccountingCategoryTO[] = [
-    { id: 1, name: "Sales", type: "CREDIT" },
-    { id: 2, name: "Supplies", type: "DEBIT" },
+    { id: 1, name: "Sales", type: "CREDIT", pnlClass: "CAPEX" },
+    { id: 2, name: "Supplies", type: "DEBIT", pnlClass: "OPEX" },
 ];
 
 function report(overrides: Partial<AccountingReportTO> = {}): AccountingReportTO {
@@ -346,6 +346,25 @@ describe("column-header sort and filters", () => {
 
             fireEvent.click(screen.getByRole("checkbox", { name: "Supplies" }));
             await waitFor(() => expect(rowDates()).toEqual(["2026-07-02"]));
+        });
+
+        it("cycles the Class header All -> OPEX -> CAPEX -> All and filters by the category's P&L class", async () => {
+            renderPopup();
+            await findTable();
+            const cycle = screen.getByTestId("header-pnl-cycle");
+            expect(cycle.textContent).toBe("Class: All");
+
+            fireEvent.click(cycle);
+            await waitFor(() => expect(cycle.textContent).toBe("Class: OPEX"));
+            expect(rowDates()).toEqual(["2026-07-02"]);
+
+            fireEvent.click(cycle);
+            await waitFor(() => expect(cycle.textContent).toBe("Class: CAPEX"));
+            expect(rowDates()).toEqual(["2026-07-01"]);
+
+            fireEvent.click(cycle);
+            await waitFor(() => expect(cycle.textContent).toBe("Class: All"));
+            expect(rowDates().length).toBe(2);
         });
 
         it("never hides a row that has not been saved yet", async () => {

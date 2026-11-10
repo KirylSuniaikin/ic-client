@@ -61,6 +61,7 @@ import {
     nextSorts,
     setSortDir,
     nextTypeFilter,
+    nextPnlFilter,
 } from "../entryView";
 import type { AccountFilterValue, EntryFilters, EntrySort, EntrySortColumn, SortDir } from "../entryView";
 import { ColumnHeaderFilter } from "./ColumnHeaderFilter";
@@ -213,6 +214,12 @@ const TYPE_FILTER_LABELS: Record<EntryFilters["type"], string> = {
     CREDIT: "Credit",
 };
 
+const PNL_FILTER_LABELS: Record<EntryFilters["pnl"], string> = {
+    ALL: "All",
+    OPEX: "OPEX",
+    CAPEX: "CAPEX",
+};
+
 const NOTE_FILTER_DEBOUNCE_MS = 300;
 
 const ACCOUNT_FILTER_OPTIONS: FilterOption<AccountFilterValue>[] = [
@@ -309,6 +316,10 @@ export function AccountingReportPopup({
         () => new Map(categories.map((c) => [c.id, c.name] as const)),
         [categories]
     );
+    const pnlClassByCategoryId = useMemo(
+        () => new Map(categories.map((c) => [c.id, c.pnlClass] as const)),
+        [categories]
+    );
     const insertionIndex = useMemo(() => new Map(rows.map((r, i) => [r._key, i] as const)), [rows]);
 
     // Filtering and sorting are for DISPLAY only — computedRows above already carries the correct
@@ -324,8 +335,8 @@ export function AccountingReportPopup({
     );
 
     const sortedRows = useMemo(
-        () => applyEntryView(computedRows, filters, sorts, { categoryNameById, insertionIndex, pinnedKeys }),
-        [computedRows, filters, sorts, categoryNameById, insertionIndex, pinnedKeys]
+        () => applyEntryView(computedRows, filters, sorts, { categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys }),
+        [computedRows, filters, sorts, categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys]
     );
 
     // A month-end report runs to ~400 entries, each an editable row of selects and inputs, and
@@ -718,6 +729,11 @@ export function AccountingReportPopup({
         requestViewChange(() => setFilters((f) => ({ ...f, type: next })));
     }
 
+    function handlePnlCycle(): void {
+        const next = nextPnlFilter(filters.pnl);
+        requestViewChange(() => setFilters((f) => ({ ...f, pnl: next })));
+    }
+
     function handleAccountToggle(value: AccountFilterValue): void {
         const next = toggled(filters.accounts, value);
         requestViewChange(() => setFilters((f) => ({ ...f, accounts: next })));
@@ -786,6 +802,13 @@ export function AccountingReportPopup({
                 key: "filter-type",
                 label: `Type: ${TYPE_FILTER_LABELS[filters.type]}`,
                 onRemove: () => requestViewChange(() => setFilters((f) => ({ ...f, type: "ALL" }))),
+            });
+        }
+        if (filters.pnl !== "ALL") {
+            chips.push({
+                key: "filter-pnl",
+                label: `Class: ${PNL_FILTER_LABELS[filters.pnl]}`,
+                onRemove: () => requestViewChange(() => setFilters((f) => ({ ...f, pnl: "ALL" }))),
             });
         }
         const note = filters.note.trim();
@@ -1000,6 +1023,7 @@ export function AccountingReportPopup({
                                                 data-testid="header-type-cycle"
                                                 onClick={handleTypeCycle}
                                                 sx={{
+                                                    display: "flex",
                                                     fontWeight: "bold",
                                                     fontSize: "inherit",
                                                     fontFamily: "inherit",
@@ -1009,6 +1033,21 @@ export function AccountingReportPopup({
                                                 }}
                                             >
                                                 {`Type: ${TYPE_FILTER_LABELS[filters.type]}`}
+                                            </ButtonBase>
+                                            <ButtonBase
+                                                data-testid="header-pnl-cycle"
+                                                onClick={handlePnlCycle}
+                                                sx={{
+                                                    display: "flex",
+                                                    fontWeight: "bold",
+                                                    fontSize: "inherit",
+                                                    fontFamily: "inherit",
+                                                    color: filters.pnl === "ALL" ? "text.secondary" : BRAND_RED,
+                                                    borderRadius: 1,
+                                                    px: 0.5,
+                                                }}
+                                            >
+                                                {`Class: ${PNL_FILTER_LABELS[filters.pnl]}`}
                                             </ButtonBase>
                                         </TableCell>
                                         <TableCell aria-sort={ariaSortFor("amount")} sx={{ fontWeight: "bold", color: "text.secondary" }}>

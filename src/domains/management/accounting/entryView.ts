@@ -7,8 +7,11 @@ export interface EntrySort { column: EntrySortColumn; dir: SortDir }
 export type AccountValue = 'DEBIT_CARD' | 'CASH' | 'CORPORATE_ACCOUNT';
 export type AccountFilterValue = AccountValue | 'NONE';
 
+export type PnlFilterValue = 'ALL' | 'OPEX' | 'CAPEX';
+
 export interface EntryFilters {
   type: 'ALL' | AccountingType;
+  pnl: PnlFilterValue;
   note: string;
   accounts: AccountFilterValue[];
   categoryIds: number[];
@@ -27,6 +30,8 @@ export interface EntryViewRow {
 
 export interface EntryViewContext {
   categoryNameById: ReadonlyMap<number, string>;
+  /** categoryId -> P&L class; a category missing here is unclassified. */
+  pnlClassByCategoryId?: ReadonlyMap<number, string | null>;
   /** _key -> position in the popup's `rows`. Defaults to the position in the input array. */
   insertionIndex?: ReadonlyMap<string, number>;
   /** Rows with unsaved edits stay visible whatever the filters say, so an edit never makes its own row vanish. */
@@ -42,7 +47,7 @@ export interface DirtyRow extends EntryViewRow {
 
 export const DEFAULT_SORTS: readonly EntrySort[] = [{ column: 'date', dir: 'desc' }];
 
-export const EMPTY_FILTERS: EntryFilters = { type: 'ALL', note: '', accounts: [], categoryIds: [] };
+export const EMPTY_FILTERS: EntryFilters = { type: 'ALL', pnl: 'ALL', note: '', accounts: [], categoryIds: [] };
 
 export const DEFAULT_SORT_DIR: Record<EntrySortColumn, SortDir> = {
   date: 'desc',
@@ -88,11 +93,15 @@ function compareKeys(a: string | number, b: string | number, column: EntrySortCo
   return x.localeCompare(y, undefined, { sensitivity: 'base' });
 }
 
-function matchesFilters(row: EntryViewRow, filters: EntryFilters, pinnedKeys?: ReadonlySet<string>): boolean {
+function matchesFilters(row: EntryViewRow, filters: EntryFilters, ctx: EntryViewContext): boolean {
+  const { pinnedKeys } = ctx;
   // A row nobody has saved yet must stay visible, or clicking Add would appear to do nothing.
   if (row.id === undefined) return true;
   if (pinnedKeys?.has(row._key)) return true;
   if (filters.type !== 'ALL' && row.type !== filters.type) return false;
+  if (filters.pnl !== 'ALL' && (row.categoryId === null || ctx.pnlClassByCategoryId?.get(row.categoryId) !== filters.pnl)) {
+    return false;
+  }
   const needle = filters.note.trim().toLowerCase();
   if (needle !== '' && !row.note.toLowerCase().includes(needle)) return false;
   if (filters.accounts.length > 0 && !filters.accounts.includes(row.account ?? 'NONE')) return false;
@@ -112,7 +121,7 @@ export function applyEntryView<T extends EntryViewRow>(
   const position = ctx.insertionIndex ?? new Map(rows.map((r, i) => [r._key, i]));
   const at = (r: T): number => position.get(r._key) ?? 0;
 
-  return rows.filter((r) => matchesFilters(r, filters, ctx.pinnedKeys)).sort((a, b) => {
+  return rows.filter((r) => matchesFilters(r, filters, ctx)).sort((a, b) => {
     for (const { column, dir } of sorts) {
       const ka = sortKey(a, column, ctx);
       const kb = sortKey(b, column, ctx);
@@ -150,9 +159,16 @@ export function nextTypeFilter(t: EntryFilters['type']): EntryFilters['type'] {
   return 'ALL';
 }
 
+export function nextPnlFilter(p: PnlFilterValue): PnlFilterValue {
+  if (p === 'ALL') return 'OPEX';
+  if (p === 'OPEX') return 'CAPEX';
+  return 'ALL';
+}
+
 export function areFiltersEmpty(filters: EntryFilters): boolean {
   return (
     filters.type === 'ALL' &&
+    filters.pnl === 'ALL' &&
     filters.note.trim() === '' &&
     filters.accounts.length === 0 &&
     filters.categoryIds.length === 0
