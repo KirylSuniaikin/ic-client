@@ -320,6 +320,10 @@ export function AccountingReportPopup({
         () => new Map(categories.map((c) => [c.id, c.pnlClass] as const)),
         [categories]
     );
+    const sortBasis = useMemo(
+        () => new Map(savedSnapshot.map((r) => [r._key, r] as const)),
+        [savedSnapshot]
+    );
     const insertionIndex = useMemo(() => new Map(rows.map((r, i) => [r._key, i] as const)), [rows]);
 
     // Filtering and sorting are for DISPLAY only — computedRows above already carries the correct
@@ -335,8 +339,8 @@ export function AccountingReportPopup({
     );
 
     const sortedRows = useMemo(
-        () => applyEntryView(computedRows, filters, sorts, { categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys }),
-        [computedRows, filters, sorts, categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys]
+        () => applyEntryView(computedRows, filters, sorts, { categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys, sortBasis }),
+        [computedRows, filters, sorts, categoryNameById, pnlClassByCategoryId, insertionIndex, pinnedKeys, sortBasis]
     );
 
     // A month-end report runs to ~400 entries, each an editable row of selects and inputs, and

@@ -36,6 +36,11 @@ export interface EntryViewContext {
   insertionIndex?: ReadonlyMap<string, number>;
   /** Rows with unsaved edits stay visible whatever the filters say, so an edit never makes its own row vanish. */
   pinnedKeys?: ReadonlySet<string>;
+  /**
+   * _key -> the row as last saved. Sorting reads these values instead of the live ones, so editing a
+   * date does not re-sort the row out from under the cursor; it settles into place once saved.
+   */
+  sortBasis?: ReadonlyMap<string, EntryViewRow>;
 }
 
 /** The fields whose difference means "the user has unsaved edits". Derived fields are excluded. */
@@ -121,10 +126,18 @@ export function applyEntryView<T extends EntryViewRow>(
   const position = ctx.insertionIndex ?? new Map(rows.map((r, i) => [r._key, i]));
   const at = (r: T): number => position.get(r._key) ?? 0;
 
+  const basisOf = (r: T): EntryViewRow => ctx.sortBasis?.get(r._key) ?? r;
+
   return rows.filter((r) => matchesFilters(r, filters, ctx)).sort((a, b) => {
+    // Unsaved new rows lead, newest first: their date is whatever is being typed right now, and
+    // sorting on it would send a row dated last month to the bottom the moment it is picked.
+    const aNew = a.id === undefined;
+    const bNew = b.id === undefined;
+    if (aNew !== bNew) return aNew ? -1 : 1;
+    if (aNew && bNew) return at(b) - at(a);
     for (const { column, dir } of sorts) {
-      const ka = sortKey(a, column, ctx);
-      const kb = sortKey(b, column, ctx);
+      const ka = sortKey(basisOf(a), column, ctx);
+      const kb = sortKey(basisOf(b), column, ctx);
       if (ka === null && kb === null) continue;
       if (ka === null) return 1;
       if (kb === null) return -1;
