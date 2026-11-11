@@ -1,6 +1,6 @@
 import React from "react";
 import {Box, Card, CardContent, Grid, Tooltip, Typography} from "@mui/material";
-import type {InventoryCogs, Kpi, KpiBlock} from "../../types";
+import type {InventoryCogs, Kpi, KpiBlock, ProfitAndLoss} from "../../types";
 import {formatBd} from "./businessFormat";
 import {TrendChip} from "../performance/TrendChip";
 
@@ -8,6 +8,8 @@ type Props = {
     blocks: KpiBlock[];
     /** Source of the Food cost tile: the COGS% the Inventory COGS card shows, matched by period. */
     inventoryCogs: InventoryCogs[];
+    /** Supplies the recipe COGS and gross revenue needed to rebuild Prime cost on inventory COGS. */
+    profitAndLoss: ProfitAndLoss[];
 };
 
 function monthLabel(period: string): string {
@@ -44,13 +46,51 @@ function withInventoryFoodCost(kpi: Kpi, cogs: InventoryCogs | undefined): Kpi {
 }
 
 /**
+ * Prime cost = inventory COGS + labour, the same COGS the Food cost tile uses. The server adds
+ * labour to recipe-costed COGS, so labour is recovered as (server prime cost - recipe COGS) and
+ * re-added to the inventory COGS. An em dash when labour is untagged (the server's own null) or the
+ * month has no COGS yet -- never a zero.
+ */
+function withInventoryPrimeCost(
+    kpis: Kpi[], cogs: InventoryCogs | undefined, pnl: ProfitAndLoss | undefined,
+): Kpi[] {
+    const serverPrime = kpis.find(k => k.key === "primeCost");
+    const movement = cogs?.movementCogs ?? null;
+    const labour = serverPrime?.value != null && pnl ? serverPrime.value - pnl.recipeCogs : null;
+    const primeCost = labour !== null && movement !== null ? labour + movement : null;
+    const reason = labour === null
+        ? serverPrime?.unavailableReason ?? "Labour is not available for this month."
+        : "COGS is not available for this month yet — a stock count or revenue is missing (see Inventory COGS).";
+    const percent = primeCost !== null && pnl && pnl.grossRevenue > 0
+        ? (primeCost / pnl.grossRevenue) * 100 : null;
+
+    return kpis.map(kpi => {
+        if (kpi.key === "primeCost") {
+            return {
+                ...kpi, value: primeCost, previousValue: null,
+                unavailableReason: primeCost === null ? reason : null,
+                detail: "inventory COGS + labour",
+            };
+        }
+        if (kpi.key === "primeCostPercent") {
+            return {
+                ...kpi, value: percent, previousValue: null,
+                unavailableReason: percent === null
+                    ? (primeCost === null ? reason : "No gross revenue this month.") : null,
+            };
+        }
+        return kpi;
+    });
+}
+
+/**
  * The headline block, showing the most recent month in the range.
  *
  * <p>A KPI that could not be computed renders an em dash with the reason on hover — never a zero.
  * "0% margin" and "we cannot tell you the margin" look identical on a dashboard and mean opposite
  * things, and only one of them is ever true.
  */
-export default function KpiBlockCard({blocks, inventoryCogs}: Props): React.JSX.Element {
+export default function KpiBlockCard({blocks, inventoryCogs, profitAndLoss}: Props): React.JSX.Element {
     const latest = blocks[blocks.length - 1];
 
     if (!latest) {
@@ -62,7 +102,9 @@ export default function KpiBlockCard({blocks, inventoryCogs}: Props): React.JSX.
     }
 
     const latestCogs = inventoryCogs.find(m => m.period === latest.period);
-    const kpis = latest.kpis.map(kpi => withInventoryFoodCost(kpi, latestCogs));
+    const latestPnl = profitAndLoss.find(m => m.period === latest.period);
+    const kpis = withInventoryPrimeCost(
+        latest.kpis.map(kpi => withInventoryFoodCost(kpi, latestCogs)), latestCogs, latestPnl);
 
     return (
         <>

@@ -717,11 +717,28 @@ describe("BusinessTab", () => {
             expect((await screen.findByTestId("kpi-dailyOrders")).textContent).toContain("trading days");
         });
 
-        it("shows prime cost and its share of gross revenue as formatted tiles", async () => {
+        it("rebuilds prime cost on inventory COGS: labour + COGS, as a share of gross revenue", async () => {
+            const withCogs: BusinessStatsResponse = {
+                ...report,
+                inventoryCogs: report.inventoryCogs.map(m => m.period === "2026-07"
+                    ? { ...m, movementCogs: 900, cogsPercentOfGrossRevenue: 22.87 }
+                    : m),
+            };
+            renderTab(withCogs);
+
+            // Labour = 1250.5 server prime cost - 1000 recipe COGS = 250.5; + 900 inventory COGS.
+            expect((await screen.findByTestId("kpi-primeCost")).textContent).toContain("1,150.500 BHD");
+            expect(screen.getByTestId("kpi-primeCostPercent").textContent).toContain("29.24%");
+            expect(screen.getByTestId("kpi-primeCost").textContent).toContain("inventory COGS + labour");
+        });
+
+        it("renders an em dash for prime cost while the month has no COGS yet", async () => {
             renderTab();
 
-            expect((await screen.findByTestId("kpi-primeCost")).textContent).toContain("1,250.500 BHD");
-            expect(screen.getByTestId("kpi-primeCostPercent").textContent).toContain("31.78%");
+            const tile = await screen.findByTestId("kpi-primeCost");
+            expect(tile.textContent).toContain("—");
+            expect(screen.getByTestId("kpi-primeCostPercent").textContent).toContain("—");
+            expect(tile.textContent).not.toContain("1,250.500");
         });
 
         it("renders an em dash, never 0.000, when prime cost is unavailable", async () => {
@@ -784,7 +801,7 @@ describe("BusinessTab", () => {
 
             await userEvent.hover(await screen.findByRole("img", { name: "About 📊 Key metrics" }));
 
-            expect(await screen.findByText(/Prime cost is recipe-costed COGS plus labour/)).toBeTruthy();
+            expect(await screen.findByText(/Prime cost is inventory COGS plus labour/)).toBeTruthy();
         });
 
         it("shows the latest month in the range", async () => {
