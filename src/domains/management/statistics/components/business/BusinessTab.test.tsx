@@ -190,7 +190,7 @@ const report: BusinessStatsResponse = {
                 },
                 {
                     key: "primeCost", label: "Prime cost", value: 1250.5, unit: "BD",
-                    previousValue: null, unavailableReason: null, detail: "recipe-costed COGS + labour",
+                    previousValue: null, unavailableReason: null, detail: "inventory COGS + labour",
                 },
                 {
                     key: "primeCostPercent", label: "Prime cost %", value: 31.78, unit: "%",
@@ -784,7 +784,7 @@ describe("BusinessTab", () => {
 
             await userEvent.hover(await screen.findByRole("img", { name: "About 📊 Key metrics" }));
 
-            expect(await screen.findByText(/Prime cost is recipe-costed COGS plus labour/)).toBeTruthy();
+            expect(await screen.findByText(/Prime cost is inventory COGS plus labour/)).toBeTruthy();
         });
 
         it("shows the latest month in the range", async () => {

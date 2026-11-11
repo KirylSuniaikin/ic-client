@@ -119,7 +119,7 @@ export default function BusinessTab({
                     ))}
 
                     <CollapsibleCard title="📊 Key metrics" defaultExpanded
-                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees); food cost, COGS and labour divide by gross revenue. Trading days are the days with a shift opening or any order, counted rather than assumed. Prime cost is recipe-costed COGS plus labour, and its percentage divides by gross revenue."
+                                     info="Every metric is business-wide, all branches summed. A metric showing an em dash is missing an input rather than reading zero — hover it for the reason. Margins divide by net revenue (gross revenue less app fees); food cost, COGS and labour divide by gross revenue. Trading days are the days with a shift opening or any order, counted rather than assumed. Prime cost is inventory COGS plus labour, and its percentage divides by gross revenue."
                                      summary={monthLabel(data.months[data.months.length - 1])}>
                         <KpiBlockCard blocks={data.kpi} inventoryCogs={data.inventoryCogs}/>
                     </CollapsibleCard>
