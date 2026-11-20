@@ -13,7 +13,7 @@ import {markHandedOverToCourier, markPartHandedOverToCourier} from "../../../../
 import {DeliveryApiError} from "../../../delivery/types";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
 import {HandedToCourierDialog} from "./HandedToCourierDialog";
-import {useNavigate} from "react-router-dom";
+import {OrderEditDialog} from "./orderEdit/OrderEditDialog";
 import {useEffect, useMemo, useState} from "react";
 import PrintIcon from "@mui/icons-material/Print";
 
@@ -249,8 +249,8 @@ function OrderCard({
                        },
                    }: OrderCardProps): JSX.Element {
     const formattedTime = formatTime(order.order_created);
-    const navigate = useNavigate();
     const [extraSec] = useState(0);
+    const [editOpen, setEditOpen] = useState(false);
     const [handOverConfirmOpen, setHandOverConfirmOpen] = useState(false);
     const [handingOver, setHandingOver] = useState(false);
     const [handOverError, setHandOverError] = useState<string | null>(null);
@@ -741,17 +741,16 @@ function OrderCard({
                                 color: colorRed,
                                 borderRadius: 4
                             }}
-                            onClick={() => {
-                                const safeCopy = JSON.parse(JSON.stringify(order));
-                                localStorage.setItem("orderToEdit", JSON.stringify(safeCopy));
-                                navigate("/menu?isAdmin=true&isEditMode=true");
-                            }}>
+                            // Edits in place over the board (ORDER_EDIT_POPUP_SPEC.md). The route-based
+                            // edit mode on /menu stays in the codebase for one release, unused from here.
+                            onClick={() => setEditOpen(true)}>
                             EDIT
                         </Button>
                     )}
                 </Box>
             </CardActions>
 
+            {editOpen && <OrderEditDialog order={order} onClose={() => setEditOpen(false)} />}
             <HandedToCourierDialog
                 open={handOverConfirmOpen}
                 order={order}

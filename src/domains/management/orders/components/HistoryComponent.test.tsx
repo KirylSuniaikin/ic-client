@@ -6,6 +6,12 @@ import type { HistoryDateRange, Order } from "../../../order/types";
 import type { UseOrderHistoryResult } from "../hooks/useOrderHistory";
 import type { IBranch } from "../../inventory/types";
 
+// OrderCard opens the order-edit popup, which reaches the menu popups and PizzaLoader; lottie-web
+// obtains a real 2D canvas context at import time, which jsdom does not provide.
+jest.mock("lottie-react", () => ({
+    __esModule: true,
+    default: (): null => null,
+}));
 // Factoryless jest.mock() — resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../shared/api/public");
 // The hook owns all fetch/pagination/search logic; the component test controls it directly.

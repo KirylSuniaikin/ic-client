@@ -29,7 +29,9 @@ export interface UseAdminOrdersResult {
 }
 
 const SUPPRESS_KEY = 'suppressSoundIds';
-const EDITED_ORDER_ID_KEY = 'editedOrderId';
+// Ids of orders THIS tablet just edited: their order-updates frame refreshes the card without the
+// "order was edited" alert and sound. Written by the route-based edit mode and the edit popup.
+export const EDITED_ORDER_ID_KEY = 'editedOrderId';
 
 const CASH_STAGE_FLOW: Record<string, ShiftEventType> = {
     OPEN_SHIFT_CASH_CHECK: 'CLOSE_SHIFT_CASH_CHECK',

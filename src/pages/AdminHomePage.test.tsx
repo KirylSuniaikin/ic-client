@@ -94,6 +94,12 @@ function mockTaskBoardScreen({ role, autoOpenCardId, autoOpenAssigneeId, onAutoO
 // (only globals/identifiers prefixed `mock` are allowed). Factoryless jest.mock() sidesteps
 // this entirely (see useAdminOrders.test.ts / HistoryComponent.test.tsx for the same pattern);
 // per-test return values are configured afterwards via `jest.mocked(fn).mockReturnValue(...)`.
+// OrderCard opens the order-edit popup, which reaches the menu popups and PizzaLoader; lottie-web
+// obtains a real 2D canvas context at import time, which jsdom does not provide.
+jest.mock("lottie-react", () => ({
+    __esModule: true,
+    default: (): null => null,
+}));
 jest.mock("../domains/auth/context/AuthProvider");
 jest.mock("../domains/management/orders/hooks/useAdminOrders");
 jest.mock("../domains/management/dough/hooks/useDough");

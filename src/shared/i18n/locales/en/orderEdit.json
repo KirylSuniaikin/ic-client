@@ -1,0 +1,58 @@
+{
+  "header": {
+    "title": "Edit order #{{orderNo}}",
+    "savedTitle": "Order #{{orderNo}} updated",
+    "close": "Close"
+  },
+  "menu": {
+    "loading": "Loading the menu…",
+    "loadError": "The menu could not be loaded: {{message}}",
+    "retry": "Try again",
+    "inOrder": "{{count}} in order",
+    "inOrderQuantity": "× {{count}}",
+    "price": "{{amount}} BD",
+    "fromPrice": "from {{amount}} BD",
+    "unavailable": "Unavailable",
+    "add": "Add {{name}}"
+  },
+  "footer": {
+    "complete": "Complete",
+    "saving": "Saving…",
+    "noChanges": "No changes yet",
+    "emptyOrder": "Order cannot be empty",
+    "orderList": "Order list",
+    "saveError": "The order was not saved: {{message}}. Your changes are still here — try again."
+  },
+  "list": {
+    "title": "Order list",
+    "hide": "Hide",
+    "empty": "No items left in the order.",
+    "new": "New",
+    "added": "+{{count}} added",
+    "removed": "{{count}} removed",
+    "price": "{{amount}} BD",
+    "changeOptions": "Change size / toppings",
+    "decrease": "One less {{name}}",
+    "increase": "One more {{name}}",
+    "removeLine": "Remove {{name}}",
+    "was": "Was {{amount}} BD",
+    "now": "Now {{amount}} BD"
+  },
+  "discard": {
+    "title": "Discard changes?",
+    "body": "The changes you made to this order will be lost.",
+    "keep": "Keep editing",
+    "confirm": "Discard"
+  },
+  "summary": {
+    "added": "ADDED",
+    "removed": "REMOVED",
+    "line": "{{count}} × {{label}}",
+    "nothingAdded": "Nothing added",
+    "nothingRemoved": "Nothing removed",
+    "total": "Total",
+    "totalChange": "{{was}} BD → {{now}} BD",
+    "closesIn": "Closes in {{count}} s",
+    "closeNow": "Close now"
+  }
+}

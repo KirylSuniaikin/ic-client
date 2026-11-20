@@ -1,0 +1,58 @@
+{
+  "header": {
+    "title": "تعديل الطلب رقم {{orderNo}}",
+    "savedTitle": "تم تحديث الطلب رقم {{orderNo}}",
+    "close": "إغلاق"
+  },
+  "menu": {
+    "loading": "جارٍ تحميل القائمة…",
+    "loadError": "تعذّر تحميل القائمة: {{message}}",
+    "retry": "حاول مرة أخرى",
+    "inOrder": "{{count}} في الطلب",
+    "inOrderQuantity": "× {{count}}",
+    "price": "{{amount}} د.ب",
+    "fromPrice": "من {{amount}} د.ب",
+    "unavailable": "غير متوفر",
+    "add": "إضافة {{name}}"
+  },
+  "footer": {
+    "complete": "إتمام",
+    "saving": "جارٍ الحفظ…",
+    "noChanges": "لا توجد تغييرات بعد",
+    "emptyOrder": "لا يمكن أن يكون الطلب فارغًا",
+    "orderList": "قائمة الطلب",
+    "saveError": "لم يتم حفظ الطلب: {{message}}. تغييراتك ما زالت هنا — حاول مرة أخرى."
+  },
+  "list": {
+    "title": "قائمة الطلب",
+    "hide": "إخفاء",
+    "empty": "لم يتبقَّ أي صنف في الطلب.",
+    "new": "جديد",
+    "added": "+{{count}} مضاف",
+    "removed": "{{count}} محذوف",
+    "price": "{{amount}} د.ب",
+    "changeOptions": "تغيير الحجم / الإضافات",
+    "decrease": "واحد أقل من {{name}}",
+    "increase": "واحد إضافي من {{name}}",
+    "removeLine": "حذف {{name}}",
+    "was": "كان {{amount}} د.ب",
+    "now": "الآن {{amount}} د.ب"
+  },
+  "discard": {
+    "title": "تجاهل التغييرات؟",
+    "body": "ستفقد التغييرات التي أجريتها على هذا الطلب.",
+    "keep": "متابعة التعديل",
+    "confirm": "تجاهل"
+  },
+  "summary": {
+    "added": "مُضاف",
+    "removed": "محذوف",
+    "line": "{{count}} × {{label}}",
+    "nothingAdded": "لم يُضف شيء",
+    "nothingRemoved": "لم يُحذف شيء",
+    "total": "الإجمالي",
+    "totalChange": "{{was}} د.ب ← {{now}} د.ب",
+    "closesIn": "يُغلق خلال {{count}} ث",
+    "closeNow": "إغلاق الآن"
+  }
+}
