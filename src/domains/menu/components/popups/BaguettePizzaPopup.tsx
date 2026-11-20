@@ -21,12 +21,14 @@ type BaguettePizzaPopupProps = {
     onAddToCart: (items: CartItem[]) => void;
     crossSellItems: MenuItem[],
     removeFromCart: (name: string, price: number, quantity: number) => void;
+    /** Staff order-edit popup: text-only, no photo and no description (ItemPopupShell.hidePhoto). */
+    hidePhoto?: boolean;
 }
 
 const brandRed = "#E44B4C";
 const brandGray = "#f3f3f3";
 
-export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossSellItems, removeFromCart}: BaguettePizzaPopupProps) {
+export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossSellItems, removeFromCart, hidePhoto = false}: BaguettePizzaPopupProps) {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
     const [notes, setNotes] = useState<string>("");
@@ -127,6 +129,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
         <ItemPopupShell
             open={open}
             onClose={onClose}
+            hidePhoto={hidePhoto}
             legacy={{
                 paperSx: {
                     position: "absolute",
@@ -206,7 +209,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                 <Typography variant="h6" sx={{fontWeight: "bold", mb: isDesktop ? 1 : 3, textAlign: "center"}}>
                     {localizeName(menuItem)}
                 </Typography>
-                {isDesktop &&
+                {isDesktop && !hidePhoto &&
                     <Typography
                         variant="body2"
                         sx={{mb: 3, color: "#444", lineHeight: 1.4, fontSize: "14px", textAlign: "center"}}
@@ -301,7 +304,7 @@ export function BaguettePizzaPopup({menuItem, open, onClose, onAddToCart, crossS
                     decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
                 />
 
-                {!isDesktop &&
+                {!isDesktop && !hidePhoto &&
                     <Box>
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
                             {t("baguettePopup.about")}

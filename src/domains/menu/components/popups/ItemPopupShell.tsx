@@ -60,6 +60,9 @@ export interface ItemPopupShellProps {
      *  outside its portal owns both for now. That is Apple Pay's QR outside Safari, which Apple's
      *  SDK draws in its own <apple-pay-modal> on <body>. Default false. */
     yieldFocus?: boolean;
+    /** Text-only popup: neither `legacy.media` nor `desktop.photo` is rendered, so nothing waits
+     *  on an image. The staff order-edit popup sets it; the customer menu never does. Default false. */
+    hidePhoto?: boolean;
     children: ReactNode;
 }
 
@@ -151,6 +154,7 @@ export function ItemPopupShell({
     footer,
     showClose = true,
     yieldFocus = false,
+    hidePhoto = false,
     children,
 }: ItemPopupShellProps): JSX.Element {
     const { t } = useTranslation("customerAuth");
@@ -159,6 +163,10 @@ export function ItemPopupShell({
     // No z-index on the Modal on either path: everything stacked above a popup (ItemEditorPopup
     // at 2000, later Modals at 1300) relies on MUI's default and on portal order.
     if (!isDesktop) {
+        const media = hidePhoto ? null : legacy.media;
+        // Without the photo the title is the first thing in the sheet, right under the round
+        // close button — push it below the button the way the PC body does (bodySx).
+        const scrollSx = hidePhoto && showClose ? [...toArray(legacy.scrollSx), { pt: 5 }] : legacy.scrollSx;
         return (
             <Modal
                 open={open}
@@ -174,15 +182,15 @@ export function ItemPopupShell({
                         </Fab>
                     )}
                     {legacy.scrollSx
-                        ? <Box sx={legacy.scrollSx}>{legacy.media}{children}</Box>
-                        : <>{legacy.media}{children}</>}
+                        ? <Box sx={scrollSx}>{media}{children}</Box>
+                        : <>{media}{children}</>}
                     {footer}
                 </Box>
             </Modal>
         );
     }
 
-    const photo = desktop?.photo;
+    const photo = hidePhoto ? undefined : desktop?.photo;
     const aside = photo === undefined ? desktop?.aside : undefined;
     const split = photo !== undefined || aside !== undefined;
 
