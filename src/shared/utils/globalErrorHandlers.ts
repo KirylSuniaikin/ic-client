@@ -26,6 +26,17 @@ function isFirstPartyScript(source: string | undefined): boolean {
     }
 }
 
+// Some browsers inject their own scripts INLINE into our page, so `source` is our own page URL and
+// the origin check above cannot tell them apart. Brave on iOS is the known case: its built-in
+// crypto wallet runs `window.ethereum.selectedAddress = undefined` at line 1 of every page and
+// throws when the wallet is off. Our bundle never touches these globals, so a message naming them
+// is never ours.
+const INJECTED_SCRIPT_MESSAGE = /\bwindow\.ethereum\b|\bwindow\.web3\b/;
+
+function isInjectedScriptNoise(message: string): boolean {
+    return INJECTED_SCRIPT_MESSAGE.test(message);
+}
+
 // Registers window.onerror + unhandledrejection listeners that forward uncaught
 // JS errors to the shared telemetry client. reportClientError is prod-only
 // internally, so this is called unconditionally.
@@ -37,10 +48,12 @@ export function installGlobalErrorHandlers(): void {
 
     window.onerror = (event, source, _lineno, _colno, error): void => {
         if (!isFirstPartyScript(source)) return;
+        const message = error?.message ?? extractMessage(event);
+        if (isInjectedScriptNoise(message)) return;
 
         void reportClientError({
             source: 'window.onerror',
-            message: error?.message ?? extractMessage(event),
+            message,
             stack: error?.stack,
             url: window.location.href,
             userAgent: navigator.userAgent,

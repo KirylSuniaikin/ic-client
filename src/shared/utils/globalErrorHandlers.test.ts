@@ -72,4 +72,24 @@ describe("installGlobalErrorHandlers — window.onerror first-party filtering", 
         expect(reportClientError).toHaveBeenCalledTimes(1);
         expect(reportClientError).toHaveBeenCalledWith(expect.objectContaining({ message: "some string-only message" }));
     });
+
+    it("filters out Brave's crypto-wallet script, which runs inline on our own page URL", async () => {
+        const reportClientError = await installFresh();
+
+        // Exactly what prod reported from Brave on iOS: first-party source (the page itself, line 1),
+        // so only the message gives it away.
+        const message = "undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')";
+        window.onerror?.(message, `${window.location.origin}/menu`, 1, 16, new TypeError(message));
+
+        expect(reportClientError).not.toHaveBeenCalled();
+    });
+
+    it("still reports an app error whose message merely contains the word ethereum", async () => {
+        const reportClientError = await installFresh();
+
+        const ownScriptUrl = `${window.location.origin}/static/js/main.abc123.js`;
+        window.onerror?.("Pizza ethereum special not found", ownScriptUrl, 1, 1, new Error("Pizza ethereum special not found"));
+
+        expect(reportClientError).toHaveBeenCalledTimes(1);
+    });
 });
