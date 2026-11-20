@@ -15,7 +15,7 @@ import type { BenefitPaySession } from "../../payment/types";
 import { ItemsUnavailableError, BranchClosedError, PAY_ONLINE_METHOD, WALLET_METHOD } from "../types";
 import type { CreateOrderRequest, EditOrderRequest } from "../types";
 import type { MenuItem, CartItem } from "../../menu/types";
-import { buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
+import { buildEditOrderRequest, buildOrderItems, computeAmountPaid } from "../utils/orderPayload";
 import { newIdempotencyKey } from "../../../shared/utils/idempotencyKey";
 import { markPageLeaving } from "../../../shared/utils/pageLeaving";
 // TODO: hardcoded cross-sell lists; these should come from the API once a cross-sell endpoint exists
@@ -174,34 +174,15 @@ export function useCheckout(params: UseCheckoutParams): UseCheckoutResult {
         .filter((item): item is MenuItem => item !== undefined);
 
     function buildOrderTO(orderToEdit: Record<string, unknown>, tel: string, customerName: string | null, deliveryMethod: string | null, paymentType: string | null, items: CartItem[], notes: string): EditOrderRequest {
-        return {
-            id: orderToEdit['id'] as string, // JSON-parsed from localStorage; 'id' is always a string per EditOrderRequest
-            order_no: orderToEdit['order_no'] as number, // JSON-parsed from localStorage; always a number per backend contract
-            tel,
-            customer_name: customerName,
-            delivery_method: deliveryMethod,
-            payment_type: paymentType,
-            address: orderToEdit['address'],
-            notes,
-            items: items.map(item => ({
-                id: item.id, name: item.name, quantity: item.quantity, amount: item.amount,
-                size: item.size || "", category: item.category, description: item.description || "",
-                note: item.note ?? "",
-                isGarlicCrust: !!item.isGarlicCrust, isThinDough: !!item.isThinDough,
-                discountAmount: item.discountAmount ?? 0,
-                customizations: item.customizations ?? [],
-                comboItems: (item.comboItems || []).map(ci => ({
-                    id: ci.id, name: ci.name, category: ci.category, size: ci.size || "",
-                    quantity: ci.quantity || 1, isGarlicCrust: !!ci.isGarlicCrust,
-                    isThinDough: !!ci.isThinDough, description: ci.description || "",
-                    note: ci.note ?? "",
-                    customizations: ci.customizations ?? []
-                }))
-            })),
-            amount_paid: parseFloat(items.reduce((acc, item) => {
-                return acc + item.amount * (1 - (item.discountAmount ?? 0) / 100) * item.quantity;
-            }, 0).toFixed(3))
-        };
+        return buildEditOrderRequest(
+            {
+                id: orderToEdit['id'] as string, // JSON-parsed from localStorage; 'id' is always a string per EditOrderRequest
+                order_no: orderToEdit['order_no'] as number, // JSON-parsed from localStorage; always a number per backend contract
+                address: orderToEdit['address'],
+            },
+            { tel, customerName, deliveryMethod, paymentType, notes },
+            items,
+        );
     }
 
     async function executeOrderCreation(orderData: CreateOrderRequest, originalCartItems: CartItem[]): Promise<void> {

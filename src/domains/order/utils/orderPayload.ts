@@ -1,11 +1,9 @@
 import type { CartItem } from "../../menu/types";
-import type { OrderItemRequest } from "../types";
+import type { EditOrderRequest, OrderItemRequest } from "../types";
 
 // Extracted verbatim from useCheckout.ts's `handleCheckout` order-object literal (the `items:`
 // map and `amount_paid:` reduce) so kiosk and non-kiosk checkout share one money/item-mapping
-// path. Not yet wired into useCheckout.ts — that happens in Phase 7. Do not touch the
-// structurally-similar map+reduce inside `buildOrderTO` (used by the admin edit-order path,
-// EditOrderRequest) — that is a different request type and out of scope here.
+// path. The admin edit-order payload (buildEditOrderRequest below) reuses the same two helpers.
 
 export function buildOrderItems(items: CartItem[]): OrderItemRequest[] {
     return items.map(item => ({
@@ -30,4 +28,43 @@ export function computeAmountPaid(items: CartItem[]): number {
     return parseFloat(items.reduce((acc, item) => {
         return acc + item.amount * (1 - (item.discountAmount ?? 0) / 100) * item.quantity;
     }, 0).toFixed(3));
+}
+
+/** The fields of the order being edited that the edit request carries through unchanged. */
+export interface EditedOrderIdentity {
+    id: string | number;
+    order_no: number;
+    address: unknown;
+}
+
+/** Who and how the edited order is filed — the AdminOrderDetailsPopUp fields in the route flow. */
+export interface EditOrderDetails {
+    tel: string | null;
+    customerName: string | null;
+    deliveryMethod: string | null;
+    paymentType: string | null;
+    notes: string;
+}
+
+/**
+ * The PUT /api/edit_order body. Shared by the route-based edit mode (useCheckout) and the
+ * order-board edit popup so both send exactly the same shape.
+ */
+export function buildEditOrderRequest(
+    order: EditedOrderIdentity,
+    details: EditOrderDetails,
+    items: CartItem[],
+): EditOrderRequest {
+    return {
+        id: order.id,
+        order_no: order.order_no,
+        tel: details.tel,
+        customer_name: details.customerName,
+        delivery_method: details.deliveryMethod,
+        payment_type: details.paymentType,
+        address: order.address,
+        notes: details.notes,
+        items: buildOrderItems(items),
+        amount_paid: computeAmountPaid(items),
+    };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { buildOrderItems, computeAmountPaid } from "./orderPayload";
+import { buildEditOrderRequest, buildOrderItems, computeAmountPaid } from "./orderPayload";
 import type { CartItem, ComboItem } from "../../menu/types";
 
 // Extracted verbatim from useCheckout.ts's handleCheckout order-object literal (task-spec.md §14
@@ -190,5 +190,32 @@ describe("computeAmountPaid", () => {
         const total = computeAmountPaid([makeItem({ amount: 5, quantity: 1, discountAmount: null as unknown as number })]);
 
         expect(total).toBe(5);
+    });
+});
+
+describe("buildEditOrderRequest", () => {
+    const details = { tel: "97312345678", customerName: "Sara", deliveryMethod: "Take Out", paymentType: "Cash", notes: "" };
+
+    it("carries the order's identity and the filing details through unchanged", () => {
+        const request = buildEditOrderRequest({ id: "555", order_no: 5, address: "Block 1" }, details, [makeItem()]);
+
+        expect(request).toEqual(expect.objectContaining({
+            id: "555", order_no: 5, address: "Block 1",
+            tel: "97312345678", customer_name: "Sara", delivery_method: "Take Out", payment_type: "Cash", notes: "",
+        }));
+    });
+
+    it("maps the lines and the total exactly as order creation does", () => {
+        const items = [makeItem({ amount: 3, quantity: 2 }), makeItem({ name: "Sprite", amount: 0.5, discountAmount: 100 })];
+
+        const request = buildEditOrderRequest({ id: 1, order_no: 1, address: null }, details, items);
+
+        expect(request.items).toEqual(buildOrderItems(items));
+        expect(request.amount_paid).toBe(computeAmountPaid(items));
+        expect(request.amount_paid).toBe(6);
+    });
+
+    it("allows no phone, for an order without a customer", () => {
+        expect(buildEditOrderRequest({ id: 1, order_no: 1, address: "" }, { ...details, tel: null }, []).tel).toBeNull();
     });
 });

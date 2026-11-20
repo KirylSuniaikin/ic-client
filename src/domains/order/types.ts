@@ -139,6 +139,10 @@ export type KitchenPartStatus = {
     courierName?: string | null;
 };
 
+// OrderMapper sends this in place of a phone when the order has no customer. On a Talabat order
+// that means the rider photo has not been linked yet, so there is no number to show.
+export const NO_CUSTOMER_PHONE = "Failed to fetch number";
+
 export type Order = {
     id: string;
     order_no: number;
@@ -308,7 +312,9 @@ export type CreateOrderRequest = {
 export type EditOrderRequest = {
     id: string | number;
     order_no: number;
-    tel: string;
+    // Null for an order with no customer: the backend only re-books the customer's spend when a
+    // phone is sent, and refuses one for an order that has no customer.
+    tel: string | null;
     customer_name: string | null;
     delivery_method: string | null;
     payment_type: string | null;
