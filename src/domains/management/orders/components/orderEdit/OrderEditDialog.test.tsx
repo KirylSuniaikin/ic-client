@@ -319,6 +319,19 @@ describe("OrderEditDialog — Complete and the summary", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    it("drains the countdown bar as one smooth 10-second linear animation, not a jump per second", async () => {
+        mockEditOrder.mockResolvedValue(makeEditableOrder());
+        renderDialog();
+        await makeTypicalEdit();
+        fireEvent.click(completeButton());
+        const summary = await screen.findByTestId("order-edit-summary");
+
+        // The sx rule lives on the progress root and targets its bar.
+        const progress = summary.querySelector(".MuiLinearProgress-root");
+        expect(progress).not.toBeNull();
+        expect(emotionRulesFor(progress as Element)).toMatch(/\.MuiLinearProgress-bar \{[^}]*\banimation:\S+ 10s linear forwards/);
+    });
+
     it("closes at once on Close now", async () => {
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         const { onClose } = renderDialog();

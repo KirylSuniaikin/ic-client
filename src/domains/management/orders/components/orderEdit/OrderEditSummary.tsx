@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, LinearProgress, Typography } from "@mui/material";
+import { keyframes, useTheme } from "@mui/material/styles";
 import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
 import RemoveCircleRoundedIcon from "@mui/icons-material/RemoveCircleRounded";
 import { BRAND_RED } from "../../../../../shared/utils/theme";
@@ -10,6 +11,18 @@ import { formatBd, orderLineLabel } from "./orderLineDisplay";
 import { EDIT_COLORS } from "./orderEditColors";
 
 export const SUMMARY_SECONDS = 10;
+
+// The bar runs as one linear CSS animation over the whole countdown. Driving it from the
+// once-a-second state made it jump every second (MUI eases each value change in 0.4 s, then waits).
+// Right-to-left drains the other way, as MUI's own determinate bar does.
+const drainBar = keyframes`
+    from { transform: translateX(0); }
+    to { transform: translateX(-100%); }
+`;
+const drainBarRtl = keyframes`
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+`;
 
 interface OrderEditSummaryProps {
     summary: OrderEditSummaryData;
@@ -58,6 +71,7 @@ function ChangeSection({ kind, changes }: ChangeSectionProps): JSX.Element {
 /** What the save changed, shown for ten seconds before the popup closes itself. */
 export function OrderEditSummary({ summary, onClose }: OrderEditSummaryProps): JSX.Element {
     const { t } = useTranslation("orderEdit");
+    const drain = useTheme().direction === "rtl" ? drainBarRtl : drainBar;
     const [secondsLeft, setSecondsLeft] = useState(SUMMARY_SECONDS);
     // The board re-renders the card several times a second (its own countdown), handing down a new
     // onClose each time; keying the timer on it would restart the second forever.
@@ -88,9 +102,14 @@ export function OrderEditSummary({ summary, onClose }: OrderEditSummaryProps): J
             <Box sx={{ p: 2, borderTop: `1px solid ${EDIT_COLORS.hairline}` }}>
                 <LinearProgress
                     variant="determinate"
-                    value={(secondsLeft / SUMMARY_SECONDS) * 100}
+                    value={100}
                     aria-hidden
-                    sx={{ mb: 1.5, height: 6, borderRadius: 3 }}
+                    sx={{
+                        mb: 1.5,
+                        height: 6,
+                        borderRadius: 3,
+                        "& .MuiLinearProgress-bar": { animation: `${drain} ${SUMMARY_SECONDS}s linear forwards` },
+                    }}
                 />
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Typography role="timer" aria-live="off" sx={{ flex: 1, color: "text.secondary" }}>
