@@ -309,9 +309,9 @@ export default function HomePageModals({
         };
     }
 
-    // Admin and kiosk keep the phone-shaped popups and cart at every width: their screen sizes are unknown.
+    // The kiosk keeps the phone-shaped popups and cart at every width: its screen is fixed and portrait.
     return (
-        <DesktopLayoutAllowedContext.Provider value={!isAdmin && !isKiosk}>
+        <DesktopLayoutAllowedContext.Provider value={!isKiosk}>
             {cart.pizzaPopupOpen && (
                 <PizzaPopup
                     open={cart.pizzaPopupOpen}

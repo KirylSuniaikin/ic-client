@@ -3,7 +3,6 @@ import { BaguettePizzaPopup } from "../../../../menu/components/popups/BaguetteP
 import GenericItemPopupContent from "../../../../menu/components/popups/GenericItemPopupContent";
 import { PizzaComboPopup } from "../../../../menu/components/popups/combo/PizzaComboPopup";
 import { DetroitComboPopup } from "../../../../menu/components/popups/combo/DetroitComboPopup";
-import { DesktopLayoutAllowedContext } from "../../../../../shared/hooks/useDesktopLayout";
 import type { CartItem, ExtraIngr, Group, MenuItem, Topping } from "../../../../menu/types";
 
 /** The menu's own item popup, opened over the editor — for a new line, or pre-filled for a line. */
@@ -40,15 +39,15 @@ function keepLines(): void {
 }
 
 /**
- * Renders the popup the menu page would open, text-only (hidePhoto). Phone-shaped at every width
- * like the admin menu (HomePageModals), so a tablet sees the same popup staff already know.
+ * Renders the popup the menu page would open, text-only (hidePhoto). Like the admin menu
+ * (HomePageModals), it takes the PC layout from `md` up and the phone sheet below.
  */
 export function OrderEditItemPopups({
     request, choices, extraIngredients, toppings, isSDoughAvailable, onAdd, onClose,
 }: OrderEditItemPopupsProps): JSX.Element {
     const addOne = (item: CartItem): void => onAdd([item]);
     return (
-        <DesktopLayoutAllowedContext.Provider value={false}>
+        <>
             {request.kind === "pizza" && (
                 <PizzaPopup
                     open
@@ -121,6 +120,6 @@ export function OrderEditItemPopups({
                     onClose={onClose}
                 />
             )}
-        </DesktopLayoutAllowedContext.Provider>
+        </>
     );
 }

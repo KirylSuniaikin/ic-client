@@ -1076,7 +1076,7 @@ describe("HomePageModals — the Keeta choice event", () => {
  * at any width, because their screen sizes are unknown. This file is where that is decided, for
  * every popup at once, through the DesktopLayoutAllowedContext provider.
  */
-describe("HomePageModals — PC item popups are customer-only", () => {
+describe("HomePageModals — PC item popups everywhere but the kiosk", () => {
     const BEVERAGES: Group = {
         name: "Water",
         items: [{
@@ -1124,11 +1124,10 @@ describe("HomePageModals — PC item popups are customer-only", () => {
         expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
     });
 
-    it("keeps the phone popup for admin staff at the same width", () => {
+    it("renders the PC dialog for admin staff on a wide screen too", () => {
         renderGenericPopup({ isAdmin: true });
 
-        expect(screen.getByRole("button", { name: /^Add ·/ })).toBeTruthy();
-        expect(screen.queryByTestId("item-popup-dialog")).toBeNull();
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
     });
 });
 
