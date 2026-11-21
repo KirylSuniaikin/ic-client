@@ -81,8 +81,15 @@ function unmarkEditedHere(orderId: string): void {
     localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(readEditedIds().filter(id => id !== orderId)));
 }
 
+const PHONE_DIGITS = /^\+?\d+$/;
+
+// A customer-less order reaches the board with a placeholder instead of a phone: null from
+// get_all_active_orders, "Failed to fetch number" from order history, "rabotyaga" from the
+// WebSocket push. The backend treats any non-null tel as "this order has a customer" and answers
+// 500 when it has none, so only a real number goes back.
 function phoneOf(order: Order): string | null {
-    return order.phone_number && order.phone_number !== NO_CUSTOMER_PHONE ? order.phone_number : null;
+    const phone = order.phone_number?.trim() ?? "";
+    return phone !== NO_CUSTOMER_PHONE && PHONE_DIGITS.test(phone) ? phone : null;
 }
 
 function lineStatus(quantity: number, originalQuantity: number): OrderLineStatus {

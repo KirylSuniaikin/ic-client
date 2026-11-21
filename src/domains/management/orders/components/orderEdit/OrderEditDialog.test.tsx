@@ -20,15 +20,15 @@ import { clearMatchMedia, stubMatchMedia } from "../../../../../shared/hooks/stu
 import { emotionRulesFor } from "../../../couriers/components/emotionRules.testutil";
 import { OrderEditDialog } from "./OrderEditDialog";
 import { makeBaseAppInfo, makeEditableOrder } from "./orderEdit.testutil";
-import type { EditOrderRequest } from "../../../../order/types";
+import type { EditOrderRequest, Order } from "../../../../order/types";
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockEditOrder = jest.mocked(editOrder);
 
 // Return type inferred on purpose: there is no @types/jest, so `jest.Mock` cannot be named here.
-function renderDialog() {
+function renderDialog(orderOverrides: Partial<Order> = {}) {
     const onClose = jest.fn<void, []>();
-    render(<OrderEditDialog order={makeEditableOrder()} onClose={onClose} />);
+    render(<OrderEditDialog order={makeEditableOrder(orderOverrides)} onClose={onClose} />);
     return { onClose };
 }
 
@@ -270,6 +270,23 @@ describe("OrderEditDialog — Complete and the summary", () => {
             delivery_method: "Pick Up", payment_type: "Cash", notes: "ring the bell", amount_paid: 4,
         }));
         expect(request.items.map(i => [i.name, i.quantity, i.amount])).toEqual([["Pepperoni", 1, 3.5], ["Sprite", 1, 0.5]]);
+    });
+
+    // The backend answers 500 ("Order has no customer") to any tel on a customer-less order.
+    it.each([
+        ["the WebSocket placeholder", "rabotyaga"],
+        ["the order-history placeholder", "Failed to fetch number"],
+        ["an empty phone", ""],
+        ["no phone at all", null],
+    ])("sends no tel for a customer-less order with %s", async (_label, phone) => {
+        mockEditOrder.mockResolvedValue(makeEditableOrder());
+        renderDialog({ phone_number: phone as string });
+        await makeTypicalEdit();
+        fireEvent.click(completeButton());
+
+        await screen.findByTestId("order-edit-summary");
+        const [request] = mockEditOrder.mock.calls[0] as [EditOrderRequest, string];
+        expect(request.tel).toBeNull();
     });
 
     it("lists what was added in green and what was removed in red, struck through", async () => {
