@@ -215,3 +215,16 @@ describe("PC layout", () => {
         expect(emotionRulesFor(row)).toContain("flex-wrap:wrap");
     });
 });
+
+describe("PizzaPopupContent — text-only mode (staff order edit)", () => {
+    it("renders no pictures: no pizza photo, no garlic-crust/cherry cards' images, no extras or drizzle images", async () => {
+        renderPopup([makeExtra({ photo: "/mushroom.png" } as Partial<ExtraIngrFixture>)], {
+            hidePhoto: true,
+            group: { name: "Pizzas", items: [makeMenuItem({ photo: "/margherita.png" })] },
+            toppings: [{ id: 900, name: "Garlic", photo: "/garlic.png", price: 0.75, available: true }] as never,
+        });
+
+        expect(await screen.findByText("Mushroom")).toBeTruthy();
+        expect(document.body.querySelectorAll("img")).toHaveLength(0);
+    });
+});

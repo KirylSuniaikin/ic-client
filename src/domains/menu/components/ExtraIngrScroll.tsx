@@ -11,6 +11,8 @@ interface ExtraIngrScrollProps {
     ingredients: ExtraIngr[];
     selected: string[];
     onToggle: (name: string) => void;
+    /** Staff order-edit popup: text-only cards, no ingredient pictures. */
+    hidePhoto?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface ExtraIngrScrollProps {
  * pseudo-cards here; combos already have a crust toggle). Renders nothing when the
  * catalog has no extras for the current size.
  */
-export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, selected, onToggle }) => {
+export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, selected, onToggle, hidePhoto = false }) => {
     const { t } = useTranslation("menu");
     const { name: localizeName } = useLocalizedItem();
     const rowSx = useCardRowSx();
@@ -59,7 +61,7 @@ export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, s
                                 }
                             }}
                         >
-                            {ingWithPhoto.photo ? (
+                            {hidePhoto ? null : ingWithPhoto.photo ? (
                                 <img
                                     src={ingWithPhoto.photo as string}
                                     alt={localizeName(ing)}

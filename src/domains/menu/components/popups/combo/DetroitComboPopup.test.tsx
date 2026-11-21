@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 import "../../../../../shared/i18n";
 
@@ -100,5 +100,28 @@ describe("DetroitComboPopup — PC layout", () => {
         expect(text).toContain("Fanta");
         expect(text).toContain("Garlic");
         expect(text).not.toContain("Pepperoni Brick");
+    });
+});
+
+describe("DetroitComboPopup — text-only mode (staff order edit)", () => {
+    it("renders no pictures for the combo, its brick, drink and sauce, nor in the Change picker", () => {
+        render(
+            <DetroitComboPopup
+                open
+                hidePhoto
+                onClose={jest.fn()}
+                combo={[{ ...COMBO[0], photo: "/detroit.png" }]}
+                bricks={[{ name: "Brick Pizzas", items: [{ ...BRICK, photo: "/brick.png" }, BRICK_2] }]}
+                drinks={[{ name: "Beverages", items: [{ ...DRINK, photo: "/cola.png" }, DRINK_2] }]}
+                sauces={[{ name: "Sauces", items: [{ ...SAUCE, photo: "/ranch.png" }, SAUCE_2] }]}
+                onAddToCart={jest.fn()}
+            />
+        );
+        expect(document.body.querySelectorAll("img")).toHaveLength(0);
+
+        fireEvent.click(screen.getAllByRole("button", { name: "Change" })[0]);
+
+        expect(screen.getAllByText("Cheese Brick").length).toBeGreaterThan(0);
+        expect(document.body.querySelectorAll("img")).toHaveLength(0);
     });
 });

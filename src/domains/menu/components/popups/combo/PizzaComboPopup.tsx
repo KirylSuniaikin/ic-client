@@ -621,6 +621,7 @@ export function PizzaComboPopup({
                 {/* The phone sheet shows the title inside its media block, which a text-only popup drops. */}
                 {(isDesktop || hidePhoto) && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={pizza.item}
                     dough={pizza.dough}
                     crust={pizza.crust}
@@ -646,6 +647,7 @@ export function PizzaComboPopup({
                                 ingredients={ingrsForSize}
                                 selected={selectedExtras}
                                 onToggle={handleToggleExtra}
+                                hidePhoto={hidePhoto}
                             />
                             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, mt: 1, px: 0.2}}>
                                 {t("pizzaPopup.drizzles")}
@@ -654,15 +656,18 @@ export function PizzaComboPopup({
                                 toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
                                 selectedToppings={selectedToppings}
                                 onUpdateSelectedToppings={setSelectedToppings}
+                                hidePhoto={hidePhoto}
                             />
                         </>
                     }
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={drink.item}
                     onChange={() => openEditor("drink", drinks.flatMap((d) => d.items).filter(i => i.available), drink.item)}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={sauce.item}
                     onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items).filter(i => i.available), sauce.item)}
                 />
@@ -670,6 +675,7 @@ export function PizzaComboPopup({
 
             {editorOpen && (
                 <ItemEditorPopup
+                    hidePhoto={hidePhoto}
                     open={editorOpen}
                     onClose={() => setEditorOpen(false)}
                     items={editorItems}

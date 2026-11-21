@@ -7,6 +7,8 @@ type Props = {
     toppings: Topping[],
     selectedToppings: string[],
     onUpdateSelectedToppings : (updateFn: (prev: string[]) => string[]) => void;
+    /** Staff order-edit popup: text-only cards, no topping pictures. */
+    hidePhoto?: boolean,
 }
 
 type Topping = {
@@ -20,7 +22,7 @@ type Topping = {
 
 const brandRed = "#E44B4C";
 
-export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedToppings}: Props) {
+export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedToppings, hidePhoto = false}: Props) {
     const {name: localizeName} = useLocalizedItem();
     const rowSx = useCardRowSx();
     const handleToggleIngr = (name: string) => {
@@ -59,7 +61,7 @@ export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedTopp
                             }
                         }}
                     >
-                        {topping.photo ? (
+                        {hidePhoto ? null : topping.photo ? (
                             <img
                                 src={topping.photo}
                                 alt={localizeName(topping)}

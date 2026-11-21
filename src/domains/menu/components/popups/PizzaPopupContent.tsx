@@ -566,7 +566,7 @@ function PizzaPopup({
                             }
                         }}
                     >
-                        <img
+                        {!hidePhoto && <img
                             src="/crust.png"
                             alt="CRUST"
                             style={{
@@ -574,7 +574,7 @@ function PizzaPopup({
                                 height: 120,
                                 objectFit: "contain"
                             }}
-                        />
+                        />}
                         <Typography
                             variant="body2"
                             sx={{
@@ -617,7 +617,7 @@ function PizzaPopup({
                             }
                         }}
                     >
-                        <img
+                        {!hidePhoto && <img
                             src="/cherry.png"
                             alt="CRUST"
                             style={{
@@ -625,7 +625,7 @@ function PizzaPopup({
                                 height: 120,
                                 objectFit: "contain"
                             }}
-                        />
+                        />}
                         <Typography
                             variant="body2"
                             sx={{
@@ -671,7 +671,7 @@ function PizzaPopup({
                                     }
                                 }}
                             >
-                                {ingWithPhoto.photo ? (
+                                {hidePhoto ? null : ingWithPhoto.photo ? (
                                     <img
                                         src={ingWithPhoto.photo as string}
                                         alt={localizeName(ing)}
@@ -722,6 +722,7 @@ function PizzaPopup({
                     toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
                     selectedToppings={selectedToppings}
                     onUpdateSelectedToppings={setSelectedToppings}
+                    hidePhoto={hidePhoto}
                 />
 
                 <BetterTogetherComponent

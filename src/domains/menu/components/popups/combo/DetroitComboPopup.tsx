@@ -340,6 +340,7 @@ export function DetroitComboPopup({
                 {/* The phone sheet shows the title inside its media block, which a text-only popup drops. */}
                 {(isDesktop || hidePhoto) && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={brick.item}
                     onChange={() => {
                         openEditor("brick", bricks.flatMap((b) => b.items), brick.item
@@ -350,10 +351,12 @@ export function DetroitComboPopup({
                     onToggleComponent={handleToggleComponent}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={drink.item}
                     onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={sauce.item}
                     onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
                 />
@@ -361,6 +364,7 @@ export function DetroitComboPopup({
 
             {editorOpen && (
                 <ItemEditorPopup
+                    hidePhoto={hidePhoto}
                     open={editorOpen}
                     onClose={() => setEditorOpen(false)}
                     items={editorItems}
