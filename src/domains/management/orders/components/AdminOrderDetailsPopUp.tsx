@@ -3,12 +3,17 @@ import React, {useEffect, useState} from "react";
 import {
     Box,
     Button,
+    Dialog,
     Divider,
+    IconButton,
     MenuItem,
     TextField,
     Typography
 } from "@mui/material";
 import SwipeableDrawer from "@mui/material/SwipeableDrawer";
+import CloseIcon from "@mui/icons-material/Close";
+import { useDesktopLayout } from "../../../../shared/hooks/useDesktopLayout";
+import { DESKTOP_DIALOG_MAX_HEIGHT, DESKTOP_DIALOG_RADIUS, DESKTOP_DIALOG_SHADOW } from "../../../../shared/utils/desktopDialog";
 import type { CartItem } from '../../../menu/types';
 import {discountArray} from "../../../cart/components/CartItemHorizontal";
 
@@ -53,6 +58,9 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
     const [paymentMethod, setPaymentMethod] = useState(paymentOptions[0]);
     const [globalDiscount, setGlobalDiscount] = useState(0);
     const countryObj = countries.find((c) => c.name === selectedCountry);
+    // Tablet and PC (the admin menu allows the PC layouts, the kiosk does not): a centred dialog with
+    // the fields in pairs, like the menu's item popups. A phone keeps the bottom sheet.
+    const isDesktop = useDesktopLayout();
 
     useEffect(() => {
         const order = JSON.parse(localStorage.getItem("orderToEdit") ?? "null")
@@ -108,6 +116,180 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
         "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#B0B0B0" },
         "&.Mui-focused": { backgroundColor: focusBg }
     };
+    // On PC two fields share a row; the grid's gap does the spacing the phone's margins do.
+    const pairSx = isDesktop
+        ? { display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 2 }
+        : { display: "block" };
+
+    const fields = (
+        <>
+            <Box sx={pairSx}>
+                {/* Country */}
+                <TextField
+                    select
+                    label="Country"
+                    value={selectedCountry}
+                    onChange={(e) => setSelectedCountry(e.target.value)}
+                    fullWidth
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                >
+                    {countries.map((option) => (
+                        <MenuItem key={option.name} value={option.name}>
+                            {option.name} ({option.code})
+                        </MenuItem>
+                    ))}
+                </TextField>
+
+                {/* Phone (optional) */}
+                <TextField
+                    label={`Phone number (optional)`}
+                    fullWidth
+                    value={phoneDigits}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^\d*$/.test(val) && countryObj && val.length <= countryObj.digits) {
+                            setPhoneDigits(val);
+                            setPhoneError("");
+                        }
+                    }}
+                    error={Boolean(phoneError)}
+                    helperText={phoneError || ""}
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                    inputProps={{ autoComplete: "off", name: `phone-${Math.random()}` }}
+                />
+            </Box>
+
+            {/* Name (optional) */}
+            <TextField
+                label="Customer Name (optional)"
+                fullWidth
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                sx={fieldSx}
+                InputProps={{ sx: { borderRadius: 4 } }}
+                inputProps={{ autoComplete: "off", name: `name-${Math.random()}` }}
+            />
+
+            <Box sx={pairSx}>
+                {/* Delivery Method */}
+                <TextField
+                    select
+                    label="Delivery Method"
+                    value={deliveryMethod}
+                    onChange={(e) => setDeliveryMethod(e.target.value)}
+                    fullWidth
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                >
+                    {deliveryOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
+
+                {/* Payment Method */}
+                <TextField
+                    select
+                    label="Payment Method"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    fullWidth
+                    sx={fieldSx}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                >
+                    {paymentOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                            {option}
+                        </MenuItem>
+                    ))}
+                </TextField>
+            </Box>
+
+            {/* Admin: Order Discount */}
+            <TextField
+                select
+                label="Order Discount"
+                value={globalDiscount}
+                onChange={(e) => {
+                    const discount = parseInt(e.target.value, 10);
+                    setGlobalDiscount(discount);
+                    const updated = cartItems.map((item) => ({ ...item, discountAmount: discount }));
+                    setCartItems(updated);
+                }}
+                fullWidth
+                sx={isDesktop ? { ...fieldSx, maxWidth: "calc(50% - 8px)" } : fieldSx}
+                InputProps={{ sx: { borderRadius: 4 } }}
+            >
+                {discountArray.map((p) => (
+                    <MenuItem key={p} value={p}>{p}%</MenuItem>
+                ))}
+            </TextField>
+        </>
+    );
+
+    const checkoutButton = (
+        <Button
+            fullWidth
+            variant="contained"
+            onClick={handleSave}
+            sx={{
+                backgroundColor: brandRed,
+                color: "#fff",
+                textTransform: "none",
+                fontSize: "1rem",
+                fontWeight: 800,
+                borderRadius: 4,
+                py: 1.2,
+                "&:hover": { backgroundColor: "#d23f40" },
+                boxShadow: "0 6px 16px rgba(228,75,76,0.35)"
+            }}
+        >
+            Checkout
+        </Button>
+    );
+
+    if (isDesktop) {
+        return (
+            <Dialog
+                open={isAdminOrderDetailsPopUpOpen}
+                onClose={onClose}
+                maxWidth={false}
+                aria-labelledby="admin-order-details-title"
+                slotProps={{
+                    paper: {
+                        elevation: 0,
+                        sx: {
+                            width: "min(640px, 92vw)",
+                            maxHeight: DESKTOP_DIALOG_MAX_HEIGHT,
+                            borderRadius: DESKTOP_DIALOG_RADIUS,
+                            boxShadow: DESKTOP_DIALOG_SHADOW,
+                            display: "flex",
+                            flexDirection: "column",
+                        },
+                    },
+                }}
+            >
+                <Box sx={{ display: "flex", alignItems: "center", px: 3, pt: 2.5, pb: 1.5 }}>
+                    <Typography id="admin-order-details-title" variant="h6" sx={{ fontWeight: 900, color: grayText, flex: 1 }}>
+                        User Data
+                    </Typography>
+                    <IconButton aria-label="Close" onClick={onClose} sx={{ color: "#8a8f98" }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                <Divider sx={{ borderColor: grayBorder }} />
+                <Box sx={{ px: 3, pt: 3, pb: 1, overflowY: "auto", flex: 1, minHeight: 0 }}>
+                    {fields}
+                </Box>
+                <Box sx={{ px: 3, py: 2, borderTop: "1px solid #eee" }}>
+                    {checkoutButton}
+                </Box>
+            </Dialog>
+        );
+    }
 
     return (
         <SwipeableDrawer
@@ -144,106 +326,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
 
             {/* content */}
             <Box sx={{ px: 2, pt: 2, pb: 12, overflowY: "auto" }}>
-                {/* Country */}
-                <TextField
-                    select
-                    label="Country"
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    fullWidth
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                >
-                    {countries.map((option) => (
-                        <MenuItem key={option.name} value={option.name}>
-                            {option.name} ({option.code})
-                        </MenuItem>
-                    ))}
-                </TextField>
-
-                {/* Phone (optional) */}
-                <TextField
-                    label={`Phone number (optional)`}
-                    fullWidth
-                    value={phoneDigits}
-                    onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^\d*$/.test(val) && countryObj && val.length <= countryObj.digits) {
-                            setPhoneDigits(val);
-                            setPhoneError("");
-                        }
-                    }}
-                    error={Boolean(phoneError)}
-                    helperText={phoneError || ""}
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                    inputProps={{ autoComplete: "off", name: `phone-${Math.random()}` }}
-                />
-
-                {/* Name (optional) */}
-                <TextField
-                    label="Customer Name (optional)"
-                    fullWidth
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                    inputProps={{ autoComplete: "off", name: `name-${Math.random()}` }}
-                />
-
-                {/* Delivery Method */}
-                <TextField
-                    select
-                    label="Delivery Method"
-                    value={deliveryMethod}
-                    onChange={(e) => setDeliveryMethod(e.target.value)}
-                    fullWidth
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                >
-                    {deliveryOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                            {option}
-                        </MenuItem>
-                    ))}
-                </TextField>
-
-                {/* Payment Method */}
-                <TextField
-                    select
-                    label="Payment Method"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    fullWidth
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                >
-                    {paymentOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                            {option}
-                        </MenuItem>
-                    ))}
-                </TextField>
-
-                {/* Admin: Order Discount */}
-                <TextField
-                    select
-                    label="Order Discount"
-                    value={globalDiscount}
-                    onChange={(e) => {
-                        const discount = parseInt(e.target.value, 10);
-                        setGlobalDiscount(discount);
-                        const updated = cartItems.map((item) => ({ ...item, discountAmount: discount }));
-                        setCartItems(updated);
-                    }}
-                    fullWidth
-                    sx={fieldSx}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                >
-                    {discountArray.map((p) => (
-                        <MenuItem key={p} value={p}>{p}%</MenuItem>
-                    ))}
-                </TextField>
+                {fields}
             </Box>
 
             <Box
@@ -256,24 +339,7 @@ export default function AdminOrderDetailsPopUp({isAdminOrderDetailsPopUpOpen, on
                     zIndex: 10
                 }}
             >
-                <Button
-                    fullWidth
-                    variant="contained"
-                    onClick={handleSave}
-                    sx={{
-                        backgroundColor: brandRed,
-                        color: "#fff",
-                        textTransform: "none",
-                        fontSize: "1rem",
-                        fontWeight: 800,
-                        borderRadius: 4,
-                        py: 1.2,
-                        "&:hover": { backgroundColor: "#d23f40" },
-                        boxShadow: "0 6px 16px rgba(228,75,76,0.35)"
-                    }}
-                >
-                    Checkout
-                </Button>
+                {checkoutButton}
             </Box>
         </SwipeableDrawer>
     );
