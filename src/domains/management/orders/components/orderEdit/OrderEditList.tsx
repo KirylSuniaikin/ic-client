@@ -20,6 +20,8 @@ interface OrderEditListProps {
     /** Present for the lines whose popup can reopen them pre-filled; absent hides the action. */
     canChangeOptions: (line: OrderEditLine) => boolean;
     onChangeOptions: (line: OrderEditLine) => void;
+    /** Edit: each line's change against the order as opened, and Was/Now. New order: plain lines and one total. */
+    compareWithOriginal: boolean;
     /** Back to the categories: the list's own visible way out on every screen size. */
     onHide: () => void;
 }
@@ -38,7 +40,7 @@ function statusTone(status: OrderLineStatus): { color: string; bg: string } {
 }
 
 export function OrderEditList({
-    lines, originalTotal, editedTotal, onIncrement, onDecrement, onRemove, canChangeOptions, onChangeOptions, onHide,
+    lines, originalTotal, editedTotal, onIncrement, onDecrement, onRemove, canChangeOptions, onChangeOptions, onHide, compareWithOriginal,
 }: OrderEditListProps): JSX.Element {
     const { t } = useTranslation("orderEdit");
 
@@ -65,8 +67,8 @@ export function OrderEditList({
                 )}
                 {lines.map(line => {
                     const { title, details } = describeOrderLine(line.item);
-                    const tone = statusTone(line.status);
-                    const change = statusText(line.status);
+                    const tone = compareWithOriginal ? statusTone(line.status) : statusTone({ kind: "unchanged" });
+                    const change = compareWithOriginal ? statusText(line.status) : null;
                     const price = t("list.price", { amount: formatBd(lineTotal(line.item)) });
                     return (
                         <Box
@@ -113,8 +115,17 @@ export function OrderEditList({
             </Box>
 
             <Box sx={{ px: 2, py: 1.5, borderTop: `1px solid ${EDIT_COLORS.hairline}`, display: "flex", justifyContent: "space-between", gap: 2 }}>
-                <Typography sx={{ color: "text.secondary" }}>{t("list.was", { amount: formatBd(originalTotal) })}</Typography>
-                <Typography sx={{ fontWeight: 700, color: EDIT_COLORS.text }}>{t("list.now", { amount: formatBd(editedTotal) })}</Typography>
+                {compareWithOriginal ? (
+                    <>
+                        <Typography sx={{ color: "text.secondary" }}>{t("list.was", { amount: formatBd(originalTotal) })}</Typography>
+                        <Typography sx={{ fontWeight: 700, color: EDIT_COLORS.text }}>{t("list.now", { amount: formatBd(editedTotal) })}</Typography>
+                    </>
+                ) : (
+                    <>
+                        <Typography sx={{ color: "text.secondary" }}>{t("summary.total")}</Typography>
+                        <Typography data-testid="order-list-total" sx={{ fontWeight: 700, color: EDIT_COLORS.text }}>{t("list.price", { amount: formatBd(editedTotal) })}</Typography>
+                    </>
+                )}
             </Box>
         </Box>
     );
