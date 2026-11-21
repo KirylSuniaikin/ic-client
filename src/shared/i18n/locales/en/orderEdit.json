@@ -25,7 +25,7 @@
   },
   "list": {
     "title": "Order list",
-    "hide": "Hide",
+    "back": "Back to the menu",
     "empty": "No items left in the order.",
     "new": "New",
     "added": "+{{count}} added",

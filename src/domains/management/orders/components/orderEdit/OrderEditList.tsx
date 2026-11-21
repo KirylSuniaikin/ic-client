@@ -4,6 +4,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import { BRAND_RED } from "../../../../../shared/utils/theme";
 import type { OrderEditLine, OrderLineStatus } from "./useOrderEdit";
 import { describeOrderLine, formatBd, lineTotal } from "./orderLineDisplay";
@@ -19,8 +20,8 @@ interface OrderEditListProps {
     /** Present for the lines whose popup can reopen them pre-filled; absent hides the action. */
     canChangeOptions: (line: OrderEditLine) => boolean;
     onChangeOptions: (line: OrderEditLine) => void;
-    /** Phone overlay only: the list covers the categories, so it needs its own way back. */
-    onHide?: () => void;
+    /** Back to the categories: the list's own visible way out on every screen size. */
+    onHide: () => void;
 }
 
 const STEPPER_SX = {
@@ -50,13 +51,12 @@ export function OrderEditList({
 
     return (
         <Box data-testid="order-edit-list" sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, bgcolor: "#fff" }}>
-            <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1.5, borderBottom: `1px solid ${EDIT_COLORS.hairline}` }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: `1px solid ${EDIT_COLORS.hairline}` }}>
+                <IconButton aria-label={t("list.back")} onClick={onHide} sx={{ width: 44, height: 44, color: BRAND_RED }}>
+                    {/* Points the reading direction's way back: right in Arabic. */}
+                    <ArrowBackRoundedIcon sx={{ "[dir=rtl] &": { transform: "scaleX(-1)" } }} />
+                </IconButton>
                 <Typography sx={{ fontWeight: 700, color: EDIT_COLORS.text, flex: 1 }}>{t("list.title")}</Typography>
-                {onHide && (
-                    <Button onClick={onHide} sx={{ color: BRAND_RED, textTransform: "none", fontWeight: 700, minHeight: 44 }}>
-                        {t("list.hide")}
-                    </Button>
-                )}
             </Box>
 
             <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>

@@ -181,7 +181,7 @@ export function OrderEditDialog({ order, onClose }: OrderEditDialogProps): JSX.E
                 <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", p: 2, bgcolor: "#fffcf8" }}>{categoriesBody}</Box>
                 {listOpen && isWide && (
                     <Box sx={{ width: 340, flexShrink: 0, borderInlineStart: `1px solid ${EDIT_COLORS.hairline}` }}>
-                        <OrderEditList {...listProps} />
+                        <OrderEditList {...listProps} onHide={() => setListOpen(false)} />
                     </Box>
                 )}
                 {listOpen && !isWide && (

@@ -212,16 +212,24 @@ describe("OrderEditDialog — order list", () => {
         expect(screen.getByRole("dialog")).toBeTruthy();
         openList();
         expect(screen.getByTestId("order-edit-list")).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
         // The categories stay usable beside it.
         expect(await category("Pizzas")).toBeTruthy();
     });
 
-    it("covers the drawer on a phone, with Hide to go back", async () => {
+    it("has a back button on a tablet too, which closes the side panel", async () => {
+        stubMatchMedia(true);
         renderDialog();
         await category("Pizzas");
         openList();
-        fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+        fireEvent.click(screen.getByRole("button", { name: "Back to the menu" }));
+        expect(screen.queryByTestId("order-edit-list")).toBeNull();
+    });
+
+    it("covers the drawer on a phone, with a back button to the menu", async () => {
+        renderDialog();
+        await category("Pizzas");
+        openList();
+        fireEvent.click(screen.getByRole("button", { name: "Back to the menu" }));
         expect(screen.queryByTestId("order-edit-list")).toBeNull();
     });
 });
