@@ -54,5 +54,28 @@
     "totalChange": "{{was}} د.ب ← {{now}} د.ب",
     "closesIn": "يُغلق خلال {{count}} ث",
     "closeNow": "إغلاق الآن"
+  },
+  "create": {
+    "title": "طلب جديد",
+    "placedTitle": "تم تسجيل الطلب",
+    "continue": "متابعة",
+    "emptyOrder": "أضف أصنافًا للبدء",
+    "discardBody": "ستضيع الأصناف التي اخترتها.",
+    "backToItems": "العودة إلى الأصناف",
+    "detailsTitle": "العميل والدفع",
+    "country": "الدولة",
+    "phone": "الهاتف (اختياري)",
+    "phoneLength": "يجب أن يتكون رقم الهاتف من {{count}} أرقام بالضبط",
+    "customerName": "اسم العميل (اختياري)",
+    "paymentTitle": "الدفع",
+    "payment": {
+      "card": "جهاز البطاقة",
+      "cash": "نقدًا",
+      "benefit": "بنفت"
+    },
+    "discount": "خصم الطلب",
+    "place": "تسجيل الطلب · {{amount}} د.ب",
+    "placing": "جارٍ التسجيل…",
+    "placeError": "لم يُسجَّل الطلب: {{message}}"
   }
 }

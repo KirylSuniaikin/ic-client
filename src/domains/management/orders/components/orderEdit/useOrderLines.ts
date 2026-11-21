@@ -28,8 +28,6 @@ export interface UseOrderLinesResult {
     /** Down to zero removes the line. */
     decrement: (key: string) => void;
     removeLine: (key: string) => void;
-    /** Rewrites every line at once (an order-wide discount). */
-    mapItems: (change: (item: CartItem) => CartItem) => void;
     /** Drops every line whose item matches (items the backend reports as no longer available). */
     dropItems: (matches: (item: CartItem) => boolean) => void;
     diff: OrderLineDiff;
@@ -106,10 +104,6 @@ export function useOrderLines(original: CartItem[]): UseOrderLinesResult {
     const decrement = useCallback((key: string): void => setQuantity(key, q => q - 1), [setQuantity]);
     const removeLine = useCallback((key: string): void => setQuantity(key, () => 0), [setQuantity]);
 
-    const mapItems = useCallback((change: (item: CartItem) => CartItem): void => {
-        setKeyed(prev => prev.map(line => ({ ...line, item: change(line.item) })));
-    }, []);
-
     const dropItems = useCallback((matches: (item: CartItem) => boolean): void => {
         setKeyed(prev => prev.filter(line => !matches(line.item)));
     }, []);
@@ -135,7 +129,7 @@ export function useOrderLines(original: CartItem[]): UseOrderLinesResult {
     const editedTotal = useMemo(() => computeAmountPaid(items), [items]);
 
     return {
-        lines, items, addItems, replaceLine, increment, decrement, removeLine, mapItems, dropItems,
+        lines, items, addItems, replaceLine, increment, decrement, removeLine, dropItems,
         diff,
         hasChanges: diff.added.length + diff.removed.length > 0,
         totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),

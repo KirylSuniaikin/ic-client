@@ -12,7 +12,7 @@ import SwipeableDrawer from "@mui/material/SwipeableDrawer";
 import type { CartItem } from '../../../menu/types';
 import {discountArray} from "../../../cart/components/CartItemHorizontal";
 
-const countries = [
+export const countries = [
     { name: "Bahrain", code: "973", digits: 8 },
     { name: "Saudi Arabia", code: "966", digits: 9 },
     {name: "Oman", code: "968", digits: 8 },
@@ -28,7 +28,7 @@ const countries = [
 ];
 
 const deliveryOptions = ["Take Out", "Talabat", "Delivery", "Jahez", "Ahlan"];
-const paymentOptions = ["Card (Through card machine)", "Cash", "Benefit"];
+export const paymentOptions = ["Card (Through card machine)", "Cash", "Benefit"];
 
 const brandRed   = "#E44B4C";
 const grayText   = "#3A3A3A";

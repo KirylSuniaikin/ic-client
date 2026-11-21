@@ -28,6 +28,8 @@ interface OrderEditSummaryProps {
     summary: OrderEditSummaryData;
     /** Fired by Close now and when the countdown reaches zero. */
     onClose: () => void;
+    /** A new order has nothing removed and no previous total: only ADDED and one total. */
+    variant?: "edit" | "create";
 }
 
 interface ChangeSectionProps {
@@ -68,8 +70,9 @@ function ChangeSection({ kind, changes }: ChangeSectionProps): JSX.Element {
     );
 }
 
-/** What the save changed, shown for ten seconds before the popup closes itself. */
-export function OrderEditSummary({ summary, onClose }: OrderEditSummaryProps): JSX.Element {
+/** What the save changed (or what a new order holds), shown for ten seconds before the popup closes itself. */
+export function OrderEditSummary({ summary, onClose, variant = "edit" }: OrderEditSummaryProps): JSX.Element {
+    const isCreate = variant === "create";
     const { t } = useTranslation("orderEdit");
     const drain = useTheme().direction === "rtl" ? drainBarRtl : drainBar;
     const [secondsLeft, setSecondsLeft] = useState(SUMMARY_SECONDS);
@@ -91,11 +94,13 @@ export function OrderEditSummary({ summary, onClose }: OrderEditSummaryProps): J
         <Box data-testid="order-edit-summary" sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
             <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 2 }}>
                 <ChangeSection kind="added" changes={summary.added} />
-                <ChangeSection kind="removed" changes={summary.removed} />
+                {!isCreate && <ChangeSection kind="removed" changes={summary.removed} />}
                 <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, pt: 1.5, borderTop: `1px solid ${EDIT_COLORS.hairline}` }}>
                     <Typography sx={{ color: "text.secondary" }}>{t("summary.total")}</Typography>
                     <Typography data-testid="summary-total" sx={{ fontWeight: 700, color: EDIT_COLORS.text }}>
-                        {t("summary.totalChange", { was: formatBd(summary.originalTotal), now: formatBd(summary.editedTotal) })}
+                        {isCreate
+                            ? t("list.price", { amount: formatBd(summary.editedTotal) })
+                            : t("summary.totalChange", { was: formatBd(summary.originalTotal), now: formatBd(summary.editedTotal) })}
                     </Typography>
                 </Box>
             </Box>
