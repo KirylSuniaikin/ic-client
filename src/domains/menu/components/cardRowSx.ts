@@ -13,8 +13,21 @@ export const CARD_ROW_SX = {
 
 const CARD_ROW_DESKTOP_SX: SxProps<Theme> = { ...CARD_ROW_SX, flexWrap: "wrap", overflowX: "visible" };
 
-/** PC: wrap instead of a hidden-scrollbar strip a mouse wheel cannot move (D6). */
-export function useCardRowSx(): SxProps<Theme> {
+/** Text-only cards (staff order popup): a grid whose columns stretch, so every row ends at the
+ *  right edge instead of leaving a gap after fixed 140px cards. */
+const CARD_GRID_SX: SxProps<Theme> = {
+    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1, mb: 2, py: 1, px: 0.2,
+};
+
+/** PC: wrap instead of a hidden-scrollbar strip a mouse wheel cannot move (D6).
+ *  `fill` (text-only cards): the stretching grid on every screen; pair it with cardWidth(fill). */
+export function useCardRowSx(fill = false): SxProps<Theme> {
     const isDesktop = useDesktopLayout();
+    if (fill) return CARD_GRID_SX;
     return isDesktop ? CARD_ROW_DESKTOP_SX : CARD_ROW_SX;
+}
+
+/** A card's width in a useCardRowSx(fill) row: the grid column's, or the fixed 140px. */
+export function cardWidth(fill: boolean): number | "auto" {
+    return fill ? "auto" : 140;
 }

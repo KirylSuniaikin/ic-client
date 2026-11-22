@@ -1,7 +1,7 @@
 import {Box, Typography} from "@mui/material";
 import React from "react";
 import {useLocalizedItem} from "../../../shared/hooks/useLocalizedItem";
-import {useCardRowSx} from "./cardRowSx";
+import { cardWidth, useCardRowSx } from "./cardRowSx";
 
 type Props = {
     toppings: Topping[],
@@ -24,7 +24,7 @@ const brandRed = "#E44B4C";
 
 export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedToppings, hidePhoto = false}: Props) {
     const {name: localizeName} = useLocalizedItem();
-    const rowSx = useCardRowSx();
+    const rowSx = useCardRowSx(hidePhoto);
     const handleToggleIngr = (name: string) => {
         if (selectedToppings.includes(name)) {
             onUpdateSelectedToppings((prev) => prev.filter((x) => x !== name));
@@ -42,7 +42,7 @@ export function ToppingsScroll({toppings, selectedToppings, onUpdateSelectedTopp
                         key={topping.name}
                         onClick={() => handleToggleIngr(topping.name)}
                         sx={{
-                            width: 140,
+                            width: cardWidth(hidePhoto),
                             flexShrink: 0,
                             textAlign: "center",
                             p: 2,

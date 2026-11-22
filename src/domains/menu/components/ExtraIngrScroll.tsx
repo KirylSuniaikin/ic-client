@@ -3,7 +3,7 @@ import { Box, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useLocalizedItem } from "../../../shared/hooks/useLocalizedItem";
 import type { ExtraIngr } from "../types";
-import { useCardRowSx } from "./cardRowSx";
+import { cardWidth, useCardRowSx } from "./cardRowSx";
 
 const brandRed = "#E44B4C";
 
@@ -24,7 +24,7 @@ interface ExtraIngrScrollProps {
 export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, selected, onToggle, hidePhoto = false }) => {
     const { t } = useTranslation("menu");
     const { name: localizeName } = useLocalizedItem();
-    const rowSx = useCardRowSx();
+    const rowSx = useCardRowSx(hidePhoto);
 
     if (ingredients.length === 0) return null;
 
@@ -42,7 +42,7 @@ export const ExtraIngrScroll: React.FC<ExtraIngrScrollProps> = ({ ingredients, s
                             key={ing.name}
                             onClick={() => onToggle(ing.name)}
                             sx={{
-                                width: 140,
+                                width: cardWidth(hidePhoto),
                                 flexShrink: 0,
                                 textAlign: "center",
                                 p: 2,

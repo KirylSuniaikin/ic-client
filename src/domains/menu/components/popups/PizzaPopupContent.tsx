@@ -14,7 +14,7 @@ import {ToppingsScroll} from "../ToppingsScroll";
 import {RecipeComponentsLine} from "../RecipeComponentsLine";
 import {BetterTogetherComponent} from "../../../order/components/BetterTogetherComponent";
 import {ItemPopupShell} from "./ItemPopupShell";
-import {useCardRowSx} from "../cardRowSx";
+import {cardWidth, useCardRowSx} from "../cardRowSx";
 import {useLocalizedItem} from "../../../../shared/hooks/useLocalizedItem";
 import {useOptionLabel} from "../../../../shared/hooks/useOptionLabel";
 import {useDesktopLayout} from "../../../../shared/hooks/useDesktopLayout";
@@ -98,7 +98,7 @@ function PizzaPopup({
     const [availableSizes, setAvailableSizes] = useState<string[]>([])
     const [removedComponents, setRemovedComponents] = useState<RemovedComponent[]>([]);
     const isDesktop = useDesktopLayout();
-    const cardRowSx = useCardRowSx();
+    const cardRowSx = useCardRowSx(hidePhoto);
     useEffect(() => {
         const TT_PIXEL_ID = 'D1SBUPRC77U25MKH1E40';
 
@@ -547,7 +547,7 @@ function PizzaPopup({
                             handleToggleIngr("garlic crust");
                         }}
                         sx={{
-                            width: 140,
+                            width: cardWidth(hidePhoto),
                             flexShrink: 0,
                             textAlign: "center",
                             p: 2,
@@ -598,7 +598,7 @@ function PizzaPopup({
                             handleToggleIngr("cherry");
                         }}
                         sx={{
-                            width: 140,
+                            width: cardWidth(hidePhoto),
                             flexShrink: 0,
                             textAlign: "center",
                             p: 2,
@@ -652,7 +652,7 @@ function PizzaPopup({
                                 key={ing.name}
                                 onClick={() => handleToggleIngr(ing.name)}
                                 sx={{
-                                    width: 140,
+                                    width: cardWidth(hidePhoto),
                                     flexShrink: 0,
                                     textAlign: "center",
                                     p: 2,

@@ -227,4 +227,16 @@ describe("PizzaPopupContent — text-only mode (staff order edit)", () => {
         expect(await screen.findByText("Mushroom")).toBeTruthy();
         expect(document.body.querySelectorAll("img")).toHaveLength(0);
     });
+
+    it("lays the text cards out in a grid whose columns stretch to the row's end", async () => {
+        renderPopup([makeExtra({ photo: "/mushroom.png" } as Partial<ExtraIngrFixture>)], {
+            hidePhoto: true,
+            group: { name: "Pizzas", items: [makeMenuItem({ photo: "/margherita.png" })] },
+        });
+
+        const card = (await screen.findByText("Mushroom")).parentElement as HTMLElement;
+        const row = card.parentElement as HTMLElement;
+        expect(emotionRulesFor(row)).toContain("grid-template-columns:repeat(auto-fill, minmax(120px, 1fr))");
+        expect(emotionRulesFor(card)).not.toContain("width:140px");
+    });
 });
