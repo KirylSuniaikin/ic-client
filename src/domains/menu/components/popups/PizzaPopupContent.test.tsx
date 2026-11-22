@@ -228,6 +228,13 @@ describe("PizzaPopupContent — text-only mode (staff order edit)", () => {
         expect(document.body.querySelectorAll("img")).toHaveLength(0);
     });
 
+    it("makes Add as tall as the size switch beside it, as the combo popups do", async () => {
+        renderPopup([makeExtra()], { hidePhoto: true });
+
+        const add = await screen.findByRole("button", { name: /^Add/ });
+        expect(emotionRulesFor(add)).toContain("min-height:60px");
+    });
+
     it("lays the text cards out in a grid whose columns stretch to the row's end", async () => {
         renderPopup([makeExtra({ photo: "/mushroom.png" } as Partial<ExtraIngrFixture>)], {
             hidePhoto: true,

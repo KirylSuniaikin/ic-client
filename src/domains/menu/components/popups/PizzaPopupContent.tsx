@@ -478,6 +478,8 @@ function PizzaPopup({
                             fontSize: "20px",
                             borderRadius: 8,
                             flex: 1,
+                            // As in the combo popups: without it the button stays shorter than the size switch beside it.
+                            minHeight: 60,
                             height: "100%",
                             "&:hover": {
                                 backgroundColor: "#d23f40"
