@@ -119,6 +119,7 @@ interface RenderOverrides {
     selectedPizza?: CartItem | null;
     editItem?: CartItem | null;
     isEditMode?: boolean;
+    hidePhoto?: boolean;
 }
 
 function renderPopup(overrides: RenderOverrides = {}) {
@@ -139,6 +140,7 @@ function renderPopup(overrides: RenderOverrides = {}) {
             selectedPizza={overrides.selectedPizza}
             editItem={overrides.editItem}
             isEditMode={overrides.isEditMode}
+            hidePhoto={overrides.hidePhoto}
             isSDoughAvailable={false}
             extraIngredients={extraIngredients as unknown as ExtraIngr[]}
             toppings={toppings as unknown as Topping[]}
@@ -447,5 +449,21 @@ describe("PizzaComboPopup — PC layout", () => {
         expect(added.comboItems?.[0]?.customizations).toContainEqual(
             expect.objectContaining({ action: "ADD", toppingId: 900, name: "Garlic" }),
         );
+    });
+});
+
+describe("PizzaComboPopup — text-only mode (staff order edit)", () => {
+    it("renders no pictures for the combo, its pizza, drink, sauce, extras and drizzles, nor in the Change picker", () => {
+        renderPopup({
+            hidePhoto: true,
+            extraIngredients: [{ id: 5, name: "Mushroom", size: "M", price: 0.5, photo: "/mushroom.png" } as ExtraIngrFixture],
+            toppings: [makeTopping({ photo: "/garlic.png" })],
+        });
+        expect(document.body.querySelectorAll("img")).toHaveLength(0);
+
+        fireEvent.click(screen.getAllByRole("button", { name: "Change" })[1]);
+
+        expect(screen.getAllByText("Cola").length).toBeGreaterThan(0);
+        expect(document.body.querySelectorAll("img")).toHaveLength(0);
     });
 });

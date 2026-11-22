@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { Order } from "../../../order/types";
 import { DeliveryApiError } from "../../../delivery/types";
 
@@ -22,6 +22,8 @@ jest.mock("../../../../shared/api/dispatcher");
 import * as publicApi from "../../../../shared/api/public";
 import { markHandedOverToCourier, markPartHandedOverToCourier } from "../../../../shared/api/dispatcher";
 import OrderCard from "./OrderCard";
+// The edit popup EDIT now opens resolves its copy through useTranslation("orderEdit").
+import "../../../../shared/i18n";
 
 const mockMarkHandedOverToCourier = jest.mocked(markHandedOverToCourier);
 const mockMarkPartHandedOverToCourier = jest.mocked(markPartHandedOverToCourier);
@@ -786,5 +788,47 @@ describe("OrderCard — split order names the rider (T7)", () => {
 
         expect(await screen.findByText(/Hand-over failed\. Response: 500/)).toBeTruthy();
         expect(onPartHandOverConflict).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ORDER_EDIT_POPUP_SPEC.md §4.1: EDIT edits the order in place, in a popup over the board. It no
+ * longer copies the order into localStorage and no longer navigates to the /menu edit mode.
+ */
+describe("OrderCard — EDIT", () => {
+    beforeEach(() => {
+        localStorage.clear();
+        jest.mocked(publicApi.fetchBaseAppInfo).mockReset();
+        jest.mocked(publicApi.fetchBaseAppInfo).mockResolvedValue({
+            menu: [], extraIngr: [], toppings: [], isSDoughAvailable: false, userInfo: null,
+        });
+    });
+
+    it("opens the edit popup over the board instead of navigating to the menu", async () => {
+        render(
+            <MemoryRouter initialEntries={["/admin/"]}>
+                <Routes>
+                    <Route path="/admin/" element={<OrderCard order={makeOrder()} onDeleteClick={jest.fn()} />} />
+                    <Route path="/menu" element={<div>MENU PAGE</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "EDIT" }));
+
+        expect(await screen.findByText("Edit order #4821")).toBeTruthy();
+        expect(screen.queryByText("MENU PAGE")).toBeNull();
+        expect(localStorage.getItem("orderToEdit")).toBeNull();
+        await waitFor(() => expect(publicApi.fetchBaseAppInfo).toHaveBeenCalledWith(null, "branch-1"));
+    });
+
+    it("closes the popup with its close button", async () => {
+        renderCard(makeOrder());
+        fireEvent.click(screen.getByRole("button", { name: "EDIT" }));
+        await waitFor(() => expect(publicApi.fetchBaseAppInfo).toHaveBeenCalled());
+
+        fireEvent.click(await screen.findByRole("button", { name: "Close" }));
+
+        await waitFor(() => expect(screen.queryByText("Edit order #4821")).toBeNull());
     });
 });

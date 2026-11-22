@@ -65,6 +65,8 @@ interface PizzaPopupProps {
     toppings?: Topping[];
     isSDoughAvailable?: boolean;
     isAdmin?: boolean;
+    /** Staff order-edit popup: text-only, no photo and no description (ItemPopupShell.hidePhoto). */
+    hidePhoto?: boolean;
 }
 
 function PizzaPopup({
@@ -79,7 +81,8 @@ function PizzaPopup({
                         isEditMode,
                         toppings = [],
                         isSDoughAvailable,
-                        isAdmin
+                        isAdmin,
+                        hidePhoto = false,
                     }: PizzaPopupProps): JSX.Element | null {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
@@ -356,6 +359,7 @@ function PizzaPopup({
         <ItemPopupShell
             open={open}
             onClose={onClose}
+            hidePhoto={hidePhoto}
             legacy={{
                 paperSx: {
                     position: "absolute",
@@ -496,7 +500,7 @@ function PizzaPopup({
                 <Typography variant="h6" sx={{fontWeight: "bold", mb: isDesktop && !isEditMode ? 1 : 3, textAlign: "center"}}>
                     {localizeName(item)}
                 </Typography>
-                {isDesktop && !isEditMode &&
+                {isDesktop && !isEditMode && !hidePhoto &&
                     <Typography
                         variant="body2"
                         sx={{mb: 3, color: "#444", lineHeight: 1.4, fontSize: "14px", textAlign: "center"}}
@@ -562,7 +566,7 @@ function PizzaPopup({
                             }
                         }}
                     >
-                        <img
+                        {!hidePhoto && <img
                             src="/crust.png"
                             alt="CRUST"
                             style={{
@@ -570,7 +574,7 @@ function PizzaPopup({
                                 height: 120,
                                 objectFit: "contain"
                             }}
-                        />
+                        />}
                         <Typography
                             variant="body2"
                             sx={{
@@ -613,7 +617,7 @@ function PizzaPopup({
                             }
                         }}
                     >
-                        <img
+                        {!hidePhoto && <img
                             src="/cherry.png"
                             alt="CRUST"
                             style={{
@@ -621,7 +625,7 @@ function PizzaPopup({
                                 height: 120,
                                 objectFit: "contain"
                             }}
-                        />
+                        />}
                         <Typography
                             variant="body2"
                             sx={{
@@ -667,7 +671,7 @@ function PizzaPopup({
                                     }
                                 }}
                             >
-                                {ingWithPhoto.photo ? (
+                                {hidePhoto ? null : ingWithPhoto.photo ? (
                                     <img
                                         src={ingWithPhoto.photo as string}
                                         alt={localizeName(ing)}
@@ -718,6 +722,7 @@ function PizzaPopup({
                     toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
                     selectedToppings={selectedToppings}
                     onUpdateSelectedToppings={setSelectedToppings}
+                    hidePhoto={hidePhoto}
                 />
 
                 <BetterTogetherComponent
@@ -727,7 +732,7 @@ function PizzaPopup({
                     decreaseQuantityOnCrossSell={decreaseQuantityOnCrossSell}
                 />
 
-                {!isEditMode && !isDesktop &&
+                {!isEditMode && !isDesktop && !hidePhoto &&
                     <Box>
                         <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>
                             {t("pizzaPopup.about")}

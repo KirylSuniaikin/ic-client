@@ -21,6 +21,8 @@ export function BetterTogetherComponent({betterTogether, selectedItems, increase
     const { t } = useTranslation("checkout");
     const {name: localizeName} = useLocalizedItem();
     const rowSx = useCardRowSx();
+    // Nothing to offer (e.g. the staff order-edit popup passes no cross-sell): no orphan heading.
+    if (betterTogether.length === 0) return null;
     return (
         <Box>
             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, px: 0.2}}>

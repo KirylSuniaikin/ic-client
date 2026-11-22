@@ -48,9 +48,11 @@ interface ItemEditorPopupProps {
     dough?: string;
     crust?: string;
     initialItem?: MenuItem | null;
+    /** Staff order-edit popup: names only, no item pictures. */
+    hidePhoto?: boolean;
 }
 
-function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust, initialItem }: ItemEditorPopupProps): JSX.Element | null {
+function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: initialDough, crust: initialCrust, initialItem, hidePhoto = false }: ItemEditorPopupProps): JSX.Element | null {
     const { t } = useTranslation("menu");
     const { t: tAuth } = useTranslation("customerAuth");
     const {name: localizeName} = useLocalizedItem();
@@ -140,7 +142,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                     cursor: "pointer",
                                 }}
                             >
-                                <Box
+                                {!hidePhoto && <Box
                                     component="img"
                                     src={it.photo}
                                     alt={localizeName(it)}
@@ -154,7 +156,7 @@ function ItemEditorPopup({ open, onClose, items, size, onSave, target, dough: in
                                         mx: "auto",
                                         mb: 2,
                                     }}
-                                />
+                                />}
                                     <Typography sx={{ mt: 1, fontWeight: 500 }}>
                                         {localizeName(it)}
                                     </Typography>

@@ -46,6 +46,8 @@ interface DetroitComboPopupProps {
     editItem?: CartItem | null;
     isEditMode?: boolean;
     removeFromCart?: (name: string, amount: number, quantity: number) => void;
+    /** Staff order-edit popup: text-only, no photo and no description (ItemPopupShell.hidePhoto). */
+    hidePhoto?: boolean;
 }
 
 export function DetroitComboPopup({
@@ -60,6 +62,7 @@ export function DetroitComboPopup({
                                       editItem,
                                       isEditMode,
                                       removeFromCart,
+                                      hidePhoto = false,
                                   }: DetroitComboPopupProps): JSX.Element | null {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
@@ -238,9 +241,9 @@ export function DetroitComboPopup({
             >
                 {localizeName(comboGroup as MenuItem)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            {!hidePhoto && <Typography variant="body2" color="text.secondary">
                 {localizeDescription(comboGroup as MenuItem)}
-            </Typography>
+            </Typography>}
         </>
     );
 
@@ -249,6 +252,7 @@ export function DetroitComboPopup({
             <ItemPopupShell
                 open={open}
                 onClose={onClose}
+                hidePhoto={hidePhoto}
                 legacy={{
                     paperSx: {
                         position: "absolute",
@@ -333,8 +337,10 @@ export function DetroitComboPopup({
                     </Box>
                 }
             >
-                {isDesktop && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
+                {/* The phone sheet shows the title inside its media block, which a text-only popup drops. */}
+                {(isDesktop || hidePhoto) && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={brick.item}
                     onChange={() => {
                         openEditor("brick", bricks.flatMap((b) => b.items), brick.item
@@ -345,10 +351,12 @@ export function DetroitComboPopup({
                     onToggleComponent={handleToggleComponent}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={drink.item}
                     onChange={() => openEditor("drink", drinks.flatMap((d) => d.items), drink.item)}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={sauce.item}
                     onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items), sauce.item)}
                 />
@@ -356,6 +364,7 @@ export function DetroitComboPopup({
 
             {editorOpen && (
                 <ItemEditorPopup
+                    hidePhoto={hidePhoto}
                     open={editorOpen}
                     onClose={() => setEditorOpen(false)}
                     items={editorItems}

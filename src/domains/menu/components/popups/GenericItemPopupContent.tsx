@@ -26,6 +26,8 @@ interface GenericItemPopupContentProps {
     extraIngredients?: ExtraIngr[];
     onAddToCart: (products: CartItem[]) => void;
     crossSellItems: MenuItem[];
+    /** Staff order-edit popup: text-only, no photo and no description (ItemPopupShell.hidePhoto). */
+    hidePhoto?: boolean;
 }
 
 function GenericItemPopupContent({
@@ -34,7 +36,8 @@ function GenericItemPopupContent({
                                      group,
                                      extraIngredients = [],
                                      onAddToCart,
-                                     crossSellItems
+                                     crossSellItems,
+                                     hidePhoto = false,
 }: GenericItemPopupContentProps): JSX.Element | null {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
@@ -215,6 +218,7 @@ function GenericItemPopupContent({
         <ItemPopupShell
             open={open}
             onClose={onClose}
+            hidePhoto={hidePhoto}
             legacy={{
                 paperSx: {
                     position: "absolute",
@@ -296,7 +300,7 @@ function GenericItemPopupContent({
                 <Typography variant="h6" sx={{fontWeight: "bold", mb: 1}}>
                     {localizeName(item)}
                 </Typography>
-                <Typography
+                {!hidePhoto && <Typography
                     variant="body2"
                     sx={{
                         mb: 2,
@@ -306,7 +310,7 @@ function GenericItemPopupContent({
                     }}
                 >
                     {localizeDescription(item)}
-                </Typography>
+                </Typography>}
                 {item.name === "Pizza Rolls" && (
                     <>
                         <FormControlLabel

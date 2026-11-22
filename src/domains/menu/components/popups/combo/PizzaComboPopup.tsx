@@ -71,6 +71,8 @@ interface PizzaComboPopupProps {
     isAdmin?: boolean;
     extraIngredients?: ExtraIngr[];
     toppings?: Topping[];
+    /** Staff order-edit popup: text-only, no photo and no description (ItemPopupShell.hidePhoto). */
+    hidePhoto?: boolean;
 }
 
 const PIZZA_COMBO_LINE_COUNT = 3;
@@ -95,6 +97,7 @@ export function PizzaComboPopup({
                                     isAdmin,
                                     extraIngredients = [],
                                     toppings = [],
+                                    hidePhoto = false,
                                 }: PizzaComboPopupProps): JSX.Element {
     const {t} = useTranslation("menu");
     // A "Pizza Combo" cart line can legitimately reach edit mode without its pizza/drink/sauce
@@ -468,9 +471,9 @@ export function PizzaComboPopup({
             >
                 {sizeItem ? localizeName(sizeItem) : ""}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            {!hidePhoto && <Typography variant="body2" color="text.secondary">
                 {sizeItem ? localizeDescription(sizeItem) : ""}
-            </Typography>
+            </Typography>}
         </>
     );
 
@@ -479,6 +482,7 @@ export function PizzaComboPopup({
             <ItemPopupShell
                 open={open}
                 onClose={onClose}
+                hidePhoto={hidePhoto}
                 legacy={{
                     paperSx: {
                         position: "absolute",
@@ -614,8 +618,10 @@ export function PizzaComboPopup({
                     </Box>
                 }
             >
-                {isDesktop && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
+                {/* The phone sheet shows the title inside its media block, which a text-only popup drops. */}
+                {(isDesktop || hidePhoto) && <Box sx={{textAlign: "center", mb: 2}}>{comboTitle}</Box>}
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={pizza.item}
                     dough={pizza.dough}
                     crust={pizza.crust}
@@ -641,6 +647,7 @@ export function PizzaComboPopup({
                                 ingredients={ingrsForSize}
                                 selected={selectedExtras}
                                 onToggle={handleToggleExtra}
+                                hidePhoto={hidePhoto}
                             />
                             <Typography variant="subtitle1" sx={{fontWeight: "bold", mb: 1, mt: 1, px: 0.2}}>
                                 {t("pizzaPopup.drizzles")}
@@ -649,15 +656,18 @@ export function PizzaComboPopup({
                                 toppings={toppings as unknown as Parameters<typeof ToppingsScroll>[0]['toppings']}
                                 selectedToppings={selectedToppings}
                                 onUpdateSelectedToppings={setSelectedToppings}
+                                hidePhoto={hidePhoto}
                             />
                         </>
                     }
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={drink.item}
                     onChange={() => openEditor("drink", drinks.flatMap((d) => d.items).filter(i => i.available), drink.item)}
                 />
                 <ItemCard
+                    hidePhoto={hidePhoto}
                     item={sauce.item}
                     onChange={() => openEditor("sauce", sauces.flatMap((s) => s.items).filter(i => i.available), sauce.item)}
                 />
@@ -665,6 +675,7 @@ export function PizzaComboPopup({
 
             {editorOpen && (
                 <ItemEditorPopup
+                    hidePhoto={hidePhoto}
                     open={editorOpen}
                     onClose={() => setEditorOpen(false)}
                     items={editorItems}

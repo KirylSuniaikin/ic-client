@@ -25,17 +25,24 @@ import type { AuthContextType } from "../domains/auth/types";
 
 // Stands in for the nav drawer rows that are the only way into these surfaces now that neither
 // is a tab. `activeTab` is echoed out so the switch's direction can be asserted.
-function mockAdminTopbar({ onAccountManagerOpen, activeTab, onSwitchSurface }: {
+function mockAdminTopbar({ onAccountManagerOpen, activeTab, onSwitchSurface, onGoToMenu }: {
     onAccountManagerOpen: () => void;
     activeTab: string;
     onSwitchSurface: () => void;
+    onGoToMenu: () => void;
 }): JSX.Element {
     return (
         <div data-testid="admin-topbar" data-active-tab={activeTab}>
+            <button data-testid="topbar-new-order" onClick={onGoToMenu}>New Order</button>
             <button data-testid="topbar-open-account-manager" onClick={onAccountManagerOpen}>Account Manager</button>
             <button data-testid="topbar-switch-surface" onClick={onSwitchSurface}>Switch surface</button>
         </div>
     );
+}
+
+// The quick new-order popup has its own test file; here only "opened, for which branch" matters.
+function mockOrderCreateDialog({ branchId }: { branchId: string }): JSX.Element {
+    return <div data-testid="order-create-dialog" data-branch-id={branchId} />;
 }
 
 function mockHistoryComponent(): JSX.Element {
@@ -94,6 +101,12 @@ function mockTaskBoardScreen({ role, autoOpenCardId, autoOpenAssigneeId, onAutoO
 // (only globals/identifiers prefixed `mock` are allowed). Factoryless jest.mock() sidesteps
 // this entirely (see useAdminOrders.test.ts / HistoryComponent.test.tsx for the same pattern);
 // per-test return values are configured afterwards via `jest.mocked(fn).mockReturnValue(...)`.
+// OrderCard opens the order-edit popup, which reaches the menu popups and PizzaLoader; lottie-web
+// obtains a real 2D canvas context at import time, which jsdom does not provide.
+jest.mock("lottie-react", () => ({
+    __esModule: true,
+    default: (): null => null,
+}));
 jest.mock("../domains/auth/context/AuthProvider");
 jest.mock("../domains/management/orders/hooks/useAdminOrders");
 jest.mock("../domains/management/dough/hooks/useDough");
@@ -104,6 +117,9 @@ jest.mock("../services/BluetoothPrinterService");
 jest.mock("../domains/management/orders/components/AdminTopbar", () => ({
     __esModule: true,
     default: mockAdminTopbar,
+}));
+jest.mock("../domains/management/orders/components/orderEdit/OrderCreateDialog", () => ({
+    OrderCreateDialog: mockOrderCreateDialog,
 }));
 jest.mock("../domains/management/orders/components/HistoryComponent", () => ({
     __esModule: true,
@@ -528,5 +544,18 @@ describe("AdminHomePage deep link (taskCardId/assigneeId)", () => {
         const panel = screen.getByTestId("task-board-panel");
         expect(panel.getAttribute("data-auto-open-card-id")).toBe("");
         expect(panel.getAttribute("data-auto-open-assignee-id")).toBe("");
+    });
+});
+
+describe("AdminHomePage New Order", () => {
+    it("opens the quick new-order popup for the board's branch instead of leaving for the menu page", () => {
+        renderAdminHomePage(StaffRoles.MANAGER);
+        expect(screen.queryByTestId("order-create-dialog")).toBeNull();
+
+        fireEvent.click(screen.getByTestId("topbar-new-order"));
+
+        expect(screen.getByTestId("order-create-dialog").getAttribute("data-branch-id")).toBe("branch-1");
+        // Still on the board: nothing navigated away.
+        expect(screen.getByTestId("admin-topbar")).toBeTruthy();
     });
 });

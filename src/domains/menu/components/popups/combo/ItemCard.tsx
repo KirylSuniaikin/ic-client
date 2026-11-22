@@ -26,6 +26,8 @@ interface ItemCardProps {
     onToggleComponent?: (component: RecipeComponent) => void;
     // Rendered right under the recipe-components line (e.g. the extra-ingredients scroll).
     extrasSlot?: React.ReactNode;
+    /** Staff order-edit popup: text-only card, no item picture. */
+    hidePhoto?: boolean;
 }
 
 export function ItemCard ({ item,
@@ -42,6 +44,7 @@ export function ItemCard ({ item,
                               removedIds = [],
                               onToggleComponent,
                               extrasSlot,
+                              hidePhoto = false,
                             }: ItemCardProps): JSX.Element {
     const {t} = useTranslation("menu");
     const {name: localizeName, description: localizeDescription} = useLocalizedItem();
@@ -77,7 +80,7 @@ export function ItemCard ({ item,
             }}
         >
             <Box sx={{ display: "flex", alignItems: "flex-start" }}>
-                <img
+                {!hidePhoto && <img
                     src={item.photo}
                     alt={localizeName(item)}
                     style={{
@@ -86,16 +89,16 @@ export function ItemCard ({ item,
                         objectFit: "cover",
                         borderRadius: 12,
                     }}
-                />
+                />}
 
                 <Box
                     sx={{
-                        ml: 2,
+                        ml: hidePhoto ? 0 : 2,
                         flex: 1,
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "space-between",
-                        minHeight: 120,
+                        minHeight: hidePhoto ? 0 : 120,
                     }}
                 >
                     <Box>

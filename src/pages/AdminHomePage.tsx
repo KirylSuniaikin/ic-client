@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Box } from "@mui/material";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { LoadingIndicator } from "../shared/components/LoadingIndicator";
 import { useAuth } from "../domains/auth/context/AuthProvider";
 import {StaffRoles, isManagerRole} from "../domains/auth/types";
@@ -21,6 +21,7 @@ import StatisticsComponent from "../domains/management/statistics/components/Sta
 import ShiftPopup from "../domains/management/shift/components/ShiftPopup";
 import useClosingAlarm from "../domains/management/shift/hooks/useClosingAlarm";
 import PaymentPopup from "../domains/management/orders/components/PaymentPopup";
+import { OrderCreateDialog } from "../domains/management/orders/components/orderEdit/OrderCreateDialog";
 import { AdminPageModals } from "../domains/management/orders/components/AdminPageModals";
 import CashPopup from "../domains/management/shift/components/CashPopup";
 import BluetoothPrinterService from "../services/BluetoothPrinterService";
@@ -49,7 +50,8 @@ function parseOptionalId(raw: string | null): number | undefined {
 function AdminHomePage(): JSX.Element {
     const { username, fullName, branchId, userId, role, logout } = useAuth();
     const { availableBranches, selectedBranch, setSelectedBranch, branchError } = useAdminBranchInit(branchId, role);
-    const navigate = useNavigate();
+    // New Order opens the quick popup on the board instead of the full menu page (/menu?isAdmin=true).
+    const [newOrderOpen, setNewOrderOpen] = useState(false);
     const ui = useAdminUIState();
     // useAdminUIState returns a fresh object every render, so eslint's exhaustive-deps can't prove
     // `ui.setActiveAdminTab` is stable and asks for the whole `ui` object -- which WOULD refire this
@@ -133,11 +135,14 @@ function AdminHomePage(): JSX.Element {
                     </Alert>
                 </Box>
             )}
+            {newOrderOpen && selectedBranch && (
+                <OrderCreateDialog branchId={String(selectedBranch.id)} onClose={() => setNewOrderOpen(false)} />
+            )}
             <PaymentPopup open={ui.paymentDialogOpen} onClose={() => ui.setPaymentDialogOpen(false)} order={ui.selectedOrder} onPaymentSuccess={handlePaymentSuccess} />
             {(!ui.isHistoryOpen || isReviewer) && !ui.isConfigOpen && !ui.isStatisticsOpen && !ui.managementPageOpen && selectedBranch && (
                 <AdminTopbar
                     onOpenHistory={() => ui.setIsHistoryOpen(true)} onOpenStatistics={() => ui.setIsStatisticsOpen(true)}
-                    onOpenConfig={() => ui.setIsConfigOpen(true)} onGoToMenu={() => navigate('/menu?isAdmin=true&branchId=' + selectedBranch.id)}
+                    onOpenConfig={() => ui.setIsConfigOpen(true)} onGoToMenu={() => setNewOrderOpen(true)}
                     branchId={String(selectedBranch.id)} workloadLevel={workloadLevel} onWorkloadChange={setWorkloadLevel}
                     adminId={userId ?? 0} onPurchaseOpen={() => ui.setPurchasePopupOpen(true)} onManagementPageOpen={() => ui.setManagementPageOpen(true)}
                     cashStage={cashStage} onShiftManagementPageOpen={() => ui.setShiftManagementPageOpen(true)} shiftStage={eventStage}

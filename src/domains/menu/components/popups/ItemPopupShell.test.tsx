@@ -287,3 +287,37 @@ describe.each([
         expect(onClose).not.toHaveBeenCalled();
     });
 });
+
+describe("ItemPopupShell — hidePhoto (staff order-edit popup)", () => {
+    it("drops the legacy media but keeps the children, footer and close button", () => {
+        renderShell({ hidePhoto: true });
+
+        expect(screen.queryByAltText("Legacy media")).toBeNull();
+        expect(screen.getByText("Options")).toBeTruthy();
+        expect(screen.getByTestId("footer")).toBeTruthy();
+        expect(screen.getAllByRole("button")).toHaveLength(1);
+    });
+
+    it("pushes the first line below the round close button instead of the photo", () => {
+        renderShell({ hidePhoto: true });
+
+        const scroll = screen.getByText("Options").parentElement;
+        if (scroll === null) throw new Error("children have no scroll container");
+        expect(emotionRulesFor(scroll)).toContain("padding-top:40px");
+    });
+
+    it("drops the PC photo column, leaving one centred column", () => {
+        stubMatchMedia(true);
+        renderShell({ hidePhoto: true });
+
+        expect(screen.getByTestId("item-popup-dialog")).toBeTruthy();
+        expect(screen.queryByTestId("item-popup-photo")).toBeNull();
+        expect(document.querySelectorAll("img")).toHaveLength(0);
+    });
+
+    it("leaves the customer menu's photo alone by default", () => {
+        renderShell();
+
+        expect(screen.getByAltText("Legacy media")).toBeTruthy();
+    });
+});
