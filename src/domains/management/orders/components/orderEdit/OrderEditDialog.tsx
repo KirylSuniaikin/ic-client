@@ -47,7 +47,7 @@ export function OrderEditDialog({ order, onClose }: OrderEditDialogProps): JSX.E
             hasUnsavedWork={edit.phase === "editing" && edit.hasChanges}
             discardBody={t("discard.body")}
             compareWithOriginal
-            takeover={saved && edit.summary ? <OrderEditSummary summary={edit.summary} onClose={onClose} /> : undefined}
+            takeover={saved && edit.summary ? <OrderEditSummary summary={edit.summary} onClose={onClose} onBack={edit.continueEditing} /> : undefined}
             onClose={onClose}
         />
     );

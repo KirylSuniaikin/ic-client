@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, LinearProgress, Typography } from "@mui/material";
 import { keyframes, useTheme } from "@mui/material/styles";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
 import RemoveCircleRoundedIcon from "@mui/icons-material/RemoveCircleRounded";
 import { BRAND_RED } from "../../../../../shared/utils/theme";
@@ -30,6 +31,8 @@ interface OrderEditSummaryProps {
     onClose: () => void;
     /** A new order has nothing removed and no previous total: only ADDED and one total. */
     variant?: "edit" | "create";
+    /** Stops the countdown and goes back to the order's lines, as saved, to change it again. */
+    onBack: () => void;
 }
 
 interface ChangeSectionProps {
@@ -71,7 +74,7 @@ function ChangeSection({ kind, changes }: ChangeSectionProps): JSX.Element {
 }
 
 /** What the save changed (or what a new order holds), shown for ten seconds before the popup closes itself. */
-export function OrderEditSummary({ summary, onClose, variant = "edit" }: OrderEditSummaryProps): JSX.Element {
+export function OrderEditSummary({ summary, onClose, onBack, variant = "edit" }: OrderEditSummaryProps): JSX.Element {
     const isCreate = variant === "create";
     const { t } = useTranslation("orderEdit");
     const drain = useTheme().direction === "rtl" ? drainBarRtl : drainBar;
@@ -116,10 +119,27 @@ export function OrderEditSummary({ summary, onClose, variant = "edit" }: OrderEd
                         "& .MuiLinearProgress-bar": { animation: `${drain} ${SUMMARY_SECONDS}s linear forwards` },
                     }}
                 />
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Typography role="timer" aria-live="off" sx={{ flex: 1, color: "text.secondary" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                    <Typography role="timer" aria-live="off" sx={{ flex: 1, minWidth: 120, color: "text.secondary" }}>
                         {t("summary.closesIn", { count: secondsLeft })}
                     </Typography>
+                    <Button
+                        variant="outlined"
+                        startIcon={<ArrowBackRoundedIcon sx={{ "[dir=rtl] &": { transform: "scaleX(-1)" } }} />}
+                        onClick={onBack}
+                        sx={{
+                            borderRadius: 999,
+                            textTransform: "none",
+                            fontWeight: 700,
+                            minHeight: 44,
+                            px: 2.5,
+                            color: BRAND_RED,
+                            borderColor: BRAND_RED,
+                            "&:hover": { borderColor: BRAND_RED, bgcolor: "#fff7f7" },
+                        }}
+                    >
+                        {t("summary.backToOrder")}
+                    </Button>
                     <Button
                         variant="contained"
                         disableElevation

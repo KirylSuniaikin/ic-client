@@ -1,21 +1,25 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createOrder } from "../../../../../shared/api/public";
+import { createOrder, editOrder } from "../../../../../shared/api/public";
 import { resolveCustomerLanguage } from "../../../../../shared/utils/customerLanguage";
 import { newIdempotencyKey } from "../../../../../shared/utils/idempotencyKey";
 import { logger } from "../../../../../shared/utils/logger";
 import type { CartItem } from "../../../../menu/types";
 import { ItemsUnavailableError } from "../../../../order/types";
 import type { CreateOrderRequest } from "../../../../order/types";
-import { buildOrderItems, computeAmountPaid } from "../../../../order/utils/orderPayload";
+import { buildEditOrderRequest, buildOrderItems, computeAmountPaid } from "../../../../order/utils/orderPayload";
 import { useOrderLines } from "./useOrderLines";
 import type { UseOrderLinesResult } from "./useOrderLines";
+import { markEditedHere, unmarkEditedHere } from "./useOrderEdit";
 import type { OrderEditSummaryData } from "./useOrderEdit";
 
 /** The board skips the new-order sound for these ids: the staff member placed them here. */
 const SUPPRESS_SOUND_KEY = "suppressSoundIds";
 
-/** items → the details step → saving → the 10-second summary. */
+/**
+ * items → the details step → saving → the 10-second summary. "Back to the order" on the summary
+ * returns to items with the order already placed: from then on the footer saves an edit of it.
+ */
 export type OrderCreateStep = "items" | "details" | "saving" | "placed";
 
 /** What the details step collects: the same fields the admin menu's "User Data" sheet asks for. */
@@ -39,6 +43,19 @@ export interface UseOrderCreateResult extends UseOrderLinesResult {
     summary: OrderEditSummaryData | null;
     /** Goes up each time the backend refused items as unavailable: the menu should be reloaded. */
     unavailableNotice: number;
+    /** True once the order exists: the lines now edit it instead of building a new one. */
+    isPlaced: boolean;
+    /** The summary shows a new order (ADDED only) or a change to it (ADDED and REMOVED). */
+    summaryVariant: "create" | "edit";
+    /** From the summary back to the placed order's lines. */
+    backToOrder: () => void;
+    /** Saves the changes made to the placed order, then shows what changed. */
+    saveChanges: () => Promise<void>;
+}
+
+interface PlacedOrder {
+    id: string;
+    details: OrderCreateDetails;
 }
 
 function withDiscount(items: CartItem[], discountPercent: number): CartItem[] {
@@ -61,6 +78,8 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
     const [placeError, setPlaceError] = useState<string | null>(null);
     const [summary, setSummary] = useState<OrderEditSummaryData | null>(null);
     const [unavailableNotice, setUnavailableNotice] = useState(0);
+    const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+    const [summaryVariant, setSummaryVariant] = useState<"create" | "edit">("create");
     const placingRef = useRef(false);
     // One key per order being built: a retry after a network failure is deduplicated by the backend.
     const idempotencyKeyRef = useRef(newIdempotencyKey());
@@ -98,6 +117,10 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
             const created = await createOrder(request);
             rememberPlacedHere(String(created.id));
             setSummary({ added: lines.diff.added, removed: [], originalTotal: 0, editedTotal: request.amount_paid });
+            setSummaryVariant("create");
+            setPlaced({ id: String(created.id), details });
+            // The placed order, discount included, is what any later change is compared with.
+            lines.rebase(items);
             setStep("placed");
         } catch (err) {
             logger.error("New staff order: placing the order failed:", err);
@@ -117,5 +140,56 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
         }
     }
 
-    return { ...lines, step, toDetails, backToItems, place, placeError, summary, unavailableNotice };
+    function backToOrder(): void {
+        if (step !== "placed") return;
+        setSummary(null);
+        setPlaceError(null);
+        setStep("items");
+    }
+
+    async function saveChanges(): Promise<void> {
+        if (placed === null || placingRef.current || lines.items.length === 0 || !lines.hasChanges) return;
+        placingRef.current = true;
+        setStep("saving");
+        setPlaceError(null);
+        const items = withDiscount(lines.items, placed.details.discountPercent);
+        markEditedHere(placed.id);
+        try {
+            const request = buildEditOrderRequest(
+                { id: placed.id, address: null },
+                {
+                    tel: placed.details.phone,
+                    customerName: placed.details.customerName,
+                    deliveryMethod: null,
+                    paymentType: placed.details.paymentType,
+                    notes: "",
+                },
+                items,
+            );
+            await editOrder(request, placed.id);
+            setSummary({ ...lines.diff, originalTotal: lines.originalTotal, editedTotal: request.amount_paid });
+            setSummaryVariant("edit");
+            lines.rebase(items);
+            setStep("placed");
+        } catch (err) {
+            logger.error("New staff order: saving a change to the placed order failed:", err);
+            unmarkEditedHere(placed.id);
+            setPlaceError(err instanceof Error ? err.message : String(err));
+            setStep("items");
+        } finally {
+            placingRef.current = false;
+        }
+    }
+
+    // Lines added to a placed order carry its discount, as every line of it does.
+    const withPlacedDiscount = (items: CartItem[]): CartItem[] =>
+        placed === null ? items : withDiscount(items, placed.details.discountPercent);
+    const addItems = (items: CartItem[]): void => lines.addItems(withPlacedDiscount(items));
+    const replaceLine = (key: string, items: CartItem[]): void => lines.replaceLine(key, withPlacedDiscount(items));
+
+    return {
+        ...lines, addItems, replaceLine,
+        step, toDetails, backToItems, place, placeError, summary, unavailableNotice,
+        isPlaced: placed !== null, summaryVariant, backToOrder, saveChanges,
+    };
 }

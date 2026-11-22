@@ -13,7 +13,7 @@ jest.mock("lottie-react", () => ({
 // Factoryless: resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../../shared/api/public");
 
-import { createOrder, fetchBaseAppInfo } from "../../../../../shared/api/public";
+import { createOrder, editOrder, fetchBaseAppInfo } from "../../../../../shared/api/public";
 import { clearMatchMedia } from "../../../../../shared/hooks/stubMatchMedia.testutil";
 import { ItemsUnavailableError } from "../../../../order/types";
 import type { CreateOrderRequest, Order } from "../../../../order/types";
@@ -22,6 +22,7 @@ import { makeBaseAppInfo } from "./orderEdit.testutil";
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockCreateOrder = jest.mocked(createOrder);
+const mockEditOrder = jest.mocked(editOrder);
 
 function renderDialog() {
     const onClose = jest.fn<void, []>();
@@ -66,6 +67,7 @@ beforeEach(() => {
     window.ttq = { track: jest.fn() };
     mockFetchBaseAppInfo.mockReset();
     mockCreateOrder.mockReset();
+    mockEditOrder.mockReset();
     mockFetchBaseAppInfo.mockResolvedValue(makeBaseAppInfo());
     mockCreateOrder.mockResolvedValue({ id: 555 } as unknown as Order);
     localStorage.clear();
@@ -132,6 +134,23 @@ describe("OrderCreateDialog — details and placing", () => {
         expect(typeof request.idempotency_key).toBe("string");
         // The staff member's own board does not ring for an order they placed.
         expect(JSON.parse(localStorage.getItem("suppressSoundIds") ?? "[]")).toEqual(["555"]);
+    });
+
+    it("shows the order beside the form, with the discount taken off the total", async () => {
+        renderDialog();
+        await pickDrinks();
+        fireEvent.click(footerButton());
+
+        const recap = within(screen.getByTestId("order-create-recap"));
+        expect(recap.getByText("2 × Sprite")).toBeTruthy();
+        expect(recap.getByText("1 × Coca Cola")).toBeTruthy();
+        expect(recap.getByTestId("order-create-recap-total").textContent).toBe("1.500 BD");
+        expect(recap.queryByText("Discount 10%")).toBeNull();
+
+        chooseDiscount(10);
+        expect(recap.getByText("Discount 10%")).toBeTruthy();
+        expect(recap.getByText("−0.150")).toBeTruthy();
+        expect(recap.getByTestId("order-create-recap-total").textContent).toBe("1.350 BD");
     });
 
     it("sends no phone when it is left empty, and the card machine by default", async () => {
@@ -207,6 +226,65 @@ describe("OrderCreateDialog — details and placing", () => {
         expect(screen.queryByTestId("order-create-details")).toBeNull();
         expect(badgeCount()).toBe("1");
         await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(2));
+    });
+});
+
+describe("OrderCreateDialog — back to the placed order", () => {
+    async function placeWithCashAndDiscount(): Promise<void> {
+        renderDialog();
+        await pickDrinks();
+        fireEvent.click(footerButton());
+        fireEvent.change(screen.getByLabelText("Phone (optional)"), { target: { value: "33334444" } });
+        fireEvent.click(screen.getByRole("button", { name: "Cash" }));
+        chooseDiscount(10);
+        fireEvent.click(placeButton());
+        fireEvent.click(await screen.findByRole("button", { name: "Back to the order" }));
+    }
+
+    function saveButton(): HTMLButtonElement {
+        return screen.getByRole("button", { name: /^(Complete|No changes yet|Order cannot be empty|Saving…)$/ }) as HTMLButtonElement;
+    }
+
+    it("returns to the placed order's lines, now as a change to that order", async () => {
+        await placeWithCashAndDiscount();
+
+        expect(screen.queryByTestId("order-edit-summary")).toBeNull();
+        expect(screen.getByText("Change the order")).toBeTruthy();
+        expect(badgeCount()).toBe("3");
+        expect(saveButton().textContent).toBe("No changes yet");
+        expect(saveButton().disabled).toBe(true);
+    });
+
+    it("saves a change as an edit of the placed order, with its customer, payment and discount", async () => {
+        mockEditOrder.mockResolvedValue({} as Order);
+        await placeWithCashAndDiscount();
+        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
+        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
+        fireEvent.click(saveButton());
+
+        await screen.findByTestId("order-edit-summary");
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        expect(mockEditOrder).toHaveBeenCalledTimes(1);
+        const [request, orderId] = mockEditOrder.mock.calls[0];
+        expect(orderId).toBe("555");
+        expect(request).toEqual(expect.objectContaining({ id: "555", tel: "97333334444", payment_type: "Cash", notes: "" }));
+        expect(request.items.map(i => [i.name, i.quantity, i.discountAmount])).toEqual([["Sprite", 3, 10], ["Coca Cola", 1, 10]]);
+        expect(request.amount_paid).toBe(1.8);
+        expect(within(screen.getByTestId("summary-added")).getAllByTestId("summary-added-row").map(r => r.textContent))
+            .toEqual(["1 × Sprite"]);
+        expect(screen.getByTestId("summary-removed")).toBeTruthy();
+    });
+
+    it("keeps the change and shows the error when saving it fails", async () => {
+        mockEditOrder.mockRejectedValue(new Error("Error editing order: 500"));
+        await placeWithCashAndDiscount();
+        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
+        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
+        fireEvent.click(saveButton());
+
+        expect(await screen.findByText(/The order was not saved: Error editing order: 500/)).toBeTruthy();
+        expect(badgeCount()).toBe("4");
+        expect(saveButton().disabled).toBe(false);
     });
 });
 

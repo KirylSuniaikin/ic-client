@@ -53,7 +53,8 @@
     "total": "الإجمالي",
     "totalChange": "{{was}} د.ب ← {{now}} د.ب",
     "closesIn": "يُغلق خلال {{count}} ث",
-    "closeNow": "إغلاق الآن"
+    "closeNow": "إغلاق الآن",
+    "backToOrder": "العودة إلى الطلب"
   },
   "create": {
     "title": "طلب جديد",
@@ -76,6 +77,11 @@
     "discount": "خصم الطلب",
     "place": "تسجيل الطلب · {{amount}} د.ب",
     "placing": "جارٍ التسجيل…",
-    "placeError": "لم يُسجَّل الطلب: {{message}}"
+    "placeError": "لم يُسجَّل الطلب: {{message}}",
+    "customerTitle": "العميل",
+    "orderTitle": "الطلب",
+    "subtotal": "المجموع الفرعي",
+    "discountLine": "خصم {{percent}}٪",
+    "editTitle": "تغيير الطلب"
   }
 }

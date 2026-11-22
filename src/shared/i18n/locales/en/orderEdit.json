@@ -53,7 +53,8 @@
     "total": "Total",
     "totalChange": "{{was}} BD → {{now}} BD",
     "closesIn": "Closes in {{count}} s",
-    "closeNow": "Close now"
+    "closeNow": "Close now",
+    "backToOrder": "Back to the order"
   },
   "create": {
     "title": "New order",
@@ -76,6 +77,11 @@
     "discount": "Order discount",
     "place": "Place order · {{amount}} BD",
     "placing": "Placing…",
-    "placeError": "The order was not placed: {{message}}"
+    "placeError": "The order was not placed: {{message}}",
+    "customerTitle": "Customer",
+    "orderTitle": "Order",
+    "subtotal": "Subtotal",
+    "discountLine": "Discount {{percent}}%",
+    "editTitle": "Change the order"
   }
 }
