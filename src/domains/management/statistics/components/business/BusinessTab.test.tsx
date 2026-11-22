@@ -741,34 +741,42 @@ describe("BusinessTab", () => {
             expect(tile.textContent).not.toContain("0.000");
         });
 
-        it("shows food cost as the inventory COGS % of the latest month, not the recipe-costed KPI", async () => {
+        it("shows the food cost tiles exactly as the server computed them, with the trend", async () => {
             const withFoodCost: BusinessStatsResponse = {
                 ...report,
-                inventoryCogs: report.inventoryCogs.map(m => m.period === "2026-07"
-                    ? { ...m, movementCogs: 900, cogsPercentOfGrossRevenue: 27.45 }
-                    : m),
                 kpi: report.kpi.map(block => block.period === "2026-07"
-                    ? { ...block, kpis: [...block.kpis, {
-                        key: "foodCost", label: "Food cost", value: 22.68, unit: "%",
-                        previousValue: 20, unavailableReason: null, detail: "recipe-costed, of gross revenue",
-                    }] }
+                    ? { ...block, kpis: [...block.kpis,
+                        {
+                            key: "foodCost", label: "Food cost", value: 27.45, unit: "%",
+                            previousValue: 25, unavailableReason: null, detail: "inventory COGS, of gross revenue",
+                        },
+                        {
+                            key: "foodCostRecipe", label: "Food cost (recipe cards)", value: 22.68, unit: "%",
+                            previousValue: null, unavailableReason: null, detail: "theoretical, of gross revenue",
+                        },
+                    ] }
                     : block),
             };
             renderTab(withFoodCost);
 
             const tile = await screen.findByTestId("kpi-foodCost");
             expect(tile.textContent).toContain("27.45%");
-            expect(tile.textContent).not.toContain("22.68%");
             expect(tile.textContent).toContain("inventory COGS");
+            // The browser no longer drops the comparison: the previous month comes from the server.
+            // 27.45 against 25.00 is up 10%.
+            expect(tile.textContent).toContain("10%");
+            expect(screen.getByTestId("kpi-foodCostRecipe").textContent).toContain("22.68%");
         });
 
-        it("renders an em dash for food cost while the month has no COGS yet", async () => {
+        it("renders an em dash for food cost when the server has no COGS for the month", async () => {
             const noCogs: BusinessStatsResponse = {
                 ...report,
                 kpi: report.kpi.map(block => block.period === "2026-07"
                     ? { ...block, kpis: [...block.kpis, {
-                        key: "foodCost", label: "Food cost", value: 22.68, unit: "%",
-                        previousValue: null, unavailableReason: null, detail: "recipe-costed, of gross revenue",
+                        key: "foodCost", label: "Food cost", value: null, unit: "%",
+                        previousValue: null,
+                        unavailableReason: "COGS is not available for this month yet — a stock count or purchases are missing (see Inventory COGS).",
+                        detail: "inventory COGS, of gross revenue",
                     }] }
                     : block),
             };
@@ -776,7 +784,7 @@ describe("BusinessTab", () => {
 
             const tile = await screen.findByTestId("kpi-foodCost");
             expect(tile.textContent).toContain("—");
-            expect(tile.textContent).not.toContain("22.68%");
+            expect(tile.textContent).not.toContain("0.00%");
         });
 
         it("explains prime cost in the Key metrics info", async () => {
