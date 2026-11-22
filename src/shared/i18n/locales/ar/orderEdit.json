@@ -76,6 +76,11 @@
     "discount": "خصم الطلب",
     "place": "تسجيل الطلب · {{amount}} د.ب",
     "placing": "جارٍ التسجيل…",
-    "placeError": "لم يُسجَّل الطلب: {{message}}"
+    "placeError": "لم يُسجَّل الطلب: {{message}}",
+    "customerTitle": "العميل",
+    "orderTitle": "الطلب",
+    "subtotal": "المجموع الفرعي",
+    "discountLine": "خصم {{percent}}٪",
+    "line": "{{count}} × {{label}}"
   }
 }

@@ -76,6 +76,11 @@
     "discount": "Order discount",
     "place": "Place order · {{amount}} BD",
     "placing": "Placing…",
-    "placeError": "The order was not placed: {{message}}"
+    "placeError": "The order was not placed: {{message}}",
+    "customerTitle": "Customer",
+    "orderTitle": "Order",
+    "subtotal": "Subtotal",
+    "discountLine": "Discount {{percent}}%",
+    "line": "{{count}} × {{label}}"
   }
 }

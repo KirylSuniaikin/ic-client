@@ -134,6 +134,23 @@ describe("OrderCreateDialog — details and placing", () => {
         expect(JSON.parse(localStorage.getItem("suppressSoundIds") ?? "[]")).toEqual(["555"]);
     });
 
+    it("shows the order beside the form, with the discount taken off the total", async () => {
+        renderDialog();
+        await pickDrinks();
+        fireEvent.click(footerButton());
+
+        const recap = within(screen.getByTestId("order-create-recap"));
+        expect(recap.getByText("2 × Sprite")).toBeTruthy();
+        expect(recap.getByText("1 × Coca Cola")).toBeTruthy();
+        expect(recap.getByTestId("order-create-recap-total").textContent).toBe("1.500 BD");
+        expect(recap.queryByText("Discount 10%")).toBeNull();
+
+        chooseDiscount(10);
+        expect(recap.getByText("Discount 10%")).toBeTruthy();
+        expect(recap.getByText("−0.150")).toBeTruthy();
+        expect(recap.getByTestId("order-create-recap-total").textContent).toBe("1.350 BD");
+    });
+
     it("sends no phone when it is left empty, and the card machine by default", async () => {
         renderDialog();
         await pickDrinks();
