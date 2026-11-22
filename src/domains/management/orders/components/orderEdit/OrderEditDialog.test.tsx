@@ -366,6 +366,31 @@ describe("OrderEditDialog — Complete and the summary", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    it("goes back to the saved order from the summary, and a second Complete saves again", async () => {
+        mockEditOrder.mockResolvedValue(makeEditableOrder());
+        const { onClose } = renderDialog();
+        await makeTypicalEdit();
+        fireEvent.click(completeButton());
+        fireEvent.click(await screen.findByRole("button", { name: "Back to the order" }));
+
+        expect(screen.queryByTestId("order-edit-summary")).toBeNull();
+        expect(screen.getAllByTestId("order-edit-line").map(l => l.firstChild?.textContent))
+            .toEqual(["1 × Pepperoni (M)", "1 × Sprite"]);
+        // The saved order is the new starting point: nothing is marked changed until the next edit.
+        expect(completeButton().textContent).toBe("No changes yet");
+
+        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
+        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
+        fireEvent.click(completeButton());
+
+        const added = within(await screen.findByTestId("summary-added"));
+        expect(added.getAllByTestId("summary-added-row").map(r => r.textContent)).toEqual(["1 × Sprite"]);
+        expect(within(screen.getByTestId("summary-removed")).getByText("Nothing removed")).toBeTruthy();
+        expect(mockEditOrder).toHaveBeenCalledTimes(2);
+        expect(mockEditOrder.mock.calls[1][0].items.map(i => [i.name, i.quantity])).toEqual([["Pepperoni", 1], ["Sprite", 2]]);
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
     it("keeps the edits and shows the error when the save fails", async () => {
         mockEditOrder.mockRejectedValue(new Error("Error editing order: 500"));
         const { onClose } = renderDialog();

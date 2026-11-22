@@ -33,7 +33,8 @@ export function computeAmountPaid(items: CartItem[]): number {
 /** The fields of the order being edited that the edit request carries through unchanged. */
 export interface EditedOrderIdentity {
     id: string | number;
-    order_no: number;
+    /** Optional: see EditOrderRequest.order_no. */
+    order_no?: number;
     address: unknown;
 }
 

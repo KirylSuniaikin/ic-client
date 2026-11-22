@@ -311,7 +311,9 @@ export type CreateOrderRequest = {
 // Mirrors backend EditOrderTO
 export type EditOrderRequest = {
     id: string | number;
-    order_no: number;
+    // The backend finds the order by id and never reads this; an order placed a moment ago from the
+    // board's quick popup has none on the client (create_order does not return it).
+    order_no?: number;
     // Null for an order with no customer: the backend only re-books the customer's spend when a
     // phone is sent, and refuses one for an order that has no customer.
     tel: string | null;

@@ -48,7 +48,7 @@ function OrderRecap({ items, discountPercent, total }: OrderRecapProps): JSX.Ele
             {items.map((item, i) => (
                 <Box key={i} sx={{ display: "flex", gap: 1.5, py: 0.75, borderBottom: `1px solid ${EDIT_COLORS.hairline}` }}>
                     <Typography variant="body2" sx={{ flex: 1, minWidth: 0, color: EDIT_COLORS.text }}>
-                        {t("create.line", { count: item.quantity, label: orderLineLabel(item) })}
+                        {t("summary.line", { count: item.quantity, label: orderLineLabel(item) })}
                     </Typography>
                     <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
                         {formatBd(lineTotal(item))}

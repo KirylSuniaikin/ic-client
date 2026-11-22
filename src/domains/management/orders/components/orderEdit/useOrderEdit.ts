@@ -43,6 +43,8 @@ export interface UseOrderEditResult {
     complete: () => Promise<void>;
     /** Set once the save succeeded: what the staff member is shown for 10 seconds. */
     summary: OrderEditSummaryData | null;
+    /** From the summary back to the lines, as saved: the next Complete saves again. */
+    continueEditing: () => void;
 }
 
 function readEditedIds(): string[] {
@@ -57,12 +59,12 @@ function readEditedIds(): string[] {
 
 // Written BEFORE the save: unlike the route flow, the board is live behind this popup, and the
 // order-updates frame can land before the PUT resolves.
-function markEditedHere(orderId: string): void {
+export function markEditedHere(orderId: string): void {
     const ids = readEditedIds();
     if (!ids.includes(orderId)) localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify([...ids, orderId]));
 }
 
-function unmarkEditedHere(orderId: string): void {
+export function unmarkEditedHere(orderId: string): void {
     localStorage.setItem(EDITED_ORDER_ID_KEY, JSON.stringify(readEditedIds().filter(id => id !== orderId)));
 }
 
@@ -84,7 +86,7 @@ function phoneOf(order: Order): string | null {
 export function useOrderEdit(order: Order): UseOrderEditResult {
     const [original] = useState<CartItem[]>(() => hydrateOrderItemsForEdit(order.items));
     const {
-        lines, items: editedItems, addItems, replaceLine, increment, decrement, removeLine,
+        lines, items: editedItems, addItems, replaceLine, increment, decrement, removeLine, rebase,
         diff, hasChanges, totalQuantity, originalTotal, editedTotal,
     } = useOrderLines(original);
     const savingRef = useRef(false);
@@ -128,9 +130,16 @@ export function useOrderEdit(order: Order): UseOrderEditResult {
         }
     }
 
+    function continueEditing(): void {
+        if (phase !== "saved") return;
+        rebase(editedItems);
+        setSummary(null);
+        setPhase("editing");
+    }
+
     return {
         lines, addItems, replaceLine, increment, decrement, removeLine,
         diff, hasChanges, completeBlocker, totalQuantity, originalTotal, editedTotal,
-        phase, saveError, complete, summary,
+        phase, saveError, complete, summary, continueEditing,
     };
 }

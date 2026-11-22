@@ -6,6 +6,7 @@ import { useOrderEditMenu } from "./useOrderEditMenu";
 import { OrderCreateDetailsStep } from "./OrderCreateDetailsStep";
 import { OrderEditSummary } from "./OrderEditSummary";
 import { OrderWorkDialog } from "./OrderWorkDialog";
+import type { OrderWorkFooter } from "./OrderWorkDialog";
 
 interface OrderCreateDialogProps {
     /** The branch the order is placed for: the board's selected branch. */
@@ -31,10 +32,10 @@ export function OrderCreateDialog({ branchId, onClose }: OrderCreateDialogProps)
         if (order.unavailableNotice > 0) reloadMenu.current();
     }, [order.unavailableNotice]);
 
-    const placed = order.step === "placed" && order.summary !== null;
+    const showingSummary = order.step === "placed" && order.summary !== null;
     let takeover: ReactNode;
-    if (placed && order.summary) {
-        takeover = <OrderEditSummary variant="create" summary={order.summary} onClose={onClose} />;
+    if (showingSummary && order.summary) {
+        takeover = <OrderEditSummary variant={order.summaryVariant} summary={order.summary} onClose={onClose} onBack={order.backToOrder} />;
     } else if (order.step === "details" || order.step === "saving") {
         takeover = (
             <OrderCreateDetailsStep
@@ -48,23 +49,41 @@ export function OrderCreateDialog({ branchId, onClose }: OrderCreateDialogProps)
     }
 
     const isEmpty = order.items.length === 0;
+    // Once placed, the lines edit that order: the footer saves a change, like the edit popup's Complete.
+    let footer: OrderWorkFooter;
+    if (order.isPlaced) {
+        const saving = order.step === "saving";
+        footer = {
+            label: saving ? t("footer.saving") : isEmpty ? t("footer.emptyOrder") : order.hasChanges ? t("footer.complete") : t("footer.noChanges"),
+            disabled: saving || isEmpty || !order.hasChanges,
+            onClick: () => { void order.saveChanges(); },
+        };
+    } else {
+        footer = {
+            label: isEmpty ? t("create.emptyOrder") : t("create.continue"),
+            disabled: isEmpty,
+            onClick: order.toDetails,
+        };
+    }
+    let title = t("create.title");
+    if (showingSummary) title = t("create.placedTitle");
+    else if (order.isPlaced) title = t("create.editTitle");
+    const placeError = order.placeError === null ? null : order.isPlaced
+        ? t("footer.saveError", { message: order.placeError })
+        : t("create.placeError", { message: order.placeError });
 
     return (
         <OrderWorkDialog
             menu={menu}
             lines={order}
-            title={t(placed ? "create.placedTitle" : "create.title")}
+            title={title}
             ariaLabel={t("create.title")}
-            footer={{
-                label: isEmpty ? t("create.emptyOrder") : t("create.continue"),
-                disabled: isEmpty,
-                onClick: order.toDetails,
-            }}
-            error={order.step === "items" && order.placeError !== null ? t("create.placeError", { message: order.placeError }) : null}
+            footer={footer}
+            error={order.step === "items" ? placeError : null}
             busy={order.step === "saving"}
-            hasUnsavedWork={!placed && !isEmpty}
-            discardBody={t("create.discardBody")}
-            compareWithOriginal={false}
+            hasUnsavedWork={order.isPlaced ? !showingSummary && order.hasChanges : !isEmpty}
+            discardBody={order.isPlaced ? t("discard.body") : t("create.discardBody")}
+            compareWithOriginal={order.isPlaced}
             takeover={takeover}
             onClose={onClose}
         />
