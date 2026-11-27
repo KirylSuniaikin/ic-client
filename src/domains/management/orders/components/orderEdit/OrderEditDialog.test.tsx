@@ -261,15 +261,33 @@ describe("OrderEditDialog — closing without saving", () => {
     });
 });
 
-describe("OrderEditDialog — Complete and the summary", () => {
-    it("calls editOrder once with the edited lines and the order's own details", async () => {
-        mockEditOrder.mockResolvedValue(makeEditableOrder());
+/** Complete, then Approve on the review: the change is sent only now. */
+async function completeAndApprove(): Promise<void> {
+    fireEvent.click(completeButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+}
+
+describe("OrderEditDialog — Complete and the review", () => {
+    it("opens the review on Complete without sending anything", async () => {
         renderDialog();
         await makeTypicalEdit();
         fireEvent.click(completeButton());
-        fireEvent.click(completeButton());
 
         await screen.findByTestId("order-edit-summary");
+        expect(screen.getByText("Check the changes to order #2041")).toBeTruthy();
+        expect(mockEditOrder).not.toHaveBeenCalled();
+    });
+
+    it("calls editOrder once on Approve, with the edited lines and the order's own details", async () => {
+        mockEditOrder.mockResolvedValue(makeEditableOrder());
+        const { onClose } = renderDialog();
+        await makeTypicalEdit();
+        fireEvent.click(completeButton());
+        const approve = await screen.findByRole("button", { name: "Approve" });
+        fireEvent.click(approve);
+        fireEvent.click(approve);
+
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
         expect(mockEditOrder).toHaveBeenCalledTimes(1);
         const [request, orderId] = mockEditOrder.mock.calls[0] as [EditOrderRequest, string];
         expect(orderId).toBe("77");
@@ -290,20 +308,19 @@ describe("OrderEditDialog — Complete and the summary", () => {
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         renderDialog({ phone_number: phone as string });
         await makeTypicalEdit();
-        fireEvent.click(completeButton());
+        await completeAndApprove();
 
-        await screen.findByTestId("order-edit-summary");
+        await waitFor(() => expect(mockEditOrder).toHaveBeenCalledTimes(1));
         const [request] = mockEditOrder.mock.calls[0] as [EditOrderRequest, string];
         expect(request.tel).toBeNull();
     });
 
-    it("lists what was added in green and what was removed in red, struck through", async () => {
-        mockEditOrder.mockResolvedValue(makeEditableOrder());
+    it("lists what will be added in green and what will be removed in red, struck through", async () => {
         renderDialog();
         await makeTypicalEdit();
         fireEvent.click(completeButton());
 
-        expect(await screen.findByText("Order #2041 updated")).toBeTruthy();
+        await screen.findByTestId("order-edit-summary");
         const added = within(screen.getByTestId("summary-added"));
         const removed = within(screen.getByTestId("summary-removed"));
         expect(added.getByText("ADDED")).toBeTruthy();
@@ -324,28 +341,29 @@ describe("OrderEditDialog — Complete and the summary", () => {
         expect(screen.getByTestId("summary-total").textContent).toBe("4.500 BD → 4.000 BD");
     });
 
-    it("closes itself after 10 seconds", async () => {
+    it("approves by itself after 10 untouched seconds, then closes", async () => {
         jest.useFakeTimers();
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         const { onClose } = renderDialog();
         await makeTypicalEdit();
         fireEvent.click(completeButton());
         await screen.findByTestId("order-edit-summary");
-        expect(screen.getByText("Closes in 10 s")).toBeTruthy();
+        expect(screen.getByText("Approves in 10 s")).toBeTruthy();
 
         // One second per act(): each tick schedules the next only once React has re-rendered.
         const tick = (): void => act(() => { jest.advanceTimersByTime(1000); });
         tick();
-        expect(screen.getByText("Closes in 9 s")).toBeTruthy();
+        expect(screen.getByText("Approves in 9 s")).toBeTruthy();
         for (let i = 0; i < 8; i++) tick();
-        expect(screen.getByText("Closes in 1 s")).toBeTruthy();
-        expect(onClose).not.toHaveBeenCalled();
+        expect(screen.getByText("Approves in 1 s")).toBeTruthy();
+        expect(mockEditOrder).not.toHaveBeenCalled();
         tick();
+        expect(mockEditOrder).toHaveBeenCalledTimes(1);
+        await act(async () => { await Promise.resolve(); });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it("drains the countdown bar as one smooth 10-second linear animation, not a jump per second", async () => {
-        mockEditOrder.mockResolvedValue(makeEditableOrder());
         renderDialog();
         await makeTypicalEdit();
         fireEvent.click(completeButton());
@@ -357,45 +375,46 @@ describe("OrderEditDialog — Complete and the summary", () => {
         expect(emotionRulesFor(progress as Element)).toMatch(/\.MuiLinearProgress-bar \{[^}]*\banimation:\S+ 10s linear forwards/);
     });
 
-    it("closes at once on Close now", async () => {
-        mockEditOrder.mockResolvedValue(makeEditableOrder());
+    it("stops the countdown and both buttons while the approved change is saving", async () => {
+        mockEditOrder.mockReturnValue(new Promise<Order>(() => undefined));
         const { onClose } = renderDialog();
         await makeTypicalEdit();
-        fireEvent.click(completeButton());
-        fireEvent.click(await screen.findByRole("button", { name: "Close now" }));
-        expect(onClose).toHaveBeenCalledTimes(1);
+        await completeAndApprove();
+
+        expect(await screen.findByText("Saving…", { selector: "[role=timer]" })).toBeTruthy();
+        expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+        expect((screen.getByRole("button", { name: "Back to edit" }) as HTMLButtonElement).disabled).toBe(true);
+        expect(onClose).not.toHaveBeenCalled();
     });
 
-    it("goes back to the saved order from the summary, and a second Complete saves again", async () => {
+    it("goes back to the same edit with nothing sent, and the next Complete reviews it again", async () => {
+        jest.useFakeTimers();
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         const { onClose } = renderDialog();
         await makeTypicalEdit();
         fireEvent.click(completeButton());
-        fireEvent.click(await screen.findByRole("button", { name: "Back to the order" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Back to edit" }));
 
         expect(screen.queryByTestId("order-edit-summary")).toBeNull();
         expect(screen.getAllByTestId("order-edit-line").map(l => l.firstChild?.textContent))
             .toEqual(["1 × Pepperoni (M)", "1 × Sprite"]);
-        // The saved order is the new starting point: nothing is marked changed until the next edit.
-        expect(completeButton().textContent).toBe("No changes yet");
+        // Nothing was saved: the lines are still a change to the original order.
+        expect(completeButton().textContent).toBe("Complete");
+        // The countdown is gone with the review: nothing is sent behind the staff member's back.
+        act(() => { jest.advanceTimersByTime(15_000); });
+        expect(mockEditOrder).not.toHaveBeenCalled();
 
-        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
-        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
         fireEvent.click(completeButton());
-
-        const added = within(await screen.findByTestId("summary-added"));
-        expect(added.getAllByTestId("summary-added-row").map(r => r.textContent)).toEqual(["1 × Sprite"]);
-        expect(within(screen.getByTestId("summary-removed")).getByText("Nothing removed")).toBeTruthy();
-        expect(mockEditOrder).toHaveBeenCalledTimes(2);
-        expect(mockEditOrder.mock.calls[1][0].items.map(i => [i.name, i.quantity])).toEqual([["Pepperoni", 1], ["Sprite", 2]]);
+        expect(await screen.findByText("Approves in 10 s")).toBeTruthy();
+        expect(within(screen.getByTestId("summary-removed")).getByTestId("summary-removed-row").textContent).toBe("2 × Coca Cola");
         expect(onClose).not.toHaveBeenCalled();
     });
 
-    it("keeps the edits and shows the error when the save fails", async () => {
+    it("returns to the edits and shows the error when the approved save fails", async () => {
         mockEditOrder.mockRejectedValue(new Error("Error editing order: 500"));
         const { onClose } = renderDialog();
         await makeTypicalEdit();
-        fireEvent.click(completeButton());
+        await completeAndApprove();
 
         expect(await screen.findByText(/The order was not saved: Error editing order: 500/)).toBeTruthy();
         expect(screen.queryByTestId("order-edit-summary")).toBeNull();
@@ -404,5 +423,17 @@ describe("OrderEditDialog — Complete and the summary", () => {
         expect(completeButton().textContent).toBe("Complete");
         expect((completeButton() as HTMLButtonElement).disabled).toBe(false);
         expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("asks before discarding when closed from the review", async () => {
+        const { onClose } = renderDialog();
+        await makeTypicalEdit();
+        fireEvent.click(completeButton());
+        await screen.findByTestId("order-edit-summary");
+        fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]);
+
+        expect(await screen.findByText("Discard changes?")).toBeTruthy();
+        expect(onClose).not.toHaveBeenCalled();
+        expect(mockEditOrder).not.toHaveBeenCalled();
     });
 });

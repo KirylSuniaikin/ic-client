@@ -1,8 +1,8 @@
 {
   "header": {
     "title": "تعديل الطلب رقم {{orderNo}}",
-    "savedTitle": "تم تحديث الطلب رقم {{orderNo}}",
-    "close": "إغلاق"
+    "close": "إغلاق",
+    "reviewTitle": "راجِع تغييرات الطلب رقم {{orderNo}}"
   },
   "menu": {
     "loading": "جارٍ تحميل القائمة…",
@@ -52,13 +52,12 @@
     "nothingRemoved": "لم يُحذف شيء",
     "total": "الإجمالي",
     "totalChange": "{{was}} د.ب ← {{now}} د.ب",
-    "closesIn": "يُغلق خلال {{count}} ث",
-    "closeNow": "إغلاق الآن",
-    "backToOrder": "العودة إلى الطلب"
+    "approvesIn": "يُعتمد خلال {{count}} ث",
+    "approve": "اعتماد",
+    "backToEdit": "العودة إلى التعديل"
   },
   "create": {
     "title": "طلب جديد",
-    "placedTitle": "تم تسجيل الطلب",
     "continue": "متابعة",
     "emptyOrder": "أضف أصنافًا للبدء",
     "discardBody": "ستضيع الأصناف التي اخترتها.",
@@ -76,12 +75,12 @@
     },
     "discount": "خصم الطلب",
     "place": "تسجيل الطلب · {{amount}} د.ب",
-    "placing": "جارٍ التسجيل…",
     "placeError": "لم يُسجَّل الطلب: {{message}}",
     "customerTitle": "العميل",
     "orderTitle": "الطلب",
     "subtotal": "المجموع الفرعي",
     "discountLine": "خصم {{percent}}٪",
-    "editTitle": "تغيير الطلب"
+    "reviewTitle": "راجِع الطلب الجديد",
+    "review": "مراجعة الطلب · {{amount}} د.ب"
   }
 }

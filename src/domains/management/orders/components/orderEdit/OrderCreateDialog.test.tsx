@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import "../../../../../shared/i18n";
 
@@ -13,7 +13,7 @@ jest.mock("lottie-react", () => ({
 // Factoryless: resolves to src/shared/api/__mocks__/public.ts
 jest.mock("../../../../../shared/api/public");
 
-import { createOrder, editOrder, fetchBaseAppInfo } from "../../../../../shared/api/public";
+import { createOrder, fetchBaseAppInfo } from "../../../../../shared/api/public";
 import { clearMatchMedia } from "../../../../../shared/hooks/stubMatchMedia.testutil";
 import { ItemsUnavailableError } from "../../../../order/types";
 import type { CreateOrderRequest, Order } from "../../../../order/types";
@@ -22,7 +22,6 @@ import { makeBaseAppInfo } from "./orderEdit.testutil";
 
 const mockFetchBaseAppInfo = jest.mocked(fetchBaseAppInfo);
 const mockCreateOrder = jest.mocked(createOrder);
-const mockEditOrder = jest.mocked(editOrder);
 
 function renderDialog() {
     const onClose = jest.fn<void, []>();
@@ -55,8 +54,14 @@ function chooseDiscount(percent: number): void {
     fireEvent.click(screen.getByRole("option", { name: `${percent}%` }));
 }
 
-function placeButton(): HTMLElement {
-    return screen.getByRole("button", { name: /^Place order · / });
+function reviewButton(): HTMLElement {
+    return screen.getByRole("button", { name: /^Review order · / });
+}
+
+/** Review order, then Approve: the order is created only now. */
+async function reviewAndApprove(): Promise<void> {
+    fireEvent.click(reviewButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 }
 
 function sentRequest(call = 0): CreateOrderRequest {
@@ -67,7 +72,6 @@ beforeEach(() => {
     window.ttq = { track: jest.fn() };
     mockFetchBaseAppInfo.mockReset();
     mockCreateOrder.mockReset();
-    mockEditOrder.mockReset();
     mockFetchBaseAppInfo.mockResolvedValue(makeBaseAppInfo());
     mockCreateOrder.mockResolvedValue({ id: 555 } as unknown as Order);
     localStorage.clear();
@@ -75,6 +79,7 @@ beforeEach(() => {
 
 afterEach(() => {
     clearMatchMedia();
+    jest.useRealTimers();
 });
 
 describe("OrderCreateDialog — picking items", () => {
@@ -109,9 +114,9 @@ describe("OrderCreateDialog — picking items", () => {
     });
 });
 
-describe("OrderCreateDialog — details and placing", () => {
-    it("places the order with the customer, payment and discount, as the admin menu does", async () => {
-        renderDialog();
+describe("OrderCreateDialog — details, review and placing", () => {
+    it("places the approved order with the customer, payment and discount, as the admin menu does", async () => {
+        const { onClose } = renderDialog();
         await pickDrinks();
         fireEvent.click(footerButton());
 
@@ -120,10 +125,10 @@ describe("OrderCreateDialog — details and placing", () => {
         fireEvent.change(screen.getByLabelText("Customer name (optional)"), { target: { value: " Ali " } });
         fireEvent.click(screen.getByRole("button", { name: "Cash" }));
         chooseDiscount(10);
-        expect(placeButton().textContent).toBe("Place order · 1.350 BD");
-        fireEvent.click(placeButton());
+        expect(reviewButton().textContent).toBe("Review order · 1.350 BD");
+        await reviewAndApprove();
 
-        await screen.findByTestId("order-edit-summary");
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
         expect(mockCreateOrder).toHaveBeenCalledTimes(1);
         const request = sentRequest();
         expect(request).toEqual(expect.objectContaining({
@@ -157,9 +162,9 @@ describe("OrderCreateDialog — details and placing", () => {
         renderDialog();
         await pickDrinks();
         fireEvent.click(footerButton());
-        fireEvent.click(placeButton());
+        await reviewAndApprove();
 
-        await screen.findByTestId("order-edit-summary");
+        await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
         expect(sentRequest()).toEqual(expect.objectContaining({
             tel: null, customer_name: "", payment_type: "Card (Through card machine)", amount_paid: 1.5,
         }));
@@ -170,9 +175,10 @@ describe("OrderCreateDialog — details and placing", () => {
         await pickDrinks();
         fireEvent.click(footerButton());
         fireEvent.change(screen.getByLabelText("Phone (optional)"), { target: { value: "3333" } });
-        fireEvent.click(placeButton());
+        fireEvent.click(reviewButton());
 
         expect(screen.getByText("The phone number must be exactly 8 digits")).toBeTruthy();
+        expect(screen.queryByTestId("order-edit-summary")).toBeNull();
         expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
@@ -186,32 +192,71 @@ describe("OrderCreateDialog — details and placing", () => {
         expect(badgeCount()).toBe("3");
     });
 
-    it("shows what was ordered for 10 seconds: ADDED only, and the total", async () => {
+    it("reviews the order before placing it: ADDED only, the discounted total, nothing sent", async () => {
         renderDialog();
         await pickDrinks();
         fireEvent.click(footerButton());
-        fireEvent.click(placeButton());
+        chooseDiscount(10);
+        fireEvent.click(reviewButton());
 
-        expect(await screen.findByText("Order placed")).toBeTruthy();
+        expect(await screen.findByText("Check the new order")).toBeTruthy();
         const added = within(screen.getByTestId("summary-added"));
         expect(added.getAllByTestId("summary-added-row").map(r => r.textContent)).toEqual(["2 × Sprite", "1 × Coca Cola"]);
         expect(screen.queryByTestId("summary-removed")).toBeNull();
-        expect(screen.getByTestId("summary-total").textContent).toBe("1.500 BD");
-        expect(screen.getByText("Closes in 10 s")).toBeTruthy();
+        expect(screen.getByTestId("summary-total").textContent).toBe("1.350 BD");
+        expect(screen.getByText("Approves in 10 s")).toBeTruthy();
+        expect(mockCreateOrder).not.toHaveBeenCalled();
     });
 
-    it("keeps the details and retries with the same key when placing fails", async () => {
-        mockCreateOrder.mockRejectedValueOnce(new Error("Network down"));
+    it("places the order by itself after 10 untouched seconds, then closes", async () => {
+        jest.useFakeTimers();
+        const { onClose } = renderDialog();
+        await pickDrinks();
+        fireEvent.click(footerButton());
+        fireEvent.click(reviewButton());
+        await screen.findByTestId("order-edit-summary");
+
+        for (let i = 0; i < 9; i++) act(() => { jest.advanceTimersByTime(1000); });
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+        act(() => { jest.advanceTimersByTime(1000); });
+        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+        await act(async () => { await Promise.resolve(); });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("goes back from the review to the details as entered, with nothing sent", async () => {
+        jest.useFakeTimers();
         renderDialog();
         await pickDrinks();
         fireEvent.click(footerButton());
+        fireEvent.change(screen.getByLabelText("Phone (optional)"), { target: { value: "33334444" } });
+        fireEvent.change(screen.getByLabelText("Customer name (optional)"), { target: { value: "Ali" } });
         fireEvent.click(screen.getByRole("button", { name: "Cash" }));
-        fireEvent.click(placeButton());
+        chooseDiscount(10);
+        fireEvent.click(reviewButton());
+        fireEvent.click(await screen.findByRole("button", { name: "Back to edit" }));
+
+        expect(screen.queryByTestId("order-edit-summary")).toBeNull();
+        expect((screen.getByLabelText("Phone (optional)") as HTMLInputElement).value).toBe("33334444");
+        expect((screen.getByLabelText("Customer name (optional)") as HTMLInputElement).value).toBe("Ali");
+        expect(screen.getByRole("button", { name: "Cash" }).getAttribute("aria-pressed")).toBe("true");
+        expect(reviewButton().textContent).toBe("Review order · 1.350 BD");
+        act(() => { jest.advanceTimersByTime(15_000); });
+        expect(mockCreateOrder).not.toHaveBeenCalled();
+    });
+
+    it("returns to the details and retries with the same key when placing fails", async () => {
+        mockCreateOrder.mockRejectedValueOnce(new Error("Network down"));
+        const { onClose } = renderDialog();
+        await pickDrinks();
+        fireEvent.click(footerButton());
+        fireEvent.click(screen.getByRole("button", { name: "Cash" }));
+        await reviewAndApprove();
 
         expect(await screen.findByText("The order was not placed: Network down")).toBeTruthy();
         expect(screen.getByRole("button", { name: "Cash" }).getAttribute("aria-pressed")).toBe("true");
-        fireEvent.click(placeButton());
-        await screen.findByTestId("order-edit-summary");
+        await reviewAndApprove();
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
         expect(sentRequest(1).idempotency_key).toBe(sentRequest(0).idempotency_key);
     });
 
@@ -220,71 +265,12 @@ describe("OrderCreateDialog — details and placing", () => {
         renderDialog();
         await pickDrinks();
         fireEvent.click(footerButton());
-        fireEvent.click(placeButton());
+        await reviewAndApprove();
 
         expect(await screen.findByText("The order was not placed: Sprite is out of stock")).toBeTruthy();
         expect(screen.queryByTestId("order-create-details")).toBeNull();
         expect(badgeCount()).toBe("1");
         await waitFor(() => expect(mockFetchBaseAppInfo).toHaveBeenCalledTimes(2));
-    });
-});
-
-describe("OrderCreateDialog — back to the placed order", () => {
-    async function placeWithCashAndDiscount(): Promise<void> {
-        renderDialog();
-        await pickDrinks();
-        fireEvent.click(footerButton());
-        fireEvent.change(screen.getByLabelText("Phone (optional)"), { target: { value: "33334444" } });
-        fireEvent.click(screen.getByRole("button", { name: "Cash" }));
-        chooseDiscount(10);
-        fireEvent.click(placeButton());
-        fireEvent.click(await screen.findByRole("button", { name: "Back to the order" }));
-    }
-
-    function saveButton(): HTMLButtonElement {
-        return screen.getByRole("button", { name: /^(Complete|No changes yet|Order cannot be empty|Saving…)$/ }) as HTMLButtonElement;
-    }
-
-    it("returns to the placed order's lines, now as a change to that order", async () => {
-        await placeWithCashAndDiscount();
-
-        expect(screen.queryByTestId("order-edit-summary")).toBeNull();
-        expect(screen.getByText("Change the order")).toBeTruthy();
-        expect(badgeCount()).toBe("3");
-        expect(saveButton().textContent).toBe("No changes yet");
-        expect(saveButton().disabled).toBe(true);
-    });
-
-    it("saves a change as an edit of the placed order, with its customer, payment and discount", async () => {
-        mockEditOrder.mockResolvedValue({} as Order);
-        await placeWithCashAndDiscount();
-        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
-        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
-        fireEvent.click(saveButton());
-
-        await screen.findByTestId("order-edit-summary");
-        expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-        expect(mockEditOrder).toHaveBeenCalledTimes(1);
-        const [request, orderId] = mockEditOrder.mock.calls[0];
-        expect(orderId).toBe("555");
-        expect(request).toEqual(expect.objectContaining({ id: "555", tel: "97333334444", payment_type: "Cash", notes: "" }));
-        expect(request.items.map(i => [i.name, i.quantity, i.discountAmount])).toEqual([["Sprite", 3, 10], ["Coca Cola", 1, 10]]);
-        expect(request.amount_paid).toBe(1.8);
-        expect(within(screen.getByTestId("summary-added")).getAllByTestId("summary-added-row").map(r => r.textContent))
-            .toEqual(["1 × Sprite"]);
-        expect(screen.getByTestId("summary-removed")).toBeTruthy();
-    });
-
-    it("keeps the change and shows the error when saving it fails", async () => {
-        mockEditOrder.mockRejectedValue(new Error("Error editing order: 500"));
-        await placeWithCashAndDiscount();
-        if (!screen.queryByRole("button", { name: "Add Sprite" })) await expand("Beverages");
-        fireEvent.click(screen.getByRole("button", { name: "Add Sprite" }));
-        fireEvent.click(saveButton());
-
-        expect(await screen.findByText(/The order was not saved: Error editing order: 500/)).toBeTruthy();
-        expect(badgeCount()).toBe("4");
-        expect(saveButton().disabled).toBe(false);
     });
 });
 

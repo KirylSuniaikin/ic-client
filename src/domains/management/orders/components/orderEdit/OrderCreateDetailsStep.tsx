@@ -17,10 +17,24 @@ import { EDIT_COLORS } from "./orderEditColors";
 
 interface OrderCreateDetailsStepProps {
     items: CartItem[];
-    saving: boolean;
+    /** What was entered before going on to the review, so coming back keeps the form filled. */
+    initialDetails: OrderCreateDetails | null;
     error: string | null;
     onBack: () => void;
-    onPlace: (details: OrderCreateDetails) => void;
+    onReview: (details: OrderCreateDetails) => void;
+}
+
+interface PhoneParts {
+    countryName: string;
+    digits: string;
+}
+
+/** Splits a stored full number back into the country picker and the digits field. */
+function splitPhone(phone: string | null): PhoneParts {
+    const country = phone === null ? undefined : countries.find(c => phone.startsWith(c.code) && phone.length === c.code.length + c.digits);
+    return country && phone !== null
+        ? { countryName: country.name, digits: phone.slice(country.code.length) }
+        : { countryName: countries[0].name, digits: "" };
 }
 
 const PAYMENT_LABEL_KEYS: Record<string, string> = {
@@ -83,27 +97,28 @@ function OrderRecap({ items, discountPercent, total }: OrderRecapProps): JSX.Ele
  * delivery checkout's sheet tokens (sheetStyles): white section cards on the warm sheet ground,
  * rounded fields and the segmented control. Tablet and PC put the order beside the form.
  */
-export function OrderCreateDetailsStep({ items, saving, error, onBack, onPlace }: OrderCreateDetailsStepProps): JSX.Element {
+export function OrderCreateDetailsStep({ items, initialDetails, error, onBack, onReview }: OrderCreateDetailsStepProps): JSX.Element {
     const { t } = useTranslation("orderEdit");
     const isWide = useMediaQuery(useTheme().breakpoints.up("md"), { noSsr: true });
-    const [countryName, setCountryName] = useState(countries[0].name);
-    const [phoneDigits, setPhoneDigits] = useState("");
+    const [initialPhone] = useState(() => splitPhone(initialDetails?.phone ?? null));
+    const [countryName, setCountryName] = useState(initialPhone.countryName);
+    const [phoneDigits, setPhoneDigits] = useState(initialPhone.digits);
     const [phoneError, setPhoneError] = useState<string | null>(null);
-    const [customerName, setCustomerName] = useState("");
-    const [paymentType, setPaymentType] = useState(paymentOptions[0]);
-    const [discountPercent, setDiscountPercent] = useState(0);
+    const [customerName, setCustomerName] = useState(initialDetails?.customerName ?? "");
+    const [paymentType, setPaymentType] = useState(initialDetails?.paymentType ?? paymentOptions[0]);
+    const [discountPercent, setDiscountPercent] = useState(initialDetails?.discountPercent ?? 0);
     const country = countries.find(c => c.name === countryName) ?? countries[0];
 
     const discounted = items.map(item => ({ ...item, discountAmount: discountPercent }));
     const total = computeAmountPaid(discounted);
 
-    function handlePlace(): void {
+    function handleReview(): void {
         if (phoneDigits !== "" && phoneDigits.length !== country.digits) {
             setPhoneError(t("create.phoneLength", { count: country.digits }));
             return;
         }
         setPhoneError(null);
-        onPlace({
+        onReview({
             phone: phoneDigits === "" ? null : country.code + phoneDigits,
             customerName: customerName.trim(),
             paymentType,
@@ -185,7 +200,7 @@ export function OrderCreateDetailsStep({ items, saving, error, onBack, onPlace }
     return (
         <Box data-testid="order-create-details" sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, bgcolor: SHEET_GROUND }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, bgcolor: "#fff", borderBottom: `1px solid ${EDIT_COLORS.hairline}` }}>
-                <IconButton aria-label={t("create.backToItems")} onClick={onBack} disabled={saving} sx={{ width: 44, height: 44, color: BRAND_RED }}>
+                <IconButton aria-label={t("create.backToItems")} onClick={onBack} sx={{ width: 44, height: 44, color: BRAND_RED }}>
                     <ArrowBackRoundedIcon sx={{ "[dir=rtl] &": { transform: "scaleX(-1)" } }} />
                 </IconButton>
                 <Typography sx={{ fontWeight: 700, color: EDIT_COLORS.text, flex: 1 }}>{t("create.detailsTitle")}</Typography>
@@ -215,11 +230,10 @@ export function OrderCreateDetailsStep({ items, saving, error, onBack, onPlace }
                 <Button
                     variant="contained"
                     disableElevation
-                    disabled={saving}
-                    onClick={handlePlace}
+                    onClick={handleReview}
                     sx={{ ...PRIMARY_BUTTON_SX, minHeight: 52, fontSize: 17 }}
                 >
-                    {saving ? t("create.placing") : t("create.place", { amount: formatBd(total) })}
+                    {t("create.review", { amount: formatBd(total) })}
                 </Button>
             </Box>
         </Box>

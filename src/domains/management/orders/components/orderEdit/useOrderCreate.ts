@@ -1,26 +1,25 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createOrder, editOrder } from "../../../../../shared/api/public";
+import { createOrder } from "../../../../../shared/api/public";
 import { resolveCustomerLanguage } from "../../../../../shared/utils/customerLanguage";
 import { newIdempotencyKey } from "../../../../../shared/utils/idempotencyKey";
 import { logger } from "../../../../../shared/utils/logger";
 import type { CartItem } from "../../../../menu/types";
 import { ItemsUnavailableError } from "../../../../order/types";
 import type { CreateOrderRequest } from "../../../../order/types";
-import { buildEditOrderRequest, buildOrderItems, computeAmountPaid } from "../../../../order/utils/orderPayload";
+import { buildOrderItems, computeAmountPaid } from "../../../../order/utils/orderPayload";
 import { useOrderLines } from "./useOrderLines";
 import type { UseOrderLinesResult } from "./useOrderLines";
-import { markEditedHere, unmarkEditedHere } from "./useOrderEdit";
 import type { OrderEditSummaryData } from "./useOrderEdit";
 
 /** The board skips the new-order sound for these ids: the staff member placed them here. */
 const SUPPRESS_SOUND_KEY = "suppressSoundIds";
 
 /**
- * items → the details step → saving → the 10-second summary. "Back to the order" on the summary
- * returns to items with the order already placed: from then on the footer saves an edit of it.
+ * items → the details step → review (nothing sent yet) → saving. Back to edit on the review returns
+ * to the details step with what was entered; the order is created only once the review is approved.
  */
-export type OrderCreateStep = "items" | "details" | "saving" | "placed";
+export type OrderCreateStep = "items" | "details" | "review" | "saving";
 
 /** What the details step collects: the same fields the admin menu's "User Data" sheet asks for. */
 export interface OrderCreateDetails {
@@ -37,25 +36,19 @@ export interface UseOrderCreateResult extends UseOrderLinesResult {
     /** Moves to the details step; ignored while the order is empty. */
     toDetails: () => void;
     backToItems: () => void;
-    place: (details: OrderCreateDetails) => Promise<void>;
+    /** Opens the review of the order with these details; nothing is sent yet. */
+    review: (details: OrderCreateDetails) => void;
+    /** What the details step last held, so going back to it keeps the form filled. */
+    details: OrderCreateDetails | null;
     placeError: string | null;
-    /** Set once the order was placed: the summary shown for 10 seconds. */
+    /** Set while the order is reviewed: what the staff member checks before it is placed. */
     summary: OrderEditSummaryData | null;
     /** Goes up each time the backend refused items as unavailable: the menu should be reloaded. */
     unavailableNotice: number;
-    /** True once the order exists: the lines now edit it instead of building a new one. */
-    isPlaced: boolean;
-    /** The summary shows a new order (ADDED only) or a change to it (ADDED and REMOVED). */
-    summaryVariant: "create" | "edit";
-    /** From the summary back to the placed order's lines. */
-    backToOrder: () => void;
-    /** Saves the changes made to the placed order, then shows what changed. */
-    saveChanges: () => Promise<void>;
-}
-
-interface PlacedOrder {
-    id: string;
-    details: OrderCreateDetails;
+    /** Places the reviewed order. True once it is placed; false returns to the step that needs fixing. */
+    approve: () => Promise<boolean>;
+    /** From the review back to the details step, nothing sent. */
+    backToDetails: () => void;
 }
 
 function withDiscount(items: CartItem[], discountPercent: number): CartItem[] {
@@ -78,8 +71,7 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
     const [placeError, setPlaceError] = useState<string | null>(null);
     const [summary, setSummary] = useState<OrderEditSummaryData | null>(null);
     const [unavailableNotice, setUnavailableNotice] = useState(0);
-    const [placed, setPlaced] = useState<PlacedOrder | null>(null);
-    const [summaryVariant, setSummaryVariant] = useState<"create" | "edit">("create");
+    const [details, setDetails] = useState<OrderCreateDetails | null>(null);
     const placingRef = useRef(false);
     // One key per order being built: a retry after a network failure is deduplicated by the backend.
     const idempotencyKeyRef = useRef(newIdempotencyKey());
@@ -91,15 +83,29 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
     }
 
     function backToItems(): void {
-        if (step === "saving") return;
+        if (step !== "details") return;
         setStep("items");
     }
 
-    async function place(details: OrderCreateDetails): Promise<void> {
-        if (placingRef.current || lines.items.length === 0) return;
+    function review(entered: OrderCreateDetails): void {
+        if (step !== "details" || lines.items.length === 0) return;
+        const items = withDiscount(lines.items, entered.discountPercent);
+        setDetails(entered);
+        setPlaceError(null);
+        setSummary({ added: lines.diff.added, removed: [], originalTotal: 0, editedTotal: computeAmountPaid(items) });
+        setStep("review");
+    }
+
+    function backToDetails(): void {
+        if (step !== "review") return;
+        setSummary(null);
+        setStep("details");
+    }
+
+    async function approve(): Promise<boolean> {
+        if (step !== "review" || details === null || placingRef.current) return false;
         placingRef.current = true;
         setStep("saving");
-        setPlaceError(null);
         const items = withDiscount(lines.items, details.discountPercent);
         const request: CreateOrderRequest = {
             tel: details.phone,
@@ -116,14 +122,10 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
         try {
             const created = await createOrder(request);
             rememberPlacedHere(String(created.id));
-            setSummary({ added: lines.diff.added, removed: [], originalTotal: 0, editedTotal: request.amount_paid });
-            setSummaryVariant("create");
-            setPlaced({ id: String(created.id), details });
-            // The placed order, discount included, is what any later change is compared with.
-            lines.rebase(items);
-            setStep("placed");
+            return true;
         } catch (err) {
             logger.error("New staff order: placing the order failed:", err);
+            setSummary(null);
             if (err instanceof ItemsUnavailableError) {
                 const unavailable = new Set(err.unavailableIds);
                 lines.dropItems(item => unavailable.has(item.id));
@@ -135,61 +137,14 @@ export function useOrderCreate(branchId: string): UseOrderCreateResult {
                 setStep("details");
             }
             setPlaceError(err instanceof Error ? err.message : String(err));
+            return false;
         } finally {
             placingRef.current = false;
         }
     }
-
-    function backToOrder(): void {
-        if (step !== "placed") return;
-        setSummary(null);
-        setPlaceError(null);
-        setStep("items");
-    }
-
-    async function saveChanges(): Promise<void> {
-        if (placed === null || placingRef.current || lines.items.length === 0 || !lines.hasChanges) return;
-        placingRef.current = true;
-        setStep("saving");
-        setPlaceError(null);
-        const items = withDiscount(lines.items, placed.details.discountPercent);
-        markEditedHere(placed.id);
-        try {
-            const request = buildEditOrderRequest(
-                { id: placed.id, address: null },
-                {
-                    tel: placed.details.phone,
-                    customerName: placed.details.customerName,
-                    deliveryMethod: null,
-                    paymentType: placed.details.paymentType,
-                    notes: "",
-                },
-                items,
-            );
-            await editOrder(request, placed.id);
-            setSummary({ ...lines.diff, originalTotal: lines.originalTotal, editedTotal: request.amount_paid });
-            setSummaryVariant("edit");
-            lines.rebase(items);
-            setStep("placed");
-        } catch (err) {
-            logger.error("New staff order: saving a change to the placed order failed:", err);
-            unmarkEditedHere(placed.id);
-            setPlaceError(err instanceof Error ? err.message : String(err));
-            setStep("items");
-        } finally {
-            placingRef.current = false;
-        }
-    }
-
-    // Lines added to a placed order carry its discount, as every line of it does.
-    const withPlacedDiscount = (items: CartItem[]): CartItem[] =>
-        placed === null ? items : withDiscount(items, placed.details.discountPercent);
-    const addItems = (items: CartItem[]): void => lines.addItems(withPlacedDiscount(items));
-    const replaceLine = (key: string, items: CartItem[]): void => lines.replaceLine(key, withPlacedDiscount(items));
 
     return {
-        ...lines, addItems, replaceLine,
-        step, toDetails, backToItems, place, placeError, summary, unavailableNotice,
-        isPlaced: placed !== null, summaryVariant, backToOrder, saveChanges,
+        ...lines,
+        step, toDetails, backToItems, review, details, placeError, summary, unavailableNotice, approve, backToDetails,
     };
 }

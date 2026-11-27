@@ -17,13 +17,13 @@ function customerLine(order: Order): string {
     return [order.customer_name, phone, order.order_type].filter(Boolean).join(" · ");
 }
 
-/** Edits an order in place over the order board, then shows what changed for 10 seconds. */
+/** Edits an order in place over the order board; the change is sent only once its review is approved. */
 export function OrderEditDialog({ order, onClose }: OrderEditDialogProps): JSX.Element {
     const { t } = useTranslation("orderEdit");
     const menu = useOrderEditMenu(order.branch_id);
     const edit = useOrderEdit(order);
 
-    const saved = edit.phase === "saved" && edit.summary !== null;
+    const reviewing = edit.phase !== "editing" && edit.summary !== null;
     const footerLabel = edit.phase === "saving"
         ? t("footer.saving")
         : edit.completeBlocker === "emptyOrder"
@@ -34,20 +34,27 @@ export function OrderEditDialog({ order, onClose }: OrderEditDialogProps): JSX.E
         <OrderWorkDialog
             menu={menu}
             lines={edit}
-            title={t(saved ? "header.savedTitle" : "header.title", { orderNo: order.order_no })}
+            title={t(reviewing ? "header.reviewTitle" : "header.title", { orderNo: order.order_no })}
             ariaLabel={t("header.title", { orderNo: order.order_no })}
             subtitle={customerLine(order)}
             footer={{
                 label: footerLabel,
                 disabled: edit.completeBlocker !== null || edit.phase === "saving",
-                onClick: () => { void edit.complete(); },
+                onClick: edit.complete,
             }}
             error={edit.saveError === null ? null : t("footer.saveError", { message: edit.saveError })}
             busy={edit.phase === "saving"}
-            hasUnsavedWork={edit.phase === "editing" && edit.hasChanges}
+            hasUnsavedWork={edit.hasChanges}
             discardBody={t("discard.body")}
             compareWithOriginal
-            takeover={saved && edit.summary ? <OrderEditSummary summary={edit.summary} onClose={onClose} onBack={edit.continueEditing} /> : undefined}
+            takeover={reviewing && edit.summary ? (
+                <OrderEditSummary
+                    summary={edit.summary}
+                    approving={edit.phase === "saving"}
+                    onApprove={() => { void edit.approve().then(saved => { if (saved) onClose(); }); }}
+                    onBack={edit.backToEdit}
+                />
+            ) : undefined}
             onClose={onClose}
         />
     );

@@ -30,8 +30,6 @@ export interface UseOrderLinesResult {
     removeLine: (key: string) => void;
     /** Drops every line whose item matches (items the backend reports as no longer available). */
     dropItems: (matches: (item: CartItem) => boolean) => void;
-    /** After a save: `items` become both the lines and what they are compared with. */
-    rebase: (items: CartItem[]) => void;
     diff: OrderLineDiff;
     hasChanges: boolean;
     totalQuantity: number;
@@ -56,7 +54,7 @@ function lineStatus(quantity: number, originalQuantity: number): OrderLineStatus
  * `original` is read once, on mount: a board refresh mid-edit never resets the lines.
  */
 export function useOrderLines(original: CartItem[]): UseOrderLinesResult {
-    const [base, setBase] = useState<CartItem[]>(original);
+    const [base] = useState<CartItem[]>(original);
     const [keyed, setKeyed] = useState<KeyedItem[]>(() => base.map((item, i) => ({ key: `line-${i}`, item })));
     const nextKeyRef = useRef(base.length);
 
@@ -110,11 +108,6 @@ export function useOrderLines(original: CartItem[]): UseOrderLinesResult {
         setKeyed(prev => prev.filter(line => !matches(line.item)));
     }, []);
 
-    const rebase = useCallback((items: CartItem[]): void => {
-        setBase(items);
-        setKeyed(items.map(item => ({ key: newKey(), item })));
-    }, [newKey]);
-
     const items = useMemo(() => keyed.map(line => line.item), [keyed]);
     const diff = useMemo(() => diffOrderLines(base, items), [base, items]);
 
@@ -136,7 +129,7 @@ export function useOrderLines(original: CartItem[]): UseOrderLinesResult {
     const editedTotal = useMemo(() => computeAmountPaid(items), [items]);
 
     return {
-        lines, items, addItems, replaceLine, increment, decrement, removeLine, dropItems, rebase,
+        lines, items, addItems, replaceLine, increment, decrement, removeLine, dropItems,
         diff,
         hasChanges: diff.added.length + diff.removed.length > 0,
         totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),

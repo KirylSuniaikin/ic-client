@@ -27,11 +27,13 @@ const drainBarRtl = keyframes`
 
 interface OrderEditSummaryProps {
     summary: OrderEditSummaryData;
-    /** Fired by Close now and when the countdown reaches zero. */
-    onClose: () => void;
+    /** Sends the change. Fired by Approve and when the countdown reaches zero. */
+    onApprove: () => void;
+    /** True while the approved change is being sent: the countdown and both buttons stop. */
+    approving: boolean;
     /** A new order has nothing removed and no previous total: only ADDED and one total. */
     variant?: "edit" | "create";
-    /** Stops the countdown and goes back to the order's lines, as saved, to change it again. */
+    /** Nothing has been sent yet: stops the countdown and goes back to change the order. */
     onBack: () => void;
 }
 
@@ -73,25 +75,29 @@ function ChangeSection({ kind, changes }: ChangeSectionProps): JSX.Element {
     );
 }
 
-/** What the save changed (or what a new order holds), shown for ten seconds before the popup closes itself. */
-export function OrderEditSummary({ summary, onClose, onBack, variant = "edit" }: OrderEditSummaryProps): JSX.Element {
+/**
+ * The last check before anything is sent: what the change does (or what a new order holds). Approve
+ * sends it, Back to edit drops back to the lines with nothing saved, and ten untouched seconds approve it.
+ */
+export function OrderEditSummary({ summary, onApprove, approving, onBack, variant = "edit" }: OrderEditSummaryProps): JSX.Element {
     const isCreate = variant === "create";
     const { t } = useTranslation("orderEdit");
     const drain = useTheme().direction === "rtl" ? drainBarRtl : drainBar;
     const [secondsLeft, setSecondsLeft] = useState(SUMMARY_SECONDS);
     // The board re-renders the card several times a second (its own countdown), handing down a new
-    // onClose each time; keying the timer on it would restart the second forever.
-    const onCloseRef = useRef(onClose);
-    onCloseRef.current = onClose;
+    // onApprove each time; keying the timer on it would restart the second forever.
+    const onApproveRef = useRef(onApprove);
+    onApproveRef.current = onApprove;
 
     useEffect(() => {
+        if (approving) return;
         if (secondsLeft <= 0) {
-            onCloseRef.current();
+            onApproveRef.current();
             return;
         }
         const timer = window.setTimeout(() => setSecondsLeft(s => s - 1), 1000);
         return () => window.clearTimeout(timer);
-    }, [secondsLeft]);
+    }, [secondsLeft, approving]);
 
     return (
         <Box data-testid="order-edit-summary" sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -116,17 +122,21 @@ export function OrderEditSummary({ summary, onClose, onBack, variant = "edit" }:
                         mb: 1.5,
                         height: 6,
                         borderRadius: 3,
-                        "& .MuiLinearProgress-bar": { animation: `${drain} ${SUMMARY_SECONDS}s linear forwards` },
+                        "& .MuiLinearProgress-bar": {
+                            animation: `${drain} ${SUMMARY_SECONDS}s linear forwards`,
+                            animationPlayState: approving ? "paused" : "running",
+                        },
                     }}
                 />
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
                     <Typography role="timer" aria-live="off" sx={{ flex: 1, minWidth: 120, color: "text.secondary" }}>
-                        {t("summary.closesIn", { count: secondsLeft })}
+                        {approving ? t("footer.saving") : t("summary.approvesIn", { count: secondsLeft })}
                     </Typography>
                     <Button
                         variant="outlined"
                         startIcon={<ArrowBackRoundedIcon sx={{ "[dir=rtl] &": { transform: "scaleX(-1)" } }} />}
                         onClick={onBack}
+                        disabled={approving}
                         sx={{
                             borderRadius: 999,
                             textTransform: "none",
@@ -138,12 +148,13 @@ export function OrderEditSummary({ summary, onClose, onBack, variant = "edit" }:
                             "&:hover": { borderColor: BRAND_RED, bgcolor: "#fff7f7" },
                         }}
                     >
-                        {t("summary.backToOrder")}
+                        {t("summary.backToEdit")}
                     </Button>
                     <Button
                         variant="contained"
                         disableElevation
-                        onClick={onClose}
+                        onClick={onApprove}
+                        disabled={approving}
                         sx={{
                             bgcolor: BRAND_RED,
                             borderRadius: 999,
@@ -154,7 +165,7 @@ export function OrderEditSummary({ summary, onClose, onBack, variant = "edit" }:
                             "&:hover": { bgcolor: BRAND_RED, filter: "brightness(0.94)" },
                         }}
                     >
-                        {t("summary.closeNow")}
+                        {t("summary.approve")}
                     </Button>
                 </Box>
             </Box>
