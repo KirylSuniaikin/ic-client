@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { clearMatchMedia, stubMatchMedia } from "../../../../shared/hooks/stubMatchMedia.testutil";
+import { render, screen, fireEvent, waitFor, within, cleanup } from "@testing-library/react";
+import { clearMatchMedia, stubMatchMedia, stubViewportWidth } from "../../../../shared/hooks/stubMatchMedia.testutil";
 import { UnpaidInvoicesDrawer } from "./UnpaidInvoicesDrawer";
 import { fetchUnpaidPurchaseInvoices, setPurchaseInvoicePaid } from "../../../../shared/api/management";
 import type { UnpaidInvoiceTO } from "../types";
@@ -149,6 +149,20 @@ describe("UnpaidInvoicesDrawer — presentation", () => {
         renderDrawer();
 
         expect(screen.getByRole("presentation").className).toContain("MuiDrawer-root");
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+        expect(await screen.findByTestId("unpaid-row-11")).toBeTruthy();
+    });
+
+    it("uses the dialog on a portrait iPad (768px) and the bottom sheet on a 390px phone", async () => {
+        stubViewportWidth(768);
+        renderDrawer();
+        expect(screen.getByRole("dialog", { name: "Outstanding invoices" }).className).not.toContain("MuiDrawer-paper");
+        await screen.findByTestId("unpaid-row-11");
+        cleanup();
+
+        stubViewportWidth(390);
+        renderDrawer();
         expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
         expect(document.querySelector(".MuiDialog-root")).toBeNull();
         expect(await screen.findByTestId("unpaid-row-11")).toBeTruthy();

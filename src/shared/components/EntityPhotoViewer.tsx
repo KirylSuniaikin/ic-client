@@ -1,8 +1,8 @@
-import React from "react";
-import { Box, Button, CircularProgress, Dialog, Drawer, IconButton, Typography } from "@mui/material";
+import React, { useState } from "react";
+import { Box, Button, CircularProgress, Dialog, Drawer, IconButton, Typography, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import { useAuthImageUrl } from "../hooks/useAuthImageUrl";
-import { useDesktopLayout } from "../hooks/useDesktopLayout";
 import { desktopDialogPaperSx } from "../utils/desktopDialog";
 
 type Props = {
@@ -30,14 +30,22 @@ type Props = {
 export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, title, testIdPrefix }: Props) {
     const { url, loading, error } = useAuthImageUrl(open, blob, serverId, fetchImage);
     // Tablet and PC: a dialog sized to the viewport, so an invoice can actually be read — the
-    // 500px bottom sheet shrank it to a thumbnail. A phone keeps the bottom sheet.
-    const isDesktop = useDesktopLayout();
+    // 500px bottom sheet shrank it to a thumbnail. From `sm` (600px), like ResponsiveSheet, so a
+    // portrait iPad gets it too; a phone keeps the bottom sheet.
+    const isDesktop = useMediaQuery(useTheme().breakpoints.up("sm"), { noSsr: true });
+    // Fit-to-window can still be too small for a dense invoice: a click shows the photo at its real
+    // pixel size, scrollable, and a second click fits it again. Every opening starts fitted.
+    const [zoomed, setZoomed] = useState(false);
+    const close = (): void => {
+        setZoomed(false);
+        onClose();
+    };
 
     if (isDesktop) {
         return (
             <Dialog
                 open={open}
-                onClose={onClose}
+                onClose={close}
                 maxWidth={false}
                 aria-labelledby={`${testIdPrefix}-viewer-title`}
                 sx={{ zIndex: 1400 }}
@@ -47,12 +55,18 @@ export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, t
                     <Typography id={`${testIdPrefix}-viewer-title`} variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
                         {title}
                     </Typography>
-                    <IconButton aria-label="Close" onClick={onClose} sx={{ color: "#8a8f98" }}>
+                    <IconButton aria-label="Close" onClick={close} sx={{ color: "#8a8f98" }}>
                         <CloseIcon />
                     </IconButton>
                 </Box>
 
-                <Box sx={{ position: "relative", flex: 1, minHeight: 0, mx: 3, mb: 3, display: "grid", placeItems: "center" }}>
+                <Box
+                    data-testid={`${testIdPrefix}-viewer-area`}
+                    sx={{
+                        position: "relative", flex: 1, minHeight: 0, mx: 3, mb: 3,
+                        display: zoomed ? "block" : "grid", placeItems: "center", overflow: zoomed ? "auto" : "hidden",
+                    }}
+                >
                     {loading && <CircularProgress />}
 
                     {error && !loading && (
@@ -65,9 +79,13 @@ export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, t
                             src={url}
                             alt={title}
                             data-testid={`${testIdPrefix}-full`}
-                            // Pinned to the area rather than sized by its content, so contain scales
-                            // a tall phone photo of an invoice down to the viewport, never past it.
-                            sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                            aria-pressed={zoomed}
+                            onClick={() => setZoomed(z => !z)}
+                            // Fitted: pinned to the area rather than sized by its content, so contain
+                            // scales a tall phone photo of an invoice down to the viewport, never past it.
+                            sx={zoomed
+                                ? { display: "block", maxWidth: "none", cursor: "zoom-out" }
+                                : { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block", cursor: "zoom-in" }}
                         />
                     )}
                 </Box>

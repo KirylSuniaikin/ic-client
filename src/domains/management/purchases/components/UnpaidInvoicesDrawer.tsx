@@ -10,10 +10,11 @@ import {
     IconButton,
     Stack,
     Typography,
+    useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import dayjs from "dayjs";
-import { useDesktopLayout } from "../../../../shared/hooks/useDesktopLayout";
 import { desktopDialogPaperSx } from "../../../../shared/utils/desktopDialog";
 import { fetchUnpaidPurchaseInvoices, setPurchaseInvoicePaid } from "../../../../shared/api/management";
 import { logger } from "../../../../shared/utils/logger";
@@ -38,9 +39,10 @@ export function UnpaidInvoicesDrawer({ open, branchId, onClose, onPaid }: Props)
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [settling, setSettling] = useState<number | null>(null);
-    // Tablet and PC: a centred dialog, as the admin User Data sheet does — a bottom sheet strands
-    // the list against the bottom edge of a wide screen. A phone keeps the bottom sheet.
-    const isDesktop = useDesktopLayout();
+    // Tablet and PC: a centred dialog — a bottom sheet strands the list against the bottom edge of
+    // a wide screen. From `sm` (600px), like ResponsiveSheet, so a portrait iPad (768–820px) gets
+    // it too; a phone keeps the bottom sheet.
+    const isDesktop = useMediaQuery(useTheme().breakpoints.up("sm"), { noSsr: true });
 
     useEffect(() => {
         if (!open) return;

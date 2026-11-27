@@ -1,10 +1,10 @@
 import { jest, describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, cleanup } from "@testing-library/react";
 import { InvoiceImageField } from "./InvoiceImageField";
 import { downscaleImage } from "../../../../shared/utils/imageCompress";
 import { fetchPurchaseInvoiceImage } from "../../../../shared/api/management";
-import { clearMatchMedia, stubMatchMedia } from "../../../../shared/hooks/stubMatchMedia.testutil";
+import { clearMatchMedia, stubMatchMedia, stubViewportWidth } from "../../../../shared/hooks/stubMatchMedia.testutil";
 
 jest.mock("../../../../shared/api/management");
 jest.mock("../../../../shared/utils/imageCompress");
@@ -213,5 +213,52 @@ describe("InvoiceImageField — photo viewer", () => {
         expect(await screen.findByTestId("invoice-image-full")).toBeTruthy();
         expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
         expect(document.querySelector(".MuiDialog-root")).toBeNull();
+    });
+
+    it("uses the dialog on a portrait iPad (768px) and the bottom sheet on a 390px phone", async () => {
+        stubViewportWidth(768);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect(screen.getByRole("dialog", { name: "Invoice photo" }).className).not.toContain("MuiDrawer-paper");
+        cleanup();
+
+        stubViewportWidth(390);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect(await screen.findByTestId("invoice-image-full")).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+    });
+
+    it("zooms to the photo's real size on click, scrollable, and fits it again on a second click", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        const image = await screen.findByTestId("invoice-image-full");
+        const area = screen.getByTestId("invoice-image-viewer-area");
+
+        expect(image.getAttribute("aria-pressed")).toBe("false");
+        expect(getComputedStyle(image).objectFit).toBe("contain");
+
+        fireEvent.click(image);
+        expect(image.getAttribute("aria-pressed")).toBe("true");
+        expect(getComputedStyle(image).objectFit).not.toBe("contain");
+        expect(getComputedStyle(area).overflow).toBe("auto");
+
+        fireEvent.click(image);
+        expect(image.getAttribute("aria-pressed")).toBe("false");
+        expect(getComputedStyle(image).objectFit).toBe("contain");
+    });
+
+    it("opens fitted again after being closed while zoomed", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        fireEvent.click(await screen.findByTestId("invoice-image-full"));
+        fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect((await screen.findByTestId("invoice-image-full")).getAttribute("aria-pressed")).toBe("false");
     });
 });
