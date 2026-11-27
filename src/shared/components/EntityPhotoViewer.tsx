@@ -1,6 +1,9 @@
 import React from "react";
-import { Box, Button, CircularProgress, Drawer, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Dialog, Drawer, IconButton, Typography } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import { useAuthImageUrl } from "../hooks/useAuthImageUrl";
+import { useDesktopLayout } from "../hooks/useDesktopLayout";
+import { desktopDialogPaperSx } from "../utils/desktopDialog";
 
 type Props = {
     open: boolean;
@@ -26,6 +29,51 @@ type Props = {
  */
 export function EntityPhotoViewer({ open, onClose, blob, serverId, fetchImage, title, testIdPrefix }: Props) {
     const { url, loading, error } = useAuthImageUrl(open, blob, serverId, fetchImage);
+    // Tablet and PC: a dialog sized to the viewport, so an invoice can actually be read — the
+    // 500px bottom sheet shrank it to a thumbnail. A phone keeps the bottom sheet.
+    const isDesktop = useDesktopLayout();
+
+    if (isDesktop) {
+        return (
+            <Dialog
+                open={open}
+                onClose={onClose}
+                maxWidth={false}
+                aria-labelledby={`${testIdPrefix}-viewer-title`}
+                sx={{ zIndex: 1400 }}
+                slotProps={{ paper: { elevation: 0, sx: desktopDialogPaperSx(1600, "90vh") } }}
+            >
+                <Box sx={{ display: "flex", alignItems: "center", px: 3, pt: 2, pb: 1 }}>
+                    <Typography id={`${testIdPrefix}-viewer-title`} variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
+                        {title}
+                    </Typography>
+                    <IconButton aria-label="Close" onClick={onClose} sx={{ color: "#8a8f98" }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+
+                <Box sx={{ position: "relative", flex: 1, minHeight: 0, mx: 3, mb: 3, display: "grid", placeItems: "center" }}>
+                    {loading && <CircularProgress />}
+
+                    {error && !loading && (
+                        <Typography color="error" sx={{ textAlign: "center" }}>{error}</Typography>
+                    )}
+
+                    {url && !loading && (
+                        <Box
+                            component="img"
+                            src={url}
+                            alt={title}
+                            data-testid={`${testIdPrefix}-full`}
+                            // Pinned to the area rather than sized by its content, so contain scales
+                            // a tall phone photo of an invoice down to the viewport, never past it.
+                            sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                        />
+                    )}
+                </Box>
+            </Dialog>
+        );
+    }
 
     return (
         <Drawer
