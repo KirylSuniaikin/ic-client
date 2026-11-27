@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { formatUnit } from "./unitFormat";
+import { formatStockUnit, formatUnit } from "./unitFormat";
 
 describe("formatUnit", () => {
     it("formats GRAMS as g", () => {
@@ -36,5 +36,23 @@ describe("formatUnit", () => {
         const result = formatUnit(undefined);
 
         expect(result).toBe("—");
+    });
+});
+
+describe("formatStockUnit", () => {
+    it("formats GRAMS as kg: stock is counted per kilogram", () => {
+        expect(formatStockUnit("GRAMS")).toBe("kg");
+    });
+
+    it("formats ML as L: stock is counted per litre", () => {
+        expect(formatStockUnit("ML")).toBe("L");
+    });
+
+    it("formats PIECES as pcs", () => {
+        expect(formatStockUnit("PIECES")).toBe("pcs");
+    });
+
+    it("renders an em dash for a product with no unit", () => {
+        expect(formatStockUnit(null)).toBe("—");
     });
 });

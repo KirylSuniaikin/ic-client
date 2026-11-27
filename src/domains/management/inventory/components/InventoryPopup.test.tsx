@@ -137,7 +137,7 @@ describe("InventoryPopup", () => {
         expect(screen.getByRole("columnheader", { name: "Unit" })).toBeTruthy();
     });
 
-    it("renders 'g' for a product whose unit is GRAMS", async () => {
+    it("renders 'kg' for a product whose unit is GRAMS: the count is in kilograms", async () => {
         mockFetchProducts.mockResolvedValue([{ ...product, unit: "GRAMS" }]);
 
         render(
@@ -152,7 +152,8 @@ describe("InventoryPopup", () => {
 
         await screen.findAllByPlaceholderText("0.000");
 
-        expect(screen.getByText("g")).toBeTruthy();
+        expect(screen.getByText("kg")).toBeTruthy();
+        expect(screen.queryByText("g")).toBeNull();
     });
 
     it("renders an em dash for a product with no unit set", async () => {

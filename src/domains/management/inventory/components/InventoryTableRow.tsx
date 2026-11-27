@@ -3,7 +3,7 @@ import { Box, TableCell, TableRow } from "@mui/material";
 import Decimal from "decimal.js-light";
 import { InventoryRow } from "../types";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
-import { formatUnit } from "../../../../shared/utils/unitFormat";
+import { formatStockUnit } from "../../../../shared/utils/unitFormat";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
 
 export type QuantityField = "kitchenQuantity" | "storageQuantity";
@@ -74,7 +74,7 @@ function InventoryTableRowInner({ row, onCommitQuantity }: InventoryTableRowProp
 
             {/* Unit — read-only. Tells the kitchen which unit the quantity columns are in. */}
             <TableCell sx={{ minWidth: 80, color: "text.secondary", fontSize: "0.9rem" }}>
-                {formatUnit(row.unit)}
+                {formatStockUnit(row.unit)}
             </TableCell>
 
             {/* Storage Quantity */}
