@@ -1,35 +1,47 @@
-import {TopProduct} from "../types";
+import {TopFiveProducts} from "../types";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {Box} from "@mui/material";
 import React from "react";
+import {useTranslation} from "react-i18next";
 
 type Props = {
-    topProducts: TopProduct[];
+    topProducts: TopFiveProducts[];
 }
 
+const ITEMS_PAGE_SIZE = 10;
+
+function quantityColumn(field: keyof TopFiveProducts, headerName: string): GridColDef {
+    return {
+        field,
+        headerName,
+        width: 90,
+        type: 'number',
+        sortable: false,
+        disableColumnMenu: true,
+        align: 'left',
+        headerAlign: 'left',
+    };
+}
+
+// Every menu item, already sorted by total units descending server-side -- the grid only pages it.
 export function TopProductsTable({ topProducts }: Props) {
+    const {t} = useTranslation("statistics");
 
     const columns: GridColDef[] = [
         {
             field: 'name',
-            headerName: 'Item Name',
-            width: 200,
+            headerName: t("items.name"),
+            flex: 1,
+            minWidth: 160,
             type: 'string',
             sortable: false,
             disableColumnMenu: true,
             align: 'left',
             headerAlign: 'left',
         },
-        {
-            field: 'quantity',
-            headerName: 'Quantity',
-            width: 150,
-            type: 'number',
-            sortable: false,
-            disableColumnMenu: true,
-            align: 'left',
-            headerAlign: 'left',
-        }
+        quantityColumn('singleQuantity', t("items.single")),
+        quantityColumn('comboQuantity', t("items.combo")),
+        quantityColumn('quantity', t("items.total")),
     ];
 
     return (
@@ -39,7 +51,8 @@ export function TopProductsTable({ topProducts }: Props) {
                 getRowId={(row) => row.name}
 
                 columns={columns}
-                hideFooter
+                pageSizeOptions={[ITEMS_PAGE_SIZE]}
+                initialState={{pagination: {paginationModel: {pageSize: ITEMS_PAGE_SIZE}}}}
                 disableRowSelectionOnClick
                 sx={{
                     borderRadius: 3,
