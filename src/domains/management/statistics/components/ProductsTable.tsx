@@ -25,7 +25,7 @@ import type {VendorTO} from "../../purchases/types";
 import CreateProductSheet from "../../_shared/components/CreateProductSheet";
 import {BRAND_SWITCH_SX, roundedMenuProps} from "../../_shared/components/roundedSelect";
 import ErrorSnackbar from "../../../../shared/components/ErrorSnackbar";
-import {formatUnit, MEASURE_UNITS} from "../../../../shared/utils/unitFormat";
+import {formatStockUnit, MEASURE_UNITS, perStockUnit} from "../../../../shared/utils/unitFormat";
 import {BRAND_RED} from "../../../../shared/utils/theme";
 
 type Props = {
@@ -127,22 +127,24 @@ function buildColumns({canEdit, vendors, updateSettings}: SettingsCellContext): 
         {
             field: 'price',
             headerName: 'Current Price',
-            width: 120,
+            width: 140,
             type: 'number',
             sortable: false,
             disableColumnMenu: true,
             align: 'left',
             headerAlign: 'left',
+            renderCell: ({row, value}: GridRenderCellParams<GridProductRow>) => <PricePerUnit value={value} unit={row.unit}/>,
         },
         {
             field: 'targetPrice',
             headerName: 'Target Price',
-            width: 120,
+            width: 140,
             type: 'number',
             sortable: false,
             disableColumnMenu: true,
             align: 'left',
             headerAlign: 'left',
+            renderCell: ({row, value}: GridRenderCellParams<GridProductRow>) => <PricePerUnit value={value} unit={row.unit}/>,
         },
         {
             field: 'unit',
@@ -156,7 +158,9 @@ function buildColumns({canEdit, vendors, updateSettings}: SettingsCellContext): 
             renderCell: ({row}: GridRenderCellParams<GridProductRow>) => (
                 <CellControl>
                     {/* A legacy row may have no unit yet; it shows a dash, and there is no option
-                        to go back to none -- a unit can be set, never cleared from here. */}
+                        to go back to none -- a unit can be set, never cleared from here. Labelled in
+                        the stock unit (kg / L / pcs) the price beside it is per; the stored value is
+                        still GRAMS / ML / PIECES, which recipe costing reads in grams. */}
                     <Select<string>
                         variant="standard"
                         disableUnderline
@@ -168,13 +172,13 @@ function buildColumns({canEdit, vendors, updateSettings}: SettingsCellContext): 
                             const unit = MEASURE_UNITS.find(u => u === e.target.value);
                             if (unit) void updateSettings(row.id, {unit});
                         }}
-                        renderValue={(value) => value === "" ? "—" : formatUnit(value)}
+                        renderValue={(value) => value === "" ? "—" : formatStockUnit(value)}
                         inputProps={{"aria-label": `Unit: ${row.name}`}}
                         MenuProps={roundedMenuProps()}
                         sx={cellSelectSx}
                     >
                         {MEASURE_UNITS.map(u => (
-                            <MenuItem key={u} value={u}>{formatUnit(u)}</MenuItem>
+                            <MenuItem key={u} value={u}>{formatStockUnit(u)}</MenuItem>
                         ))}
                     </Select>
                 </CellControl>
@@ -233,6 +237,22 @@ function buildColumns({canEdit, vendors, updateSettings}: SettingsCellContext): 
         switchColumn('isPurchasable', 'Purchasable', 115),
         switchColumn('isInventory', 'Inventory', 105),
     ];
+}
+
+type PricePerUnitProps = {
+    value: unknown;
+    unit: string | null | undefined;
+};
+
+/** A price followed by what it is per ("/ kg"), so a per-kilogram price never reads as per gram. */
+function PricePerUnit({value, unit}: PricePerUnitProps) {
+    if (value == null || value === "") return null;
+    return (
+        <span>
+            {String(value)}
+            {unit && <Box component="span" sx={{color: "text.secondary", ml: 0.5}}>{perStockUnit(unit)}</Box>}
+        </span>
+    );
 }
 
 export function ProductsTable({role, onSettingsSaved}: Props) {

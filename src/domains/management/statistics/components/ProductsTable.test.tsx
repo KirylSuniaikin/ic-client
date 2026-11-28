@@ -97,6 +97,28 @@ describe("ProductsTable", () => {
         );
     });
 
+    describe("prices per stock unit", () => {
+        function priceCell(field: "price" | "targetPrice"): string {
+            return document.querySelector(`.MuiDataGrid-row [data-field="${field}"]`)?.textContent ?? "";
+        }
+
+        it("says what the current and target prices are per", async () => {
+            render(<ProductsTable role={StaffRoles.MANAGER}/>);
+            await screen.findByText("Flour");
+
+            expect(priceCell("price")).toBe("6.5/ kg");
+            expect(priceCell("targetPrice")).toBe("7/ kg");
+        });
+
+        it("shows the bare price for a product with no unit yet", async () => {
+            mockFetchProducts.mockResolvedValue([product({unit: null})]);
+            render(<ProductsTable role={StaffRoles.MANAGER}/>);
+            await screen.findByText("Flour");
+
+            expect(priceCell("price")).toBe("6.5");
+        });
+    });
+
     describe("inline settings", () => {
         it("shows each row's current settings", async () => {
             render(<ProductsTable role={StaffRoles.MANAGER}/>);
@@ -105,7 +127,7 @@ describe("ProductsTable", () => {
 
             expect(switchFor("Purchasable: Flour").checked).toBe(false);
             expect(switchFor("Inventory: Flour").checked).toBe(true);
-            expect(screen.getByRole("combobox", {name: "Unit: Flour"}).textContent).toBe("g");
+            expect(screen.getByRole("combobox", {name: "Unit: Flour"}).textContent).toBe("kg");
             expect(screen.getByRole("combobox", {name: "Top vendor: Flour"}).textContent).toBe("Acme");
         });
 
@@ -135,6 +157,18 @@ describe("ProductsTable", () => {
             await waitFor(() => expect(switchFor("Purchasable: Flour").checked).toBe(true));
             // The row stays locked until that save answers, so a second change cannot race it.
             expect(switchFor("Inventory: Flour").disabled).toBe(true);
+        });
+
+        it("labels the GRAMS choice kg but still saves GRAMS: recipe costing reads it in grams", async () => {
+            mockFetchProducts.mockResolvedValue([product({unit: "PIECES"})]);
+            mockUpdateProductSettings.mockResolvedValue(product({unit: "GRAMS"}));
+            render(<ProductsTable role={StaffRoles.OWNER}/>);
+            await screen.findByText("Flour");
+
+            pickInCell("Unit: Flour", "kg");
+
+            await waitFor(() => expect(mockUpdateProductSettings).toHaveBeenCalledTimes(1));
+            expect(mockUpdateProductSettings).toHaveBeenCalledWith(1, expect.objectContaining({unit: "GRAMS"}));
         });
 
         it("sends a new unit with the other three settings unchanged", async () => {
@@ -290,7 +324,7 @@ describe("ProductsTable", () => {
             fireEvent.change(await screen.findByLabelText("Name"), {target: {value: "Basil"}});
             fireEvent.change(screen.getByLabelText("Target price"), {target: {value: "7"}});
             fireEvent.mouseDown(within(screen.getByTestId("create-product-unit")).getByRole("combobox"));
-            fireEvent.click(screen.getByRole("option", {name: "g"}));
+            fireEvent.click(screen.getByRole("option", {name: "kg"}));
             fireEvent.click(screen.getByTestId("create-product-submit"));
 
             expect(await screen.findByText("Basil")).toBeTruthy();

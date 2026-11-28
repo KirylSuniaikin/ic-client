@@ -65,7 +65,7 @@ function submitButton(): HTMLButtonElement {
 function fillValidForm(name: string = "Fresh Basil"): void {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: name } });
     fireEvent.change(screen.getByLabelText("Target price"), { target: { value: "1.5" } });
-    pickFromSelect("create-product-unit", "g");
+    pickFromSelect("create-product-unit", "kg");
 }
 
 describe("CreateProductSheet", () => {
@@ -93,7 +93,7 @@ describe("CreateProductSheet", () => {
             renderSheet();
 
             fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Basil" } });
-            pickFromSelect("create-product-unit", "g");
+            pickFromSelect("create-product-unit", "kg");
             fireEvent.click(submitButton());
 
             expect(submitButton().disabled).toBe(true);
@@ -239,7 +239,7 @@ describe("CreateProductSheet", () => {
             expect(within(screen.getByTestId("create-product-vendor")).getByRole("combobox").textContent).toBe("Acme");
 
             fireEvent.change(screen.getByLabelText("Target price"), { target: { value: "2" } });
-            pickFromSelect("create-product-unit", "g");
+            pickFromSelect("create-product-unit", "kg");
             fireEvent.click(submitButton());
 
             await waitFor(() => expect(mockCreateProduct).toHaveBeenCalledTimes(1));

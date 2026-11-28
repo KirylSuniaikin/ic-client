@@ -4,6 +4,7 @@ import {
 } from "@mui/material";
 import type {ComponentCost, UpdateComponentCost} from "../../types";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
+import {formatUnit} from "../../../../../shared/utils/unitFormat";
 import {describeSaveError, parseCellInput} from "./businessFormat";
 
 type Props = {
@@ -126,7 +127,7 @@ export default function ComponentCostDrawer(
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.5}}>
                                 <Typography fontWeight="bold" sx={{color: '#3b352c'}}>{component.name}</Typography>
                                 {component.unit && (
-                                    <Chip size="small" label={component.unit.toLowerCase()}
+                                    <Chip size="small" label={formatUnit(component.unit)}
                                           sx={{backgroundColor: '#f1eae4', color: '#8a807a'}}/>
                                 )}
                                 <Chip

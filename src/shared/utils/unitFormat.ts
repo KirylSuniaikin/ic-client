@@ -23,3 +23,9 @@ export function formatStockUnit(unit: MeasureUnit | string | null | undefined): 
     if (unit === "ML") return "L";
     return formatUnit(unit);
 }
+
+// "/ kg", "/ L", "/ pcs" after a price per stock unit; empty when the product has no unit yet, so a
+// legacy row shows the bare number rather than a guessed unit.
+export function perStockUnit(unit: MeasureUnit | string | null | undefined): string {
+    return unit ? `/ ${formatStockUnit(unit)}` : "";
+}

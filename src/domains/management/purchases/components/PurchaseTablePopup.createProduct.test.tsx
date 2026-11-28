@@ -78,7 +78,7 @@ function optionNames(): string[] {
 async function fillAndSubmitCreateForm(): Promise<void> {
     fireEvent.change(await screen.findByLabelText("Target price"), { target: { value: "1.5" } });
     fireEvent.mouseDown(within(screen.getByTestId("create-product-unit")).getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "g" }));
+    fireEvent.click(screen.getByRole("option", { name: "kg" }));
     fireEvent.click(screen.getByTestId("create-product-submit"));
 }
 
@@ -171,7 +171,7 @@ describe("PurchaseTablePopup — adding a product from the line dropdown", () =>
 
             await waitFor(() => expect(productInput.value).toBe("Basil"));
             expect(vendorInput.value).toBe("Acme");
-            expect(screen.getByTestId("target-price-cell").textContent).toBe("1.500");
+            expect(screen.getByTestId("target-price-cell").textContent).toBe("1.500/ kg");
             await waitFor(() => expect(screen.queryByTestId("create-product-sheet")).toBeNull());
             expect(mockCreateProduct.mock.calls[0][0]).toMatchObject({ name: "Basil", isPurchasable: true });
         });
