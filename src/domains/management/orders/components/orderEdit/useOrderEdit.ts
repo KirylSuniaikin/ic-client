@@ -21,7 +21,8 @@ export interface OrderEditSummaryData extends OrderLineDiff {
     editedTotal: number;
 }
 
-export type OrderEditPhase = "editing" | "saving" | "saved";
+/** editing → review (nothing sent yet) → saving; Back to edit returns from review to editing. */
+export type OrderEditPhase = "editing" | "review" | "saving";
 
 export interface UseOrderEditResult {
     lines: OrderEditLine[];
@@ -40,11 +41,14 @@ export interface UseOrderEditResult {
     editedTotal: number;
     phase: OrderEditPhase;
     saveError: string | null;
-    complete: () => Promise<void>;
-    /** Set once the save succeeded: what the staff member is shown for 10 seconds. */
+    /** Opens the review of the change; nothing is sent yet. */
+    complete: () => void;
+    /** Set while the change is reviewed: what the staff member checks before it is sent. */
     summary: OrderEditSummaryData | null;
-    /** From the summary back to the lines, as saved: the next Complete saves again. */
-    continueEditing: () => void;
+    /** Sends the reviewed change. True once it is saved; false leaves the lines and saveError to retry. */
+    approve: () => Promise<boolean>;
+    /** From the review back to the lines, nothing sent. */
+    backToEdit: () => void;
 }
 
 function readEditedIds(): string[] {
@@ -86,7 +90,7 @@ function phoneOf(order: Order): string | null {
 export function useOrderEdit(order: Order): UseOrderEditResult {
     const [original] = useState<CartItem[]>(() => hydrateOrderItemsForEdit(order.items));
     const {
-        lines, items: editedItems, addItems, replaceLine, increment, decrement, removeLine, rebase,
+        lines, items: editedItems, addItems, replaceLine, increment, decrement, removeLine,
         diff, hasChanges, totalQuantity, originalTotal, editedTotal,
     } = useOrderLines(original);
     const savingRef = useRef(false);
@@ -96,8 +100,15 @@ export function useOrderEdit(order: Order): UseOrderEditResult {
 
     const completeBlocker: CompleteBlocker = editedItems.length === 0 ? "emptyOrder" : hasChanges ? null : "noChanges";
 
-    async function complete(): Promise<void> {
-        if (completeBlocker !== null || savingRef.current) return;
+    function complete(): void {
+        if (completeBlocker !== null || phase !== "editing") return;
+        setSaveError(null);
+        setSummary({ ...diff, originalTotal, editedTotal });
+        setPhase("review");
+    }
+
+    async function approve(): Promise<boolean> {
+        if (phase !== "review" || savingRef.current) return false;
         savingRef.current = true;
         setPhase("saving");
         setSaveError(null);
@@ -118,21 +129,21 @@ export function useOrderEdit(order: Order): UseOrderEditResult {
                 editedItems,
             );
             await editOrder(request, orderId);
-            setSummary({ ...diff, originalTotal, editedTotal });
-            setPhase("saved");
+            return true;
         } catch (err) {
             logger.error("Order edit: saving the order failed:", err);
             unmarkEditedHere(orderId);
             setSaveError(err instanceof Error ? err.message : String(err));
+            setSummary(null);
             setPhase("editing");
+            return false;
         } finally {
             savingRef.current = false;
         }
     }
 
-    function continueEditing(): void {
-        if (phase !== "saved") return;
-        rebase(editedItems);
+    function backToEdit(): void {
+        if (phase !== "review") return;
         setSummary(null);
         setPhase("editing");
     }
@@ -140,6 +151,6 @@ export function useOrderEdit(order: Order): UseOrderEditResult {
     return {
         lines, addItems, replaceLine, increment, decrement, removeLine,
         diff, hasChanges, completeBlocker, totalQuantity, originalTotal, editedTotal,
-        phase, saveError, complete, summary, continueEditing,
+        phase, saveError, complete, summary, approve, backToEdit,
     };
 }

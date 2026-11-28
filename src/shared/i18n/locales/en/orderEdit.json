@@ -1,8 +1,8 @@
 {
   "header": {
     "title": "Edit order #{{orderNo}}",
-    "savedTitle": "Order #{{orderNo}} updated",
-    "close": "Close"
+    "close": "Close",
+    "reviewTitle": "Check the changes to order #{{orderNo}}"
   },
   "menu": {
     "loading": "Loading the menu…",
@@ -52,13 +52,12 @@
     "nothingRemoved": "Nothing removed",
     "total": "Total",
     "totalChange": "{{was}} BD → {{now}} BD",
-    "closesIn": "Closes in {{count}} s",
-    "closeNow": "Close now",
-    "backToOrder": "Back to the order"
+    "approvesIn": "Approves in {{count}} s",
+    "approve": "Approve",
+    "backToEdit": "Back to edit"
   },
   "create": {
     "title": "New order",
-    "placedTitle": "Order placed",
     "continue": "Continue",
     "emptyOrder": "Add items to start",
     "discardBody": "The items you picked will be lost.",
@@ -76,12 +75,12 @@
     },
     "discount": "Order discount",
     "place": "Place order · {{amount}} BD",
-    "placing": "Placing…",
     "placeError": "The order was not placed: {{message}}",
     "customerTitle": "Customer",
     "orderTitle": "Order",
     "subtotal": "Subtotal",
     "discountLine": "Discount {{percent}}%",
-    "editTitle": "Change the order"
+    "reviewTitle": "Check the new order",
+    "review": "Review order · {{amount}} BD"
   }
 }

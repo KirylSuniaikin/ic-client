@@ -109,18 +109,58 @@ describe("useOrderEdit", () => {
         expect(result.current.completeBlocker).toBe("noChanges");
     });
 
-    it("does not save while Complete is blocked", async () => {
+    it("does not open the review while Complete is blocked", () => {
         const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
-        await act(async () => { await result.current.complete(); });
+        act(() => result.current.complete());
+        expect(result.current.phase).toBe("editing");
+        expect(result.current.summary).toBeNull();
+    });
+
+    it("opens the review on Complete without sending anything", () => {
+        const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
+        act(() => result.current.addItems([sprite()]));
+        act(() => result.current.complete());
+
+        expect(result.current.phase).toBe("review");
+        expect(result.current.summary?.added.map(c => c.item.name)).toEqual(["Sprite"]);
+        expect(result.current.summary?.originalTotal).toBeCloseTo(4.5);
+        expect(result.current.summary?.editedTotal).toBeCloseTo(5);
+        expect(mockEditOrder).not.toHaveBeenCalled();
+        expect(JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) ?? "[]")).toEqual([]);
+    });
+
+    it("goes back from the review to the same lines with nothing sent", () => {
+        const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
+        act(() => result.current.addItems([sprite()]));
+        act(() => result.current.complete());
+        act(() => result.current.backToEdit());
+
+        expect(result.current.phase).toBe("editing");
+        expect(result.current.summary).toBeNull();
+        expect(result.current.lines.map(l => [l.item.name, l.status.kind]))
+            .toEqual([["Pepperoni", "unchanged"], ["Coca Cola", "unchanged"], ["Sprite", "new"]]);
+        expect(result.current.completeBlocker).toBeNull();
         expect(mockEditOrder).not.toHaveBeenCalled();
     });
 
-    it("saves the edited lines with the order's own customer, payment and notes", async () => {
+    it("does not save without a review", async () => {
+        const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
+        act(() => result.current.addItems([sprite()]));
+        let saved = true;
+        await act(async () => { saved = await result.current.approve(); });
+        expect(saved).toBe(false);
+        expect(mockEditOrder).not.toHaveBeenCalled();
+    });
+
+    it("saves the approved lines with the order's own customer, payment and notes", async () => {
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
         act(() => result.current.addItems([sprite()]));
-        await act(async () => { await result.current.complete(); });
+        act(() => result.current.complete());
+        let saved = false;
+        await act(async () => { saved = await result.current.approve(); });
 
+        expect(saved).toBe(true);
         expect(mockEditOrder).toHaveBeenCalledTimes(1);
         expect(mockEditOrder).toHaveBeenCalledWith(expect.objectContaining({
             id: "77",
@@ -136,10 +176,6 @@ describe("useOrderEdit", () => {
                 expect.objectContaining({ name: "Sprite", quantity: 1, amount: 0.5 }),
             ],
         }), "77");
-        expect(result.current.phase).toBe("saved");
-        expect(result.current.summary?.added.map(c => c.item.name)).toEqual(["Sprite"]);
-        expect(result.current.summary?.originalTotal).toBeCloseTo(4.5);
-        expect(result.current.summary?.editedTotal).toBeCloseTo(5);
         // The board must not alert this tablet about its own edit.
         expect(JSON.parse(localStorage.getItem(EDITED_ORDER_ID_KEY) ?? "[]")).toEqual(["77"]);
     });
@@ -148,16 +184,20 @@ describe("useOrderEdit", () => {
         mockEditOrder.mockResolvedValue(makeEditableOrder());
         const { result } = renderHook(() => useOrderEdit(makeEditableOrder({ phone_number: "Failed to fetch number" })));
         act(() => result.current.addItems([sprite()]));
-        await act(async () => { await result.current.complete(); });
+        act(() => result.current.complete());
+        await act(async () => { await result.current.approve(); });
         expect(mockEditOrder).toHaveBeenCalledWith(expect.objectContaining({ tel: null }), "77");
     });
 
-    it("keeps the edits and reports the error when the save fails", async () => {
+    it("returns to the edits and reports the error when the approved save fails", async () => {
         mockEditOrder.mockRejectedValue(new Error("Error editing order: 500"));
         const { result } = renderHook(() => useOrderEdit(makeEditableOrder()));
         act(() => result.current.addItems([sprite()]));
-        await act(async () => { await result.current.complete(); });
+        act(() => result.current.complete());
+        let saved = true;
+        await act(async () => { saved = await result.current.approve(); });
 
+        expect(saved).toBe(false);
         expect(result.current.phase).toBe("editing");
         expect(result.current.saveError).toBe("Error editing order: 500");
         expect(result.current.lines.map(l => l.item.name)).toEqual(["Pepperoni", "Coca Cola", "Sprite"]);

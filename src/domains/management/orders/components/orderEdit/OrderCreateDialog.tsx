@@ -17,8 +17,9 @@ interface OrderCreateDialogProps {
 
 /**
  * A new staff order without leaving the board: pick the items in the quick popup, Continue to the
- * customer and payment step, Place order, then 10 seconds of what was ordered. Replaces the trip to
- * /menu?isAdmin=true for the topbar's New Order.
+ * customer and payment step, then a 10-second review that places the order when approved (or left
+ * alone) and goes back to the details when not. Replaces the trip to /menu?isAdmin=true for the
+ * topbar's New Order.
  */
 export function OrderCreateDialog({ branchId, onClose }: OrderCreateDialogProps): JSX.Element {
     const { t } = useTranslation("orderEdit");
@@ -32,58 +33,50 @@ export function OrderCreateDialog({ branchId, onClose }: OrderCreateDialogProps)
         if (order.unavailableNotice > 0) reloadMenu.current();
     }, [order.unavailableNotice]);
 
-    const showingSummary = order.step === "placed" && order.summary !== null;
+    const reviewing = (order.step === "review" || order.step === "saving") && order.summary !== null;
     let takeover: ReactNode;
-    if (showingSummary && order.summary) {
-        takeover = <OrderEditSummary variant={order.summaryVariant} summary={order.summary} onClose={onClose} onBack={order.backToOrder} />;
-    } else if (order.step === "details" || order.step === "saving") {
+    if (reviewing && order.summary) {
+        takeover = (
+            <OrderEditSummary
+                variant="create"
+                summary={order.summary}
+                approving={order.step === "saving"}
+                onApprove={() => { void order.approve().then(placed => { if (placed) onClose(); }); }}
+                onBack={order.backToDetails}
+            />
+        );
+    } else if (order.step === "details") {
         takeover = (
             <OrderCreateDetailsStep
                 items={order.items}
-                saving={order.step === "saving"}
+                initialDetails={order.details}
                 error={order.placeError}
                 onBack={order.backToItems}
-                onPlace={details => { void order.place(details); }}
+                onReview={order.review}
             />
         );
     }
 
     const isEmpty = order.items.length === 0;
-    // Once placed, the lines edit that order: the footer saves a change, like the edit popup's Complete.
-    let footer: OrderWorkFooter;
-    if (order.isPlaced) {
-        const saving = order.step === "saving";
-        footer = {
-            label: saving ? t("footer.saving") : isEmpty ? t("footer.emptyOrder") : order.hasChanges ? t("footer.complete") : t("footer.noChanges"),
-            disabled: saving || isEmpty || !order.hasChanges,
-            onClick: () => { void order.saveChanges(); },
-        };
-    } else {
-        footer = {
-            label: isEmpty ? t("create.emptyOrder") : t("create.continue"),
-            disabled: isEmpty,
-            onClick: order.toDetails,
-        };
-    }
-    let title = t("create.title");
-    if (showingSummary) title = t("create.placedTitle");
-    else if (order.isPlaced) title = t("create.editTitle");
-    const placeError = order.placeError === null ? null : order.isPlaced
-        ? t("footer.saveError", { message: order.placeError })
-        : t("create.placeError", { message: order.placeError });
+    const footer: OrderWorkFooter = {
+        label: isEmpty ? t("create.emptyOrder") : t("create.continue"),
+        disabled: isEmpty,
+        onClick: order.toDetails,
+    };
+    const placeError = order.placeError === null ? null : t("create.placeError", { message: order.placeError });
 
     return (
         <OrderWorkDialog
             menu={menu}
             lines={order}
-            title={title}
+            title={reviewing ? t("create.reviewTitle") : t("create.title")}
             ariaLabel={t("create.title")}
             footer={footer}
             error={order.step === "items" ? placeError : null}
             busy={order.step === "saving"}
-            hasUnsavedWork={order.isPlaced ? !showingSummary && order.hasChanges : !isEmpty}
-            discardBody={order.isPlaced ? t("discard.body") : t("create.discardBody")}
-            compareWithOriginal={order.isPlaced}
+            hasUnsavedWork={!isEmpty}
+            discardBody={t("create.discardBody")}
+            compareWithOriginal={false}
             takeover={takeover}
             onClose={onClose}
         />
