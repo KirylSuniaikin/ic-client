@@ -4,12 +4,18 @@ import {
     Button,
     Chip,
     CircularProgress,
+    Dialog,
     Divider,
     Drawer,
+    IconButton,
     Stack,
     Typography,
+    useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import CloseIcon from "@mui/icons-material/Close";
 import dayjs from "dayjs";
+import { desktopDialogPaperSx } from "../../../../shared/utils/desktopDialog";
 import { fetchUnpaidPurchaseInvoices, setPurchaseInvoicePaid } from "../../../../shared/api/management";
 import { logger } from "../../../../shared/utils/logger";
 import { UnpaidInvoiceTO } from "../types";
@@ -33,6 +39,10 @@ export function UnpaidInvoicesDrawer({ open, branchId, onClose, onPaid }: Props)
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [settling, setSettling] = useState<number | null>(null);
+    // Tablet and PC: a centred dialog — a bottom sheet strands the list against the bottom edge of
+    // a wide screen. From `sm` (600px), like ResponsiveSheet, so a portrait iPad (768–820px) gets
+    // it too; a phone keeps the bottom sheet.
+    const isDesktop = useMediaQuery(useTheme().breakpoints.up("sm"), { noSsr: true });
 
     useEffect(() => {
         if (!open) return;
@@ -75,6 +85,102 @@ export function UnpaidInvoicesDrawer({ open, branchId, onClose, onPaid }: Props)
         }
     }
 
+    const totalAndList = (
+        <>
+            <Typography
+                data-testid="unpaid-total-owed"
+                sx={{ textAlign: "center", mb: 2, color: "warning.main", fontWeight: 700 }}
+            >
+                Total owed: {Number(totalOwed).toFixed(3)} BHD
+            </Typography>
+
+            {loading && (
+                <Box sx={{ display: "grid", placeItems: "center", py: 4 }}>
+                    <CircularProgress />
+                </Box>
+            )}
+
+            {error && !loading && (
+                <Typography color="error" sx={{ textAlign: "center", py: 1 }}>{error}</Typography>
+            )}
+
+            {!loading && invoices.length === 0 && !error && (
+                <Typography color="text.secondary" sx={{ textAlign: "center", py: 3 }}>
+                    Nothing outstanding — every invoice is paid.
+                </Typography>
+            )}
+
+            <Stack divider={<Divider flexItem />} gap={1}>
+                {invoices.map((invoice) => (
+                    <Stack
+                        key={invoice.invoiceId}
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        gap={1}
+                        data-testid={`unpaid-row-${invoice.invoiceId}`}
+                        sx={{ py: 1 }}
+                    >
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 700 }} noWrap>
+                                {invoice.vendorName ?? "No vendor"}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" noWrap>
+                                {invoice.invoiceDate ? dayjs(invoice.invoiceDate).format("DD.MM.YYYY") : "No date"}
+                                {" · "}
+                                {invoice.reportTitle}
+                            </Typography>
+                        </Box>
+
+                        <Stack direction="row" alignItems="center" gap={1}>
+                            <Chip
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                label={Number(invoice.finalPrice ?? 0).toFixed(3)}
+                                sx={{ fontWeight: 700 }}
+                            />
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                disabled={settling === invoice.invoiceId}
+                                onClick={() => markPaid(invoice)}
+                                sx={{ textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" }}
+                            >
+                                {settling === invoice.invoiceId ? "…" : "Mark paid"}
+                            </Button>
+                        </Stack>
+                    </Stack>
+                ))}
+            </Stack>
+        </>
+    );
+
+    if (isDesktop) {
+        return (
+            <Dialog
+                open={open}
+                onClose={onClose}
+                maxWidth={false}
+                aria-labelledby="unpaid-invoices-title"
+                sx={{ zIndex: 1350 }}
+                slotProps={{ paper: { elevation: 0, sx: desktopDialogPaperSx(560) } }}
+            >
+                <Box sx={{ display: "flex", alignItems: "center", px: 3, pt: 2.5, pb: 0.5 }}>
+                    <Typography id="unpaid-invoices-title" variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
+                        Outstanding invoices
+                    </Typography>
+                    <IconButton aria-label="Close" onClick={onClose} sx={{ color: "#8a8f98" }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                <Box sx={{ px: 3, pb: 3, overflowY: "auto" }}>
+                    {totalAndList}
+                </Box>
+            </Dialog>
+        );
+    }
+
     return (
         <Drawer
             anchor="bottom"
@@ -98,72 +204,7 @@ export function UnpaidInvoicesDrawer({ open, branchId, onClose, onPaid }: Props)
                 <Typography variant="h6" fontWeight="bold" sx={{ textAlign: "center" }}>
                     Outstanding invoices
                 </Typography>
-                <Typography
-                    data-testid="unpaid-total-owed"
-                    sx={{ textAlign: "center", mb: 2, color: "warning.main", fontWeight: 700 }}
-                >
-                    Total owed: {Number(totalOwed).toFixed(3)} BHD
-                </Typography>
-
-                {loading && (
-                    <Box sx={{ display: "grid", placeItems: "center", py: 4 }}>
-                        <CircularProgress />
-                    </Box>
-                )}
-
-                {error && !loading && (
-                    <Typography color="error" sx={{ textAlign: "center", py: 1 }}>{error}</Typography>
-                )}
-
-                {!loading && invoices.length === 0 && !error && (
-                    <Typography color="text.secondary" sx={{ textAlign: "center", py: 3 }}>
-                        Nothing outstanding — every invoice is paid.
-                    </Typography>
-                )}
-
-                <Stack divider={<Divider flexItem />} gap={1}>
-                    {invoices.map((invoice) => (
-                        <Stack
-                            key={invoice.invoiceId}
-                            direction="row"
-                            alignItems="center"
-                            justifyContent="space-between"
-                            gap={1}
-                            data-testid={`unpaid-row-${invoice.invoiceId}`}
-                            sx={{ py: 1 }}
-                        >
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography sx={{ fontWeight: 700 }} noWrap>
-                                    {invoice.vendorName ?? "No vendor"}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" noWrap>
-                                    {invoice.invoiceDate ? dayjs(invoice.invoiceDate).format("DD.MM.YYYY") : "No date"}
-                                    {" · "}
-                                    {invoice.reportTitle}
-                                </Typography>
-                            </Box>
-
-                            <Stack direction="row" alignItems="center" gap={1}>
-                                <Chip
-                                    size="small"
-                                    variant="outlined"
-                                    color="warning"
-                                    label={Number(invoice.finalPrice ?? 0).toFixed(3)}
-                                    sx={{ fontWeight: 700 }}
-                                />
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    disabled={settling === invoice.invoiceId}
-                                    onClick={() => markPaid(invoice)}
-                                    sx={{ textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" }}
-                                >
-                                    {settling === invoice.invoiceId ? "…" : "Mark paid"}
-                                </Button>
-                            </Stack>
-                        </Stack>
-                    ))}
-                </Stack>
+                {totalAndList}
 
                 <Button fullWidth onClick={onClose} sx={{ mt: 2, textTransform: "none", fontWeight: 700 }}>
                     Close

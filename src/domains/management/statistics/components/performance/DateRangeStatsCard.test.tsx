@@ -3,6 +3,8 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {DateRangeStatsCard} from "./DateRangeStatsCard";
 import type {StatsResponse} from "../../types";
+// The AOV tile and the items heading resolve their copy through useTranslation("statistics").
+import "../../../../../shared/i18n";
 
 // Both pull in @mui/x-data-grid, which needs a TextEncoder polyfill this test
 // environment doesn't provide — stub them out since this suite only exercises
@@ -91,5 +93,30 @@ describe("DateRangeStatsCard", () => {
         );
 
         expect(screen.getByText("revenue trend vs Jul 3, 2026 — Jul 9, 2026")).toBeTruthy();
+    });
+
+    it("shows the range's average order value from the same revenue and order tiles", () => {
+        render(
+            <DateRangeStatsCard
+                stats={baseStats}
+                sellStats={[]}
+            />
+        );
+
+        // (100 + 40 + 10) BD over (5 + 2 + 1) orders.
+        expect(screen.getByText("Average Order Value")).toBeTruthy();
+        expect(screen.getByText("18.75")).toBeTruthy();
+    });
+
+    it("titles the items table as all items sold rather than a top 10", () => {
+        render(
+            <DateRangeStatsCard
+                stats={baseStats}
+                sellStats={[]}
+            />
+        );
+
+        expect(screen.getByText("Items Sold")).toBeTruthy();
+        expect(screen.queryByText("Top 10 Products")).toBeNull();
     });
 });

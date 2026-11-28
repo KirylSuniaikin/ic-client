@@ -21,11 +21,6 @@ export type DoughUsageRow = {
     [date: string]: string | number | boolean | undefined;
 };
 
-export type TopProduct = {
-    name: string;
-    quantity: number;
-};
-
 export type VatStatePayload = {
     branchId: string;
     fromDate: string;
@@ -44,9 +39,17 @@ export type DateRangeState = {
     key: string;
 };
 
+// One row per menu item NAME (sizes folded), every menu item including zero-sale ones, sorted by
+// `quantity` descending by the backend. Mirrors backend TopFiveProducts -- the name predates the
+// all-items list and is kept so the response shape stays stable.
 export type TopFiveProducts = {
     name: string;
+    // Total units: singleQuantity + comboQuantity.
     quantity: number;
+    // Units sold as their own order line.
+    singleQuantity: number;
+    // Units sold as a component inside a combo deal.
+    comboQuantity: number;
 };
 
 export type PreviousPeriod = {

@@ -1,5 +1,6 @@
 import React from "react";
 import {Box, Card, CardContent, Grid, Typography} from "@mui/material";
+import {useTranslation} from "react-i18next";
 import {PlatformsStatisticsGrid} from "./PlatformsStatisticsGrid";
 import {TopProductsTable} from "../TopProductsTable";
 import {RevenueByHourTable} from "../RevenueByHourTable";
@@ -15,6 +16,8 @@ type Props = {
 // The date-range picker button + popover moved up into StatisticsComponent's sticky
 // filter row (MULTIBRANCH_SPEC.md Part 4) -- this card keeps only its stats rendering.
 export function DateRangeStatsCard({stats, sellStats}: Props): JSX.Element {
+    const {t} = useTranslation("statistics");
+
     return (
         <Card sx={{borderRadius: 3, boxShadow: 3, width: "100%", mb: 2, mt: 1}}>
             <CardContent>
@@ -47,7 +50,7 @@ export function DateRangeStatsCard({stats, sellStats}: Props): JSX.Element {
                                 sx={{borderLeft: {md: "1px solid #e0e0e0"}, pl: {md: 2}}}
                             >
                                 <Typography variant="subtitle1" sx={{mb: 1, fontWeight: "bold"}}>
-                                    Top 10 Products
+                                    {t("items.title")}
                                 </Typography>
                                 <Box sx={{overflowX: "auto"}}>
                                     <TopProductsTable topProducts={stats.topProducts}/>

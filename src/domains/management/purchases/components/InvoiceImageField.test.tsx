@@ -1,8 +1,10 @@
-import { jest, describe, it, expect, beforeEach, beforeAll, afterAll } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, cleanup } from "@testing-library/react";
 import { InvoiceImageField } from "./InvoiceImageField";
 import { downscaleImage } from "../../../../shared/utils/imageCompress";
+import { fetchPurchaseInvoiceImage } from "../../../../shared/api/management";
+import { clearMatchMedia, stubMatchMedia, stubViewportWidth } from "../../../../shared/hooks/stubMatchMedia.testutil";
 
 jest.mock("../../../../shared/api/management");
 jest.mock("../../../../shared/utils/imageCompress");
@@ -162,5 +164,101 @@ describe("InvoiceImageField", () => {
 
         expect(await screen.findByTestId("invoice-image-error-inv-a")).toBeTruthy();
         expect(onUpdateInvoice).not.toHaveBeenCalled();
+    });
+});
+
+describe("InvoiceImageField — photo viewer", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.mocked(fetchPurchaseInvoiceImage).mockResolvedValue(new Blob(["stored"], { type: "image/jpeg" }));
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("opens the stored photo in a viewport-sized dialog on tablet and PC", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+
+        const dialog = screen.getByRole("dialog", { name: "Invoice photo" });
+        expect(dialog.className).not.toContain("MuiDrawer-paper");
+        const image = await within(dialog).findByTestId("invoice-image-full");
+        expect(fetchPurchaseInvoiceImage).toHaveBeenCalledWith(42);
+        // Scaled to fit the dialog, never cropped: an invoice has to stay readable end to end.
+        expect(getComputedStyle(image).objectFit).toBe("contain");
+    });
+
+    it("closes the PC dialog from its close button", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        const dialog = screen.getByRole("dialog", { name: "Invoice photo" });
+        await within(dialog).findByTestId("invoice-image-full");
+
+        fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("keeps the bottom sheet on a phone", async () => {
+        stubMatchMedia(false);
+        renderField({ hasImage: true, serverId: 42 });
+
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+
+        expect(await screen.findByTestId("invoice-image-full")).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+    });
+
+    it("uses the dialog on a portrait iPad (768px) and the bottom sheet on a 390px phone", async () => {
+        stubViewportWidth(768);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect(screen.getByRole("dialog", { name: "Invoice photo" }).className).not.toContain("MuiDrawer-paper");
+        cleanup();
+
+        stubViewportWidth(390);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect(await screen.findByTestId("invoice-image-full")).toBeTruthy();
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+    });
+
+    it("zooms to the photo's real size on click, scrollable, and fits it again on a second click", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        const image = await screen.findByTestId("invoice-image-full");
+        const area = screen.getByTestId("invoice-image-viewer-area");
+
+        expect(image.getAttribute("aria-pressed")).toBe("false");
+        expect(getComputedStyle(image).objectFit).toBe("contain");
+
+        fireEvent.click(image);
+        expect(image.getAttribute("aria-pressed")).toBe("true");
+        expect(getComputedStyle(image).objectFit).not.toBe("contain");
+        expect(getComputedStyle(area).overflow).toBe("auto");
+
+        fireEvent.click(image);
+        expect(image.getAttribute("aria-pressed")).toBe("false");
+        expect(getComputedStyle(image).objectFit).toBe("contain");
+    });
+
+    it("opens fitted again after being closed while zoomed", async () => {
+        stubMatchMedia(true);
+        renderField({ hasImage: true, serverId: 42 });
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        fireEvent.click(await screen.findByTestId("invoice-image-full"));
+        fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+        fireEvent.click(screen.getByLabelText("view invoice photo"));
+        expect((await screen.findByTestId("invoice-image-full")).getAttribute("aria-pressed")).toBe("false");
     });
 });

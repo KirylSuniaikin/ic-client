@@ -1,0 +1,13 @@
+{
+  "aov": {
+    "title": "Average Order Value",
+    "label": "Pick Up + Talabat + Keeta"
+  },
+  "items": {
+    "title": "Items Sold",
+    "name": "Item Name",
+    "single": "Single",
+    "combo": "In Combo",
+    "total": "Total"
+  }
+}

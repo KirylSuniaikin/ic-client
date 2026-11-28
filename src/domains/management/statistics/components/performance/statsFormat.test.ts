@@ -1,5 +1,33 @@
 import { describe, it, expect, afterEach } from "@jest/globals";
-import { formatPrepTime, formatStatRange } from "./statsFormat";
+import { formatAverageOrderValue, formatPrepTime, formatStatRange, rangeAverageOrderValue } from "./statsFormat";
+import type { StatsResponse } from "../../types";
+
+function rangeStats(overrides: Partial<StatsResponse>): StatsResponse {
+    return {
+        totalPickUpRevenue: 0,
+        totalPickUpOrderCount: 0,
+        newCustomerOrderedCount: 0,
+        oldCustomerOrderedCount: 0,
+        oldCstmrOrderCount: 0,
+        unknownCustomerOrderCount: 0,
+        arpu: null,
+        uniqueCustomersAllTime: 0,
+        repeatCustomersAllTime: 0,
+        averageOrderValueAllTime: null,
+        monthTotalCustomers: 0,
+        retainedCustomers: 0,
+        retentionPercentage: null,
+        doughUsageTOS: [],
+        sellsByHour: [],
+        totalTalabatOrders: 0,
+        totalTalabatRevenue: 0,
+        topProducts: [],
+        totalKeetaOrders: 0,
+        totalKeetaRevenue: 0,
+        averagePrepTimeSeconds: null,
+        ...overrides,
+    };
+}
 
 describe("formatPrepTime", () => {
     it("renders minutes and seconds for durations of a minute or more", () => {
@@ -55,3 +83,39 @@ describe("formatStatRange", () => {
     });
 });
 
+
+describe("rangeAverageOrderValue", () => {
+    it("divides the three platforms' revenue by their combined order count", () => {
+        const stats = rangeStats({
+            totalPickUpRevenue: 100, totalPickUpOrderCount: 5,
+            totalTalabatRevenue: 40, totalTalabatOrders: 2,
+            totalKeetaRevenue: 10, totalKeetaOrders: 1,
+        });
+
+        const result = rangeAverageOrderValue(stats);
+
+        expect(result).toBe(18.75);
+    });
+
+    it("returns null instead of dividing by zero when the range has no orders", () => {
+        const stats = rangeStats({totalPickUpRevenue: 12});
+
+        const result = rangeAverageOrderValue(stats);
+
+        expect(result).toBeNull();
+    });
+});
+
+describe("formatAverageOrderValue", () => {
+    it("renders two decimals like the all-time AOV", () => {
+        const result = formatAverageOrderValue(4.5);
+
+        expect(result).toBe("4.50");
+    });
+
+    it("returns an em dash when there is no value", () => {
+        const result = formatAverageOrderValue(null);
+
+        expect(result).toBe("—");
+    });
+});

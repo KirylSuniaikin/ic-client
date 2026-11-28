@@ -1,6 +1,7 @@
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, cleanup } from "@testing-library/react";
+import { clearMatchMedia, stubMatchMedia, stubViewportWidth } from "../../../../shared/hooks/stubMatchMedia.testutil";
 import { UnpaidInvoicesDrawer } from "./UnpaidInvoicesDrawer";
 import { fetchUnpaidPurchaseInvoices, setPurchaseInvoicePaid } from "../../../../shared/api/management";
 import type { UnpaidInvoiceTO } from "../types";
@@ -20,11 +21,11 @@ function invoice(overrides: Partial<UnpaidInvoiceTO> = {}): UnpaidInvoiceTO {
     };
 }
 
-function renderDrawer(onPaid = jest.fn()) {
+function renderDrawer(onPaid = jest.fn(), onClose = jest.fn()) {
     render(
-        <UnpaidInvoicesDrawer open={true} branchId="branch-uuid" onClose={jest.fn()} onPaid={onPaid} />
+        <UnpaidInvoicesDrawer open={true} branchId="branch-uuid" onClose={onClose} onPaid={onPaid} />
     );
-    return { onPaid };
+    return { onPaid, onClose };
 }
 
 describe("UnpaidInvoicesDrawer", () => {
@@ -112,5 +113,58 @@ describe("UnpaidInvoicesDrawer", () => {
         renderDrawer();
 
         expect(await screen.findByText("Response: 503")).toBeTruthy();
+    });
+});
+
+describe("UnpaidInvoicesDrawer — presentation", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.mocked(setPurchaseInvoicePaid).mockResolvedValue(undefined);
+        jest.mocked(fetchUnpaidPurchaseInvoices).mockResolvedValue({
+            invoices: [invoice()], count: 1, totalOwed: 11.5,
+        });
+    });
+
+    afterEach(() => {
+        clearMatchMedia();
+    });
+
+    it("opens as a centred dialog with a close button on tablet and PC", async () => {
+        stubMatchMedia(true);
+        const { onPaid, onClose } = renderDrawer();
+
+        const dialog = screen.getByRole("dialog", { name: "Outstanding invoices" });
+        expect(dialog.className).not.toContain("MuiDrawer-paper");
+        expect(await within(dialog).findByTestId("unpaid-row-11")).toBeTruthy();
+
+        fireEvent.click(within(dialog).getByText("Mark paid"));
+        await waitFor(() => expect(onPaid).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the bottom sheet on a phone", async () => {
+        stubMatchMedia(false);
+        renderDrawer();
+
+        expect(screen.getByRole("presentation").className).toContain("MuiDrawer-root");
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+        expect(await screen.findByTestId("unpaid-row-11")).toBeTruthy();
+    });
+
+    it("uses the dialog on a portrait iPad (768px) and the bottom sheet on a 390px phone", async () => {
+        stubViewportWidth(768);
+        renderDrawer();
+        expect(screen.getByRole("dialog", { name: "Outstanding invoices" }).className).not.toContain("MuiDrawer-paper");
+        await screen.findByTestId("unpaid-row-11");
+        cleanup();
+
+        stubViewportWidth(390);
+        renderDrawer();
+        expect(document.querySelector(".MuiDrawer-paperAnchorBottom")).toBeTruthy();
+        expect(document.querySelector(".MuiDialog-root")).toBeNull();
+        expect(await screen.findByTestId("unpaid-row-11")).toBeTruthy();
     });
 });
