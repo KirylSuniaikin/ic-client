@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { formatStockUnit, formatUnit } from "./unitFormat";
+import { formatStockUnit, formatUnit, perStockUnit } from "./unitFormat";
 
 describe("formatUnit", () => {
     it("formats GRAMS as g", () => {
@@ -54,5 +54,17 @@ describe("formatStockUnit", () => {
 
     it("renders an em dash for a product with no unit", () => {
         expect(formatStockUnit(null)).toBe("—");
+    });
+});
+
+describe("perStockUnit", () => {
+    it("says what a price is per, in the stock unit", () => {
+        expect(perStockUnit("GRAMS")).toBe("/ kg");
+        expect(perStockUnit("ML")).toBe("/ L");
+        expect(perStockUnit("PIECES")).toBe("/ pcs");
+    });
+
+    it("adds nothing for a product with no unit yet", () => {
+        expect(perStockUnit(null)).toBe("");
     });
 });

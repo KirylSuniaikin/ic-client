@@ -111,3 +111,29 @@ describe("PurchaseTableRow columns", () => {
         ).toHaveLength(0);
     });
 });
+
+describe("PurchaseTableRow units", () => {
+    it("shows the product's stock unit beside the amount and after both prices", () => {
+        renderRow(makeRow({ price: 2.5, quantity: 5, finalPrice: 12.5 }), makeProduct({ targetPrice: 2, unit: "GRAMS" }));
+
+        expect(cellText("amount-unit")).toBe("kg");
+        expect(cellText("unit-price-cell")).toBe("2.500/ kg");
+        expect(cellText("target-price-cell")).toBe("2.000/ kg");
+    });
+
+    it("shows L for a liquid and pcs for a counted product", () => {
+        const { unmount } = renderRow(makeRow(), makeProduct({ unit: "ML" }));
+        expect(cellText("amount-unit")).toBe("L");
+        unmount();
+
+        renderRow(makeRow(), makeProduct({ unit: "PIECES" }));
+        expect(cellText("amount-unit")).toBe("pcs");
+    });
+
+    it("shows no unit for a product without one", () => {
+        renderRow(makeRow({ price: 2.5 }), makeProduct({ unit: null }));
+
+        expect(screen.queryByTestId("amount-unit")).toBeNull();
+        expect(cellText("unit-price-cell")).toBe("2.500");
+    });
+});

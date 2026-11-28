@@ -3,7 +3,7 @@ import { Box, TableCell, TableRow } from "@mui/material";
 import Decimal from "decimal.js-light";
 import { InventoryRow } from "../types";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
-import { formatStockUnit } from "../../../../shared/utils/unitFormat";
+import { formatStockUnit, perStockUnit } from "../../../../shared/utils/unitFormat";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
 
 export type QuantityField = "kitchenQuantity" | "storageQuantity";
@@ -59,6 +59,16 @@ function getFinalPrice(row: InventoryRow): Decimal {
     return kitchen.add(storage).mul(price).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
 }
 
+/** The stock unit after a count ("kg"), so staff type 8.6, not 8600. Nothing for a product with no unit. */
+function QuantityUnit({ unit }: { unit: InventoryRow["unit"] }) {
+    if (!unit) return null;
+    return (
+        <Box component="span" sx={{ ml: 0.5, color: "text.secondary", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+            {formatStockUnit(unit)}
+        </Box>
+    );
+}
+
 /**
  * One inventory line. Memoized on its own `row`, so table-level state that doesn't touch this
  * row (the name filter, another row's commit) leaves it untouched instead of re-rendering
@@ -87,6 +97,7 @@ function InventoryTableRowInner({ row, onCommitQuantity }: InventoryTableRowProp
                         width={80}
                         sx={quantityInputSx}
                     />
+                    <QuantityUnit unit={row.unit} />
                 </Box>
             </TableCell>
 
@@ -100,12 +111,13 @@ function InventoryTableRowInner({ row, onCommitQuantity }: InventoryTableRowProp
                         width={80}
                         sx={quantityInputSx}
                     />
+                    <QuantityUnit unit={row.unit} />
                 </Box>
             </TableCell>
 
             {/* Price per unit */}
             <TableCell sx={{ minWidth: 130, color: "text.secondary", fontSize: "0.9rem" }}>
-                {fmt3(row.price)}
+                {fmt3(row.price)} {row.price != null && perStockUnit(row.unit)}
             </TableCell>
 
             {/* Final Price — read-only */}

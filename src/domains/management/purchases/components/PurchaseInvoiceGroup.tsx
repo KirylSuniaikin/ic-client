@@ -348,7 +348,7 @@ function PurchaseInvoiceGroupInner({
                     <HeaderWithInfo
                         align="right"
                         label="Amount"
-                        info="How much was bought, in kg or units."
+                        info="How much was bought, in the product's unit shown beside it (kg, L or pcs) — never grams."
                     />
                 </TableCell>
                 <TableCell component="th" scope="col" align="right" sx={inlineHeaderCellSx}>Total</TableCell>

@@ -18,6 +18,7 @@ import { PurchaseLineRow } from "../types";
 import { ProductTO } from "../../inventory/types";
 import { toDecimal } from "../mappers/purchaseMapper";
 import { fmt3 } from "../../../../shared/utils/decimalUtils";
+import { formatStockUnit, perStockUnit } from "../../../../shared/utils/unitFormat";
 import { DecimalCellInput } from "../../../../shared/components/DecimalCellInput";
 import { cleanProductName, normalizeProductName } from "../../_shared/utils/productName";
 import {
@@ -72,6 +73,9 @@ type PurchaseTableRowProps = {
 const BRAND = "#E44B4C";
 
 const isDecFinite = (d: Decimal): boolean => Number.isFinite(d.toNumber());
+
+// The product's stock unit after a number ("kg", "/ kg"): purchases are entered per kg / L / piece.
+const unitSuffixSx = { ml: 0.5, color: "text.secondary", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
 
 // Unit price: the explicit one when set, otherwise derived from total / quantity.
 function unitFromRow(row: PurchaseLineRow): Decimal {
@@ -212,6 +216,11 @@ function PurchaseTableRowInner({
                         width={72}
                         sx={numericInputSx}
                     />
+                    {product?.unit && (
+                        <Box component="span" data-testid="amount-unit" sx={unitSuffixSx}>
+                            {formatStockUnit(product.unit)}
+                        </Box>
+                    )}
                 </EditableNumber>
             </TableCell>
 
@@ -230,11 +239,13 @@ function PurchaseTableRowInner({
             {/* Unit Price (price) — total ÷ amount, read-only. The only cell that turns red. */}
             <TableCell align="right" sx={{ minWidth: 120, ...cellErrSx("price") }} data-testid="unit-price-cell">
                 <ComputedNumber tone={overTarget ? "error" : "neutral"}>{fmt3(row.price) || "—"}</ComputedNumber>
+                {row.price != null && product?.unit && <Box component="span" sx={unitSuffixSx}>{perStockUnit(product.unit)}</Box>}
             </TableCell>
 
             {/* Target Price — the price we aim to buy at, straight from the product. Read-only. */}
             <TableCell align="right" sx={{ minWidth: 120 }} data-testid="target-price-cell">
                 <ComputedNumber>{fmt3(product?.targetPrice ?? null) || "—"}</ComputedNumber>
+                {product?.targetPrice != null && product.unit && <Box component="span" sx={unitSuffixSx}>{perStockUnit(product.unit)}</Box>}
             </TableCell>
 
             {/* Line actions. Add-product sits right next to the bin, on the invoice's last line.

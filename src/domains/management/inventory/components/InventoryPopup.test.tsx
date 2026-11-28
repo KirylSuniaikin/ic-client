@@ -152,7 +152,8 @@ describe("InventoryPopup", () => {
 
         await screen.findAllByPlaceholderText("0.000");
 
-        expect(screen.getByText("kg")).toBeTruthy();
+        // The Unit column and the unit after both quantity inputs.
+        expect(screen.getAllByText("kg")).toHaveLength(3);
         expect(screen.queryByText("g")).toBeNull();
     });
 

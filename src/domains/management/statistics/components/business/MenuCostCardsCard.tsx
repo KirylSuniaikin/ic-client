@@ -8,6 +8,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import type {ComponentCost, MenuCostCardsResponse, MenuItemCostCard} from "../../types";
 import {formatBd} from "./businessFormat";
 import {BRAND_RED} from "../../../../../shared/utils/theme";
+import {formatUnit} from "../../../../../shared/utils/unitFormat";
 import {StatSkeleton} from "../performance/statPlaceholders";
 
 type Props = {
@@ -92,7 +93,7 @@ export default function MenuCostCardsCard(
                         {card.lines.map(line => (
                             <TableRow key={line.componentId}>
                                 <TableCell>{line.componentName}</TableCell>
-                                <TableCell align="right">{line.amount} {line.unit?.toLowerCase()}</TableCell>
+                                <TableCell align="right">{line.amount} {line.unit ? formatUnit(line.unit) : ""}</TableCell>
                                 <TableCell align="right">{line.unitCost}</TableCell>
                                 <TableCell align="right">{formatBd(line.lineCost)}</TableCell>
                                 <TableCell>

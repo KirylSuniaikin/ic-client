@@ -97,6 +97,28 @@ describe("ProductsTable", () => {
         );
     });
 
+    describe("prices per stock unit", () => {
+        function priceCell(field: "price" | "targetPrice"): string {
+            return document.querySelector(`.MuiDataGrid-row [data-field="${field}"]`)?.textContent ?? "";
+        }
+
+        it("says what the current and target prices are per", async () => {
+            render(<ProductsTable role={StaffRoles.MANAGER}/>);
+            await screen.findByText("Flour");
+
+            expect(priceCell("price")).toBe("6.5/ kg");
+            expect(priceCell("targetPrice")).toBe("7/ kg");
+        });
+
+        it("shows the bare price for a product with no unit yet", async () => {
+            mockFetchProducts.mockResolvedValue([product({unit: null})]);
+            render(<ProductsTable role={StaffRoles.MANAGER}/>);
+            await screen.findByText("Flour");
+
+            expect(priceCell("price")).toBe("6.5");
+        });
+    });
+
     describe("inline settings", () => {
         it("shows each row's current settings", async () => {
             render(<ProductsTable role={StaffRoles.MANAGER}/>);
