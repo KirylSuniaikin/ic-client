@@ -105,7 +105,7 @@ describe("ProductsTable", () => {
 
             expect(switchFor("Purchasable: Flour").checked).toBe(false);
             expect(switchFor("Inventory: Flour").checked).toBe(true);
-            expect(screen.getByRole("combobox", {name: "Unit: Flour"}).textContent).toBe("g");
+            expect(screen.getByRole("combobox", {name: "Unit: Flour"}).textContent).toBe("kg");
             expect(screen.getByRole("combobox", {name: "Top vendor: Flour"}).textContent).toBe("Acme");
         });
 
@@ -135,6 +135,18 @@ describe("ProductsTable", () => {
             await waitFor(() => expect(switchFor("Purchasable: Flour").checked).toBe(true));
             // The row stays locked until that save answers, so a second change cannot race it.
             expect(switchFor("Inventory: Flour").disabled).toBe(true);
+        });
+
+        it("labels the GRAMS choice kg but still saves GRAMS: recipe costing reads it in grams", async () => {
+            mockFetchProducts.mockResolvedValue([product({unit: "PIECES"})]);
+            mockUpdateProductSettings.mockResolvedValue(product({unit: "GRAMS"}));
+            render(<ProductsTable role={StaffRoles.OWNER}/>);
+            await screen.findByText("Flour");
+
+            pickInCell("Unit: Flour", "kg");
+
+            await waitFor(() => expect(mockUpdateProductSettings).toHaveBeenCalledTimes(1));
+            expect(mockUpdateProductSettings).toHaveBeenCalledWith(1, expect.objectContaining({unit: "GRAMS"}));
         });
 
         it("sends a new unit with the other three settings unchanged", async () => {
@@ -290,7 +302,7 @@ describe("ProductsTable", () => {
             fireEvent.change(await screen.findByLabelText("Name"), {target: {value: "Basil"}});
             fireEvent.change(screen.getByLabelText("Target price"), {target: {value: "7"}});
             fireEvent.mouseDown(within(screen.getByTestId("create-product-unit")).getByRole("combobox"));
-            fireEvent.click(screen.getByRole("option", {name: "g"}));
+            fireEvent.click(screen.getByRole("option", {name: "kg"}));
             fireEvent.click(screen.getByTestId("create-product-submit"));
 
             expect(await screen.findByText("Basil")).toBeTruthy();

@@ -5,7 +5,7 @@ import ResponsiveSheet, { SHEET_Z_INDEX } from "./ResponsiveSheet";
 import { BRAND_BUTTON_SX, BRAND_SWITCH_SX, ROUNDED_FIELD_SX, roundedMenuProps } from "./roundedSelect";
 import { createProduct } from "../../../../shared/api/management";
 import { logger } from "../../../../shared/utils/logger";
-import { formatUnit, MEASURE_UNITS } from "../../../../shared/utils/unitFormat";
+import { formatStockUnit, MEASURE_UNITS } from "../../../../shared/utils/unitFormat";
 import type { MeasureUnit } from "../../../../shared/utils/unitFormat";
 import { DUPLICATE_PRODUCT_NAME_MESSAGE, DuplicateProductNameError } from "../../inventory/types";
 import type { CreateProductRequest, ProductTO } from "../../inventory/types";
@@ -203,7 +203,7 @@ function CreateProductForm({
                     data-testid="create-product-unit"
                 >
                     {MEASURE_UNITS.map(u => (
-                        <MenuItem key={u} value={u}>{formatUnit(u)}</MenuItem>
+                        <MenuItem key={u} value={u}>{formatStockUnit(u)}</MenuItem>
                     ))}
                 </TextField>
             </Box>
